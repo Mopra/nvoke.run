@@ -6,6 +6,7 @@ import { clerkAuth, registerAuth } from "./auth.js";
 import { functionsRoutes } from "./routes/functions.js";
 import { invokeRoutes } from "./routes/invoke.js";
 import { invocationsRoutes } from "./routes/invocations.js";
+import { keysRoutes } from "./routes/keys.js";
 
 const app = Fastify({ logger: true });
 
@@ -14,6 +15,7 @@ registerAuth(app);
 await app.register(functionsRoutes);
 await app.register(invokeRoutes);
 await app.register(invocationsRoutes);
+await app.register(keysRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");
