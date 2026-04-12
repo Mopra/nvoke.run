@@ -6,7 +6,7 @@ Minimal tool for writing, running, and managing small Node.js functions.
 
 - Frontend: React + Vite, Tailwind, shadcn-style components, Monaco, Clerk.
 - Backend: Node 20, TypeScript, Fastify, `pg`, Zod, Clerk.
-- Database: Postgres (Supabase for dev, Coolify-managed in prod).
+- Database: Supabase Postgres (same instance for dev and prod, or a separate prod project).
 - Execution: `child_process.spawn('node', ['runner.mjs', ...])` with a 30s timeout and 128 MB heap cap.
 
 ## Dev
@@ -17,13 +17,15 @@ Minimal tool for writing, running, and managing small Node.js functions.
 4. In separate shells: `npm run dev:api` and `npm run dev:web`.
 5. Open http://localhost:5173.
 
-## Deployment (Coolify)
+## Deployment (Coolify + Supabase)
 
-Three resources in Coolify, all pulling from this git repo.
+Two resources in Coolify (api, web), one hosted database (Supabase).
 
-### 1. Postgres
+### 1. Supabase (database)
 
-Coolify managed Postgres 16 with persistent volume and backups. Record the connection string — you'll paste it into the API's `DATABASE_URL`.
+Use a Supabase project for Postgres. Recommended: a separate project for prod so dev experiments can't corrupt prod data. Grab the **Transaction pooler** connection string (port `6543`) from Project Settings → Database → Connection string → "Transaction" tab. URL-encode any special characters in the password.
+
+After Coolify deploys the API for the first time, run migrations once against the prod database — either via the API's pre-deploy command (set below) or manually with `DATABASE_URL=... npx -w apps/api tsx src/migrate.ts`.
 
 ### 2. API
 
@@ -36,7 +38,7 @@ Coolify managed Postgres 16 with persistent volume and backups. Record the conne
 - **Domain:** `api.nvoke.run`
 - **Environment variables:**
   ```
-  DATABASE_URL=<postgres connection string>
+  DATABASE_URL=postgresql://postgres.<ref>:<encoded-pw>@aws-0-<region>.pooler.supabase.com:6543/postgres
   CLERK_SECRET_KEY=sk_live_...
   CLERK_PUBLISHABLE_KEY=pk_live_...
   PORT=8080
