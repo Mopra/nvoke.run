@@ -5,6 +5,7 @@ import { pool } from "./db.js";
 import { clerkAuth, registerAuth } from "./auth.js";
 import { functionsRoutes } from "./routes/functions.js";
 import { invokeRoutes } from "./routes/invoke.js";
+import { invocationsRoutes } from "./routes/invocations.js";
 
 const app = Fastify({ logger: true });
 
@@ -12,6 +13,7 @@ await app.register(cors, { origin: true, credentials: true });
 registerAuth(app);
 await app.register(functionsRoutes);
 await app.register(invokeRoutes);
+await app.register(invocationsRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");
