@@ -3,11 +3,13 @@ import cors from "@fastify/cors";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { clerkAuth, registerAuth } from "./auth.js";
+import { functionsRoutes } from "./routes/functions.js";
 
 const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true, credentials: true });
 registerAuth(app);
+await app.register(functionsRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");
