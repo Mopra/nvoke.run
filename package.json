@@ -1,0 +1,12 @@
+{
+  "name": "nvoke",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:api": "npm -w apps/api run dev",
+    "dev:web": "npm -w apps/web run dev",
+    "build": "npm -w apps/api run build && npm -w apps/web run build",
+    "typecheck": "npm -w apps/api run typecheck && npm -w apps/web run typecheck",
+    "lint": "npm -w apps/api run lint && npm -w apps/web run lint"
+  }
+}
