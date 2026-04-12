@@ -1,3 +1,13 @@
+import { Outlet } from "react-router-dom";
+import { TopBar } from "./components/TopBar";
+
 export default function App() {
-  return <div className="p-6">nvoke</div>;
+  return (
+    <div className="min-h-screen">
+      <TopBar />
+      <main className="p-6">
+        <Outlet />
+      </main>
+    </div>
+  );
 }
