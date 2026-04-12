@@ -22,6 +22,23 @@ interface InvokeResponse {
   duration_ms: number;
 }
 
+interface HistoryRow {
+  id: string;
+  status: "success" | "error" | "timeout";
+  duration_ms: number;
+  started_at: string;
+}
+
+interface InvocationDetail {
+  id: string;
+  status: "success" | "error" | "timeout";
+  output: unknown;
+  logs: string[] | null;
+  error_message: string | null;
+  duration_ms: number;
+  input: unknown;
+}
+
 export default function FunctionDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -31,10 +48,20 @@ export default function FunctionDetailPage() {
   const [inputText, setInputText] = useState('{\n  "name": "world"\n}');
   const [result, setResult] = useState<InvokeResponse | null>(null);
   const [running, setRunning] = useState(false);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+
+  async function loadHistory() {
+    if (!id) return;
+    const r = await request<{ invocations: HistoryRow[] }>(
+      `/api/functions/${id}/invocations`,
+    );
+    setHistory(r.invocations);
+  }
 
   useEffect(() => {
     if (!id) return;
     request<{ function: Fn }>(`/api/functions/${id}`).then((r) => setFn(r.function));
+    loadHistory();
   }, [id]);
 
   async function save() {
@@ -69,9 +96,25 @@ export default function FunctionDetailPage() {
         body: JSON.stringify(input),
       });
       setResult(r);
+      loadHistory();
     } finally {
       setRunning(false);
     }
+  }
+
+  async function loadInvocation(invId: string) {
+    const { invocation } = await request<{ invocation: InvocationDetail }>(
+      `/api/invocations/${invId}`,
+    );
+    setInputText(JSON.stringify(invocation.input, null, 2));
+    setResult({
+      invocation_id: invocation.id,
+      status: invocation.status,
+      output: invocation.output,
+      logs: invocation.logs ?? [],
+      error: invocation.error_message,
+      duration_ms: invocation.duration_ms,
+    });
   }
 
   if (!fn) return <div>Loading…</div>;
@@ -159,6 +202,36 @@ export default function FunctionDetailPage() {
             </TabsContent>
           </Tabs>
         </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold mb-2">History</h2>
+        {history.length === 0 ? (
+          <p className="text-zinc-500 text-sm">No invocations yet.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="text-zinc-400">
+              <tr>
+                <th className="text-left p-2">Status</th>
+                <th className="text-left p-2">Duration</th>
+                <th className="text-left p-2">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((h) => (
+                <tr
+                  key={h.id}
+                  className="cursor-pointer hover:bg-zinc-900 border-t border-zinc-900"
+                  onClick={() => loadInvocation(h.id)}
+                >
+                  <td className="p-2">{h.status}</td>
+                  <td className="p-2">{h.duration_ms} ms</td>
+                  <td className="p-2">{new Date(h.started_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
