@@ -61,3 +61,25 @@ export const listInvocations = (functionId: string, userId: string, limit = 50) 
 
 export const getInvocation = (id: string, userId: string) =>
   one<Invocation>("SELECT * FROM invocations WHERE id=$1 AND user_id=$2", [id, userId]);
+
+export const listAllInvocations = (
+  userId: string,
+  opts: { status?: "success" | "error" | "timeout"; limit?: number } = {},
+) => {
+  const params: unknown[] = [userId];
+  let statusClause = "";
+  if (opts.status) {
+    params.push(opts.status);
+    statusClause = ` AND i.status=$${params.length}`;
+  }
+  params.push(opts.limit ?? 100);
+  return q<Invocation & { function_name: string }>(
+    `SELECT i.*, f.name AS function_name
+     FROM invocations i
+     JOIN functions f ON f.id = i.function_id
+     WHERE i.user_id=$1${statusClause}
+     ORDER BY i.started_at DESC
+     LIMIT $${params.length}`,
+    params,
+  );
+};

@@ -24,6 +24,20 @@ app.get("/api/health", async () => {
 
 app.get("/api/me", { preHandler: clerkAuth }, async (req) => ({ user: req.user }));
 
+const RETENTION_INTERVAL_MS = 60 * 60 * 1000;
+async function pruneOldInvocations() {
+  try {
+    const res = await pool.query(
+      "DELETE FROM invocations WHERE started_at < now() - interval '1 day'",
+    );
+    if (res.rowCount) app.log.info({ deleted: res.rowCount }, "pruned old invocations");
+  } catch (err) {
+    app.log.error({ err }, "invocation prune failed");
+  }
+}
+void pruneOldInvocations();
+setInterval(pruneOldInvocations, RETENTION_INTERVAL_MS).unref();
+
 app.listen({ port: config.PORT, host: "0.0.0.0" }).catch((err) => {
   app.log.error(err);
   process.exit(1);

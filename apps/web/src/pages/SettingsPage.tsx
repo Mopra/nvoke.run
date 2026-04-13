@@ -1,154 +1,74 @@
-import { useEffect, useState } from "react";
-import { useApi } from "../lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-
-interface Key {
-  id: string;
-  name: string;
-  prefix: string;
-  last_used_at: string | null;
-  created_at: string;
-}
+import { useUser } from "@clerk/clerk-react";
 
 export default function SettingsPage() {
-  const { request } = useApi();
-  const [keys, setKeys] = useState<Key[]>([]);
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [rawKey, setRawKey] = useState<string | null>(null);
-
-  async function load() {
-    const r = await request<{ keys: Key[] }>("/api/keys");
-    setKeys(r.keys);
-  }
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function create() {
-    const r = await request<{ key: Key; raw_key: string }>("/api/keys", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    });
-    setRawKey(r.raw_key);
-    setName("");
-    load();
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Delete this key?")) return;
-    await request(`/api/keys/${id}`, { method: "DELETE" });
-    load();
-  }
+  const { user } = useUser();
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">API Keys</h1>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) setRawKey(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>New key</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{rawKey ? "Your new key" : "New API key"}</DialogTitle>
-            </DialogHeader>
-            {rawKey ? (
-              <div className="space-y-2">
-                <p className="text-sm text-amber-400">
-                  Copy this now. It won't be shown again.
-                </p>
-                <code className="block bg-zinc-900 border border-zinc-800 rounded p-2 text-xs break-all">
-                  {rawKey}
-                </code>
-                <Button onClick={() => navigator.clipboard.writeText(rawKey)}>
-                  Copy
-                </Button>
-              </div>
-            ) : (
-              <>
-                <Input
-                  placeholder="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                <DialogFooter>
-                  <Button onClick={create} disabled={!name}>
-                    Create
-                  </Button>
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
+    <div className="flex h-full flex-col bg-card text-card-foreground">
+      {/* Toolbar */}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
+        <div className="text-sm font-semibold text-foreground">Settings</div>
+        <span className="text-muted-foreground/50">•</span>
+        <div className="text-xs text-muted-foreground">Your account and preferences.</div>
       </div>
 
-      {keys.length === 0 ? (
-        <p className="text-zinc-400">No keys yet.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Prefix</TableHead>
-              <TableHead>Last used</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {keys.map((k) => (
-              <TableRow key={k.id}>
-                <TableCell>{k.name}</TableCell>
-                <TableCell>
-                  <code>{k.prefix}…</code>
-                </TableCell>
-                <TableCell>
-                  {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : "—"}
-                </TableCell>
-                <TableCell>{new Date(k.created_at).toLocaleString()}</TableCell>
-                <TableCell>
-                  <Button variant="destructive" size="sm" onClick={() => remove(k.id)}>
-                    Delete
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      {/* Body: nav rail + content */}
+      <div className="flex min-h-0 flex-1">
+        <nav className="flex w-56 shrink-0 flex-col border-r border-border bg-muted/20 py-2 text-sm">
+          <a
+            href="#profile"
+            className="border-l-2 border-primary bg-accent px-4 py-2 text-accent-foreground"
+          >
+            Profile
+          </a>
+          <a
+            href="#appearance"
+            className="border-l-2 border-transparent px-4 py-2 text-muted-foreground hover:text-foreground"
+          >
+            Appearance
+          </a>
+          <a
+            href="#danger"
+            className="border-l-2 border-transparent px-4 py-2 text-muted-foreground hover:text-foreground"
+          >
+            Danger zone
+          </a>
+        </nav>
 
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Using the API</h2>
-        <pre className="bg-zinc-900 border border-zinc-800 rounded p-3 text-xs overflow-auto">
-          {`curl -X POST ${import.meta.env.VITE_API_URL}/api/invoke/<FUNCTION_ID> \\
-  -H "Authorization: Bearer nvk_your_key" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"world"}'`}
-        </pre>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <section id="profile" className="border-b border-border">
+            <div className="flex h-8 items-center border-b border-border bg-muted/20 px-4 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Profile
+            </div>
+            <div className="grid grid-cols-[160px_1fr] gap-y-3 px-6 py-5 text-sm">
+              <div className="text-muted-foreground">Name</div>
+              <div className="text-foreground">{user?.fullName ?? "—"}</div>
+              <div className="text-muted-foreground">Email</div>
+              <div className="text-foreground">
+                {user?.primaryEmailAddress?.emailAddress ?? "—"}
+              </div>
+            </div>
+          </section>
+
+          <section id="appearance" className="border-b border-border">
+            <div className="flex h-8 items-center border-b border-border bg-muted/20 px-4 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Appearance
+            </div>
+            <div className="px-6 py-5 text-sm text-muted-foreground">
+              Theme: <span className="text-foreground">Dark</span>.{" "}
+              <span className="text-muted-foreground/70">(Light mode coming soon.)</span>
+            </div>
+          </section>
+
+          <section id="danger">
+            <div className="flex h-8 items-center border-b border-destructive/20 bg-destructive/5 px-4 text-[10px] font-medium uppercase tracking-wider text-destructive">
+              Danger zone
+            </div>
+            <div className="px-6 py-5 text-sm text-muted-foreground">
+              Account deletion is handled through your Clerk account profile.
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

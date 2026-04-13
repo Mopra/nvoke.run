@@ -1,10 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { clerkAuth } from "../auth.js";
-import { listInvocations, getInvocation } from "../queries/invocations.js";
+import { listInvocations, getInvocation, listAllInvocations } from "../queries/invocations.js";
 
 const FnParams = z.object({ id: z.string().uuid() });
 const InvParams = z.object({ id: z.string().uuid() });
+const ListQuery = z.object({
+  status: z.enum(["success", "error", "timeout"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
 
 export async function invocationsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", clerkAuth);
@@ -16,6 +20,23 @@ export async function invocationsRoutes(app: FastifyInstance) {
       invocations: rows.map((r) => ({
         id: r.id,
         function_id: r.function_id,
+        source: r.source,
+        status: r.status,
+        duration_ms: r.duration_ms,
+        started_at: r.started_at,
+        completed_at: r.completed_at,
+      })),
+    };
+  });
+
+  app.get("/api/invocations", async (req) => {
+    const { status, limit } = ListQuery.parse(req.query);
+    const rows = await listAllInvocations(req.user!.id, { status, limit });
+    return {
+      invocations: rows.map((r) => ({
+        id: r.id,
+        function_id: r.function_id,
+        function_name: r.function_name,
         source: r.source,
         status: r.status,
         duration_ms: r.duration_ms,

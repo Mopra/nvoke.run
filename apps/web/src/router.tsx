@@ -5,6 +5,8 @@ import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 import FunctionsListPage from "./pages/FunctionsListPage";
 import FunctionDetailPage from "./pages/FunctionDetailPage";
+import RunsPage from "./pages/RunsPage";
+import ApiKeysPage from "./pages/ApiKeysPage";
 import SettingsPage from "./pages/SettingsPage";
 
 function Protected() {
@@ -30,6 +32,8 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/functions" replace /> },
       { path: "functions", element: <FunctionsListPage /> },
       { path: "functions/:id", element: <FunctionDetailPage /> },
+      { path: "runs", element: <RunsPage /> },
+      { path: "keys", element: <ApiKeysPage /> },
       { path: "settings", element: <SettingsPage /> },
     ],
   },

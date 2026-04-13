@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init --yes --defaults)",
+      "Bash(npx shadcn@latest add button table badge dialog tabs card input textarea --yes)",
+      "Bash(npm run:*)",
+      "Bash(export PATH=\"/c/Program Files/dotnet:$PATH\")",
+      "Bash(dotnet test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
+    ]
+  }
+}
