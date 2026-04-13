@@ -81,7 +81,7 @@ export function SearchResultsPanel({
                 onClick={() => onSelect(item)}
                 onMouseEnter={() => onHoverIndex(index)}
                 className={
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm " +
+                  "flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
                   (isSelected
                     ? "bg-accent text-accent-foreground"
                     : "text-foreground hover:bg-accent hover:text-accent-foreground")

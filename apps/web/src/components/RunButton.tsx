@@ -1,5 +1,5 @@
 import { Play, Loader2, Check, X } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
 
 type RunState = "idle" | "running" | "success" | "error";
 
@@ -14,39 +14,30 @@ export function RunButton({
   onClick: () => void;
   disabled?: boolean;
 }) {
-  const base =
-    "inline-flex items-center gap-2 rounded-md px-4 h-9 text-sm font-medium transition-colors disabled:opacity-50";
   if (state === "running") {
     return (
-      <button disabled className={cn(base, "bg-primary/20 text-primary")}>
+      <Button disabled variant="success">
         <Loader2 className="h-4 w-4 animate-spin" /> Running…
-      </button>
+      </Button>
     );
   }
   if (state === "success") {
     return (
-      <button
-        onClick={onClick}
-        className={cn(base, "bg-secondary text-secondary-foreground")}
-      >
+      <Button onClick={onClick} variant="soft">
         <Check className="h-4 w-4" /> {duration}ms
-      </button>
+      </Button>
     );
   }
   if (state === "error") {
     return (
-      <button onClick={onClick} className={cn(base, "bg-destructive/20 text-destructive")}>
+      <Button onClick={onClick} variant="softDestructive">
         <X className="h-4 w-4" /> Failed
-      </button>
+      </Button>
     );
   }
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(base, "bg-primary text-primary-foreground hover:bg-primary/90")}
-    >
+    <Button onClick={onClick} disabled={disabled}>
       <Play className="h-4 w-4" /> Run
-    </button>
+    </Button>
   );
 }

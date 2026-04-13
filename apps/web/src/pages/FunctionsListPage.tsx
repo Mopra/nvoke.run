@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, MoreHorizontal, Code2 } from "lucide-react";
+import { toast } from "sonner";
 import { useApi } from "../lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,13 +13,20 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { StatusDot } from "@/components/StatusDot";
 import { Sparkline } from "@/components/Sparkline";
 import { EmptyState } from "@/components/EmptyState";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 interface Fn {
   id: string;
   name: string;
+  code?: string;
   created_at: string;
 }
 
@@ -29,11 +37,24 @@ interface Invocation {
   started_at: string;
 }
 
+interface InvokeResponse {
+  invocation_id: string;
+  status: "success" | "error" | "timeout";
+  output: unknown;
+  logs: string[] | null;
+  error: string | null;
+  duration_ms: number;
+}
+
 const DEFAULT_CODE = `export default async function (input, ctx) {
   ctx.log("hello", input);
   return { echo: input };
 }
 `;
+
+const DEFAULT_INPUT = {
+  name: "world",
+};
 
 function relTime(iso: string): string {
   const d = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -46,10 +67,13 @@ function relTime(iso: string): string {
 export default function FunctionsListPage() {
   const { request } = useApi();
   const nav = useNavigate();
+  const confirm = useConfirm();
   const [fns, setFns] = useState<Fn[]>([]);
   const [invs, setInvs] = useState<Invocation[]>([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [renameTarget, setRenameTarget] = useState<Fn | null>(null);
+  const [renameName, setRenameName] = useState("");
 
   async function load() {
     const [f, i] = await Promise.all([
@@ -72,6 +96,85 @@ export default function FunctionsListPage() {
     setOpen(false);
     setName("");
     nav(`/functions/${res.function.id}`);
+  }
+
+  async function duplicateFunction(id: string) {
+    const detail = await request<{ function: Fn }>(`/api/functions/${id}`);
+    const res = await request<{ function: Fn }>("/api/functions", {
+      method: "POST",
+      body: JSON.stringify({
+        name: `${detail.function.name} copy`,
+        code: detail.function.code ?? DEFAULT_CODE,
+      }),
+    });
+    toast.success("Function duplicated");
+    nav(`/functions/${res.function.id}`);
+  }
+
+  async function renameFunction() {
+    if (!renameTarget) return;
+    const nextName = renameName.trim();
+    if (!nextName || nextName === renameTarget.name) {
+      setRenameTarget(null);
+      setRenameName("");
+      return;
+    }
+    const res = await request<{ function: Fn }>(`/api/functions/${renameTarget.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name: nextName }),
+    });
+    setFns((current) =>
+      current.map((fn) =>
+        fn.id === renameTarget.id ? { ...fn, name: res.function.name } : fn,
+      ),
+    );
+    setRenameTarget(null);
+    setRenameName("");
+    toast.success("Function renamed");
+  }
+
+  async function runFunction(id: string) {
+    const res = await request<InvokeResponse>(`/api/functions/${id}/invoke`, {
+      method: "POST",
+      body: JSON.stringify(DEFAULT_INPUT),
+    });
+    const runsRes = await request<{ invocations: Invocation[] }>("/api/invocations?limit=500");
+    setInvs(runsRes.invocations);
+    if (res.status === "success") {
+      toast.success(`Run finished in ${res.duration_ms}ms`);
+      return;
+    }
+    toast.error(res.error ?? `Run ${res.status}`);
+  }
+
+  function copyInvokeUrl(id: string) {
+    navigator.clipboard.writeText(`${import.meta.env.VITE_API_URL}/api/invoke/${id}`);
+    toast.success("Invoke URL copied");
+  }
+
+  function copyCurl(id: string) {
+    navigator.clipboard.writeText(
+      `curl -X POST ${import.meta.env.VITE_API_URL}/api/invoke/${id} \\
+  -H "Authorization: Bearer nvk_your_key" \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(DEFAULT_INPUT)}'`,
+    );
+    toast.success("Curl command copied");
+  }
+
+  async function deleteFunction(id: string) {
+    const fn = fns.find((f) => f.id === id);
+    const ok = await confirm({
+      title: "Delete this function?",
+      description: fn ? `"${fn.name}" will be permanently removed along with its invocation history.` : undefined,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    await request(`/api/functions/${id}`, { method: "DELETE" });
+    setFns((current) => current.filter((fn) => fn.id !== id));
+    setInvs((current) => current.filter((inv) => inv.function_id !== id));
+    toast.success("Function deleted");
   }
 
   function statsFor(fnId: string) {
@@ -114,6 +217,40 @@ export default function FunctionsListPage() {
             <DialogFooter>
               <Button onClick={create} disabled={!name}>
                 Create
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={renameTarget !== null}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              setRenameTarget(null);
+              setRenameName("");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rename function</DialogTitle>
+            </DialogHeader>
+            <Input
+              placeholder="name"
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void renameFunction();
+                }
+              }}
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setRenameTarget(null)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void renameFunction()} disabled={!renameName.trim()}>
+                Save
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -170,7 +307,70 @@ export default function FunctionsListPage() {
                       <Sparkline values={sparkline} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <MoreHorizontal className="inline h-4 w-4 text-muted-foreground/70" />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={`Actions for ${f.name}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="end"
+                          className="w-44 p-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
+                            onClick={() => {
+                              setRenameTarget(f);
+                              setRenameName(f.name);
+                            }}
+                          >
+                            Rename
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
+                            onClick={() => void runFunction(f.id)}
+                          >
+                            Run now
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
+                            onClick={() => copyInvokeUrl(f.id)}
+                          >
+                            Copy invoke URL
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
+                            onClick={() => copyCurl(f.id)}
+                          >
+                            Copy curl
+                          </button>
+                          <div className="my-1 h-px w-full bg-border" aria-hidden />
+                          <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
+                            onClick={() => void duplicateFunction(f.id)}
+                          >
+                            Duplicate
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
+                            onClick={() => void deleteFunction(f.id)}
+                          >
+                            Delete
+                          </button>
+                        </PopoverContent>
+                      </Popover>
                     </td>
                   </tr>
                 );

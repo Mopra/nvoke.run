@@ -30,6 +30,7 @@ export function TopBarSearch() {
   const [fns, setFns] = useState<Fn[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const nav = useNavigate();
   const location = useLocation();
   const { request } = useApi();
@@ -146,8 +147,11 @@ export function TopBarSearch() {
   return (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverAnchor asChild>
-        <div className="flex w-72 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm focus-within:border-ring focus-within:ring-1 focus-within:ring-ring">
-          <Search className="h-4 w-4 text-muted-foreground" />
+        <div
+          ref={anchorRef}
+          className="flex w-72 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm focus-within:border-ring focus-within:ring-1 focus-within:ring-ring"
+        >
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             value={query}
@@ -157,10 +161,10 @@ export function TopBarSearch() {
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search functions, jump to page…"
-            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            placeholder="Search or jump to…"
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
-          <kbd className="rounded bg-accent px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <kbd className="ml-2 whitespace-nowrap rounded bg-accent px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
             {mac ? "⌘K" : "Ctrl K"}
           </kbd>
         </div>
@@ -171,6 +175,16 @@ export function TopBarSearch() {
         className="w-[min(560px,90vw)] p-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => {
+          if (anchorRef.current?.contains(e.target as Node)) {
+            e.preventDefault();
+          }
+        }}
+        onFocusOutside={(e) => {
+          if (anchorRef.current?.contains(e.target as Node)) {
+            e.preventDefault();
+          }
+        }}
       >
         <SearchResultsPanel
           query={query}

@@ -1,6 +1,7 @@
 import { useUser, useClerk } from "@clerk/clerk-react";
 import { useState, useRef, useEffect } from "react";
 import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function UserBlock() {
   const { user } = useUser();
@@ -31,17 +32,19 @@ export function UserBlock() {
     <div ref={ref} className="relative">
       {open && (
         <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl">
-          <button
+          <Button
+            variant="ghost"
             onClick={() => signOut()}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+            className="w-full justify-start px-3 font-normal"
           >
             <LogOut className="h-4 w-4" /> Sign out
-          </button>
+          </Button>
         </div>
       )}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-sidebar-accent"
+        type="button"
+        className="flex w-full cursor-pointer items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {user.imageUrl ? (
           <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full" />

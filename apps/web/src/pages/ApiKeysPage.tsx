@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/EmptyState";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 interface Key {
   id: string;
@@ -24,6 +25,7 @@ interface Key {
 
 export default function ApiKeysPage() {
   const { request } = useApi();
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<Key[]>([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -48,7 +50,14 @@ export default function ApiKeysPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this key?")) return;
+    const key = keys.find((k) => k.id === id);
+    const ok = await confirm({
+      title: "Revoke this API key?",
+      description: key ? `"${key.name}" (${key.prefix}…) will stop working immediately. This cannot be undone.` : undefined,
+      confirmLabel: "Revoke",
+      destructive: true,
+    });
+    if (!ok) return;
     await request(`/api/keys/${id}`, { method: "DELETE" });
     toast.success("Key revoked");
     load();

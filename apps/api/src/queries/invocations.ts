@@ -1,5 +1,7 @@
 import { q, one } from "../db.js";
 
+export type TriggerKind = "editor" | "http";
+
 export interface Invocation {
   id: string;
   function_id: string;
@@ -13,6 +15,13 @@ export interface Invocation {
   error_message: string | null;
   started_at: string;
   completed_at: string | null;
+  trigger_kind: TriggerKind;
+  request_method: string | null;
+  request_path: string | null;
+  request_headers: Record<string, string> | null;
+  response_status: number | null;
+  response_headers: Record<string, string> | null;
+  response_body_preview: string | null;
 }
 
 export function insertInvocation(row: {
@@ -27,12 +36,21 @@ export function insertInvocation(row: {
   error_message: string | null;
   started_at: Date;
   completed_at: Date;
+  trigger_kind: TriggerKind;
+  request_method?: string | null;
+  request_path?: string | null;
+  request_headers?: Record<string, string> | null;
+  response_status?: number | null;
+  response_headers?: Record<string, string> | null;
+  response_body_preview?: string | null;
 }) {
   return one<Invocation>(
     `INSERT INTO invocations
        (function_id, user_id, source, input, output, logs, status, duration_ms,
-        error_message, started_at, completed_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        error_message, started_at, completed_at,
+        trigger_kind, request_method, request_path, request_headers,
+        response_status, response_headers, response_body_preview)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
     [
       row.function_id,
@@ -46,6 +64,13 @@ export function insertInvocation(row: {
       row.error_message,
       row.started_at,
       row.completed_at,
+      row.trigger_kind,
+      row.request_method ?? null,
+      row.request_path ?? null,
+      row.request_headers ?? null,
+      row.response_status ?? null,
+      row.response_headers ?? null,
+      row.response_body_preview ?? null,
     ],
   );
 }

@@ -1,6 +1,50 @@
 # nvoke
 
-Minimal tool for writing, running, and managing small Node.js functions.
+Minimal tool for writing and running small HTTP-native Node.js functions. Each
+function is a single file that receives a normalized HTTP request and returns
+an HTTP response, exposed at a stable `/f/:slug` endpoint you can call as a
+real webhook, callback URL, or tiny API.
+
+## Function shape
+
+```js
+export default async function (req, ctx) {
+  ctx.log("got", req.method, req.path);
+  return {
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: { ok: true, echoed: req.body }
+  };
+}
+```
+
+`req` has `method`, `path`, `query`, `headers`, and parsed `body`. Returning a
+bare object/array/string is fine — nvoke normalizes it into a JSON or text
+response automatically.
+
+## Configuring an endpoint
+
+In the function detail page, open the **HTTP** tab to set:
+
+- **Slug** — stable URL segment used by `/f/<slug>`
+- **Access mode** — `public` (no auth) or `api_key` (requires `Authorization: Bearer nvk_...`)
+- **Allowed methods** — any of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`
+- **Enabled** — disabled endpoints return `404`
+
+### Public endpoint
+
+```
+curl https://api.nvoke.run/f/uptime-sim
+```
+
+### API-key protected endpoint
+
+```
+curl -X POST https://api.nvoke.run/f/my-webhook \
+  -H "Authorization: Bearer nvk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"event":"ping"}'
+```
 
 ## Stack
 

@@ -7,6 +7,7 @@ import { functionsRoutes } from "./routes/functions.js";
 import { invokeRoutes } from "./routes/invoke.js";
 import { invocationsRoutes } from "./routes/invocations.js";
 import { keysRoutes } from "./routes/keys.js";
+import { httpFunctionsRoutes } from "./routes/http-functions.js";
 
 const app = Fastify({ logger: true });
 
@@ -16,6 +17,7 @@ await app.register(functionsRoutes);
 await app.register(invokeRoutes);
 await app.register(invocationsRoutes);
 await app.register(keysRoutes);
+await app.register(httpFunctionsRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");

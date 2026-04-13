@@ -1,33 +1,35 @@
 import type { FastifyInstance } from "fastify";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { clerkAuth } from "../auth.js";
 import { getFunction } from "../queries/functions.js";
 import { insertInvocation } from "../queries/invocations.js";
-import { findByHash, touchKey } from "../queries/keys.js";
 import { execute, type ExecResult } from "../executor.js";
-import { one } from "../db.js";
-import type { User } from "../queries/users.js";
+import {
+  buildRequestFromFastify,
+  extractPersistedRun,
+  limitHeaderPreview,
+  verifyApiKey,
+} from "../http-invoke.js";
 
 const IdParams = z.object({ id: z.string().uuid() });
 
-async function verifyApiKey(auth: string | undefined): Promise<User | null> {
-  if (!auth?.startsWith("Bearer nvk_")) return null;
-  const raw = auth.slice(7);
-  const hash = createHash("sha256").update(raw).digest("hex");
-  const key = await findByHash(hash);
-  if (!key) return null;
-  await touchKey(key.id);
-  return await one<User>("SELECT * FROM users WHERE id=$1", [key.user_id]);
-}
-
-function formatResponse(invId: string, result: ExecResult) {
+function formatEditorResponse(invId: string, result: ExecResult) {
+  if (result.status === "success") {
+    return {
+      invocation_id: invId,
+      status: "success" as const,
+      response: result.response,
+      logs: result.logs,
+      error: null,
+      duration_ms: result.duration_ms,
+    };
+  }
   return {
     invocation_id: invId,
     status: result.status,
-    output: result.status === "success" ? result.output : null,
+    response: null,
     logs: result.logs,
-    error: result.status === "success" ? null : (result as { error: string }).error,
+    error: (result as { error: string }).error,
     duration_ms: result.duration_ms,
   };
 }
@@ -41,29 +43,39 @@ export async function invokeRoutes(app: FastifyInstance) {
       const fn = await getFunction(id, req.user!.id);
       if (!fn) return reply.code(404).send({ error: "not found" });
 
+      const request = buildRequestFromFastify(req);
       const started = new Date();
-      const result = await execute(fn.code, req.body ?? null);
+      const result = await execute(fn.code, { request });
       const completed = new Date();
+      const persisted = extractPersistedRun(result);
 
       const inv = await insertInvocation({
         function_id: fn.id,
         user_id: req.user!.id,
         source: "ui",
         input: req.body ?? null,
-        output: result.status === "success" ? result.output : null,
+        output: persisted.output,
         logs: result.logs,
-        status: result.status,
+        status: persisted.status,
         duration_ms: result.duration_ms,
-        error_message:
-          result.status === "success" ? null : (result as { error: string }).error,
+        error_message: persisted.error_message,
         started_at: started,
         completed_at: completed,
+        trigger_kind: "editor",
+        request_method: request.method,
+        request_path: request.path,
+        request_headers: limitHeaderPreview(request.headers),
+        response_status: persisted.response_status,
+        response_headers: persisted.response_headers,
+        response_body_preview: persisted.response_body_preview,
       });
 
-      return formatResponse(inv!.id, result);
+      return formatEditorResponse(inv!.id, result);
     },
   );
 
+  // Legacy API-key invoke route. Kept JSON-wrapped for backward compatibility;
+  // new traffic should use the stable /f/:slug endpoints.
   app.post("/api/invoke/:id", async (req, reply) => {
     const user = await verifyApiKey(req.headers.authorization);
     if (!user) return reply.code(401).send({ error: "invalid api key" });
@@ -72,25 +84,33 @@ export async function invokeRoutes(app: FastifyInstance) {
     const fn = await getFunction(id, user.id);
     if (!fn) return reply.code(404).send({ error: "not found" });
 
+    const request = buildRequestFromFastify(req);
     const started = new Date();
-    const result = await execute(fn.code, req.body ?? null);
+    const result = await execute(fn.code, { request });
     const completed = new Date();
+    const persisted = extractPersistedRun(result);
 
     const inv = await insertInvocation({
       function_id: fn.id,
       user_id: user.id,
       source: "api",
       input: req.body ?? null,
-      output: result.status === "success" ? result.output : null,
+      output: persisted.output,
       logs: result.logs,
-      status: result.status,
+      status: persisted.status,
       duration_ms: result.duration_ms,
-      error_message:
-        result.status === "success" ? null : (result as { error: string }).error,
+      error_message: persisted.error_message,
       started_at: started,
       completed_at: completed,
+      trigger_kind: "editor",
+      request_method: request.method,
+      request_path: request.path,
+      request_headers: limitHeaderPreview(request.headers),
+      response_status: persisted.response_status,
+      response_headers: persisted.response_headers,
+      response_body_preview: persisted.response_body_preview,
     });
 
-    return formatResponse(inv!.id, result);
+    return formatEditorResponse(inv!.id, result);
   });
 }

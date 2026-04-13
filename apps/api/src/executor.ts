@@ -6,15 +6,35 @@ import { tmpdir } from "node:os";
 
 const runnerPath = join(dirname(fileURLToPath(import.meta.url)), "runner", "runner.mjs");
 
+export interface NormalizedHttpRequest {
+  method: string;
+  path: string;
+  query: Record<string, string | string[]>;
+  headers: Record<string, string>;
+  body: unknown;
+}
+
+export interface NormalizedHttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  // body is always a string here; the runner serializes it for us.
+  body: string;
+}
+
 export type ExecResult =
-  | { status: "success"; output: unknown; logs: string[]; duration_ms: number }
+  | { status: "success"; response: NormalizedHttpResponse; logs: string[]; duration_ms: number }
   | { status: "error"; error: string; logs: string[]; duration_ms: number }
   | { status: "timeout"; error: string; logs: string[]; duration_ms: number };
+
+export interface ExecuteOptions {
+  request: NormalizedHttpRequest;
+  env?: Record<string, string>;
+}
 
 const TIMEOUT_MS = 30_000;
 const OUTPUT_CAP = 1 * 1024 * 1024;
 
-export async function execute(code: string, input: unknown): Promise<ExecResult> {
+export async function execute(code: string, opts: ExecuteOptions): Promise<ExecResult> {
   const dir = await mkdtemp(join(tmpdir(), "nvoke-"));
   const file = join(dir, "fn.mjs");
   await writeFile(file, code, "utf8");
@@ -82,12 +102,12 @@ export async function execute(code: string, input: unknown): Promise<ExecResult>
       const lastLine = stdout.trim().split("\n").pop() ?? "";
       try {
         const parsed = JSON.parse(lastLine) as
-          | { ok: true; output: unknown; logs: string[] }
+          | { ok: true; response: NormalizedHttpResponse; logs: string[] }
           | { ok: false; error: string; logs: string[] };
         if (parsed.ok) {
           finish({
             status: "success",
-            output: parsed.output,
+            response: parsed.response,
             logs: parsed.logs,
             duration_ms,
           });
@@ -109,7 +129,17 @@ export async function execute(code: string, input: unknown): Promise<ExecResult>
       }
     });
 
-    child.stdin.write(JSON.stringify(input));
+    child.stdin.write(JSON.stringify({ request: opts.request, env: opts.env ?? {} }));
     child.stdin.end();
   });
+}
+
+export function emptyRequest(body: unknown): NormalizedHttpRequest {
+  return {
+    method: "POST",
+    path: "/",
+    query: {},
+    headers: {},
+    body: body ?? null,
+  };
 }
