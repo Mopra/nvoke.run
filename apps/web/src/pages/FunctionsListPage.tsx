@@ -266,9 +266,19 @@ export default function FunctionsListPage() {
               title="No functions yet"
               body="Create your first function to start writing and running Node.js code in the cloud."
               action={
-                <Button onClick={() => setOpen(true)}>
-                  <Plus className="mr-1 h-4 w-4" /> Create your first function
-                </Button>
+                <div className="flex flex-col items-center gap-2">
+                  <Button onClick={() => setOpen(true)}>
+                    <Plus className="mr-1 h-4 w-4" /> Create your first function
+                  </Button>
+                  <a
+                    href="https://docs.nvoke.run/guides/writing-functions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Learn more →
+                  </a>
+                </div>
               }
             />
           </div>

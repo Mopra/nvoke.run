@@ -132,6 +132,16 @@ export default function ApiKeysPage() {
               icon={<KeyRound className="h-8 w-8" />}
               title="No API keys yet"
               body="Create a key to invoke your functions from other services."
+              action={
+                <a
+                  href="https://docs.nvoke.run/guides/authenticating-requests"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Learn more →
+                </a>
+              }
             />
           </div>
         ) : (

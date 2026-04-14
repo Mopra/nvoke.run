@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Code2, CreditCard, History, KeyRound, Settings } from "lucide-react";
+import { BookOpen, Code2, CreditCard, History, KeyRound, Settings } from "lucide-react";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { UserBlock } from "./UserBlock";
 
@@ -45,6 +45,16 @@ export function Sidebar() {
           label="Settings"
         />
       </nav>
+
+      <a
+        href="https://docs.nvoke.run"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+      >
+        <BookOpen className="h-4 w-4" />
+        <span>Docs</span>
+      </a>
 
       <div className="mt-3 border-t border-sidebar-border pt-3">
         <UserBlock />
