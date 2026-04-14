@@ -28,11 +28,24 @@ const FILTERS: readonly FilterTab<"all" | Status>[] = [
   { label: "Timeout", value: "timeout" },
 ];
 
+interface FnOption {
+  id: string;
+  name: string;
+}
+
 export default function RunsPage() {
   const { request } = useApi();
   const nav = useNavigate();
   const [runs, setRuns] = useState<Run[]>([]);
   const [filter, setFilter] = useState<"all" | Status>("all");
+  const [functions, setFunctions] = useState<FnOption[]>([]);
+  const [functionId, setFunctionId] = useState<string>("all");
+
+  useEffect(() => {
+    request<{ functions: FnOption[] }>("/api/functions")
+      .then((r) => setFunctions(r.functions))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const qs = filter === "all" ? "?limit=200" : `?limit=200&status=${filter}`;
@@ -40,6 +53,9 @@ export default function RunsPage() {
       setRuns(r.invocations),
     );
   }, [filter]);
+
+  const visibleRuns =
+    functionId === "all" ? runs : runs.filter((r) => r.function_id === functionId);
 
   return (
     <div className="flex h-full flex-col bg-card text-card-foreground">
@@ -53,13 +69,26 @@ export default function RunsPage() {
       </div>
 
       {/* Filter strip */}
-      <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/20 px-3">
+      <div className="flex h-9 shrink-0 items-center gap-3 border-b border-border bg-muted/20 px-3">
         <FilterTabs tabs={FILTERS} value={filter} onChange={setFilter} />
+        <div className="h-5 w-px bg-border" />
+        <select
+          value={functionId}
+          onChange={(e) => setFunctionId(e.target.value)}
+          className="h-6 rounded border border-border bg-card px-2 text-xs text-foreground outline-none"
+        >
+          <option value="all">All functions</option>
+          {functions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-auto">
-        {runs.length === 0 ? (
+        {visibleRuns.length === 0 ? (
           <div className="flex h-full items-center justify-center p-8">
             <EmptyState
               icon={<History className="h-8 w-8" />}
@@ -81,7 +110,7 @@ export default function RunsPage() {
               </tr>
             </thead>
             <tbody>
-              {runs.map((r) => (
+              {visibleRuns.map((r) => (
                 <tr
                   key={r.id}
                   onClick={() => nav(`/runs/${r.id}`)}

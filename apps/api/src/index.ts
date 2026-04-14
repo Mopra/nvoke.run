@@ -8,16 +8,21 @@ import { invokeRoutes } from "./routes/invoke.js";
 import { invocationsRoutes } from "./routes/invocations.js";
 import { keysRoutes } from "./routes/keys.js";
 import { httpFunctionsRoutes } from "./routes/http-functions.js";
+import { billingRoutes } from "./routes/billing.js";
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true, credentials: true });
+const corsOrigin = config.WEB_ORIGIN
+  ? config.WEB_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
+  : true;
+await app.register(cors, { origin: corsOrigin, credentials: true });
 registerAuth(app);
 await app.register(functionsRoutes);
 await app.register(invokeRoutes);
 await app.register(invocationsRoutes);
 await app.register(keysRoutes);
 await app.register(httpFunctionsRoutes);
+await app.register(billingRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");

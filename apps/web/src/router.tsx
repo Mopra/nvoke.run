@@ -9,6 +9,7 @@ import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import ApiKeysPage from "./pages/ApiKeysPage";
 import SettingsPage from "./pages/SettingsPage";
+import BillingPage from "./pages/BillingPage";
 
 function Protected() {
   return (
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { path: "runs/:id", element: <RunDetailPage /> },
       { path: "keys", element: <ApiKeysPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "billing", element: <BillingPage /> },
     ],
   },
 ]);

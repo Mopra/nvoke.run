@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Code2, History, KeyRound, Settings } from "lucide-react";
+import { Code2, CreditCard, History, KeyRound, Settings } from "lucide-react";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { UserBlock } from "./UserBlock";
 
@@ -33,6 +33,11 @@ export function Sidebar() {
           to="/keys"
           icon={<KeyRound className="h-4 w-4" />}
           label="API Keys"
+        />
+        <SidebarNavItem
+          to="/billing"
+          icon={<CreditCard className="h-4 w-4" />}
+          label="Billing"
         />
         <SidebarNavItem
           to="/settings"

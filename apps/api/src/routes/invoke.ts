@@ -10,6 +10,8 @@ import {
   limitHeaderPreview,
   verifyApiKey,
 } from "../http-invoke.js";
+import { enforceInvocation, denialBody } from "../billing/enforce.js";
+import { resolvePlan } from "../billing/plan-limits.js";
 
 const IdParams = z.object({ id: z.string().uuid() });
 
@@ -43,9 +45,17 @@ export async function invokeRoutes(app: FastifyInstance) {
       const fn = await getFunction(id, req.user!.id);
       if (!fn) return reply.code(404).send({ error: "not found" });
 
+      const gate = await enforceInvocation(req.user!.id, resolvePlan(req.user!.plan));
+      if (!gate.ok) return reply.code(gate.status).send(denialBody(gate));
+
       const request = buildRequestFromFastify(req);
       const started = new Date();
-      const result = await execute(fn.code, { request });
+      let result: ExecResult;
+      try {
+        result = await execute(fn.code, { request, timeoutMs: gate.limits.timeoutMs });
+      } finally {
+        gate.release();
+      }
       const completed = new Date();
       const persisted = extractPersistedRun(result);
 
@@ -84,9 +94,17 @@ export async function invokeRoutes(app: FastifyInstance) {
     const fn = await getFunction(id, user.id);
     if (!fn) return reply.code(404).send({ error: "not found" });
 
+    const gate = await enforceInvocation(user.id, resolvePlan(user.plan));
+    if (!gate.ok) return reply.code(gate.status).send(denialBody(gate));
+
     const request = buildRequestFromFastify(req);
     const started = new Date();
-    const result = await execute(fn.code, { request });
+    let result: ExecResult;
+    try {
+      result = await execute(fn.code, { request, timeoutMs: gate.limits.timeoutMs });
+    } finally {
+      gate.release();
+    }
     const completed = new Date();
     const persisted = extractPersistedRun(result);
 

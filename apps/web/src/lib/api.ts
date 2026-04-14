@@ -57,6 +57,25 @@ export interface RunSummary {
   response_status: number | null;
 }
 
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+  code?: string;
+  constructor(status: number, message: string, body: unknown, code?: string) {
+    super(message);
+    this.status = status;
+    this.body = body;
+    this.code = code;
+  }
+}
+
+export interface Usage {
+  plan: "free" | "nano" | "scale";
+  daily: { used: number; limit: number };
+  concurrency: { inFlight: number; limit: number };
+  timeoutMs: number;
+}
+
 export function publicEndpointUrl(slug: string | null): string {
   if (!slug) return "";
   return `${BASE}/f/${slug}`;
@@ -74,7 +93,21 @@ export function useApi() {
         ...(init.headers ?? {}),
       },
     });
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      const text = await res.text();
+      let body: unknown = text;
+      let code: string | undefined;
+      let message = `${res.status} ${text}`;
+      try {
+        const parsed = JSON.parse(text) as { error?: string; code?: string };
+        body = parsed;
+        if (parsed?.error) message = parsed.error;
+        if (parsed?.code) code = parsed.code;
+      } catch {
+        /* non-JSON body */
+      }
+      throw new ApiError(res.status, message, body, code);
+    }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }

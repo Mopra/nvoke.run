@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useBeforeUnload,
@@ -7,9 +7,21 @@ import {
   useParams,
 } from "react-router-dom";
 import Editor from "@monaco-editor/react";
-import { ArrowLeft, Copy, Play, Save, Trash2, CopyPlus } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  Download,
+  History as HistoryIcon,
+  Play,
+  Save,
+  Sparkles,
+  Trash2,
+  Upload,
+  CopyPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
+  ApiError,
   publicEndpointUrl,
   useApi,
   type Fn,
@@ -19,6 +31,11 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { RunButton } from "@/components/RunButton";
 import { StatusDot } from "@/components/StatusDot";
 import { HttpConfigPanel, type HttpConfigValue } from "@/components/HttpConfigPanel";
@@ -33,7 +50,21 @@ import {
   saveTestCase,
   type SavedTestCase,
 } from "@/lib/testCases";
+import { exportTestCases, parseTestCasesFile } from "@/lib/testCasesIO";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/draftStore";
+import { formatJavaScript } from "@/lib/formatCode";
 import { useConfirm } from "@/components/ConfirmDialog";
+
+interface ResponseHistoryEntry {
+  id: string;
+  timestamp: string;
+  result: InvokeResponse;
+  input: string;
+  method: string;
+}
+
+const SPLIT_KEY = "nvoke:editor-split";
+const DEFAULT_SIDE_WIDTH = 44;
 
 interface InvocationDetail extends RunSummary {
   user_id: string;
@@ -84,6 +115,19 @@ export default function FunctionDetailPage() {
   const [recentRuns, setRecentRuns] = useState<RunSummary[]>([]);
   const [savedCases, setSavedCases] = useState<SavedTestCase[]>([]);
   const [newCaseName, setNewCaseName] = useState("");
+  const [responseHistory, setResponseHistory] = useState<ResponseHistoryEntry[]>([]);
+  const [sideWidth, setSideWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_SIDE_WIDTH;
+    const raw = window.localStorage.getItem(SPLIT_KEY);
+    const parsed = raw ? Number(raw) : DEFAULT_SIDE_WIDTH;
+    return Number.isFinite(parsed) && parsed >= 25 && parsed <= 75
+      ? parsed
+      : DEFAULT_SIDE_WIDTH;
+  });
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  const draftLoadedRef = useRef(false);
+  const importFileRef = useRef<HTMLInputElement | null>(null);
 
   useBeforeUnload(
     (event) => {
@@ -126,21 +170,52 @@ export default function FunctionDetailPage() {
       request<{ function: Fn }>(`/api/functions/${functionId}`),
       request<{ invocations: RunSummary[] }>(`/api/functions/${functionId}/invocations`),
     ]);
-    setFn(functionRes.function);
+    const loaded = functionRes.function;
+    const stored = loadDraft(functionId);
+    if (stored && stored.updatedAt > loaded.updated_at) {
+      setFn({ ...loaded, code: stored.code });
+      setDraft({
+        method: (stored.method as HttpMethod) ?? "POST",
+        headers: stored.headers,
+        body: stored.body,
+      });
+      setDirty(true);
+      toast.info("Unsaved draft restored");
+    } else {
+      setFn(loaded);
+      if (stored) clearDraft(functionId);
+    }
     setRecentRuns(runsRes.invocations);
     setSavedCases(listSavedTestCases(functionId));
-    const allowed = functionRes.function.methods;
+    const allowed = loaded.methods;
     setDraft((d) =>
       allowed.includes(d.method) || allowed.length === 0
         ? d
         : { ...d, method: allowed[0] },
     );
+    draftLoadedRef.current = true;
   }
 
   useEffect(() => {
+    draftLoadedRef.current = false;
     if (!id) return;
     loadFunction(id);
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !fn || !draftLoadedRef.current) return;
+    if (!dirty) return;
+    const handle = setTimeout(() => {
+      saveDraft(id, {
+        code: fn.code,
+        body: draft.body,
+        headers: draft.headers,
+        method: draft.method,
+        updatedAt: new Date().toISOString(),
+      });
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [id, fn, draft, dirty]);
 
   useEffect(() => {
     const prefill = (location.state as { prefillInput?: string } | null)?.prefillInput;
@@ -185,7 +260,22 @@ export default function FunctionDetailPage() {
     });
     setFn(res.function);
     setDirty(false);
+    clearDraft(res.function.id);
     toast.success("Saved");
+  }
+
+  async function formatCode() {
+    if (!fn) return;
+    try {
+      const formatted = await formatJavaScript(fn.code);
+      if (formatted !== fn.code) {
+        setFn({ ...fn, code: formatted });
+        setDirty(true);
+      }
+      toast.success("Formatted");
+    } catch (e) {
+      toast.error(`Format failed: ${String(e)}`);
+    }
   }
 
   async function remove() {
@@ -248,13 +338,41 @@ export default function FunctionDetailPage() {
       });
       setResult(r);
       setRunState(r.status === "success" ? "success" : "error");
+      setResponseHistory((h) =>
+        [
+          {
+            id: r.invocation_id,
+            timestamp: new Date().toISOString(),
+            result: r,
+            input: draft.body,
+            method: draft.method,
+          },
+          ...h,
+        ].slice(0, 10),
+      );
       const runsRes = await request<{ invocations: RunSummary[] }>(
         `/api/functions/${fn.id}/invocations`,
       );
       setRecentRuns(runsRes.invocations);
     } catch (e) {
       setRunState("error");
-      toast.error(String(e));
+      if (e instanceof ApiError && e.status === 429) {
+        const isConcurrency = e.code === "concurrency_exceeded";
+        toast.error(
+          isConcurrency
+            ? "Too many concurrent executions — upgrade for more headroom"
+            : "You've hit today's execution limit — upgrade to keep running",
+          {
+            action: {
+              label: "Upgrade",
+              onClick: () => nav("/billing"),
+            },
+            duration: 8000,
+          },
+        );
+        return;
+      }
+      toast.error(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -289,6 +407,11 @@ export default function FunctionDetailPage() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        void formatCode();
+        return;
+      }
       if (e.key.toLowerCase() === "s") {
         e.preventDefault();
         void save();
@@ -302,6 +425,74 @@ export default function FunctionDetailPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fn, dirty, draft]);
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!draggingRef.current || !splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const pct = ((rect.right - e.clientX) / rect.width) * 100;
+      const clamped = Math.max(25, Math.min(75, pct));
+      setSideWidth(clamped);
+    }
+    function onUp() {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try {
+        window.localStorage.setItem(SPLIT_KEY, String(sideWidth));
+      } catch {
+        // ignore
+      }
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [sideWidth]);
+
+  function loadResponseFromHistory(entry: ResponseHistoryEntry) {
+    setResult(entry.result);
+    setRunState(entry.result.status === "success" ? "success" : "error");
+    toast.success("Response restored");
+  }
+
+  function handleExportCases() {
+    if (!fn) return;
+    if (savedCases.length === 0) {
+      toast.error("No test cases to export");
+      return;
+    }
+    exportTestCases(savedCases, fn.name);
+  }
+
+  function handleImportCases() {
+    importFileRef.current?.click();
+  }
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !fn) return;
+    try {
+      const text = await file.text();
+      const parsed = parseTestCasesFile(text);
+      if (parsed.length === 0) {
+        toast.error("No valid test cases in file");
+        return;
+      }
+      let next = listSavedTestCases(fn.id);
+      for (const item of parsed) {
+        next = saveTestCase(fn.id, item);
+      }
+      setSavedCases(next);
+      toast.success(`Imported ${parsed.length} test cases`);
+    } catch (err) {
+      toast.error(`Import failed: ${String(err)}`);
+    }
+  }
 
   if (!fn)
     return (
@@ -353,6 +544,9 @@ export default function FunctionDetailPage() {
             Unsaved
           </span>
         )}
+        <Button variant="outline" size="sm" onClick={() => void formatCode()} className="h-7" title="Format code (Ctrl/Cmd+Shift+F)">
+          <Sparkles className="mr-1 h-4 w-4" /> Format
+        </Button>
         <Button variant="outline" size="sm" onClick={() => void save()} disabled={!dirty} className="h-7">
           <Save className="mr-1 h-4 w-4" /> Save
         </Button>
@@ -376,8 +570,8 @@ export default function FunctionDetailPage() {
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col border-r border-border bg-background">
+      <div ref={splitContainerRef} className="flex min-h-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex h-8 shrink-0 items-center border-b border-border bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             index.js
           </div>
@@ -401,7 +595,21 @@ export default function FunctionDetailPage() {
           </div>
         </div>
 
-        <div className="flex w-[44%] min-w-0 flex-col">
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            draggingRef.current = true;
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+          }}
+          className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary/40"
+        />
+        <div
+          className="flex min-w-0 flex-col"
+          style={{ width: `${sideWidth}%` }}
+        >
           <div className="flex min-h-0 flex-1 flex-col border-b border-border">
             <Tabs defaultValue="request" className="flex min-h-0 flex-1 flex-col">
               <TabsList className="h-8 shrink-0 justify-start rounded-none border-b border-border bg-muted/20 px-2">
@@ -414,6 +622,13 @@ export default function FunctionDetailPage() {
 
               <TabsContent value="request" className="mt-0 min-h-0 flex-1 overflow-hidden p-0">
                 <div className="flex h-full min-h-0 flex-col bg-background">
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={onImportFile}
+                  />
                   <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
                     <input
                       className="h-8 min-w-0 flex-1 rounded border border-border bg-card px-2 text-sm text-foreground outline-none"
@@ -423,6 +638,12 @@ export default function FunctionDetailPage() {
                     />
                     <Button size="sm" className="h-8" onClick={addSavedCase} disabled={!newCaseName.trim()}>
                       Save case
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-2" onClick={handleImportCases} title="Import test cases from JSON">
+                      <Upload className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-2" onClick={handleExportCases} title="Export test cases to JSON" disabled={savedCases.length === 0}>
+                      <Download className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   {savedCases.length > 0 && (
@@ -561,6 +782,36 @@ export default function FunctionDetailPage() {
             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               <span>Response</span>
               <div className="flex-1" />
+              {responseHistory.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 px-2">
+                      <HistoryIcon className="mr-1 h-3.5 w-3.5" /> History ({responseHistory.length})
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 p-0">
+                    <div className="max-h-72 overflow-auto divide-y divide-border">
+                      {responseHistory.map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-accent"
+                          onClick={() => loadResponseFromHistory(entry)}
+                        >
+                          <StatusDot status={entry.result.status} />
+                          <span className="font-mono text-muted-foreground">{entry.method}</span>
+                          <span className="flex-1 truncate text-foreground">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                          </span>
+                          <span className="font-mono text-muted-foreground">
+                            {entry.result.duration_ms}ms
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
               {result?.response && (
                 <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyText("Body", result.response!.body)}>
                   <Copy className="mr-1 h-3.5 w-3.5" /> Copy body

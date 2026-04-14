@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, Play } from "lucide-react";
+import { ArrowLeft, Copy, Play, Terminal } from "lucide-react";
 import { toast } from "sonner";
-import { useApi } from "../lib/api";
+import { publicEndpointUrl, useApi, type Fn } from "../lib/api";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/StatusDot";
 
@@ -38,12 +38,16 @@ export default function RunDetailPage() {
   const nav = useNavigate();
   const { request } = useApi();
   const [run, setRun] = useState<InvocationDetail | null>(null);
+  const [fn, setFn] = useState<Fn | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    request<{ invocation: InvocationDetail }>(`/api/invocations/${id}`).then((r) =>
-      setRun(r.invocation),
-    );
+    request<{ invocation: InvocationDetail }>(`/api/invocations/${id}`).then((r) => {
+      setRun(r.invocation);
+      request<{ function: Fn }>(`/api/functions/${r.invocation.function_id}`)
+        .then((f) => setFn(f.function))
+        .catch(() => {});
+    });
   }, [id]);
 
   if (!run) {
@@ -57,6 +61,18 @@ export default function RunDetailPage() {
   const inputText = stringifyValue(run.input);
   const outputText = stringifyValue(run.output);
   const logsText = (run.logs ?? []).join("\n");
+
+  const curlForRun = () => {
+    const base = import.meta.env.VITE_API_URL as string;
+    const target =
+      fn && fn.slug ? publicEndpointUrl(fn.slug) : `${base}/api/invoke/${run.function_id}`;
+    const authLine =
+      fn && fn.access_mode === "api_key"
+        ? ` \\\n  -H "Authorization: Bearer nvk_your_key"`
+        : "";
+    const escaped = inputText.replace(/'/g, "'\\''");
+    return `curl -X POST ${target}${authLine} \\\n  -H "Content-Type: application/json" \\\n  -d '${escaped}'`;
+  };
 
   return (
     <div className="flex h-full flex-col bg-card text-card-foreground">
@@ -78,6 +94,14 @@ export default function RunDetailPage() {
           <span>{run.source}</span>
         </div>
         <div className="flex-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7"
+          onClick={() => copyText("Curl", curlForRun())}
+        >
+          <Terminal className="mr-1 h-4 w-4" /> Copy as curl
+        </Button>
         <Button
           variant="outline"
           size="sm"

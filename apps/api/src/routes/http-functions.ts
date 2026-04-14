@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getFunctionBySlug, type HttpMethod } from "../queries/functions.js";
 import { insertInvocation } from "../queries/invocations.js";
-import { execute } from "../executor.js";
+import { execute, type ExecResult } from "../executor.js";
 import {
   buildRequestFromFastify,
   extractPersistedRun,
@@ -9,6 +9,9 @@ import {
   sanitizeResponseHeaders,
   verifyApiKey,
 } from "../http-invoke.js";
+import { enforceInvocation, denialBody } from "../billing/enforce.js";
+import { resolvePlan } from "../billing/plan-limits.js";
+import { getUserPlan } from "../queries/users.js";
 
 const METHODS: HttpMethod[] = [
   "GET",
@@ -34,17 +37,29 @@ async function handler(req: FastifyRequest, reply: FastifyReply) {
   }
 
   let userId = fn.user_id;
+  let plan = resolvePlan(undefined);
   if (fn.access_mode === "api_key") {
     const user = await verifyApiKey(req.headers.authorization);
     if (!user || user.id !== fn.user_id) {
       return reply.code(401).send({ error: "invalid api key" });
     }
     userId = user.id;
+    plan = resolvePlan(user.plan);
+  } else {
+    plan = await getUserPlan(fn.user_id);
   }
+
+  const gate = await enforceInvocation(userId, plan);
+  if (!gate.ok) return reply.code(gate.status).send(denialBody(gate));
 
   const request = buildRequestFromFastify(req);
   const started = new Date();
-  const result = await execute(fn.code, { request });
+  let result: ExecResult;
+  try {
+    result = await execute(fn.code, { request, timeoutMs: gate.limits.timeoutMs });
+  } finally {
+    gate.release();
+  }
   const completed = new Date();
   const persisted = extractPersistedRun(result);
 

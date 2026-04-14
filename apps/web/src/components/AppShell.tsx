@@ -3,6 +3,8 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Toaster } from "./Toaster";
 import { ConfirmProvider } from "./ConfirmDialog";
+import { CommandPalette } from "./CommandPalette";
+import { ShortcutHelp } from "./ShortcutHelp";
 
 export function AppShell() {
   return (
@@ -15,6 +17,8 @@ export function AppShell() {
             <Outlet />
           </main>
         </div>
+        <CommandPalette />
+        <ShortcutHelp />
         <Toaster />
       </div>
     </ConfirmProvider>

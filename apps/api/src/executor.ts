@@ -29,12 +29,14 @@ export type ExecResult =
 export interface ExecuteOptions {
   request: NormalizedHttpRequest;
   env?: Record<string, string>;
+  timeoutMs?: number;
 }
 
-const TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 const OUTPUT_CAP = 1 * 1024 * 1024;
 
 export async function execute(code: string, opts: ExecuteOptions): Promise<ExecResult> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const dir = await mkdtemp(join(tmpdir(), "nvoke-"));
   const file = join(dir, "fn.mjs");
   await writeFile(file, code, "utf8");
@@ -77,7 +79,7 @@ export async function execute(code: string, opts: ExecuteOptions): Promise<ExecR
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
-    }, TIMEOUT_MS);
+    }, timeoutMs);
 
     child.on("error", (e) =>
       finish({
@@ -93,7 +95,7 @@ export async function execute(code: string, opts: ExecuteOptions): Promise<ExecR
       if (timedOut) {
         finish({
           status: "timeout",
-          error: "function exceeded 30s",
+          error: `function exceeded ${Math.round(timeoutMs / 1000)}s`,
           logs: [],
           duration_ms,
         });

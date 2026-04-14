@@ -95,7 +95,12 @@ After Coolify deploys the API for the first time, run migrations once against th
 - **Branch:** `main`
 - **Build command:** `npm ci && npm -w apps/web run build`
 - **Publish directory:** `apps/web/dist`
-- **Domain:** `nvoke.run`
+- **Domain:** `app.nvoke.run`
+- **Routing:** enable SPA/history fallback in Coolify so direct requests like `/functions` serve `index.html` instead of nginx `404`.
+  If using Coolify's generated nginx config, turn on SPA mode so requests fall back to:
+  ```nginx
+  try_files $uri $uri/ /index.html;
+  ```
 - **Build-time environment variables:**
   ```
   VITE_CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -104,12 +109,12 @@ After Coolify deploys the API for the first time, run migrations once against th
 
 ### Clerk production setup
 
-In the Clerk dashboard, create a production instance, whitelist `https://nvoke.run` as a frontend origin, and use the production `pk_live_` / `sk_live_` keys in Coolify.
+In the Clerk dashboard, create a production instance, whitelist `https://app.nvoke.run` as a frontend origin, add the matching sign-in/sign-up redirect URLs, and use the production `pk_live_` / `sk_live_` keys in Coolify.
 
 ### Smoke test after deploy
 
 1. `curl https://api.nvoke.run/api/health` → `{"ok":true}`
-2. Open https://nvoke.run, sign up, create a function, run it.
+2. Open https://app.nvoke.run, sign up, create a function, run it.
 3. Create an API key in `/settings`, then:
    ```
    curl -X POST https://api.nvoke.run/api/invoke/<function-id> \

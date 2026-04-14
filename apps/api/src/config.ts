@@ -12,6 +12,7 @@ const schema = z.object({
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
   PORT: z.coerce.number().default(8080),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  WEB_ORIGIN: z.string().optional(),
 });
 
 export const config = schema.parse(process.env);

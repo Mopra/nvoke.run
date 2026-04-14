@@ -4,22 +4,23 @@ Things to tackle after the initial MVP deploy. None are urgent — in priority o
 
 ## 1. Real domains + TLS
 
-Replace the `sslip.io` auto-domains with `nvoke.run` and `api.nvoke.run`.
+Replace the `sslip.io` auto-domains with `app.nvoke.run` and `api.nvoke.run`.
 
-- [ ] Point `nvoke.run` A record at the VPS IP (`187.77.85.132`)
+- [ ] Point `app.nvoke.run` A record at the VPS IP (`187.77.85.132`)
 - [ ] Point `api.nvoke.run` A record at the same IP
-- [ ] In Coolify → `nvoke-web` → set custom domain `https://nvoke.run`
+- [ ] In Coolify → `nvoke-web` → set custom domain `https://app.nvoke.run`
 - [ ] In Coolify → `nvoke-api` → set custom domain `https://api.nvoke.run`
 - [ ] Wait for Let's Encrypt cert issuance (Coolify auto-provisions)
 - [ ] Update `VITE_API_URL` env var on `nvoke-web` to `https://api.nvoke.run`
 - [ ] Redeploy `nvoke-web`
-- [ ] Smoke test: sign in on `https://nvoke.run`, run a function, external invoke against `https://api.nvoke.run/api/invoke/<id>`
+- [ ] Smoke test: sign in on `https://app.nvoke.run`, run a function, external invoke against `https://api.nvoke.run/api/invoke/<id>`
 
 ## 2. Tighten CORS
 
 The API currently uses `origin: true` in `apps/api/src/index.ts` (reflects any origin). Fine for MVP; lock it down once domains are set.
 
-- [ ] In [apps/api/src/index.ts](../apps/api/src/index.ts), change `await app.register(cors, { origin: true, credentials: true });` to `origin: ["https://nvoke.run"]` (or read from an env var `WEB_ORIGIN`)
+- [x] In [apps/api/src/index.ts](../apps/api/src/index.ts), read allowed origins from `WEB_ORIGIN` env var (comma-separated); falls back to `origin: true` when unset so local dev still works
+- [ ] Set `WEB_ORIGIN=https://app.nvoke.run` on `nvoke-api` in Coolify
 - [ ] Commit + push, Coolify auto-deploys
 - [ ] Verify the web app still works and external curl to `/api/invoke/:id` still works (CORS doesn't affect non-browser callers)
 
@@ -28,7 +29,7 @@ The API currently uses `origin: true` in `apps/api/src/index.ts` (reflects any o
 Currently using `pk_test_` / `sk_test_`. Test keys work forever but give you a Clerk-branded sign-in domain and don't support custom branding.
 
 - [ ] In Clerk dashboard, create a **production** instance
-- [ ] Whitelist `https://nvoke.run` as an allowed origin
+- [ ] Whitelist `https://app.nvoke.run` as an allowed origin
 - [ ] Configure any sign-in customization (logo, colors, etc.)
 - [ ] Copy the new `pk_live_...` and `sk_live_...`
 - [ ] Replace `CLERK_SECRET_KEY` + `CLERK_PUBLISHABLE_KEY` on `nvoke-api` in Coolify
