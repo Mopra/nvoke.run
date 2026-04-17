@@ -69,6 +69,15 @@ export class ApiError extends Error {
   }
 }
 
+export interface SecretSummary {
+  id: string;
+  function_id: string;
+  name: string;
+  preview: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Usage {
   plan: "free" | "nano" | "scale";
   daily: { used: number; limit: number; overage: number };

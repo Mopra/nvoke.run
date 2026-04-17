@@ -13,6 +13,8 @@ const schema = z.object({
   PORT: z.coerce.number().default(8080),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   WEB_ORIGIN: z.string().optional(),
+  // 32-byte key for AES-256-GCM, encoded as base64 or hex. Required in production.
+  SECRET_ENCRYPTION_KEY: z.string().optional(),
 });
 
 export const config = schema.parse(process.env);

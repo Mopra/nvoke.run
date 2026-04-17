@@ -40,11 +40,11 @@ export default function ApiKeysPage() {
   }, []);
 
   async function create() {
-    const r = await request<{ key: Key; raw_key: string }>("/api/keys", {
+    const r = await request<{ key: Key; secret: string }>("/api/keys", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
-    setRawKey(r.raw_key);
+    setRawKey(r.secret);
     setName("");
     load();
   }
@@ -195,7 +195,7 @@ export default function ApiKeysPage() {
             Using the API
           </div>
           <pre className="overflow-auto bg-background p-4 font-mono text-xs text-foreground">
-{`curl -X POST ${import.meta.env.VITE_API_URL}/api/invoke/<FUNCTION_ID> \\
+{`curl -X POST ${import.meta.env.VITE_API_URL}/f/<your-slug> \\
   -H "Authorization: Bearer nvk_your_key" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"world"}'`}

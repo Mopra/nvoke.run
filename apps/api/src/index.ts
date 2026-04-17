@@ -10,6 +10,7 @@ import { invocationsRoutes } from "./routes/invocations.js";
 import { keysRoutes } from "./routes/keys.js";
 import { httpFunctionsRoutes } from "./routes/http-functions.js";
 import { billingRoutes } from "./routes/billing.js";
+import { secretsRoutes } from "./routes/secrets.js";
 import { runMigrations } from "./migrate.js";
 
 const app = Fastify({ logger: true });
@@ -60,6 +61,7 @@ await app.register(invocationsRoutes);
 await app.register(keysRoutes);
 await app.register(httpFunctionsRoutes);
 await app.register(billingRoutes);
+await app.register(secretsRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");

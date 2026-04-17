@@ -28,7 +28,7 @@ export async function keysRoutes(app: FastifyInstance) {
         prefix: key!.prefix,
         created_at: key!.created_at,
       },
-      raw_key: raw,
+      secret: raw,
     });
   });
 
