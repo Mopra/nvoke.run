@@ -12,7 +12,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ClerkProvider
       publishableKey={publishableKey}
-      appearance={{ variables: { colorBackground: "#09090b" } }}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/functions"
+      signUpFallbackRedirectUrl="/functions"
     >
       <RouterProvider router={router} />
     </ClerkProvider>
