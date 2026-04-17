@@ -10,8 +10,8 @@ export async function billingRoutes(app: FastifyInstance) {
     const plan = resolvePlan(user.plan);
     const limits = PLAN_LIMITS[plan];
 
-    const row = await one<{ count: number }>(
-      `SELECT count FROM daily_quotas
+    const row = await one<{ count: number; overage_count: number }>(
+      `SELECT count, overage_count FROM daily_quotas
        WHERE user_id = $1 AND day = (now() AT TIME ZONE 'UTC')::date`,
       [user.id],
     );
@@ -21,12 +21,18 @@ export async function billingRoutes(app: FastifyInstance) {
       daily: {
         used: row?.count ?? 0,
         limit: limits.dailyExecutions,
+        overage: row?.overage_count ?? 0,
       },
       concurrency: {
         inFlight: currentInFlight(user.id),
         limit: limits.concurrency,
       },
+      rate: {
+        perSecond: limits.ratePerSecond,
+        burst: limits.rateBurst,
+      },
       timeoutMs: limits.timeoutMs,
+      allowOverage: limits.allowOverage,
     };
   });
 }

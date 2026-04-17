@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { PLAN_LIMITS, isPlanKey, resolvePlan } from "./plan-limits.js";
 import { tryAcquire, release, currentInFlight, _resetForTests } from "./concurrency.js";
+import {
+  tryConsume,
+  _resetForTests as _resetRateLimitForTests,
+} from "./rate-limit.js";
 import { resolvePlanFromClerk } from "./resolve-plan.js";
 
 describe("PLAN_LIMITS", () => {
@@ -16,6 +20,44 @@ describe("PLAN_LIMITS", () => {
     expect(PLAN_LIMITS.free.concurrency).toBe(1);
     expect(PLAN_LIMITS.nano.concurrency).toBe(3);
     expect(PLAN_LIMITS.scale.concurrency).toBe(10);
+
+    expect(PLAN_LIMITS.free.ratePerSecond).toBe(5);
+    expect(PLAN_LIMITS.nano.ratePerSecond).toBe(10);
+    expect(PLAN_LIMITS.scale.ratePerSecond).toBe(30);
+
+    expect(PLAN_LIMITS.free.allowOverage).toBe(false);
+    expect(PLAN_LIMITS.nano.allowOverage).toBe(false);
+    expect(PLAN_LIMITS.scale.allowOverage).toBe(true);
+  });
+});
+
+describe("rate limit token bucket", () => {
+  it("allows up to the burst, then denies", () => {
+    _resetRateLimitForTests();
+    const now = 1_000_000;
+    for (let i = 0; i < 10; i++) {
+      expect(tryConsume("u", 5, 10, now).allowed).toBe(true);
+    }
+    const denied = tryConsume("u", 5, 10, now);
+    expect(denied.allowed).toBe(false);
+    expect(denied.retryAfterMs).toBeGreaterThan(0);
+  });
+
+  it("refills over time", () => {
+    _resetRateLimitForTests();
+    const start = 2_000_000;
+    for (let i = 0; i < 10; i++) tryConsume("u", 5, 10, start);
+    expect(tryConsume("u", 5, 10, start).allowed).toBe(false);
+    // 1s later we should have refilled ~5 tokens
+    expect(tryConsume("u", 5, 10, start + 1000).allowed).toBe(true);
+  });
+
+  it("tracks users independently", () => {
+    _resetRateLimitForTests();
+    const now = 3_000_000;
+    for (let i = 0; i < 10; i++) tryConsume("a", 5, 10, now);
+    expect(tryConsume("a", 5, 10, now).allowed).toBe(false);
+    expect(tryConsume("b", 5, 10, now).allowed).toBe(true);
   });
 });
 

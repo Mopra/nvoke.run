@@ -71,9 +71,11 @@ export class ApiError extends Error {
 
 export interface Usage {
   plan: "free" | "nano" | "scale";
-  daily: { used: number; limit: number };
+  daily: { used: number; limit: number; overage: number };
   concurrency: { inFlight: number; limit: number };
+  rate: { perSecond: number; burst: number };
   timeoutMs: number;
+  allowOverage: boolean;
 }
 
 export function publicEndpointUrl(slug: string | null): string {
@@ -99,10 +101,11 @@ export function useApi() {
       let code: string | undefined;
       let message = `${res.status} ${text}`;
       try {
-        const parsed = JSON.parse(text) as { error?: string; code?: string };
+        const parsed = JSON.parse(text) as { error?: string; message?: string };
         body = parsed;
-        if (parsed?.error) message = parsed.error;
-        if (parsed?.code) code = parsed.code;
+        if (parsed?.message) message = parsed.message;
+        else if (parsed?.error) message = parsed.error;
+        if (parsed?.error) code = parsed.error;
       } catch {
         /* non-JSON body */
       }

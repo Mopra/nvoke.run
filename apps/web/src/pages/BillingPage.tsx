@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Zap } from "lucide-react";
+import { CheckoutButton, usePlans } from "@clerk/clerk-react/experimental";
 import { useApi, type Usage } from "../lib/api";
 
 type PlanKey = "free" | "nano" | "scale";
@@ -57,6 +58,7 @@ const TIERS: Tier[] = [
 export default function BillingPage() {
   const { request } = useApi();
   const [usage, setUsage] = useState<Usage | null>(null);
+  const { data: plans, isLoading: plansLoading } = usePlans({ for: "user" });
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +75,15 @@ export default function BillingPage() {
   }, [request]);
 
   const currentPlan = usage?.plan ?? "free";
+
+  const planIdFor = (key: PlanKey): string | undefined => {
+    if (!plans) return undefined;
+    return plans.find(
+      (p) =>
+        p.slug?.toLowerCase() === key ||
+        p.name.toLowerCase() === key,
+    )?.id;
+  };
 
   return (
     <div className="flex h-full flex-col bg-card text-card-foreground">
@@ -102,6 +113,15 @@ export default function BillingPage() {
                 {usage.daily.limit.toLocaleString()}
               </span>{" "}
               executions today.
+              {usage.daily.overage > 0 && (
+                <>
+                  {" "}
+                  <span className="font-semibold text-amber-400">
+                    +{usage.daily.overage.toLocaleString()} overage
+                  </span>{" "}
+                  will be billed this cycle.
+                </>
+              )}
             </div>
           </div>
         )}
@@ -154,34 +174,46 @@ export default function BillingPage() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  disabled={isCurrent}
-                  className={`mt-6 h-9 rounded-md text-sm font-medium transition ${
+                {(() => {
+                  const planId = planIdFor(tier.key);
+                  const buttonClass = `mt-6 h-9 w-full rounded-md text-sm font-medium transition ${
                     isCurrent
                       ? "cursor-default bg-muted text-muted-foreground"
                       : tier.highlight
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "border border-border bg-background text-foreground hover:bg-muted"
-                  }`}
-                  onClick={() => {
-                    if (isCurrent) return;
-                    window.open(
-                      "https://accounts.nvoke.run/user/billing",
-                      "_blank",
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        : "border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50"
+                  }`;
+                  const label = isCurrent
+                    ? "Current plan"
+                    : `Upgrade to ${tier.name}`;
+                  if (isCurrent || tier.key === "free" || !planId) {
+                    return (
+                      <button
+                        type="button"
+                        disabled
+                        className={buttonClass}
+                      >
+                        {label}
+                      </button>
                     );
-                  }}
-                >
-                  {isCurrent ? "Current plan" : `Upgrade to ${tier.name}`}
-                </button>
+                  }
+                  return (
+                    <CheckoutButton planId={planId} planPeriod="month">
+                      <button
+                        type="button"
+                        disabled={plansLoading}
+                        className={buttonClass}
+                      >
+                        {label}
+                      </button>
+                    </CheckoutButton>
+                  );
+                })()}
               </div>
             );
           })}
         </div>
 
-        <div className="mt-8 text-xs text-muted-foreground">
-          Plan changes are managed through your Clerk account billing portal.
-        </div>
       </div>
     </div>
   );
