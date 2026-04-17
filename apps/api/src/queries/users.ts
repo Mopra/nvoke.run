@@ -1,4 +1,4 @@
-import { one } from "../db.js";
+import { one, pool } from "../db.js";
 import { resolvePlan, type PlanKey } from "../billing/plan-limits.js";
 
 export interface User {
@@ -24,6 +24,14 @@ export async function upsertUser(
     [clerkId, email, plan],
   );
   return row!;
+}
+
+export async function deleteUserByClerkId(clerkId: string): Promise<boolean> {
+  const res = await pool.query(
+    `DELETE FROM users WHERE clerk_id = $1`,
+    [clerkId],
+  );
+  return (res.rowCount ?? 0) > 0;
 }
 
 export async function getUserPlan(userId: string): Promise<PlanKey> {

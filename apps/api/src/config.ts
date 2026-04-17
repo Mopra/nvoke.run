@@ -10,6 +10,7 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
+  CLERK_WEBHOOK_SECRET: z.string().optional(),
   PORT: z.coerce.number().default(8080),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   WEB_ORIGIN: z.string().optional(),

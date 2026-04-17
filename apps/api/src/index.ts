@@ -11,6 +11,7 @@ import { keysRoutes } from "./routes/keys.js";
 import { httpFunctionsRoutes } from "./routes/http-functions.js";
 import { billingRoutes } from "./routes/billing.js";
 import { secretsRoutes } from "./routes/secrets.js";
+import { webhookRoutes } from "./routes/webhooks.js";
 import { runMigrations } from "./migrate.js";
 
 const app = Fastify({ logger: true });
@@ -62,6 +63,7 @@ await app.register(keysRoutes);
 await app.register(httpFunctionsRoutes);
 await app.register(billingRoutes);
 await app.register(secretsRoutes);
+await app.register(webhookRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");
