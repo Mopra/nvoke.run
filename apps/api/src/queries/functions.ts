@@ -1,6 +1,8 @@
 import { q, one, pool } from "../db.js";
 
 export type AccessMode = "public" | "api_key";
+export type DependencyMap = Record<string, string>;
+export type BuildStatus = "ok" | "error" | null;
 
 export const SUPPORTED_METHODS = [
   "GET",
@@ -21,16 +23,30 @@ export interface FnRow {
   slug: string | null;
   access_mode: AccessMode;
   enabled: boolean;
+  dependencies: DependencyMap;
+  bundled_code: string | null;
+  build_status: BuildStatus;
+  build_error: string | null;
+  built_at: string | null;
   created_at: string;
   updated_at: string;
+  current_version_id: string | null;
 }
 
 export interface Fn extends FnRow {
   methods: HttpMethod[];
 }
 
+export interface FunctionVersion {
+  id: string;
+  function_id: string;
+  version_number: number;
+  code: string;
+  created_at: string;
+}
+
 const FN_COLS =
-  "id, user_id, name, code, slug, access_mode, enabled, created_at, updated_at";
+  "id, user_id, name, code, slug, access_mode, enabled, dependencies, bundled_code, build_status, build_error, built_at, created_at, updated_at, current_version_id";
 
 async function attachMethods(rows: FnRow[]): Promise<Fn[]> {
   if (rows.length === 0) return [];
@@ -101,6 +117,7 @@ export interface CreateFunctionInput {
   access_mode?: AccessMode;
   enabled?: boolean;
   methods?: HttpMethod[];
+  dependencies?: DependencyMap;
 }
 
 export async function createFunction(
@@ -111,8 +128,8 @@ export async function createFunction(
   try {
     await client.query("BEGIN");
     const res = await client.query<FnRow>(
-      `INSERT INTO functions (user_id, name, code, slug, access_mode, enabled)
-       VALUES ($1,$2,$3,$4,COALESCE($5,'api_key'),COALESCE($6,true))
+      `INSERT INTO functions (user_id, name, code, slug, access_mode, enabled, dependencies)
+       VALUES ($1,$2,$3,$4,COALESCE($5,'api_key'),COALESCE($6,true),COALESCE($7::jsonb,'{}'::jsonb))
        RETURNING ${FN_COLS}`,
       [
         userId,
@@ -121,13 +138,24 @@ export async function createFunction(
         input.slug ?? null,
         input.access_mode ?? null,
         input.enabled ?? null,
+        input.dependencies ? JSON.stringify(input.dependencies) : null,
       ],
     );
     const row = res.rows[0];
     const methods = input.methods && input.methods.length > 0 ? input.methods : ["POST" as HttpMethod];
     await replaceMethods(client, row.id, methods);
+    const versionRes = await client.query<{ id: string }>(
+      `INSERT INTO function_versions (function_id, version_number, code)
+       VALUES ($1, 1, $2) RETURNING id`,
+      [row.id, input.code],
+    );
+    const versionId = versionRes.rows[0].id;
+    await client.query(
+      `UPDATE functions SET current_version_id=$2 WHERE id=$1`,
+      [row.id, versionId],
+    );
     await client.query("COMMIT");
-    return { ...row, methods };
+    return { ...row, current_version_id: versionId, methods };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
@@ -143,6 +171,7 @@ export interface UpdateFunctionInput {
   access_mode?: AccessMode;
   enabled?: boolean;
   methods?: HttpMethod[];
+  dependencies?: DependencyMap;
 }
 
 export async function updateFunction(
@@ -153,14 +182,23 @@ export async function updateFunction(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const prior = await client.query<{ code: string }>(
+      `SELECT code FROM functions WHERE id=$1 AND user_id=$2 FOR UPDATE`,
+      [id, userId],
+    );
+    if (prior.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
     const res = await client.query<FnRow>(
       `UPDATE functions
-         SET name        = COALESCE($3, name),
-             code        = COALESCE($4, code),
-             slug        = CASE WHEN $6::boolean THEN $5 ELSE slug END,
-             access_mode = COALESCE($7, access_mode),
-             enabled     = COALESCE($8, enabled),
-             updated_at  = now()
+         SET name         = COALESCE($3, name),
+             code         = COALESCE($4, code),
+             slug         = CASE WHEN $6::boolean THEN $5 ELSE slug END,
+             access_mode  = COALESCE($7, access_mode),
+             enabled      = COALESCE($8, enabled),
+             dependencies = COALESCE($9::jsonb, dependencies),
+             updated_at   = now()
        WHERE id=$1 AND user_id=$2
        RETURNING ${FN_COLS}`,
       [
@@ -172,6 +210,7 @@ export async function updateFunction(
         patch.slug !== undefined,
         patch.access_mode ?? null,
         patch.enabled ?? null,
+        patch.dependencies ? JSON.stringify(patch.dependencies) : null,
       ],
     );
     const row = res.rows[0];
@@ -181,6 +220,22 @@ export async function updateFunction(
     }
     if (patch.methods) {
       await replaceMethods(client, id, patch.methods);
+    }
+    if (patch.code !== undefined && patch.code !== prior.rows[0].code) {
+      const nextVersion = await client.query<{ id: string }>(
+        `INSERT INTO function_versions (function_id, version_number, code)
+         VALUES ($1,
+                 COALESCE((SELECT MAX(version_number) FROM function_versions WHERE function_id=$1), 0) + 1,
+                 $2)
+         RETURNING id`,
+        [id, patch.code],
+      );
+      const versionId = nextVersion.rows[0].id;
+      await client.query(
+        `UPDATE functions SET current_version_id=$2 WHERE id=$1`,
+        [id, versionId],
+      );
+      row.current_version_id = versionId;
     }
     await client.query("COMMIT");
     const [withMethods] = await attachMethods([row]);
@@ -195,3 +250,102 @@ export async function updateFunction(
 
 export const deleteFunction = (id: string, userId: string) =>
   q("DELETE FROM functions WHERE id=$1 AND user_id=$2", [id, userId]);
+
+export type RunnableCode =
+  | { ok: true; code: string }
+  | { ok: false; error: string };
+
+export function runnableCode(fn: Pick<Fn, "code" | "dependencies" | "bundled_code" | "build_status" | "build_error">): RunnableCode {
+  const hasDeps = Object.keys(fn.dependencies ?? {}).length > 0;
+  if (!hasDeps) return { ok: true, code: fn.code };
+  if (fn.bundled_code) return { ok: true, code: fn.bundled_code };
+  return {
+    ok: false,
+    error: fn.build_error
+      ? `function build failed: ${fn.build_error}`
+      : "function dependencies have not been built yet",
+  };
+}
+
+export async function recordBuildResult(
+  id: string,
+  result: { ok: true; bundled: string } | { ok: false; error: string },
+): Promise<void> {
+  if (result.ok) {
+    await q(
+      `UPDATE functions
+          SET bundled_code=$2,
+              build_status='ok',
+              build_error=NULL,
+              built_at=now()
+        WHERE id=$1`,
+      [id, result.bundled],
+    );
+  } else {
+    await q(
+      `UPDATE functions
+          SET bundled_code=NULL,
+              build_status='error',
+              build_error=$2,
+              built_at=now()
+        WHERE id=$1`,
+      [id, result.error],
+    );
+  }
+}
+
+export async function listVersions(
+  functionId: string,
+  userId: string,
+): Promise<FunctionVersion[] | null> {
+  const owner = await one<{ id: string }>(
+    `SELECT id FROM functions WHERE id=$1 AND user_id=$2`,
+    [functionId, userId],
+  );
+  if (!owner) return null;
+  return q<FunctionVersion>(
+    `SELECT id, function_id, version_number, code, created_at
+       FROM function_versions
+      WHERE function_id=$1
+      ORDER BY version_number DESC`,
+    [functionId],
+  );
+}
+
+export async function rollbackToVersion(
+  functionId: string,
+  userId: string,
+  versionId: string,
+): Promise<Fn | null> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const version = await client.query<{ code: string }>(
+      `SELECT v.code FROM function_versions v
+         JOIN functions f ON f.id = v.function_id
+        WHERE v.id=$1 AND v.function_id=$2 AND f.user_id=$3`,
+      [versionId, functionId, userId],
+    );
+    if (version.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    const res = await client.query<FnRow>(
+      `UPDATE functions
+          SET code=$3,
+              current_version_id=$2,
+              updated_at=now()
+        WHERE id=$1 AND user_id=$4
+        RETURNING ${FN_COLS}`,
+      [functionId, versionId, version.rows[0].code, userId],
+    );
+    await client.query("COMMIT");
+    const [withMethods] = await attachMethods([res.rows[0]]);
+    return withMethods;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}

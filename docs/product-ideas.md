@@ -22,43 +22,7 @@ The remaining work is the set of features that make these functions useful in re
 
 ## Highest priority
 
-## 1. Environment variables and secrets
-
-Real functions need API tokens, database URLs, webhook secrets, and service credentials.
-
-- [x] Add per-function environment variables
-- [x] Encrypt secrets at rest
-- [x] Show masked values in the UI
-- [x] Support secret updates without exposing raw values again
-
-## 2. Dependency support
-
-Single-file functions are fine for demos, but practical usage needs imports and npm packages.
-
-- [x] Support package dependencies per function
-- [x] Bundle or install dependencies before execution
-- [x] Cache builds so repeated runs stay cheap
-- [x] Keep the dependency model simple instead of turning this into full project hosting
-
-## 3. Templates and quick starts
-
-The fastest path to value is starting from a working example instead of a blank editor.
-
-- [x] Add one-click templates for webhook handlers, JSON transforms, fetch-based API calls, and cron-style jobs
-- [x] Pre-fill sample input for each template
-- [x] Add short inline guidance for `input` and `ctx.log`
-
-## Next priority
-
-## 4. Function versioning
-
-Right now edits overwrite the latest code. That is risky even for a minimal tool.
-
-- [x] Save deployable versions or revisions
-- [x] Let users roll back to a previous version
-- [x] Show which version produced each invocation
-
-## 5. Retention and debugging window
+## 1. Retention and debugging window
 
 Invocations are currently pruned aggressively. That is likely too short once people use this for real work.
 
@@ -68,7 +32,7 @@ Invocations are currently pruned aggressively. That is likely too short once peo
 
 ## Lower priority
 
-## 6. Scheduling and triggers
+## 2. Scheduling and triggers
 
 This becomes useful quickly, but it should not complicate the core product too early.
 
@@ -76,7 +40,7 @@ This becomes useful quickly, but it should not complicate the core product too e
 - [ ] Webhook-first trigger setup
 - [ ] Minimal event logs for trigger failures
 
-## 7. Lightweight state and persistence
+## 3. Lightweight state and persistence
 
 Some useful endpoint behaviors need small amounts of persistent state.
 
@@ -86,7 +50,7 @@ Some useful endpoint behaviors need small amounts of persistent state.
 
 Especially useful for test endpoints that need to alternate behavior across requests.
 
-## 8. Team and collaboration features
+## 4. Team and collaboration features
 
 Probably not needed before the single-user workflow is excellent.
 
@@ -94,7 +58,7 @@ Probably not needed before the single-user workflow is excellent.
 - [ ] Per-function access control
 - [ ] Audit log for edits and key creation
 
-## 9. Marketing site completeness
+## 5. Marketing site completeness
 
 The public site should explain the simple value proposition clearly and convert fast.
 
@@ -103,8 +67,6 @@ The public site should explain the simple value proposition clearly and convert 
 - [ ] Show concrete examples of cheap, useful functions
 
 ## Suggested order
-
-With secrets, dependencies, templates, and versioning shipped, the remaining prioritization is:
 
 1. Retention and debugging window
 2. Scheduling and triggers

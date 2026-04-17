@@ -14,6 +14,8 @@ export const SUPPORTED_METHODS = [
 export type HttpMethod = (typeof SUPPORTED_METHODS)[number];
 
 export type AccessMode = "public" | "api_key";
+export type DependencyMap = Record<string, string>;
+export type BuildStatus = "ok" | "error" | null;
 
 export interface Fn {
   id: string;
@@ -23,8 +25,22 @@ export interface Fn {
   access_mode: AccessMode;
   enabled: boolean;
   methods: HttpMethod[];
+  dependencies: DependencyMap;
+  bundled_code: string | null;
+  build_status: BuildStatus;
+  build_error: string | null;
+  built_at: string | null;
   created_at: string;
   updated_at: string;
+  current_version_id: string | null;
+}
+
+export interface FunctionVersion {
+  id: string;
+  function_id: string;
+  version_number: number;
+  code: string;
+  created_at: string;
 }
 
 export interface NormalizedHttpResponse {
@@ -46,6 +62,8 @@ export interface RunSummary {
   id: string;
   function_id: string;
   function_name?: string | null;
+  function_version_id: string | null;
+  version_number: number | null;
   source: "ui" | "api";
   status: "success" | "error" | "timeout";
   duration_ms: number;

@@ -11,6 +11,8 @@ type Status = "success" | "error" | "timeout";
 interface InvocationDetail {
   id: string;
   function_id: string;
+  function_version_id: string | null;
+  version_number: number | null;
   user_id: string;
   source: "ui" | "api";
   input: unknown;
@@ -126,6 +128,14 @@ export default function RunDetailPage() {
               <Link className="mt-1 block font-mono text-foreground hover:text-primary" to={`/functions/${run.function_id}`}>
                 {run.function_id}
               </Link>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                Version
+              </div>
+              <div className="mt-1 font-mono text-foreground">
+                {run.version_number != null ? `v${run.version_number}` : "-"}
+              </div>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">

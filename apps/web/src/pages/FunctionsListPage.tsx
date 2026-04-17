@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MoreHorizontal, Code2 } from "lucide-react";
+import { Plus, MoreHorizontal, Code2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useApi } from "../lib/api";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,13 @@ import { StatusDot } from "@/components/StatusDot";
 import { Sparkline } from "@/components/Sparkline";
 import { EmptyState } from "@/components/EmptyState";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { cn } from "@/lib/cn";
+import {
+  FUNCTION_TEMPLATES,
+  DEFAULT_TEMPLATE_ID,
+  getTemplate,
+} from "@/lib/templates";
+import { saveTestCase } from "@/lib/testCases";
 
 interface Fn {
   id: string;
@@ -46,12 +53,6 @@ interface InvokeResponse {
   duration_ms: number;
 }
 
-const DEFAULT_CODE = `export default async function (input, ctx) {
-  ctx.log("hello", input);
-  return { echo: input };
-}
-`;
-
 const DEFAULT_INPUT = {
   name: "world",
 };
@@ -70,18 +71,24 @@ export default function FunctionsListPage() {
   const confirm = useConfirm();
   const [fns, setFns] = useState<Fn[]>([]);
   const [invs, setInvs] = useState<Invocation[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [templateId, setTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
   const [renameTarget, setRenameTarget] = useState<Fn | null>(null);
   const [renameName, setRenameName] = useState("");
 
   async function load() {
-    const [f, i] = await Promise.all([
-      request<{ functions: Fn[] }>("/api/functions"),
-      request<{ invocations: Invocation[] }>("/api/invocations?limit=500"),
-    ]);
-    setFns(f.functions);
-    setInvs(i.invocations);
+    try {
+      const [f, i] = await Promise.all([
+        request<{ functions: Fn[] }>("/api/functions"),
+        request<{ invocations: Invocation[] }>("/api/invocations?limit=500"),
+      ]);
+      setFns(f.functions);
+      setInvs(i.invocations);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -89,12 +96,20 @@ export default function FunctionsListPage() {
   }, []);
 
   async function create() {
+    const tpl = getTemplate(templateId);
     const res = await request<{ function: Fn }>("/api/functions", {
       method: "POST",
-      body: JSON.stringify({ name, code: DEFAULT_CODE }),
+      body: JSON.stringify({ name, code: tpl.code }),
+    });
+    saveTestCase(res.function.id, {
+      id: crypto.randomUUID(),
+      name: "Sample",
+      input: tpl.sampleInput,
+      createdAt: new Date().toISOString(),
     });
     setOpen(false);
     setName("");
+    setTemplateId(DEFAULT_TEMPLATE_ID);
     nav(`/functions/${res.function.id}`);
   }
 
@@ -104,7 +119,7 @@ export default function FunctionsListPage() {
       method: "POST",
       body: JSON.stringify({
         name: `${detail.function.name} copy`,
-        code: detail.function.code ?? DEFAULT_CODE,
+        code: detail.function.code ?? getTemplate(DEFAULT_TEMPLATE_ID).code,
       }),
     });
     toast.success("Function duplicated");
@@ -199,23 +214,70 @@ export default function FunctionsListPage() {
           Write, run, and manage small Node.js functions.
         </div>
         <div className="flex-1" />
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(nextOpen) => {
+            setOpen(nextOpen);
+            if (!nextOpen) {
+              setName("");
+              setTemplateId(DEFAULT_TEMPLATE_ID);
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button size="sm" className="h-7">
               <Plus className="mr-1 h-4 w-4" /> New function
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>New function</DialogTitle>
             </DialogHeader>
-            <Input
-              placeholder="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <div className="space-y-3">
+              <Input
+                placeholder="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+              <div>
+                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Start from a template
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {FUNCTION_TEMPLATES.map((tpl) => {
+                    const selected = tpl.id === templateId;
+                    return (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => setTemplateId(tpl.id)}
+                        className={cn(
+                          "relative rounded-md border px-3 py-2 text-left transition-colors",
+                          selected
+                            ? "border-ring bg-accent text-foreground"
+                            : "border-border text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {tpl.name}
+                          </span>
+                          {selected && (
+                            <Check className="h-3.5 w-3.5 text-ring" />
+                          )}
+                        </div>
+                        <div className="mt-0.5 text-xs leading-snug">
+                          {tpl.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <DialogFooter>
-              <Button onClick={create} disabled={!name}>
+              <Button onClick={create} disabled={!name.trim()}>
                 Create
               </Button>
             </DialogFooter>
@@ -259,7 +321,35 @@ export default function FunctionsListPage() {
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-auto">
-        {fns.length === 0 ? (
+        {loading ? (
+          <table className="w-full">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-2 font-medium">Name</th>
+                <th className="px-4 py-2 font-medium">Last run</th>
+                <th className="px-4 py-2 font-medium">Invocations (7d)</th>
+                <th className="px-4 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="border-b border-border">
+                  <td className="px-4 py-3">
+                    <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                    <div className="mt-1.5 h-3 w-20 animate-pulse rounded bg-muted/60" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="h-3 w-16 animate-pulse rounded bg-muted/60" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="h-6 w-24 animate-pulse rounded bg-muted/60" />
+                  </td>
+                  <td className="px-4 py-3" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : fns.length === 0 ? (
           <div className="flex h-full items-center justify-center p-8">
             <EmptyState
               icon={<Code2 className="h-8 w-8" />}

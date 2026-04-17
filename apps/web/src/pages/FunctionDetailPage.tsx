@@ -25,6 +25,7 @@ import {
   publicEndpointUrl,
   useApi,
   type Fn,
+  type FunctionVersion,
   type HttpMethod,
   type InvokeResponse,
   type RunSummary,
@@ -44,6 +45,8 @@ import {
   type HttpRequestDraft,
 } from "@/components/HttpRequestEditor";
 import { HttpResponseView } from "@/components/HttpResponseView";
+import { EnvVarsPanel } from "@/components/EnvVarsPanel";
+import { DependenciesPanel } from "@/components/DependenciesPanel";
 import {
   deleteTestCase,
   listSavedTestCases,
@@ -113,6 +116,7 @@ export default function FunctionDetailPage() {
   const [result, setResult] = useState<InvokeResponse | null>(null);
   const [runState, setRunState] = useState<RunState>("idle");
   const [recentRuns, setRecentRuns] = useState<RunSummary[]>([]);
+  const [versions, setVersions] = useState<FunctionVersion[]>([]);
   const [savedCases, setSavedCases] = useState<SavedTestCase[]>([]);
   const [newCaseName, setNewCaseName] = useState("");
   const [responseHistory, setResponseHistory] = useState<ResponseHistoryEntry[]>([]);
@@ -166,9 +170,10 @@ export default function FunctionDetailPage() {
   }, [dirty, confirm, nav]);
 
   async function loadFunction(functionId: string) {
-    const [functionRes, runsRes] = await Promise.all([
+    const [functionRes, runsRes, versionsRes] = await Promise.all([
       request<{ function: Fn }>(`/api/functions/${functionId}`),
       request<{ invocations: RunSummary[] }>(`/api/functions/${functionId}/invocations`),
+      request<{ versions: FunctionVersion[] }>(`/api/functions/${functionId}/versions`),
     ]);
     const loaded = functionRes.function;
     const stored = loadDraft(functionId);
@@ -186,6 +191,7 @@ export default function FunctionDetailPage() {
       if (stored) clearDraft(functionId);
     }
     setRecentRuns(runsRes.invocations);
+    setVersions(versionsRes.versions);
     setSavedCases(listSavedTestCases(functionId));
     const allowed = loaded.methods;
     setDraft((d) =>
@@ -237,11 +243,10 @@ export default function FunctionDetailPage() {
   );
 
   const curlSnippet = useMemo(() => {
-    if (!fn) return "";
-    const target = endpointUrl || `${import.meta.env.VITE_API_URL}/api/invoke/${fn.id}`;
+    if (!fn || !endpointUrl) return "";
     const authLine =
       fn.access_mode === "api_key" ? ` \\\n  -H "Authorization: Bearer nvk_your_key"` : "";
-    return `curl -X ${draft.method} ${target}${authLine} \\\n  -H "Content-Type: application/json" \\\n  -d '${draft.body.replace(/'/g, "'\\''")}'`;
+    return `curl -X ${draft.method} ${endpointUrl}${authLine} \\\n  -H "Content-Type: application/json" \\\n  -d '${draft.body.replace(/'/g, "'\\''")}'`;
   }, [fn, draft, endpointUrl]);
 
   async function save(overrides?: Partial<Fn>) {
@@ -256,12 +261,54 @@ export default function FunctionDetailPage() {
         access_mode: merged.access_mode,
         enabled: merged.enabled,
         methods: merged.methods,
+        dependencies: merged.dependencies,
       }),
     });
     setFn(res.function);
     setDirty(false);
     clearDraft(res.function.id);
-    toast.success("Saved");
+    try {
+      const v = await request<{ versions: FunctionVersion[] }>(
+        `/api/functions/${res.function.id}/versions`,
+      );
+      setVersions(v.versions);
+    } catch {
+      /* best-effort refresh */
+    }
+    if (res.function.build_status === "error") {
+      toast.error("Saved, but build failed — see Deps tab");
+    } else {
+      toast.success("Saved");
+    }
+  }
+
+  async function rollbackVersion(versionId: string) {
+    if (!fn) return;
+    if (dirty) {
+      const ok = await confirm({
+        title: "Discard unsaved changes?",
+        description: "Rolling back will overwrite your current edits.",
+        confirmLabel: "Discard and roll back",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    const res = await request<{ function: Fn }>(
+      `/api/functions/${fn.id}/versions/${versionId}/rollback`,
+      { method: "POST" },
+    );
+    setFn(res.function);
+    setDirty(false);
+    clearDraft(res.function.id);
+    try {
+      const v = await request<{ versions: FunctionVersion[] }>(
+        `/api/functions/${fn.id}/versions`,
+      );
+      setVersions(v.versions);
+    } catch {
+      /* ignore */
+    }
+    toast.success("Rolled back");
   }
 
   async function formatCode() {
@@ -357,19 +404,19 @@ export default function FunctionDetailPage() {
     } catch (e) {
       setRunState("error");
       if (e instanceof ApiError && e.status === 429) {
-        const isConcurrency = e.code === "concurrency_exceeded";
-        toast.error(
-          isConcurrency
+        const message =
+          e.code === "concurrency_exceeded"
             ? "Too many concurrent executions — upgrade for more headroom"
-            : "You've hit today's execution limit — upgrade to keep running",
-          {
-            action: {
-              label: "Upgrade",
-              onClick: () => nav("/billing"),
-            },
-            duration: 8000,
+            : e.code === "rate_limited"
+              ? "Request rate exceeded — slow down or upgrade your plan"
+              : "You've hit today's execution limit — upgrade to keep running";
+        toast.error(message, {
+          action: {
+            label: "Upgrade",
+            onClick: () => nav("/billing"),
           },
-        );
+          duration: 8000,
+        });
         return;
       }
       toast.error(e instanceof Error ? e.message : String(e));
@@ -615,9 +662,17 @@ export default function FunctionDetailPage() {
               <TabsList className="h-8 shrink-0 justify-start rounded-none border-b border-border bg-muted/20 px-2">
                 <TabsTrigger value="request">Request</TabsTrigger>
                 <TabsTrigger value="config">HTTP</TabsTrigger>
+                <TabsTrigger value="env">Env</TabsTrigger>
+                <TabsTrigger value="deps">
+                  Deps
+                  {fn.build_status === "error" && (
+                    <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-destructive" />
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="logs">Logs</TabsTrigger>
                 <TabsTrigger value="info">Info</TabsTrigger>
                 <TabsTrigger value="runs">Runs</TabsTrigger>
+                <TabsTrigger value="versions">Versions</TabsTrigger>
               </TabsList>
 
               <TabsContent value="request" className="mt-0 min-h-0 flex-1 overflow-hidden p-0">
@@ -698,6 +753,23 @@ export default function FunctionDetailPage() {
                 />
               </TabsContent>
 
+              <TabsContent value="env" className="mt-0 min-h-0 flex-1 overflow-auto bg-background p-4">
+                <EnvVarsPanel functionId={fn.id} />
+              </TabsContent>
+
+              <TabsContent value="deps" className="mt-0 min-h-0 flex-1 overflow-auto bg-background p-4">
+                <DependenciesPanel
+                  dependencies={fn.dependencies ?? {}}
+                  buildStatus={fn.build_status}
+                  buildError={fn.build_error}
+                  builtAt={fn.built_at}
+                  onChange={(next) => {
+                    setFn({ ...fn, dependencies: next });
+                    setDirty(true);
+                  }}
+                />
+              </TabsContent>
+
               <TabsContent value="logs" className="mt-0 min-h-0 flex-1 overflow-auto bg-background p-0">
                 <div className="flex items-center justify-end border-b border-border px-3 py-2">
                   <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => copyText("Logs", logsText)}>
@@ -738,7 +810,9 @@ export default function FunctionDetailPage() {
                       </Button>
                     </div>
                     <pre className="mt-1 overflow-auto rounded border border-border bg-card p-3 font-mono text-foreground">
-                      {curlSnippet}
+                      {curlSnippet || (
+                        <span className="text-muted-foreground">set a slug in the HTTP tab</span>
+                      )}
                     </pre>
                   </div>
                   <div className="text-muted-foreground/70">
@@ -763,6 +837,11 @@ export default function FunctionDetailPage() {
                           <span className="font-mono text-muted-foreground">{r.request_method ?? "POST"}</span>{" "}
                           {relTime(r.started_at)}
                         </button>
+                        {r.version_number != null && (
+                          <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground">
+                            v{r.version_number}
+                          </span>
+                        )}
                         {r.response_status != null && (
                           <span className="font-mono text-xs text-muted-foreground">{r.response_status}</span>
                         )}
@@ -772,6 +851,47 @@ export default function FunctionDetailPage() {
                         </Button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="versions" className="mt-0 min-h-0 flex-1 overflow-auto bg-background p-0">
+                {versions.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground">No versions yet.</div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {versions.map((v) => {
+                      const isCurrent = v.id === fn.current_version_id;
+                      return (
+                        <div key={v.id} className="flex items-center gap-3 px-3 py-3 text-sm">
+                          <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[11px] text-secondary-foreground">
+                            v{v.version_number}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-foreground">
+                              {new Date(v.created_at).toLocaleString()}
+                            </div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                              {relTime(v.created_at)}
+                            </div>
+                          </div>
+                          {isCurrent ? (
+                            <span className="rounded bg-primary/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary">
+                              Current
+                            </span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7"
+                              onClick={() => void rollbackVersion(v.id)}
+                            >
+                              Roll back
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
