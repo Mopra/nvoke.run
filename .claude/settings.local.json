@@ -37,7 +37,10 @@
       "Bash(xargs grep *)",
       "Bash(npm --workspace @nvoke/api run typecheck)",
       "Bash(npm --workspace @nvoke/web run typecheck)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
+      "Bash(curl -s -i -X OPTIONS https://api.nvoke.run/api/functions -H \"Origin: https://app.nvoke.run\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: authorization,content-type\")",
+      "Bash(git check-ignore *)"
     ]
   }
 }
