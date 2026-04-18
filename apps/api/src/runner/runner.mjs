@@ -5,6 +5,9 @@
 import { pathToFileURL } from "node:url";
 
 const MAX_BODY_BYTES = 1 * 1024 * 1024;
+const MAX_LOG_BYTES = 64 * 1024;
+const MAX_LOG_LINE_CHARS = 2048;
+const MAX_LOG_LINES = 100;
 
 async function readStdin() {
   let data = "";
@@ -13,13 +16,24 @@ async function readStdin() {
 }
 
 const logs = [];
+let logBytes = 0;
+let logTruncated = false;
 function makeCtx(env) {
   return {
     log: (...args) => {
+      if (logTruncated) return;
       const line = args
         .map((a) => (typeof a === "string" ? a : safeJson(a)))
-        .join(" ");
-      if (logs.length < 100) logs.push(line.slice(0, 2048));
+        .join(" ")
+        .slice(0, MAX_LOG_LINE_CHARS);
+      const lineBytes = Buffer.byteLength(line, "utf8");
+      if (logs.length >= MAX_LOG_LINES || logBytes + lineBytes > MAX_LOG_BYTES) {
+        logs.push("[logs truncated: exceeded 64KB or 100 line limit]");
+        logTruncated = true;
+        return;
+      }
+      logs.push(line);
+      logBytes += lineBytes;
     },
     env: env ?? {},
   };

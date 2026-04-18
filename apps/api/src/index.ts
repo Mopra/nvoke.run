@@ -12,7 +12,10 @@ import { httpFunctionsRoutes } from "./routes/http-functions.js";
 import { billingRoutes } from "./routes/billing.js";
 import { secretsRoutes } from "./routes/secrets.js";
 import { webhookRoutes } from "./routes/webhooks.js";
+import { schedulesRoutes } from "./routes/schedules.js";
 import { runMigrations } from "./migrate.js";
+import { startScheduler } from "./scheduler/index.js";
+import { PLAN_LIMITS, type PlanKey } from "./billing/plan-limits.js";
 
 const app = Fastify({ logger: true });
 
@@ -64,6 +67,7 @@ await app.register(httpFunctionsRoutes);
 await app.register(billingRoutes);
 await app.register(secretsRoutes);
 await app.register(webhookRoutes);
+await app.register(schedulesRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");
@@ -73,10 +77,23 @@ app.get("/api/health", async () => {
 app.get("/api/me", { preHandler: clerkAuth }, async (req) => ({ user: req.user }));
 
 const RETENTION_INTERVAL_MS = 60 * 60 * 1000;
+const RETENTION_CASE_SQL = (Object.entries(PLAN_LIMITS) as [PlanKey, (typeof PLAN_LIMITS)[PlanKey]][])
+  .map(([plan, limits]) => {
+    const days = Math.max(1, Math.floor(limits.retentionDays));
+    return `WHEN '${plan}' THEN interval '${days} days'`;
+  })
+  .join(" ");
 async function pruneOldInvocations() {
   try {
     const res = await pool.query(
-      "DELETE FROM invocations WHERE started_at < now() - interval '1 day'",
+      `DELETE FROM invocations i
+         USING users u
+        WHERE i.user_id = u.id
+          AND i.started_at < now() - (
+            CASE u.plan ${RETENTION_CASE_SQL}
+            ELSE interval '1 day'
+            END
+          )`,
     );
     if (res.rowCount) app.log.info({ deleted: res.rowCount }, "pruned old invocations");
   } catch (err) {
@@ -93,6 +110,12 @@ try {
   app.log.error({ err }, "migration failed on boot");
   process.exit(1);
 }
+
+void startScheduler((level, msg, meta) => {
+  if (level === "error") app.log.error(meta ?? {}, msg);
+  else if (level === "warn") app.log.warn(meta ?? {}, msg);
+  else app.log.info(meta ?? {}, msg);
+});
 
 app.listen({ port: config.PORT, host: "0.0.0.0" }).catch((err) => {
   app.log.error(err);

@@ -26,8 +26,8 @@ The remaining work is the set of features that make these functions useful in re
 
 Invocations are currently pruned aggressively. That is likely too short once people use this for real work.
 
-- [ ] Increase retention or make it plan-based
-- [ ] Keep metadata longer than raw payloads if cost matters
+- [x] Increase retention or make it plan-based — free 1d, nano 7d, scale 30d; enforced in `pruneOldInvocations` via `users.plan` join
+- [x] Cap per-run log size to keep storage predictable — 64KB / 100-line cap in `runner.mjs` with truncation marker
 - [ ] Let users export or copy run details before pruning
 
 ## Lower priority
@@ -36,9 +36,9 @@ Invocations are currently pruned aggressively. That is likely too short once peo
 
 This becomes useful quickly, but it should not complicate the core product too early.
 
-- [ ] Scheduled invocations
-- [ ] Webhook-first trigger setup
-- [ ] Minimal event logs for trigger failures
+- [x] Scheduled invocations — cron per function, leader-elected in-process Postgres poller; `trigger_kind='scheduled'` invocations
+- [x] Webhook-first trigger setup — Stripe / GitHub / generic HMAC-SHA256 signature verification on `/f/:slug`
+- [x] Minimal event logs for trigger failures — `trigger_events` table with kinds: `schedule_fired|skipped|error`, `webhook_received|rejected`
 
 ## 3. Lightweight state and persistence
 

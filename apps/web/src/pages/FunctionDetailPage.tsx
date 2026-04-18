@@ -47,6 +47,9 @@ import {
 import { HttpResponseView } from "@/components/HttpResponseView";
 import { EnvVarsPanel } from "@/components/EnvVarsPanel";
 import { DependenciesPanel } from "@/components/DependenciesPanel";
+import { SchedulesPanel } from "@/components/SchedulesPanel";
+import { TriggerEventsPanel } from "@/components/TriggerEventsPanel";
+import { WebhookVerifyPanel } from "@/components/WebhookVerifyPanel";
 import {
   deleteTestCase,
   listSavedTestCases,
@@ -559,6 +562,8 @@ export default function FunctionDetailPage() {
 
   const accessBadge =
     fn.access_mode === "public" ? "Public" : "API key";
+  const accessBadgeClass =
+    "rounded bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-secondary-foreground";
 
   return (
     <div className="flex h-full flex-col bg-card text-card-foreground">
@@ -578,9 +583,17 @@ export default function FunctionDetailPage() {
           }}
           className="min-w-0 flex-1 border-none bg-transparent text-sm font-semibold text-foreground focus:outline-none focus:ring-0"
         />
-        <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-secondary-foreground">
-          {accessBadge}
-        </span>
+        {fn.access_mode === "api_key" ? (
+          <Link
+            to="/keys"
+            className={`${accessBadgeClass} hover:bg-accent hover:text-accent-foreground`}
+            title="Manage API keys"
+          >
+            {accessBadge}
+          </Link>
+        ) : (
+          <span className={accessBadgeClass}>{accessBadge}</span>
+        )}
         {!fn.enabled && (
           <span className="rounded bg-destructive/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
             Disabled
@@ -662,6 +675,7 @@ export default function FunctionDetailPage() {
               <TabsList className="h-8 shrink-0 justify-start rounded-none border-b border-border bg-muted/20 px-2">
                 <TabsTrigger value="request">Request</TabsTrigger>
                 <TabsTrigger value="config">HTTP</TabsTrigger>
+                <TabsTrigger value="triggers">Triggers</TabsTrigger>
                 <TabsTrigger value="env">Env</TabsTrigger>
                 <TabsTrigger value="deps">
                   Deps
@@ -751,6 +765,16 @@ export default function FunctionDetailPage() {
                     setDirty(true);
                   }}
                 />
+              </TabsContent>
+
+              <TabsContent value="triggers" className="mt-0 min-h-0 flex-1 overflow-auto bg-background p-4">
+                <div className="space-y-8">
+                  <SchedulesPanel functionId={fn.id} />
+                  <div className="h-px bg-border" />
+                  <WebhookVerifyPanel fn={fn} onUpdated={setFn} />
+                  <div className="h-px bg-border" />
+                  <TriggerEventsPanel functionId={fn.id} />
+                </div>
               </TabsContent>
 
               <TabsContent value="env" className="mt-0 min-h-0 flex-1 overflow-auto bg-background p-4">

@@ -1,6 +1,6 @@
 import { q, one } from "../db.js";
 
-export type TriggerKind = "editor" | "http";
+export type TriggerKind = "editor" | "http" | "scheduled";
 
 export interface Invocation {
   id: string;

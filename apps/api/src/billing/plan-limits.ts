@@ -7,6 +7,7 @@ export interface PlanLimits {
   ratePerSecond: number;
   rateBurst: number;
   allowOverage: boolean;
+  retentionDays: number;
 }
 
 export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
@@ -17,6 +18,7 @@ export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
     ratePerSecond: 5,
     rateBurst: 10,
     allowOverage: false,
+    retentionDays: 1,
   },
   nano: {
     dailyExecutions: 1_000,
@@ -25,6 +27,7 @@ export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
     ratePerSecond: 10,
     rateBurst: 20,
     allowOverage: false,
+    retentionDays: 7,
   },
   scale: {
     dailyExecutions: 10_000,
@@ -33,6 +36,7 @@ export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
     ratePerSecond: 30,
     rateBurst: 60,
     allowOverage: true,
+    retentionDays: 30,
   },
 };
 

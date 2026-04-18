@@ -106,13 +106,27 @@ export function EnvVarsPanel({ functionId }: { functionId: string }) {
         <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Add environment variable
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <form
+          className="flex flex-wrap items-center gap-2"
+          autoComplete="off"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void addSecret();
+          }}
+        >
           <Input
             className="h-8 flex-1 min-w-[160px] font-mono text-xs"
             placeholder="API_KEY"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             disabled={busy}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
           />
           <Input
             className="h-8 flex-[2] min-w-[200px] font-mono text-xs"
@@ -120,20 +134,24 @@ export function EnvVarsPanel({ functionId }: { functionId: string }) {
             type="password"
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void addSecret();
-            }}
             disabled={busy}
+            autoComplete="new-password"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
           />
           <Button
+            type="submit"
             size="sm"
             className="h-8"
-            onClick={() => void addSecret()}
             disabled={busy || !newName.trim() || !newValue}
           >
             <Plus className="mr-1 h-4 w-4" /> Add
           </Button>
-        </div>
+        </form>
         <p className="mt-2 text-xs text-muted-foreground">
           Values are encrypted at rest and exposed to your function as{" "}
           <code className="rounded bg-muted px-1 font-mono text-[11px]">ctx.env</code>.
@@ -174,6 +192,13 @@ export function EnvVarsPanel({ functionId }: { functionId: string }) {
                         }
                       }}
                       disabled={busy}
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      data-1p-ignore
+                      data-lpignore="true"
+                      data-form-type="other"
                     />
                     <Button
                       variant="ghost"

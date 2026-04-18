@@ -33,6 +33,7 @@ export async function billingRoutes(app: FastifyInstance) {
       },
       timeoutMs: limits.timeoutMs,
       allowOverage: limits.allowOverage,
+      retentionDays: limits.retentionDays,
     };
   });
 }

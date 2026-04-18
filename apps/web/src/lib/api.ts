@@ -16,6 +16,7 @@ export type HttpMethod = (typeof SUPPORTED_METHODS)[number];
 export type AccessMode = "public" | "api_key";
 export type DependencyMap = Record<string, string>;
 export type BuildStatus = "ok" | "error" | null;
+export type WebhookVerifyKind = "none" | "stripe" | "github" | "hmac_sha256";
 
 export interface Fn {
   id: string;
@@ -33,6 +34,46 @@ export interface Fn {
   created_at: string;
   updated_at: string;
   current_version_id: string | null;
+  webhook_verify_kind: WebhookVerifyKind;
+  webhook_secret_preview: string | null;
+  webhook_signature_header: string | null;
+}
+
+export interface Schedule {
+  id: string;
+  function_id: string;
+  user_id: string;
+  name: string;
+  cron_expression: string;
+  timezone: string;
+  request_method: HttpMethod;
+  request_headers: Record<string, string>;
+  request_body: string | null;
+  enabled: boolean;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TriggerEventKind =
+  | "schedule_fired"
+  | "schedule_skipped"
+  | "schedule_error"
+  | "webhook_received"
+  | "webhook_rejected";
+
+export interface TriggerEvent {
+  id: string;
+  function_id: string;
+  schedule_id: string | null;
+  invocation_id: string | null;
+  kind: TriggerEventKind;
+  outcome: "ok" | "error";
+  message: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface FunctionVersion {
@@ -69,7 +110,7 @@ export interface RunSummary {
   duration_ms: number;
   started_at: string;
   completed_at: string | null;
-  trigger_kind: "editor" | "http";
+  trigger_kind: "editor" | "http" | "scheduled";
   request_method: string | null;
   request_path: string | null;
   response_status: number | null;
@@ -103,6 +144,7 @@ export interface Usage {
   rate: { perSecond: number; burst: number };
   timeoutMs: number;
   allowOverage: boolean;
+  retentionDays: number;
 }
 
 export function publicEndpointUrl(slug: string | null): string {

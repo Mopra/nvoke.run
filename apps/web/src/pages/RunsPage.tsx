@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { History } from "lucide-react";
-import { useApi } from "../lib/api";
+import { useApi, type Usage } from "../lib/api";
 import { StatusDot } from "@/components/StatusDot";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs, type FilterTab } from "@/components/FilterTabs";
@@ -16,7 +16,7 @@ interface Run {
   status: Status;
   duration_ms: number;
   started_at: string;
-  trigger_kind: "editor" | "http";
+  trigger_kind: "editor" | "http" | "scheduled";
   request_method: string | null;
   response_status: number | null;
 }
@@ -40,12 +40,20 @@ export default function RunsPage() {
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [functions, setFunctions] = useState<FnOption[]>([]);
   const [functionId, setFunctionId] = useState<string>("all");
+  const [usage, setUsage] = useState<Usage | null>(null);
 
   useEffect(() => {
     request<{ functions: FnOption[] }>("/api/functions")
       .then((r) => setFunctions(r.functions))
       .catch(() => {});
+    request<Usage>("/api/usage")
+      .then((u) => setUsage(u))
+      .catch(() => {});
   }, []);
+
+  const retentionLabel = usage
+    ? `${usage.retentionDays} ${usage.retentionDays === 1 ? "day" : "days"}`
+    : null;
 
   useEffect(() => {
     const qs = filter === "all" ? "?limit=200" : `?limit=200&status=${filter}`;
@@ -65,6 +73,16 @@ export default function RunsPage() {
         <span className="text-muted-foreground/50">•</span>
         <div className="text-xs text-muted-foreground">
           Execution history across all functions.
+          {retentionLabel && (
+            <>
+              {" "}
+              Kept for{" "}
+              <Link to="/billing" className="text-foreground hover:text-primary">
+                {retentionLabel}
+              </Link>
+              .
+            </>
+          )}
         </div>
       </div>
 
@@ -93,7 +111,11 @@ export default function RunsPage() {
             <EmptyState
               icon={<History className="h-8 w-8" />}
               title="No runs yet"
-              body="Execution history will appear here once you invoke a function."
+              body={
+                retentionLabel
+                  ? `Execution history will appear here once you invoke a function. Runs are kept for ${retentionLabel} on your plan.`
+                  : "Execution history will appear here once you invoke a function."
+              }
             />
           </div>
         ) : (

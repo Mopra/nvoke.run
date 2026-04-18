@@ -25,6 +25,7 @@ const TIERS: Tier[] = [
       "100 executions/day",
       "15s execution timeout",
       "1 concurrent execution",
+      "1-day run history",
     ],
   },
   {
@@ -37,6 +38,7 @@ const TIERS: Tier[] = [
       "1,000 executions/day",
       "30s execution timeout",
       "3 concurrent executions",
+      "7-day run history",
     ],
     highlight: true,
   },
@@ -50,6 +52,7 @@ const TIERS: Tier[] = [
       "10,000 executions/day",
       "30s execution timeout",
       "10 concurrent executions",
+      "30-day run history",
       "Overage pricing available",
     ],
   },
@@ -121,7 +124,12 @@ export default function BillingPage() {
                   </span>{" "}
                   will be billed this cycle.
                 </>
-              )}
+              )}{" "}
+              Run history is kept for{" "}
+              <span className="font-semibold text-foreground">
+                {usage.retentionDays} {usage.retentionDays === 1 ? "day" : "days"}
+              </span>
+              .
             </div>
           </div>
         )}

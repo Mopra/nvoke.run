@@ -4,6 +4,7 @@ import { clerkAuth } from "../auth.js";
 import * as Q from "../queries/functions.js";
 import { SUPPORTED_METHODS, type DependencyMap, type Fn } from "../queries/functions.js";
 import { bundleFunction, MAX_DEPENDENCIES } from "../build/bundle.js";
+import { encryptSecret, maskPreview } from "../secrets-crypto.js";
 
 const MethodEnum = z.enum(SUPPORTED_METHODS);
 const Slug = z
@@ -164,4 +165,54 @@ export async function functionsRoutes(app: FastifyInstance) {
     const built = await rebuildIfNeeded(fn, { force: true });
     return { function: built };
   });
+
+  app.put("/api/functions/:id/webhook-verify", async (req, reply) => {
+    const { id } = IdParams.parse(req.params);
+    const body = WebhookVerifyBody.parse(req.body);
+    const existing = await Q.getFunction(id, req.user!.id);
+    if (!existing)
+      return reply.code(404).send({ error: "not_found", message: "function not found" });
+
+    if (body.kind === "none") {
+      const fn = await Q.setWebhookVerify(id, req.user!.id, {
+        kind: "none",
+        secret_ct: null,
+        secret_preview: null,
+        signature_header: null,
+      });
+      return { function: fn };
+    }
+
+    const secret = body.secret?.trim();
+    const needSecret = !existing.webhook_secret_preview;
+    if (needSecret && !secret) {
+      return reply
+        .code(400)
+        .send({ error: "secret_required", message: "a webhook secret is required" });
+    }
+    const secret_ct = secret ? encryptSecret(secret) : null;
+    const secret_preview = secret ? maskPreview(secret) : null;
+    const signatureHeader =
+      body.kind === "hmac_sha256"
+        ? body.signature_header?.trim() || "x-signature"
+        : null;
+    const fn = await Q.setWebhookVerify(id, req.user!.id, {
+      kind: body.kind,
+      secret_ct: secret_ct ?? null,
+      secret_preview: secret_preview ?? existing.webhook_secret_preview,
+      signature_header: signatureHeader,
+    });
+    return { function: fn };
+  });
 }
+
+const WebhookVerifyBody = z.object({
+  kind: z.enum(["none", "stripe", "github", "hmac_sha256"]),
+  secret: z.string().min(1).max(2048).optional(),
+  signature_header: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/, "header name must be simple")
+    .optional(),
+});
