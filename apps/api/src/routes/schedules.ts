@@ -128,7 +128,7 @@ export async function schedulesRoutes(app: FastifyInstance) {
     } catch {
       /* cron invalid — ignore for manual run */
     }
-    await runSchedule(
+    const { invocation } = await runSchedule(
       {
         id: schedule.id,
         function_id: schedule.function_id,
@@ -146,7 +146,7 @@ export async function schedulesRoutes(app: FastifyInstance) {
       },
     );
     const updated = await Q.getSchedule(id, req.user!.id);
-    return { schedule: updated };
+    return { schedule: updated, invocation };
   });
 
   app.get("/api/functions/:id/trigger-events", async (req, reply) => {

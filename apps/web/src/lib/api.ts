@@ -159,7 +159,7 @@ export function useApi() {
     const res = await fetch(`${BASE}${path}`, {
       ...init,
       headers: {
-        "content-type": "application/json",
+        ...(init.body != null ? { "content-type": "application/json" } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...(init.headers ?? {}),
       },

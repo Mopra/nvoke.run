@@ -18,6 +18,7 @@ import {
   Trash2,
   Upload,
   CopyPlus,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -31,7 +32,8 @@ import {
   type RunSummary,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { OverflowTabsList, type OverflowTabItem } from "@/components/OverflowTabsList";
 import {
   Popover,
   PopoverContent,
@@ -50,6 +52,7 @@ import { DependenciesPanel } from "@/components/DependenciesPanel";
 import { SchedulesPanel } from "@/components/SchedulesPanel";
 import { TriggerEventsPanel } from "@/components/TriggerEventsPanel";
 import { WebhookVerifyPanel } from "@/components/WebhookVerifyPanel";
+import { AiChatPanel } from "@/components/AiChatPanel";
 import {
   deleteTestCase,
   listSavedTestCases,
@@ -71,6 +74,15 @@ interface ResponseHistoryEntry {
 
 const SPLIT_KEY = "nvoke:editor-split";
 const DEFAULT_SIDE_WIDTH = 44;
+const CHAT_OPEN_KEY = "nvoke:ai-chat-open";
+const CHAT_WIDTH_KEY = "nvoke:ai-chat-width";
+const DEFAULT_CHAT_WIDTH = 360;
+const MIN_CHAT_WIDTH = 280;
+const MAX_CHAT_WIDTH = 640;
+const RESPONSE_HEIGHT_KEY = "nvoke:response-height";
+const DEFAULT_RESPONSE_HEIGHT = 50;
+const MIN_RESPONSE_HEIGHT = 15;
+const MAX_RESPONSE_HEIGHT = 85;
 
 interface InvocationDetail extends RunSummary {
   user_id: string;
@@ -131,10 +143,42 @@ export default function FunctionDetailPage() {
       ? parsed
       : DEFAULT_SIDE_WIDTH;
   });
+  const [chatOpen, setChatOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(CHAT_OPEN_KEY) === "1";
+  });
+  const [chatWidth, setChatWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_CHAT_WIDTH;
+    const raw = window.localStorage.getItem(CHAT_WIDTH_KEY);
+    const parsed = raw ? Number(raw) : DEFAULT_CHAT_WIDTH;
+    return Number.isFinite(parsed) && parsed >= MIN_CHAT_WIDTH && parsed <= MAX_CHAT_WIDTH
+      ? parsed
+      : DEFAULT_CHAT_WIDTH;
+  });
+  const [responseHeight, setResponseHeight] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_RESPONSE_HEIGHT;
+    const raw = window.localStorage.getItem(RESPONSE_HEIGHT_KEY);
+    const parsed = raw ? Number(raw) : DEFAULT_RESPONSE_HEIGHT;
+    return Number.isFinite(parsed) && parsed >= MIN_RESPONSE_HEIGHT && parsed <= MAX_RESPONSE_HEIGHT
+      ? parsed
+      : DEFAULT_RESPONSE_HEIGHT;
+  });
+  const [activeTab, setActiveTab] = useState("request");
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const rightColumnRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
+  const draggingChatRef = useRef(false);
+  const draggingResponseRef = useRef(false);
   const draftLoadedRef = useRef(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAT_OPEN_KEY, chatOpen ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [chatOpen]);
 
   useBeforeUnload(
     (event) => {
@@ -478,22 +522,56 @@ export default function FunctionDetailPage() {
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
-      if (!draggingRef.current || !splitContainerRef.current) return;
+      if (draggingResponseRef.current && rightColumnRef.current) {
+        const rect = rightColumnRef.current.getBoundingClientRect();
+        const px = rect.bottom - e.clientY;
+        const pct = (px / rect.height) * 100;
+        setResponseHeight(
+          Math.max(MIN_RESPONSE_HEIGHT, Math.min(MAX_RESPONSE_HEIGHT, pct)),
+        );
+        return;
+      }
+      if (!splitContainerRef.current) return;
       const rect = splitContainerRef.current.getBoundingClientRect();
-      const pct = ((rect.right - e.clientX) / rect.width) * 100;
-      const clamped = Math.max(25, Math.min(75, pct));
-      setSideWidth(clamped);
+      if (draggingChatRef.current) {
+        const px = rect.right - e.clientX;
+        setChatWidth(Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, px)));
+        return;
+      }
+      if (draggingRef.current) {
+        const rightEdge = chatOpen ? rect.right - chatWidth : rect.right;
+        const pct = ((rightEdge - e.clientX) / rect.width) * 100;
+        const clamped = Math.max(25, Math.min(75, pct));
+        setSideWidth(clamped);
+      }
     }
     function onUp() {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        try {
+          window.localStorage.setItem(SPLIT_KEY, String(sideWidth));
+        } catch {
+          /* ignore */
+        }
+      }
+      if (draggingChatRef.current) {
+        draggingChatRef.current = false;
+        try {
+          window.localStorage.setItem(CHAT_WIDTH_KEY, String(chatWidth));
+        } catch {
+          /* ignore */
+        }
+      }
+      if (draggingResponseRef.current) {
+        draggingResponseRef.current = false;
+        try {
+          window.localStorage.setItem(RESPONSE_HEIGHT_KEY, String(responseHeight));
+        } catch {
+          /* ignore */
+        }
+      }
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      try {
-        window.localStorage.setItem(SPLIT_KEY, String(sideWidth));
-      } catch {
-        // ignore
-      }
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -501,7 +579,7 @@ export default function FunctionDetailPage() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [sideWidth]);
+  }, [sideWidth, chatWidth, chatOpen, responseHeight]);
 
   function loadResponseFromHistory(entry: ResponseHistoryEntry) {
     setResult(entry.result);
@@ -619,6 +697,15 @@ export default function FunctionDetailPage() {
         <Button variant="outline" size="sm" onClick={duplicate} className="h-7">
           <CopyPlus className="mr-1 h-4 w-4" /> Duplicate
         </Button>
+        <Button
+          variant={chatOpen ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setChatOpen((v) => !v)}
+          className="h-7"
+          title="AI assistant"
+        >
+          <Wand2 className="mr-1 h-4 w-4" /> AI
+        </Button>
         <div className="h-5 w-px bg-border" />
         <Button
           variant="ghost"
@@ -667,27 +754,37 @@ export default function FunctionDetailPage() {
           className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary/40"
         />
         <div
+          ref={rightColumnRef}
           className="flex min-w-0 flex-col"
           style={{ width: `${sideWidth}%` }}
         >
-          <div className="flex min-h-0 flex-1 flex-col border-b border-border">
-            <Tabs defaultValue="request" className="flex min-h-0 flex-1 flex-col">
-              <TabsList className="h-8 shrink-0 justify-start rounded-none border-b border-border bg-muted/20 px-2">
-                <TabsTrigger value="request">Request</TabsTrigger>
-                <TabsTrigger value="config">HTTP</TabsTrigger>
-                <TabsTrigger value="triggers">Triggers</TabsTrigger>
-                <TabsTrigger value="env">Env</TabsTrigger>
-                <TabsTrigger value="deps">
-                  Deps
-                  {fn.build_status === "error" && (
-                    <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-destructive" />
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="logs">Logs</TabsTrigger>
-                <TabsTrigger value="info">Info</TabsTrigger>
-                <TabsTrigger value="runs">Runs</TabsTrigger>
-                <TabsTrigger value="versions">Versions</TabsTrigger>
-              </TabsList>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+              <OverflowTabsList
+                value={activeTab}
+                onValueChange={setActiveTab}
+                items={[
+                  { value: "request", label: "Request" },
+                  { value: "config", label: "HTTP" },
+                  { value: "triggers", label: "Triggers" },
+                  { value: "env", label: "Env" },
+                  {
+                    value: "deps",
+                    label: (
+                      <>
+                        Deps
+                        {fn.build_status === "error" && (
+                          <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-destructive" />
+                        )}
+                      </>
+                    ),
+                  },
+                  { value: "logs", label: "Logs" },
+                  { value: "info", label: "Info" },
+                  { value: "runs", label: "Runs" },
+                  { value: "versions", label: "Versions" },
+                ] satisfies OverflowTabItem[]}
+              />
 
               <TabsContent value="request" className="mt-0 min-h-0 flex-1 overflow-hidden p-0">
                 <div className="flex h-full min-h-0 flex-col bg-background">
@@ -922,7 +1019,21 @@ export default function FunctionDetailPage() {
             </Tabs>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              draggingResponseRef.current = true;
+              document.body.style.cursor = "row-resize";
+              document.body.style.userSelect = "none";
+            }}
+            className="h-1 shrink-0 cursor-row-resize bg-border transition-colors hover:bg-primary/40"
+          />
+          <div
+            className="flex min-h-0 shrink-0 flex-col"
+            style={{ height: `${responseHeight}%` }}
+          >
             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               <span>Response</span>
               <div className="flex-1" />
@@ -982,6 +1093,35 @@ export default function FunctionDetailPage() {
             </div>
           </div>
         </div>
+
+        {chatOpen && (
+          <>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                draggingChatRef.current = true;
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+              }}
+              className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary/40"
+            />
+            <div
+              className="flex min-h-0 shrink-0 flex-col"
+              style={{ width: `${chatWidth}px` }}
+            >
+              <AiChatPanel
+                currentCode={fn.code}
+                onApplyCode={(code) => {
+                  setFn({ ...fn, code });
+                  setDirty(true);
+                }}
+                onClose={() => setChatOpen(false)}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

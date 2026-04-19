@@ -1,4 +1,5 @@
 import { getFunction, runnableCode } from "../queries/functions.js";
+import type { Invocation } from "../queries/invocations.js";
 import { insertInvocation } from "../queries/invocations.js";
 import { loadSecretEnv } from "../queries/secrets.js";
 import { insertTriggerEvent } from "../queries/trigger-events.js";
@@ -29,7 +30,7 @@ function parseBody(
 export async function runSchedule(
   schedule: ScheduleDue,
   log: (level: "info" | "warn" | "error", msg: string, meta?: unknown) => void,
-): Promise<void> {
+): Promise<{ invocation: Invocation | null }> {
   const fn = await getFunction(schedule.function_id, schedule.user_id);
   if (!fn) {
     await insertTriggerEvent({
@@ -41,7 +42,7 @@ export async function runSchedule(
       message: "function not found",
     });
     await recordScheduleStatus(schedule.id, "error");
-    return;
+    return { invocation: null };
   }
 
   if (!fn.enabled) {
@@ -54,7 +55,7 @@ export async function runSchedule(
       message: "function disabled",
     });
     await recordScheduleStatus(schedule.id, "skipped");
-    return;
+    return { invocation: null };
   }
 
   const runnable = runnableCode(fn);
@@ -68,7 +69,7 @@ export async function runSchedule(
       message: runnable.error,
     });
     await recordScheduleStatus(schedule.id, "error");
-    return;
+    return { invocation: null };
   }
 
   const plan = await getUserPlan(schedule.user_id);
@@ -88,7 +89,7 @@ export async function runSchedule(
       scheduleId: schedule.id,
       code: gate.code,
     });
-    return;
+    return { invocation: null };
   }
 
   const headers = schedule.request_headers ?? {};
@@ -143,6 +144,7 @@ export async function runSchedule(
       message: persisted.error_message ?? null,
     });
     await recordScheduleStatus(schedule.id, persisted.status);
+    return { invocation: invocation ?? null };
   } finally {
     gate.release();
   }

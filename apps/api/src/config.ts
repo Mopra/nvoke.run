@@ -16,6 +16,7 @@ const schema = z.object({
   WEB_ORIGIN: z.string().optional(),
   // 32-byte key for AES-256-GCM, encoded as base64 or hex. Required in production.
   SECRET_ENCRYPTION_KEY: z.string().optional(),
+  OPENROUTER_API_KEY: z.string().optional(),
 });
 
 export const config = schema.parse(process.env);

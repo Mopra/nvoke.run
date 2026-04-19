@@ -13,6 +13,7 @@ import { billingRoutes } from "./routes/billing.js";
 import { secretsRoutes } from "./routes/secrets.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { schedulesRoutes } from "./routes/schedules.js";
+import { aiRoutes } from "./routes/ai.js";
 import { runMigrations } from "./migrate.js";
 import { startScheduler } from "./scheduler/index.js";
 import { PLAN_LIMITS, type PlanKey } from "./billing/plan-limits.js";
@@ -68,6 +69,7 @@ await app.register(billingRoutes);
 await app.register(secretsRoutes);
 await app.register(webhookRoutes);
 await app.register(schedulesRoutes);
+await app.register(aiRoutes);
 
 app.get("/api/health", async () => {
   await pool.query("SELECT 1");

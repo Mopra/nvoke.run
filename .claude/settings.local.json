@@ -40,7 +40,15 @@
       "Bash(echo \"exit: $?\")",
       "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
       "Bash(curl -s -i -X OPTIONS https://api.nvoke.run/api/functions -H \"Origin: https://app.nvoke.run\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: authorization,content-type\")",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(git pull *)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Get-Process -Id 23740 | Format-List Id,ProcessName,Path,StartTime\")",
+      "Bash(powershell -Command \"Stop-Process -Id 23740 -Force\")",
+      "Bash(ls c:\\\\\\\\Users\\\\\\\\morte\\\\\\\\Documents\\\\\\\\Github\\\\\\\\nvoke\\\\\\\\nvoke.run\\\\\\\\apps\\\\\\\\web\\\\\\\\src\\\\\\\\components)",
+      "Bash(echo \"---exit $?---\")",
+      "Bash(npx --no-install tsc --noEmit -p apps/api/tsconfig.json)",
+      "Bash(npx --no-install tsc --noEmit -p apps/web/tsconfig.json)"
     ]
   }
 }

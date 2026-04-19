@@ -70,6 +70,16 @@ function absTime(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
+interface ScheduleRunResult {
+  id: string;
+  status: "success" | "error" | "timeout";
+  duration_ms: number;
+  output: unknown;
+  logs: string[] | null;
+  error_message: string | null;
+  response_status: number | null;
+}
+
 export function SchedulesPanel({ functionId }: { functionId: string }) {
   const { request } = useApi();
   const confirm = useConfirm();
@@ -77,6 +87,9 @@ export function SchedulesPanel({ functionId }: { functionId: string }) {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lastRuns, setLastRuns] = useState<Record<string, ScheduleRunResult>>(
+    {},
+  );
 
   async function load() {
     setLoading(true);
@@ -214,14 +227,36 @@ export function SchedulesPanel({ functionId }: { functionId: string }) {
   async function runNow(s: Schedule) {
     setBusy(true);
     try {
-      await request(`/api/schedules/${s.id}/run`, { method: "POST" });
-      toast.success("Schedule fired");
+      const r = await request<{
+        schedule: Schedule;
+        invocation: ScheduleRunResult | null;
+      }>(`/api/schedules/${s.id}/run`, { method: "POST" });
+      if (r.invocation) {
+        setLastRuns((prev) => ({ ...prev, [s.id]: r.invocation! }));
+        if (r.invocation.status === "success") {
+          toast.success("Schedule fired");
+        } else {
+          toast.error(
+            r.invocation.error_message ??
+              `Schedule ran with status: ${r.invocation.status}`,
+          );
+        }
+      } else {
+        toast.warning("Schedule fired but was skipped (disabled or gated)");
+      }
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
+  }
+
+  function dismissLastRun(scheduleId: string) {
+    setLastRuns((prev) => {
+      const { [scheduleId]: _drop, ...rest } = prev;
+      return rest;
+    });
   }
 
   const sorted = useMemo(
@@ -344,8 +379,94 @@ export function SchedulesPanel({ functionId }: { functionId: string }) {
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
+              {lastRuns[s.id] && (
+                <LastRunPanel
+                  result={lastRuns[s.id]!}
+                  onDismiss={() => dismissLastRun(s.id)}
+                />
+              )}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatOutput(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function LastRunPanel({
+  result,
+  onDismiss,
+}: {
+  result: ScheduleRunResult;
+  onDismiss: () => void;
+}) {
+  const statusClass =
+    result.status === "success"
+      ? "bg-primary/15 text-primary"
+      : "bg-destructive/20 text-destructive";
+  const body = formatOutput(result.output);
+  const logs = result.logs ?? [];
+  return (
+    <div className="mt-2 rounded border border-border bg-muted/30 p-2 text-xs">
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusClass}`}
+        >
+          {result.status}
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {result.duration_ms}ms
+        </span>
+        {result.response_status != null && (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            HTTP {result.response_status}
+          </span>
+        )}
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-muted-foreground"
+            onClick={onDismiss}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      {result.error_message && (
+        <pre className="mb-2 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-destructive/30 bg-destructive/10 p-2 font-mono text-[11px] text-destructive">
+          {result.error_message}
+        </pre>
+      )}
+      {body && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            Output
+          </div>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-border bg-background p-2 font-mono text-[11px]">
+            {body}
+          </pre>
+        </div>
+      )}
+      {logs.length > 0 && (
+        <div className="mt-2">
+          <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            Logs
+          </div>
+          <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded border border-border bg-background p-2 font-mono text-[11px] text-muted-foreground">
+            {logs.join("\n")}
+          </pre>
         </div>
       )}
     </div>

@@ -52,14 +52,14 @@ export function insertInvocation(row: {
         error_message, started_at, completed_at,
         trigger_kind, request_method, request_path, request_headers,
         response_status, response_headers, response_body_preview)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
       row.function_id,
       row.function_version_id,
       row.user_id,
       row.source,
-      row.input,
+      JSON.stringify(row.input ?? null),
       row.output,
       row.logs,
       row.status,
