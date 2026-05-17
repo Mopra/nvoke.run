@@ -12,7 +12,7 @@ export interface PlanLimits {
 
 export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
   free: {
-    dailyExecutions: 100,
+    dailyExecutions: 1_000,
     timeoutMs: 15_000,
     concurrency: 1,
     ratePerSecond: 5,

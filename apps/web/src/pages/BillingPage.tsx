@@ -22,7 +22,7 @@ const TIERS: Tier[] = [
     price: "$0",
     tagline: "Always free",
     features: [
-      "100 executions/day",
+      "1,000 executions/day",
       "15s execution timeout",
       "1 concurrent execution",
       "1-day run history",

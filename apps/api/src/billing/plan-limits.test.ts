@@ -9,7 +9,7 @@ import { resolvePlanFromClerk } from "./resolve-plan.js";
 
 describe("PLAN_LIMITS", () => {
   it("defines the three tiers with the expected ladder", () => {
-    expect(PLAN_LIMITS.free.dailyExecutions).toBe(100);
+    expect(PLAN_LIMITS.free.dailyExecutions).toBe(1_000);
     expect(PLAN_LIMITS.nano.dailyExecutions).toBe(10_000);
     expect(PLAN_LIMITS.scale.dailyExecutions).toBe(100_000);
 
