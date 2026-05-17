@@ -35,7 +35,7 @@ const TIERS: Tier[] = [
     annual: "or $60/year (save ~29%)",
     tagline: "For solo builders",
     features: [
-      "1,000 executions/day",
+      "10,000 executions/day",
       "30s execution timeout",
       "3 concurrent executions",
       "7-day run history",
@@ -49,7 +49,7 @@ const TIERS: Tier[] = [
     annual: "or $288/year (2 months free)",
     tagline: "Production workloads",
     features: [
-      "10,000 executions/day",
+      "100,000 executions/day",
       "30s execution timeout",
       "10 concurrent executions",
       "30-day run history",

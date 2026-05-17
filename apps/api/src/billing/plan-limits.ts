@@ -21,7 +21,7 @@ export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
     retentionDays: 1,
   },
   nano: {
-    dailyExecutions: 1_000,
+    dailyExecutions: 10_000,
     timeoutMs: 30_000,
     concurrency: 3,
     ratePerSecond: 10,
@@ -30,7 +30,7 @@ export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
     retentionDays: 7,
   },
   scale: {
-    dailyExecutions: 10_000,
+    dailyExecutions: 100_000,
     timeoutMs: 30_000,
     concurrency: 10,
     ratePerSecond: 30,
