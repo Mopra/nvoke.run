@@ -12,6 +12,7 @@ import ApiKeysPage from "./pages/ApiKeysPage";
 import SettingsPage from "./pages/SettingsPage";
 import { ProfileSection, DangerSection } from "./pages/settings/sections";
 import BillingPage from "./pages/BillingPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import { RouteError } from "./components/RouteError";
 
 function Protected() {
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
   { path: "/sign-up/sso-callback", element: <SsoCallbackPage />, errorElement: <RouteError /> },
   { path: "/sign-in/*", element: <SignInPage />, errorElement: <RouteError /> },
   { path: "/sign-up/*", element: <SignUpPage />, errorElement: <RouteError /> },
+  { path: "/privacy", element: <PrivacyPage />, errorElement: <RouteError /> },
   {
     path: "/",
     element: <Protected />,
