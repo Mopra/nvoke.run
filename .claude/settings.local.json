@@ -48,7 +48,19 @@
       "Bash(ls c:\\\\\\\\Users\\\\\\\\morte\\\\\\\\Documents\\\\\\\\Github\\\\\\\\nvoke\\\\\\\\nvoke.run\\\\\\\\apps\\\\\\\\web\\\\\\\\src\\\\\\\\components)",
       "Bash(echo \"---exit $?---\")",
       "Bash(npx --no-install tsc --noEmit -p apps/api/tsconfig.json)",
-      "Bash(npx --no-install tsc --noEmit -p apps/web/tsconfig.json)"
+      "Bash(npx --no-install tsc --noEmit -p apps/web/tsconfig.json)",
+      "WebSearch",
+      "WebFetch(domain:docs.replit.com)",
+      "WebFetch(domain:blog.replit.com)",
+      "WebFetch(domain:www.langchain.com)",
+      "Read(//c/Users/morte/Documents/Github/nvoke/nvoke.run.website/app/**)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh pr create --title 'feat\\(billing\\): raise daily execution limits — Nano to 10,000/day, Scale to 100,000/day' --body ' *)",
+      "Bash(git merge *)",
+      "Bash(gh pr *)",
+      "Bash(git branch *)"
     ]
   }
 }
