@@ -1,23 +1,29 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Send, Sparkles, User, X } from "lucide-react";
-import { toast } from "sonner";
+import { Check, Pencil, Send, ShieldCheck, Sparkles, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/lib/api";
 
-interface Props {
-  currentCode: string;
-  onApplyCode: (code: string) => void;
-  onClose: () => void;
+const NOTICE_DISMISSED_KEY = "nvoke:ai-notice-dismissed";
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  text: string;
+  pending?: boolean;
+  hasEdit?: boolean;
+  editAccepted?: boolean;
+  editRejected?: boolean;
+  kind?: "reject";
 }
 
-type Role = "user" | "assistant";
-
-interface Message {
-  id: string;
-  role: Role;
-  text: string;
-  code?: string;
-  pending?: boolean;
+interface Props {
+  messages: ChatMessage[];
+  busy: boolean;
+  onSend: (text: string) => void;
+  activeProposalMessageId: string | null;
+  proposalStreaming: boolean;
+  onAcceptProposal: () => void;
+  onRejectProposal: () => void;
+  onClose: () => void;
 }
 
 const SUGGESTIONS = [
@@ -27,13 +33,32 @@ const SUGGESTIONS = [
   "Turn this into a Stripe webhook",
 ];
 
-export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
-  const { request } = useApi();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
+export function AiChatPanel({
+  messages,
+  busy,
+  onSend,
+  activeProposalMessageId,
+  proposalStreaming,
+  onAcceptProposal,
+  onRejectProposal,
+  onClose,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [input, setInput] = useState("");
+  const [noticeDismissed, setNoticeDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(NOTICE_DISMISSED_KEY) === "1";
+  });
+
+  function dismissNotice() {
+    setNoticeDismissed(true);
+    try {
+      window.localStorage.setItem(NOTICE_DISMISSED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -46,73 +71,18 @@ export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [input]);
 
-  async function send(text: string) {
-    const prompt = text.trim();
-    if (!prompt || busy) return;
+  function submit(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
     setInput("");
-    setBusy(true);
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      text: prompt,
-    };
-    const pendingId = crypto.randomUUID();
-    setMessages((m) => [
-      ...m,
-      userMsg,
-      { id: pendingId, role: "assistant", text: "", pending: true },
-    ]);
-
-    try {
-      const { text: reply, code } = await request<{ text: string; code?: string }>(
-        "/api/ai/generate",
-        {
-          method: "POST",
-          body: JSON.stringify({ prompt, currentCode }),
-        },
-      );
-      await streamInto(reply, (partial) => {
-        setMessages((m) =>
-          m.map((msg) => (msg.id === pendingId ? { ...msg, text: partial } : msg)),
-        );
-      });
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === pendingId
-            ? { ...msg, text: reply, code, pending: false }
-            : msg,
-        ),
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === pendingId
-            ? { ...msg, text: `Error: ${message}`, pending: false }
-            : msg,
-        ),
-      );
-      toast.error(message);
-    } finally {
-      setBusy(false);
-    }
+    onSend(trimmed);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void send(input);
+      submit(input);
     }
-  }
-
-  function copyMsg(text: string) {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied");
-  }
-
-  function apply(code: string) {
-    onApplyCode(code);
-    toast.success("Applied to editor");
   }
 
   return (
@@ -131,6 +101,36 @@ export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {!noticeDismissed && (
+        <div className="border-b border-border bg-muted/10 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <span className="text-foreground">Your prompt and the current file are sent to OpenRouter (US) for inference.</span>{" "}
+              Training is disabled — providers do not retain or train on your data.{" "}
+              <strong className="text-foreground">Avoid pasting personal data, customer data, or secrets.</strong>{" "}
+              <a
+                href="https://app.nvoke.run/privacy"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Privacy policy
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={dismissNotice}
+              className="text-muted-foreground/70 hover:text-foreground"
+              aria-label="Dismiss notice"
+              title="Dismiss"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-3 py-4">
         {messages.length === 0 ? (
@@ -151,8 +151,9 @@ export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
                 <button
                   key={s}
                   type="button"
-                  onClick={() => void send(s)}
-                  className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => submit(s)}
+                  disabled={busy}
+                  className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
                 >
                   {s}
                 </button>
@@ -162,11 +163,13 @@ export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
         ) : (
           <div className="flex flex-col gap-4">
             {messages.map((m) => (
-              <MessageBubble
+              <MessageRow
                 key={m.id}
                 message={m}
-                onCopy={copyMsg}
-                onApply={apply}
+                isActiveProposal={m.id === activeProposalMessageId}
+                proposalStreaming={proposalStreaming}
+                onAcceptProposal={onAcceptProposal}
+                onRejectProposal={onRejectProposal}
               />
             ))}
           </div>
@@ -188,7 +191,7 @@ export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
           <Button
             size="sm"
             className="h-7 w-7 p-0"
-            onClick={() => void send(input)}
+            onClick={() => submit(input)}
             disabled={busy || !input.trim()}
           >
             <Send className="h-3.5 w-3.5" />
@@ -199,15 +202,30 @@ export function AiChatPanel({ currentCode, onApplyCode, onClose }: Props) {
   );
 }
 
-function MessageBubble({
+interface MessageRowProps {
+  message: ChatMessage;
+  isActiveProposal: boolean;
+  proposalStreaming: boolean;
+  onAcceptProposal: () => void;
+  onRejectProposal: () => void;
+}
+
+function MessageRow({
   message,
-  onCopy,
-  onApply,
-}: {
-  message: Message;
-  onCopy: (text: string) => void;
-  onApply: (code: string) => void;
-}) {
+  isActiveProposal,
+  proposalStreaming,
+  onAcceptProposal,
+  onRejectProposal,
+}: MessageRowProps) {
+  if (message.role === "system" && message.kind === "reject") {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground">
+        <X className="h-3 w-3" />
+        <span>{message.text}</span>
+      </div>
+    );
+  }
+
   const isUser = message.role === "user";
   return (
     <div className="flex gap-2">
@@ -218,23 +236,31 @@ function MessageBubble({
             : "bg-primary/15 text-primary"
         }`}
       >
-        {isUser ? <User className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+        {isUser ? (
+          <User className="h-3.5 w-3.5" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
           {isUser ? "You" : "Assistant"}
         </div>
-        <div className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-          {message.text}
-          {message.pending && (
-            <span className="ml-1 inline-block h-3 w-1.5 translate-y-0.5 animate-pulse bg-foreground/60" />
-          )}
-        </div>
-        {message.code && (
-          <CodeBlock
-            code={message.code}
-            onCopy={() => onCopy(message.code!)}
-            onApply={() => onApply(message.code!)}
+        {message.text && (
+          <div className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+            {message.text}
+            {message.pending && !message.hasEdit && (
+              <span className="ml-1 inline-block h-3 w-1.5 translate-y-0.5 animate-pulse bg-foreground/60" />
+            )}
+          </div>
+        )}
+        {message.hasEdit && (
+          <EditCard
+            message={message}
+            isActiveProposal={isActiveProposal}
+            proposalStreaming={proposalStreaming}
+            onAccept={onAcceptProposal}
+            onReject={onRejectProposal}
           />
         )}
       </div>
@@ -242,56 +268,68 @@ function MessageBubble({
   );
 }
 
-function CodeBlock({
-  code,
-  onCopy,
-  onApply,
-}: {
-  code: string;
-  onCopy: () => void;
-  onApply: () => void;
-}) {
-  const [applied, setApplied] = useState(false);
-  return (
-    <div className="mt-2 overflow-hidden rounded-md border border-border bg-card">
-      <div className="flex h-7 items-center gap-2 border-b border-border bg-muted/30 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-        <span>index.js</span>
-        <div className="flex-1" />
-        <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={onCopy}>
-          <Copy className="mr-1 h-3 w-3" /> Copy
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 px-1.5 text-[10px] text-primary hover:text-primary"
-          onClick={() => {
-            onApply();
-            setApplied(true);
-            setTimeout(() => setApplied(false), 1500);
-          }}
-        >
-          {applied ? (
-            <>
-              <Check className="mr-1 h-3 w-3" /> Applied
-            </>
-          ) : (
-            <>
-              <Sparkles className="mr-1 h-3 w-3" /> Apply
-            </>
-          )}
-        </Button>
-      </div>
-      <pre className="overflow-auto p-3 font-mono text-xs text-foreground">{code}</pre>
-    </div>
-  );
+interface EditCardProps {
+  message: ChatMessage;
+  isActiveProposal: boolean;
+  proposalStreaming: boolean;
+  onAccept: () => void;
+  onReject: () => void;
 }
 
-async function streamInto(full: string, onChunk: (partial: string) => void) {
-  const tokens = full.match(/\S+\s*|\s+/g) ?? [full];
-  let acc = "";
-  for (const t of tokens) {
-    acc += t;
-    onChunk(acc);
-    await new Promise((r) => setTimeout(r, 18 + Math.random() * 30));
-  }
+function EditCard({
+  message,
+  isActiveProposal,
+  proposalStreaming,
+  onAccept,
+  onReject,
+}: EditCardProps) {
+  const streaming = isActiveProposal && proposalStreaming;
+  const awaitingDecision =
+    isActiveProposal && !message.editAccepted && !message.editRejected;
+  const label = message.editAccepted
+    ? "Applied to index.js"
+    : message.editRejected
+      ? "Rejected edit to index.js"
+      : streaming
+        ? "Editing index.js…"
+        : "Proposed edit to index.js";
+  const tone = message.editAccepted
+    ? "text-primary"
+    : message.editRejected
+      ? "text-muted-foreground line-through"
+      : "text-foreground";
+  const Icon = message.editAccepted ? Check : Pencil;
+  return (
+    <div className="mt-2 overflow-hidden rounded-md border border-border bg-card">
+      <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
+        <Icon
+          className={`h-3.5 w-3.5 ${message.editAccepted ? "text-primary" : "text-muted-foreground"}`}
+        />
+        <span className={tone}>{label}</span>
+        {streaming && (
+          <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+        )}
+      </div>
+      {awaitingDecision && (
+        <div className="flex gap-1.5 border-t border-border bg-muted/20 p-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 flex-1"
+            onClick={onReject}
+          >
+            <X className="mr-1 h-3.5 w-3.5" /> Deny
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 flex-1"
+            onClick={onAccept}
+            disabled={streaming}
+          >
+            <Check className="mr-1 h-3.5 w-3.5" /> Apply
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }

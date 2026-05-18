@@ -6,7 +6,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import Editor from "@monaco-editor/react";
+import Editor, { DiffEditor } from "@monaco-editor/react";
 import {
   ArrowLeft,
   Copy,
@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import {
   ApiError,
   publicEndpointUrl,
+  useAiStream,
   useApi,
   type Fn,
   type FunctionVersion,
@@ -52,7 +53,7 @@ import { DependenciesPanel } from "@/components/DependenciesPanel";
 import { SchedulesPanel } from "@/components/SchedulesPanel";
 import { TriggerEventsPanel } from "@/components/TriggerEventsPanel";
 import { WebhookVerifyPanel } from "@/components/WebhookVerifyPanel";
-import { AiChatPanel } from "@/components/AiChatPanel";
+import { AiChatPanel, type ChatMessage } from "@/components/AiChatPanel";
 import {
   deleteTestCase,
   listSavedTestCases,
@@ -92,6 +93,13 @@ interface InvocationDetail extends RunSummary {
   error_message: string | null;
 }
 
+interface PendingProposal {
+  messageId: string;
+  originalCode: string;
+  proposedCode: string;
+  streaming: boolean;
+}
+
 type RunState = "idle" | "running" | "success" | "error";
 
 function relTime(iso: string): string {
@@ -120,9 +128,15 @@ export default function FunctionDetailPage() {
   const nav = useNavigate();
   const location = useLocation();
   const { request } = useApi();
+  const streamAi = useAiStream();
   const confirm = useConfirm();
   const [fn, setFn] = useState<Fn | null>(null);
+  const fnRef = useRef<Fn | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [proposal, setProposal] = useState<PendingProposal | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const [draft, setDraft] = useState<HttpRequestDraft>({
     method: "POST",
     headers: DEFAULT_HEADERS,
@@ -179,6 +193,16 @@ export default function FunctionDetailPage() {
       /* ignore */
     }
   }, [chatOpen]);
+
+  useEffect(() => {
+    fnRef.current = fn;
+  }, [fn]);
+
+  useEffect(() => {
+    return () => {
+      aiAbortRef.current?.abort();
+    };
+  }, []);
 
   useBeforeUnload(
     (event) => {
@@ -401,6 +425,182 @@ export default function FunctionDetailPage() {
     nav(`/functions/${res.function.id}`);
   }
 
+  function serializeHistory(
+    messages: ChatMessage[],
+  ): Array<{ role: "user" | "assistant"; content: string }> {
+    const out: Array<{ role: "user" | "assistant"; content: string }> = [];
+    for (const m of messages) {
+      if (m.role === "user") {
+        out.push({ role: "user", content: m.text });
+        continue;
+      }
+      if (m.role === "system" && m.kind === "reject") {
+        out.push({
+          role: "user",
+          content:
+            "(I rejected the previous code suggestion. Try a different approach.)",
+        });
+        continue;
+      }
+      if (m.role === "assistant") {
+        if (m.pending) continue;
+        const parts: string[] = [];
+        if (m.text) parts.push(m.text);
+        if (m.hasEdit && !m.editRejected) parts.push("(I edited the file.)");
+        if (m.hasEdit && m.editRejected)
+          parts.push("(I proposed an edit, which the user rejected.)");
+        if (parts.length === 0) continue;
+        out.push({ role: "assistant", content: parts.join(" ") });
+      }
+    }
+    return out;
+  }
+
+  async function sendAi(prompt: string) {
+    if (aiBusy || !fnRef.current) return;
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: prompt,
+    };
+    const assistantId = crypto.randomUUID();
+    const pendingAssistant: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      text: "",
+      pending: true,
+    };
+
+    const history = serializeHistory(chatMessages);
+    setChatMessages((m) => [...m, userMsg, pendingAssistant]);
+    setAiBusy(true);
+
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+
+    try {
+      await streamAi(
+        { prompt, currentCode: fnRef.current.code, history },
+        (event) => {
+          if (event.type === "text") {
+            setChatMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, text: msg.text + event.delta }
+                  : msg,
+              ),
+            );
+          } else if (event.type === "edit_start") {
+            const original = fnRef.current?.code ?? "";
+            setProposal({
+              messageId: assistantId,
+              originalCode: original,
+              proposedCode: "",
+              streaming: true,
+            });
+            setChatMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId ? { ...msg, hasEdit: true } : msg,
+              ),
+            );
+          } else if (event.type === "edit_delta") {
+            setProposal((p) =>
+              p && p.messageId === assistantId
+                ? { ...p, proposedCode: p.proposedCode + event.delta }
+                : p,
+            );
+          } else if (event.type === "edit_end") {
+            setProposal((p) =>
+              p && p.messageId === assistantId ? { ...p, streaming: false } : p,
+            );
+          } else if (event.type === "done") {
+            setChatMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId ? { ...msg, pending: false } : msg,
+              ),
+            );
+          } else if (event.type === "error") {
+            setChatMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? {
+                      ...msg,
+                      pending: false,
+                      text: msg.text
+                        ? `${msg.text}\n\nError: ${event.message}`
+                        : `Error: ${event.message}`,
+                    }
+                  : msg,
+              ),
+            );
+            setProposal((p) =>
+              p && p.messageId === assistantId ? null : p,
+            );
+            toast.error(event.message);
+          }
+        },
+        controller.signal,
+      );
+    } catch (err) {
+      if (controller.signal.aborted) {
+        // cleaned up by rejectProposal or unmount
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        setChatMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId
+              ? { ...msg, pending: false, text: `Error: ${message}` }
+              : msg,
+          ),
+        );
+        setProposal((p) => (p && p.messageId === assistantId ? null : p));
+        toast.error(message);
+      }
+    } finally {
+      setChatMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId && msg.pending
+            ? { ...msg, pending: false }
+            : msg,
+        ),
+      );
+      setAiBusy(false);
+      if (aiAbortRef.current === controller) aiAbortRef.current = null;
+    }
+  }
+
+  function acceptProposal() {
+    if (!proposal || proposal.streaming) return;
+    setFn((f) => (f ? { ...f, code: proposal.proposedCode } : f));
+    setDirty(true);
+    setChatMessages((m) =>
+      m.map((msg) =>
+        msg.id === proposal.messageId ? { ...msg, editAccepted: true } : msg,
+      ),
+    );
+    setProposal(null);
+    toast.success("AI edit applied");
+  }
+
+  function rejectProposal() {
+    if (!proposal) return;
+    if (proposal.streaming) aiAbortRef.current?.abort();
+    const messageId = proposal.messageId;
+    setProposal(null);
+    setChatMessages((m) => [
+      ...m.map((msg) =>
+        msg.id === messageId ? { ...msg, editRejected: true } : msg,
+      ),
+      {
+        id: crypto.randomUUID(),
+        role: "system",
+        kind: "reject",
+        text: "Rejected the suggestion.",
+      },
+    ]);
+  }
+
   async function run() {
     if (!fn) return;
     setRunState("running");
@@ -534,13 +734,12 @@ export default function FunctionDetailPage() {
       if (!splitContainerRef.current) return;
       const rect = splitContainerRef.current.getBoundingClientRect();
       if (draggingChatRef.current) {
-        const px = rect.right - e.clientX;
+        const px = e.clientX - rect.left;
         setChatWidth(Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, px)));
         return;
       }
       if (draggingRef.current) {
-        const rightEdge = chatOpen ? rect.right - chatWidth : rect.right;
-        const pct = ((rightEdge - e.clientX) / rect.width) * 100;
+        const pct = ((rect.right - e.clientX) / rect.width) * 100;
         const clamped = Math.max(25, Math.min(75, pct));
         setSideWidth(clamped);
       }
@@ -579,7 +778,7 @@ export default function FunctionDetailPage() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [sideWidth, chatWidth, chatOpen, responseHeight]);
+  }, [sideWidth, chatWidth, responseHeight]);
 
   function loadResponseFromHistory(entry: ResponseHistoryEntry) {
     setResult(entry.result);
@@ -718,27 +917,80 @@ export default function FunctionDetailPage() {
       </div>
 
       <div ref={splitContainerRef} className="flex min-h-0 flex-1">
+        {chatOpen && (
+          <>
+            <div
+              className="flex min-h-0 shrink-0 flex-col"
+              style={{ width: `${chatWidth}px` }}
+            >
+              <AiChatPanel
+                messages={chatMessages}
+                busy={aiBusy}
+                onSend={sendAi}
+                activeProposalMessageId={proposal?.messageId ?? null}
+                proposalStreaming={proposal?.streaming ?? false}
+                onAcceptProposal={acceptProposal}
+                onRejectProposal={rejectProposal}
+                onClose={() => setChatOpen(false)}
+              />
+            </div>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                draggingChatRef.current = true;
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+              }}
+              className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary/40"
+            />
+          </>
+        )}
         <div className="flex min-w-0 flex-1 flex-col bg-background">
-          <div className="flex h-8 shrink-0 items-center border-b border-border bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            index.js
+          <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-muted/20 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span>index.js</span>
+            {proposal && (
+              <span className="text-primary">
+                {proposal.streaming ? "AI is editing…" : "AI proposed an edit"}
+              </span>
+            )}
           </div>
           <div className="min-h-0 flex-1">
-            <Editor
-              height="100%"
-              defaultLanguage="javascript"
-              theme="vs-dark"
-              value={fn.code}
-              onChange={(v) => {
-                setFn({ ...fn, code: v ?? "" });
-                setDirty(true);
-              }}
-              options={{
-                fontSize: 13,
-                minimap: { enabled: false },
-                padding: { top: 12 },
-                fontFamily: "JetBrains Mono, ui-monospace, monospace",
-              }}
-            />
+            {proposal ? (
+              <DiffEditor
+                height="100%"
+                language="javascript"
+                theme="vs-dark"
+                original={proposal.originalCode}
+                modified={proposal.proposedCode}
+                options={{
+                  fontSize: 13,
+                  minimap: { enabled: false },
+                  renderSideBySide: true,
+                  readOnly: true,
+                  originalEditable: false,
+                  fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                }}
+              />
+            ) : (
+              <Editor
+                height="100%"
+                defaultLanguage="javascript"
+                theme="vs-dark"
+                value={fn.code}
+                onChange={(v) => {
+                  setFn({ ...fn, code: v ?? "" });
+                  setDirty(true);
+                }}
+                options={{
+                  fontSize: 13,
+                  minimap: { enabled: false },
+                  padding: { top: 12 },
+                  fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                }}
+              />
+            )}
           </div>
         </div>
 
@@ -1093,35 +1345,6 @@ export default function FunctionDetailPage() {
             </div>
           </div>
         </div>
-
-        {chatOpen && (
-          <>
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                draggingChatRef.current = true;
-                document.body.style.cursor = "col-resize";
-                document.body.style.userSelect = "none";
-              }}
-              className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary/40"
-            />
-            <div
-              className="flex min-h-0 shrink-0 flex-col"
-              style={{ width: `${chatWidth}px` }}
-            >
-              <AiChatPanel
-                currentCode={fn.code}
-                onApplyCode={(code) => {
-                  setFn({ ...fn, code });
-                  setDirty(true);
-                }}
-                onClose={() => setChatOpen(false)}
-              />
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

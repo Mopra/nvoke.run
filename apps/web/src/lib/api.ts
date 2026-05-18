@@ -185,3 +185,72 @@ export function useApi() {
   }
   return { request };
 }
+
+export interface AiStreamRequest {
+  prompt: string;
+  currentCode: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+export type AiStreamEvent =
+  | { type: "text"; delta: string }
+  | { type: "edit_start" }
+  | { type: "edit_delta"; delta: string }
+  | { type: "edit_end" }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
+export function useAiStream() {
+  const { getToken } = useAuth();
+  return async function streamAi(
+    body: AiStreamRequest,
+    onEvent: (event: AiStreamEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const token = await getToken();
+    const res = await fetch(`${BASE}/api/ai/generate`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "");
+      let message = text || `${res.status} ${res.statusText}`;
+      try {
+        const parsed = JSON.parse(text) as { message?: string };
+        if (parsed?.message) message = parsed.message;
+      } catch {
+        /* not JSON */
+      }
+      throw new ApiError(res.status, message, text);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let sep: number;
+      while ((sep = buf.indexOf("\n\n")) !== -1) {
+        const frame = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        for (const line of frame.split("\n")) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          try {
+            onEvent(JSON.parse(payload) as AiStreamEvent);
+          } catch {
+            /* ignore malformed frame */
+          }
+        }
+      }
+    }
+  };
+}
