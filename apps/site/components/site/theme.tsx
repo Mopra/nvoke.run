@@ -1,0 +1,28 @@
+'use client';
+
+import { Moon, Sun } from 'lucide-react';
+import { THEME_STORAGE_KEY } from '@/components/site/theme-script';
+
+export function ThemeToggle() {
+  function toggle() {
+    const dark = !document.documentElement.classList.contains('dark');
+    document.documentElement.classList.toggle('dark', dark);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, dark ? 'dark' : 'light');
+    } catch {
+      // Storage can be blocked. The choice then lasts for this page view only.
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label="Switch between light and dark theme"
+      className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
+      <Sun className="size-4 dark:hidden" />
+      <Moon className="hidden size-4 dark:block" />
+    </button>
+  );
+}
