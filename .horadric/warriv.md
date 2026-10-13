@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-13 Local MCP quest finished but conflicted on merge; fix-up already running, gave it sonnet and told it to merge newest main last.
 - 2026-10-13 Round after the fourth SQLite merge fix landed (f749f19): 7 running, nothing blocked, nothing to do.
 - 2026-10-13 Third SQLite merge fix conflicted too (contract.ts, preload). Fourth fix-up already running: gave it sonnet, told it to keep both sides and merge main as its very last step.
 - 2026-10-13 Round after the CSV drop merge fix landed (e1a8d2c): gave the third SQLite fix-up sonnet; 7 running, 1 waiting on it, nothing else to do.
@@ -34,4 +35,5 @@
 - Check the notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
 - Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
+- Check the local MCP merge fix lands; its Account "Claude and Cursor" section was never seen on screen (capture hit UnknownVizError), and the check quest for it is blocked.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
