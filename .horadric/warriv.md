@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 Round after the results screen closest() fix landed (ce13749): local lead search still running, macOS test still with the human, no aim open. Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Round: local lead search still running, macOS test still with the human. Filed 'fix target?.closest is not a function' (sonnet) from the capture check's unfiled finding. 17 quests since the last ship; left shipping to the human.
 - 2026-10-14 Round after the local render crawl merge fix landed (42fa77c): local lead search still running, macOS test still with the human, no aim open. Nothing to do; 17 quests since the last ship, left shipping to the human.
 - 2026-10-14 Local render crawl finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides (refused and js_only beside blocked) and merge newest main last.
@@ -62,5 +63,5 @@
 - Watched inbox landed (7c41ce0). Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
 - Check the local lead search quest finishes after its queued test run.
-- Filed the results screen closest() fix; check it lands with a clean capture log.
+- Results screen closest() fix landed (ce13749); its capture log was not seen clean.
 - Local render crawl landed (42fa77c). Never seen: the hidden render window against a live site, and capture of the Account opt-in.
