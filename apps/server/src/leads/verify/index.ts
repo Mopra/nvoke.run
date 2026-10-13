@@ -1,9 +1,12 @@
-// Email verification: syntax, disposable domain list, MX records, then an
-// SMTP RCPT probe (no message is ever sent) with catch-all detection.
+// Email verification: syntax, disposable domain list, freemail typos, MX
+// records (with parked domains), then an SMTP RCPT probe (no message is ever
+// sent) with catch-all detection against two random addresses.
 //
 // Politeness: one SMTP connection per MX host at a time, a catch-all verdict
 // is remembered per domain so the same server is not asked again, and results
-// are cached per address (30 days, 1 day for "unknown") by the caller's cache.
+// are cached per address by the caller's cache (7 days for "valid", so a
+// charged address was confirmed within the week, 1 day for "unknown", 30 days
+// for the rest). A greylisted answer is never cached: the pipeline retries it.
 // When port 25 turns out to be unreachable the verifier stops trying for an
 // hour and answers "unknown" from MX data alone.
 
@@ -43,7 +46,33 @@ export interface VerifierOptions {
 }
 
 export const CACHE_TTL_MS = 30 * 24 * 60 * 60_000;
+export const VALID_TTL_MS = 7 * 24 * 60 * 60_000;
 export const UNKNOWN_TTL_MS = 24 * 60 * 60_000;
+
+/** The RCPT reply was a 4xx, usually greylisting. Worth asking again later. */
+export function isTempfail(result: Pick<VerifyResult, 'reason'>): boolean {
+  return result.reason.startsWith('rcpt_tempfail_');
+}
+
+/** Common misspellings of freemail domains. Nobody owns a mailbox there. */
+const TYPO_DOMAINS = new Set([
+  'gmial.com', 'gamil.com', 'gmai.com', 'gmal.com', 'gmaill.com', 'gnail.com', 'gmail.con',
+  'hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotmail.con',
+  'yaho.com', 'yahooo.com', 'yahoo.con',
+  'outlok.com', 'outllook.com', 'outlook.con',
+  'iclod.com', 'icoud.com', 'icloud.con',
+]);
+
+export function isTypoDomain(domain: string): boolean {
+  return TYPO_DOMAINS.has(domain.toLowerCase());
+}
+
+/** Mail exchangers run by domain parking and for-sale services: nobody reads mail there. */
+const PARKING_MX = /(^|\.)(sedoparking\.com|parkingcrew\.net|bodis\.com|above\.com)$/;
+
+export function isParkedMx(host: string): boolean {
+  return PARKING_MX.test(host.toLowerCase());
+}
 
 const DOMAIN_TTL_MS = 60 * 60_000;
 const PORT25_BLOCK_MS = 60 * 60_000;
@@ -115,12 +144,14 @@ export class Verifier {
     const result = await this.check(address, signal);
     // Answers that say nothing about the mailbox (probing switched off, a
     // resolver hiccup) are not worth remembering.
-    if (result.reason !== 'mx_only' && result.reason !== 'dns_error') await this.opts.cache?.set(result);
+    // A greylisted answer is retried by the pipeline, so it is not cached either.
+    if (result.reason !== 'mx_only' && result.reason !== 'dns_error' && !isTempfail(result)) await this.opts.cache?.set(result);
     return result;
   }
 
   private async check(address: string, signal?: AbortSignal): Promise<VerifyResult> {
     const domain = domainOf(address);
+    if (isTypoDomain(domain)) return { address, verification: 'invalid', mxHost: null, reason: 'typo_domain' };
     if (isDisposableDomain(domain)) return { address, verification: 'risky', mxHost: null, reason: 'disposable' };
 
     const mx = await this.mx(domain);
@@ -129,6 +160,7 @@ export class Verifier {
     if (mx.kind === 'error') return { address, verification: 'unknown', mxHost: null, reason: 'dns_error' };
 
     const primary = mx.hosts[0] ?? null;
+    if (mx.hosts.some(isParkedMx)) return { address, verification: 'invalid', mxHost: primary, reason: 'parked_domain' };
     if (!this.opts.smtpEnabled) return { address, verification: 'unknown', mxHost: primary, reason: 'mx_only' };
     if (this.smtpBlocked) return { address, verification: 'unknown', mxHost: primary, reason: 'mx_only_port25_blocked' };
 
@@ -173,13 +205,14 @@ export class Verifier {
     if (known && this.now() - known < DOMAIN_TTL_MS) {
       return { address, verification: 'catch_all', reason: 'domain_catch_all' };
     }
-    const decoy = `${randomLocal()}@${domain}`;
+    // Two random addresses: a server that accepts either one accepts anything.
+    const decoys = [`${randomLocal()}@${domain}`, `${randomLocal()}@${domain}`];
     const res = await smtpProbe({
       host,
       port: this.opts.port,
       heloName: this.opts.heloName,
       mailFrom: this.opts.mailFrom,
-      recipients: [address, decoy],
+      recipients: [address, ...decoys],
       connectTimeoutMs: this.opts.connectTimeoutMs,
       commandTimeoutMs: this.opts.commandTimeoutMs,
       connect: this.opts.connect,
@@ -189,8 +222,8 @@ export class Verifier {
     if (!real) return { address, verification: 'unknown', reason: 'no_rcpt_reply' };
     const verdict = classifyRcpt(real);
     if (verdict.verification === 'valid') {
-      const decoyReply = res.recipients[1]?.reply;
-      if (decoyReply && decoyReply.code >= 200 && decoyReply.code < 300) {
+      const accepted = res.recipients.slice(1).some(({ reply }) => reply.code >= 200 && reply.code < 300);
+      if (accepted) {
         this.catchAll.set(domain, this.now());
         return { address, verification: 'catch_all', reason: 'accepts_any_recipient' };
       }
@@ -221,5 +254,7 @@ export class Verifier {
 
 /** How long a cached result stays fresh. */
 export function ttlFor(verification: Verification): number {
-  return verification === 'unknown' ? UNKNOWN_TTL_MS : CACHE_TTL_MS;
+  if (verification === 'unknown') return UNKNOWN_TTL_MS;
+  if (verification === 'valid') return VALID_TTL_MS;
+  return CACHE_TTL_MS;
 }

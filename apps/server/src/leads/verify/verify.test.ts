@@ -1,6 +1,6 @@
 import * as net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { classifyRcpt, isDisposableDomain, Verifier, ttlFor, type VerifyCache, type VerifyResult } from './index.js';
+import { classifyRcpt, isDisposableDomain, isParkedMx, isTypoDomain, Verifier, ttlFor, type VerifyCache, type VerifyResult } from './index.js';
 import { lookupMx, type DnsLike } from './mx.js';
 import { smtpProbe } from './smtp.js';
 
@@ -199,6 +199,21 @@ describe('classifyRcpt', () => {
   });
 });
 
+describe('isTypoDomain and isParkedMx', () => {
+  it('knows common freemail typos and leaves the real domains alone', () => {
+    expect(isTypoDomain('gamil.com')).toBe(true);
+    expect(isTypoDomain('Hotmial.com')).toBe(true);
+    expect(isTypoDomain('gmail.com')).toBe(false);
+    expect(isTypoDomain('acme.dk')).toBe(false);
+  });
+  it('matches parking providers by domain suffix only', () => {
+    expect(isParkedMx('mx.sedoparking.com')).toBe(true);
+    expect(isParkedMx('park-mx.above.com')).toBe(true);
+    expect(isParkedMx('mail.notabove.com')).toBe(false);
+    expect(isParkedMx('aspmx.l.google.com')).toBe(false);
+  });
+});
+
 describe('Verifier', () => {
   it('rejects bad syntax and flags disposable domains without any network', async () => {
     const v = new Verifier({ ...base, dns: fakeDns({}) });
@@ -224,8 +239,10 @@ describe('Verifier', () => {
     const v = new Verifier({ ...base, dns: fakeDns({ 'acme.dk': ['mx1.acme.dk'] }), connect: connectTo(smtp.port) });
     expect(await v.verify('Info@Acme.dk')).toEqual({ address: 'info@acme.dk', verification: 'valid', mxHost: 'mx1.acme.dk', reason: 'rcpt_accepted' });
     const rcpts = smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'));
-    expect(rcpts).toHaveLength(2);
+    expect(rcpts).toHaveLength(3);
     expect(rcpts[1]).toMatch(/^RCPT TO:<nvoke-[0-9a-f]{12}-nx@acme\.dk>$/);
+    expect(rcpts[2]).toMatch(/^RCPT TO:<nvoke-[0-9a-f]{12}-nx@acme\.dk>$/);
+    expect(rcpts[2]).not.toBe(rcpts[1]);
   });
 
   it('marks a rejected mailbox invalid', async () => {
@@ -296,8 +313,40 @@ describe('Verifier', () => {
     expect(cache.store.get('fresh@acme.dk')?.verification).toBe('valid');
   });
 
-  it('keeps unknown results for a day and the rest for 30 days', () => {
+  it('keeps valid results for a week, unknown for a day and the rest for 30 days', () => {
     expect(ttlFor('unknown')).toBe(24 * 60 * 60_000);
-    expect(ttlFor('valid')).toBe(30 * 24 * 60 * 60_000);
+    expect(ttlFor('valid')).toBe(7 * 24 * 60 * 60_000);
+    expect(ttlFor('invalid')).toBe(30 * 24 * 60 * 60_000);
+    expect(ttlFor('catch_all')).toBe(30 * 24 * 60 * 60_000);
+  });
+
+  it('does not cache a greylisted answer', async () => {
+    const smtp = await fakeSmtp({ rcpt: () => '451 4.7.1 Greylisted, try again later' });
+    const cache = memoryCache();
+    const v = new Verifier({ ...base, cache, dns: fakeDns({ 'grey.dk': ['mx.grey.dk'] }), connect: connectTo(smtp.port) });
+    expect(await v.verify('a@grey.dk')).toMatchObject({ verification: 'unknown', reason: 'rcpt_tempfail_451' });
+    expect(cache.store.size).toBe(0);
+  });
+
+  it('marks freemail typos and parked domains invalid without probing', async () => {
+    const smtp = await fakeSmtp();
+    const v = new Verifier({
+      ...base,
+      dns: fakeDns({ 'parked.dk': ['mx76.m2bp.com', 'mx.sedoparking.com'] }),
+      connect: connectTo(smtp.port),
+    });
+    expect(await v.verify('jens@gmial.com')).toMatchObject({ verification: 'invalid', reason: 'typo_domain' });
+    expect(await v.verify('info@parked.dk')).toMatchObject({ verification: 'invalid', reason: 'parked_domain' });
+    expect(smtp.sessions).toHaveLength(0);
+  });
+
+  it('asks about two random addresses and calls the domain catch-all when either is accepted', async () => {
+    let decoys = 0;
+    const smtp = await fakeSmtp({
+      rcpt: (a) => (a.startsWith('nvoke-') ? (decoys++ === 0 ? '550 5.1.1 no' : '250 ok') : '250 ok'),
+    });
+    const v = new Verifier({ ...base, dns: fakeDns({ 'odd.dk': ['mx.odd.dk'] }), connect: connectTo(smtp.port) });
+    expect(await v.verify('info@odd.dk')).toMatchObject({ verification: 'catch_all', reason: 'accepts_any_recipient' });
+    expect(smtp.sessions[0]?.filter((l) => l.startsWith('RCPT'))).toHaveLength(3);
   });
 });

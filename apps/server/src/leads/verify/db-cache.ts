@@ -2,7 +2,7 @@ import type { Sql } from 'postgres';
 import type { Verification } from '@nvoke/shared';
 import { ttlFor, type VerifyCache, type VerifyResult } from './index.js';
 
-/** The email_checks table as a verification cache: 30 days, 1 day for "unknown". */
+/** The email_checks table as a verification cache, fresh for ttlFor(verification). */
 export function dbVerifyCache(sql: Sql, now: () => number = Date.now): VerifyCache {
   return {
     async get(address) {
