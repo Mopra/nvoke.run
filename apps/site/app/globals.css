@@ -148,3 +148,54 @@
     }
   }
 }
+
+/* The plan slider on the pricing and billing pages: a hairline track that
+   fills with the accent up to the thumb (--fill is set inline). */
+@layer components {
+  .plan-range {
+    appearance: none;
+    height: 1.25rem;
+    background: transparent;
+  }
+  .plan-range:focus-visible {
+    outline: none;
+  }
+  .plan-range::-webkit-slider-runnable-track {
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: linear-gradient(to right, var(--primary) var(--fill), color-mix(in oklab, var(--foreground) 12%, transparent) var(--fill));
+  }
+  .plan-range::-moz-range-track {
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: linear-gradient(to right, var(--primary) var(--fill), color-mix(in oklab, var(--foreground) 12%, transparent) var(--fill));
+  }
+  .plan-range::-webkit-slider-thumb {
+    appearance: none;
+    margin-top: -0.4375rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--foreground) 18%, transparent),
+      0 0 0 4px color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+  .plan-range::-moz-range-thumb {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--foreground) 18%, transparent),
+      0 0 0 4px color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+  .plan-range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--ring) 45%, transparent);
+  }
+  .plan-range:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--ring) 45%, transparent);
+  }
+}

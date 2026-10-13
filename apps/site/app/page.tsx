@@ -16,14 +16,14 @@ import { VerificationTrace } from '@/components/mockups/verification-trace';
 import type { Verification } from '@/components/mockups/data';
 import { Faq, type FaqItem } from '@/components/site/faq';
 import { LogoMark } from '@/components/site/logo';
-import { PricingCards } from '@/components/site/pricing-cards';
+import { PricingSlider } from '@/components/site/pricing-slider';
 import { Container, Section } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
-import { formatCount, pricing } from '@/lib/pricing';
+import { formatCount, formatPrice, pricing } from '@/lib/pricing';
 import { site } from '@/lib/site';
 
-const freePlan = pricing.plans.find((p) => p.id === 'free');
-const freeEmails = formatCount(freePlan?.emailsPerMonth ?? 50);
+const freeEmails = formatCount(pricing.free.emailsPerMonth);
+const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCount(pricing.cheapest.emailsPerMonth)}`;
 
 const STEPS = [
   {
@@ -90,7 +90,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'What counts toward my monthly limit?',
-    a: `Each email address nvoke finds and checks for you counts once. The Free plan includes ${freeEmails} a month. When you reach your limit, a running search stops, and you can upgrade or wait for the next month.`,
+    a: `Only addresses whose mailbox check comes back valid, and each address counts once, ever. Invalid, risky, catch-all and unknown results are free. The Free plan includes ${freeEmails} a month. When you reach your limit, a running search stops with no overage charge, and you can upgrade or wait for the next month.`,
   },
   {
     q: 'Does nvoke send any email?',
@@ -328,14 +328,14 @@ export default function HomePage() {
       <Section
         id="pricing"
         className="border-t"
-        title="Pay for the addresses you get"
-        intro="Every plan has all three search kinds, verification and CSV export. The plans differ in how many verified emails you get each month."
+        title="Pay for emails that work"
+        intro={`One plan for everyone, with every feature. You pay only for verified emails: ${freeEmails} free every month, then from ${cheapest}.`}
       >
-        <PricingCards compact />
+        <PricingSlider />
         <p className="mt-8 text-center text-sm text-muted-foreground">
           {pricing.vatNote}{' '}
           <Link href="/pricing" className="text-foreground underline underline-offset-4">
-            Compare plans
+            How pricing works
           </Link>
         </p>
       </Section>

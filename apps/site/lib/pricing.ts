@@ -1,63 +1,46 @@
-// Single source for the plans shown on the site. Prices are placeholders until
-// they are set: change `price` here and every page follows. Monthly email
-// limits match the server plan config (free 50, pro 2,000, business 10,000).
+// Pricing for the site, built on the shared plan ladder in @nvoke/shared, so
+// the site, the server and the desktop app always show the same numbers.
+// Clerk Billing charges in USD.
 
-export type PlanId = 'free' | 'pro' | 'business';
+import { FREE_PLAN, PAID_PLANS, PLANS, PLAN_ORDER, TOP_PLAN, planLabel, type Plan } from '@nvoke/shared';
 
-export type Plan = {
-  id: PlanId;
-  name: string;
-  /** Monthly price in `pricing.currency`, excluding VAT. */
+export type Tier = {
+  plan: Plan;
+  /** "Free", or the allowance like "2,500". */
+  label: string;
+  /** Monthly price in USD, excluding VAT. */
   price: number;
   emailsPerMonth: number;
-  summary: string;
-  features: string[];
-  highlighted?: boolean;
 };
 
-const plans: Plan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    emailsPerMonth: 50,
-    summary: 'Run a few searches and see what the results look like.',
-    features: ['All three search kinds', 'Email verification', 'CSV export'],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 29,
-    emailsPerMonth: 2000,
-    summary: 'For one person building lead lists every week.',
-    features: ['All three search kinds', 'Email verification', 'CSV export', 'Email support'],
-    highlighted: true,
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    price: 99,
-    emailsPerMonth: 10000,
-    summary: 'For teams that run outreach in several markets.',
-    features: ['All three search kinds', 'Email verification', 'CSV export', 'Priority email support'],
-  },
-];
+function tier(plan: Plan): Tier {
+  return { plan, label: planLabel(plan), price: PLANS[plan].priceUsd, emailsPerMonth: PLANS[plan].emailsPerMonth };
+}
 
 export const pricing = {
-  currency: 'EUR',
-  locale: 'en-IE',
-  vatNote: 'Prices are per month and exclude VAT.',
-  plans,
+  currency: 'USD',
+  locale: 'en-US',
+  vatNote: 'Prices are per month in US dollars and exclude VAT.',
+  tiers: PLAN_ORDER.map(tier),
+  paidTiers: PAID_PLANS.map(tier),
+  free: tier(FREE_PLAN),
+  cheapest: tier(PAID_PLANS[0]!),
+  top: tier(TOP_PLAN),
 };
 
 export function formatPrice(amount: number): string {
   return new Intl.NumberFormat(pricing.locale, {
     style: 'currency',
     currency: pricing.currency,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
   }).format(amount);
 }
 
 export function formatCount(n: number): string {
   return new Intl.NumberFormat('en-US').format(n);
+}
+
+/** Effective price per 1,000 verified emails, like "$3.60". */
+export function pricePerThousand(t: Tier): string {
+  return formatPrice(Math.round((t.price / t.emailsPerMonth) * 1000 * 100) / 100);
 }

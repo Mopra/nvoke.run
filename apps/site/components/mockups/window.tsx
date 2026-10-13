@@ -130,8 +130,8 @@ export function Sidebar({
       <div className="mt-auto flex flex-col gap-2.5 pt-3">
         <div className="flex flex-col gap-1.5 px-2">
           <div className="flex items-baseline justify-between text-[11.5px]">
-            <span className="text-sidebar-foreground/55">Emails this month</span>
-            <span className="text-sidebar-foreground/75 tabular-nums">1,596 of 2,000</span>
+            <span className="text-sidebar-foreground/55">Verified this month</span>
+            <span className="text-sidebar-foreground/75 tabular-nums">2,012 of 2,500</span>
           </div>
           <div className="h-1 overflow-hidden rounded-full bg-sidebar-foreground/10">
             <div className="h-full w-[80%] rounded-full bg-sidebar-foreground/45" />
@@ -143,7 +143,7 @@ export function Sidebar({
           </span>
           <span className="leading-tight">
             <span className="block font-medium">Mette Lindqvist</span>
-            <span className="block text-[11.5px] text-sidebar-foreground/55">Pro plan</span>
+            <span className="block text-[11.5px] text-sidebar-foreground/55">2,500 plan</span>
           </span>
         </div>
       </div>

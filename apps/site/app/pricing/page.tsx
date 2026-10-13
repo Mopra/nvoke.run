@@ -1,46 +1,38 @@
 import type { Metadata } from 'next';
-import { Check, Minus } from 'lucide-react';
+import Link from 'next/link';
 import { Faq, type FaqItem } from '@/components/site/faq';
-import { PricingCards } from '@/components/site/pricing-cards';
+import { PricingSlider } from '@/components/site/pricing-slider';
 import { Container, PageHeader, Section } from '@/components/site/section';
-import { formatCount, formatPrice, pricing, type PlanId } from '@/lib/pricing';
+import { Button } from '@/components/ui/button';
+import { formatCount, formatPrice, pricing } from '@/lib/pricing';
 import { site } from '@/lib/site';
+
+const free = formatCount(pricing.free.emailsPerMonth);
+const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCount(pricing.cheapest.emailsPerMonth)}`;
+const top = formatCount(pricing.top.emailsPerMonth);
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description:
-    'nvoke has a Free, Pro and Business plan. Every plan includes all search kinds, email verification and CSV export.',
+  description: `One plan for everyone, priced by verified emails. ${free} free every month, then from ${cheapest}. You only pay for addresses that pass the mailbox check.`,
   alternates: { canonical: '/pricing' },
 };
 
-type Row = { label: string; value: (id: PlanId) => string | boolean };
-
-const ROWS: Row[] = [
-  {
-    label: 'Verified emails per month',
-    value: (id) => formatCount(pricing.plans.find((p) => p.id === id)?.emailsPerMonth ?? 0),
-  },
-  { label: 'Local business search', value: () => true },
-  { label: 'Web search', value: () => true },
-  { label: 'New launches search', value: () => true },
-  { label: 'Mailbox verification', value: () => true },
-  { label: 'CSV export', value: () => true },
-  { label: 'Email support', value: (id) => id !== 'free' },
-  { label: 'Priority support', value: (id) => id === 'business' },
-];
-
 const FAQ: FaqItem[] = [
   {
-    q: 'What is a verified email?',
-    a: 'An address nvoke found on a company website and then checked with the mail server. Each address counts once toward your monthly limit, whatever the result of the check.',
+    q: 'What counts as a verified email?',
+    a: 'An address whose mailbox check came back valid. Invalid, risky, catch-all and unknown results are free. Generic addresses like info@ count when they are valid, because for most companies they are the address that gets read. An address you were already charged for never counts again, in any later search.',
   },
   {
     q: 'What happens when I reach my limit?',
-    a: 'A running search stops when the limit is reached. You keep everything found so far. Upgrade to continue right away, or wait until the next month starts.',
+    a: 'The running search stops cleanly and you keep everything found so far. There is no overage charge and no surprise bill. Need more room? Move up a plan in a couple of clicks from the app.',
   },
   {
-    q: 'Do unused emails carry over?',
-    a: 'No. The limit resets at the start of each calendar month.',
+    q: 'Do unused emails roll over?',
+    a: 'No. Your allowance resets at the start of each calendar month (UTC). Pick the plan that fits your month and change it whenever.',
+  },
+  {
+    q: 'Is there a free plan?',
+    a: `Yes. ${free} verified emails a month with every feature, all three search kinds, verification and CSV export. No card needed.`,
   },
   {
     q: 'Can I cancel at any time?',
@@ -48,72 +40,49 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'Do you offer invoices with VAT?',
-    a: `Yes. ${pricing.vatNote} Business customers in the EU with a valid VAT number are invoiced with reverse charge. Write to ${site.email.hello} if you need something specific on the invoice.`,
+    a: `Yes. ${pricing.vatNote} Every payment comes with a receipt. Business customers in the EU with a valid VAT number are invoiced with reverse charge. Write to ${site.email.hello} if you need something specific on the invoice.`,
   },
 ];
-
-function Cell({ value }: { value: string | boolean }) {
-  if (typeof value === 'string') return <span className="font-medium tabular-nums">{value}</span>;
-  return value ? (
-    <Check className="size-4 text-primary" aria-label="Included" />
-  ) : (
-    <Minus className="size-4 text-muted-foreground/60" aria-label="Not included" />
-  );
-}
 
 export default function PricingPage() {
   return (
     <>
       <PageHeader
-        title="Pricing"
-        intro="Every plan has all three search kinds, mailbox verification and CSV export. Pick the one that matches how many addresses you need each month."
+        title="Pay for emails that work"
+        intro={`One plan for everyone. You pay for verified emails, nothing else. Start with ${free} free every month, then from ${cheapest}.`}
       />
-      <Container className="pb-8">
-        <PricingCards />
-        <p className="mt-8 text-center text-sm text-muted-foreground">{pricing.vatNote}</p>
+      <Container className="pb-24 sm:pb-36">
+        <PricingSlider />
+        <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-pretty text-muted-foreground">
+          Every plan includes{' '}
+          <span className="font-medium text-foreground">
+            all three search kinds, mailbox verification, CSV export, and unlimited searches and companies
+          </span>
+          . {pricing.vatNote}
+        </p>
+        <p className="mt-3 text-center text-sm text-muted-foreground">
+          Need more than {top} a month?{' '}
+          <a href={`mailto:${site.email.hello}`} className="text-foreground underline underline-offset-4">
+            Write to us
+          </a>
+          .
+        </p>
       </Container>
 
-      <Section title="Compare plans">
-        <div className="mx-auto max-w-4xl overflow-x-auto">
-          <table className="w-full text-[15px]">
-            <thead>
-              <tr className="border-b text-left">
-                <th scope="col" className="px-3 py-4 font-medium text-muted-foreground sm:px-5">
-                  <span className="sr-only">Feature</span>
-                </th>
-                {pricing.plans.map((p) => (
-                  <th key={p.id} scope="col" className="px-3 py-4 text-lg font-semibold tracking-[-0.015em] sm:px-5">
-                    {p.name}
-                    <span className="hidden text-sm font-normal tracking-normal text-muted-foreground sm:block">
-                      {formatPrice(p.price)} per month
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ROWS.map((row) => (
-                <tr key={row.label} className="border-b">
-                  <th scope="row" className="px-3 py-4 text-left font-normal text-muted-foreground sm:px-5">
-                    {row.label}
-                  </th>
-                  {pricing.plans.map((p) => (
-                    <td key={p.id} className="px-3 py-4 sm:px-5">
-                      <Cell value={row.value(p.id)} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      <Section title="Billing questions" className="border-t">
+      <Section title="Questions" className="border-t">
         <div className="mx-auto max-w-3xl">
           <Faq items={FAQ} />
         </div>
       </Section>
+
+      <section className="border-t py-24 sm:py-32">
+        <Container className="flex flex-col items-center gap-8 text-center">
+          <h2 className="text-headline font-semibold text-balance">Start free. Pay when it works.</h2>
+          <Button asChild size="lg">
+            <Link href="/download">Download nvoke</Link>
+          </Button>
+        </Container>
+      </section>
     </>
   );
 }
