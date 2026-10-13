@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 Round as the human left: 6 running (two notifications/hotkey merge fixes, OCR grab, local render crawl, local lead search, MCP capture check), all with models, nothing blocked, no aim open. Nothing to do.
 - 2026-10-14 Fourth notifications merge fix conflicted too (contract, main, preload, Account, SPEC). Fifth fix-up running: gave it sonnet, told it to keep both sides, merge newest main last and finish at once.
 - 2026-10-14 Third notifications merge fix conflicted too (contract, main, preload, api, bridge, mock, types, Account, SPEC). Fourth fix-up already running: gave it sonnet, told it to keep both sides and merge newest main last.
 - 2026-10-14 Round after the watched inbox merge fix landed (7c41ce0): 6 running, nothing blocked, nothing to do.
