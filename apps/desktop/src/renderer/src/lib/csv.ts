@@ -1,17 +1,10 @@
+import { CSV_COLUMNS } from '@nvoke/shared';
 import type { Company } from './types';
 
-/** Column order of `GET /v1/searches/:id/export.csv`, one row per email. */
-export const CSV_COLUMNS = [
-  'company',
-  'domain',
-  'website',
-  'email',
-  'kind',
-  'verification',
-  'source_url',
-  'location',
-  'phone',
-] as const;
+/**
+ * The mock transport's stand-in for `GET /v1/searches/:id/export.csv`: one
+ * row per email, in the server's column order.
+ */
 
 function cell(value: string | null | undefined): string {
   const text = value ?? '';

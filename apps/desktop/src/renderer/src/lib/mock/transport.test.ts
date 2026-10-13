@@ -61,14 +61,14 @@ describe('mock transport', () => {
     advance(10 * 60_000);
 
     const first = await api.listCompanies(s.id);
-    expect(first.items).toHaveLength(100);
+    expect(first.companies).toHaveLength(100);
     expect(first.nextCursor).toBe('100');
     const second = await api.listCompanies(s.id, { cursor: first.nextCursor! });
-    expect(second.items[0]!.id).not.toBe(first.items[0]!.id);
+    expect(second.companies[0]!.id).not.toBe(first.companies[0]!.id);
 
     const valid = await api.listCompanies(s.id, { verification: 'valid', kind: 'personal' });
     expect(valid.total).toBeGreaterThan(0);
-    for (const c of valid.items) {
+    for (const c of valid.companies) {
       expect(c.emails.length).toBeGreaterThan(0);
       for (const e of c.emails) {
         expect(e.verification).toBe('valid');
@@ -76,9 +76,9 @@ describe('mock transport', () => {
       }
     }
 
-    const target = first.items[3]!;
+    const target = first.companies[3]!;
     const byText = await api.listCompanies(s.id, { q: target.domain });
-    expect(byText.items.map((c) => c.id)).toContain(target.id);
+    expect(byText.companies.map((c) => c.id)).toContain(target.id);
   });
 
   it('rejects invalid input and unknown ids with ApiError', async () => {
@@ -93,7 +93,7 @@ describe('mock transport', () => {
 
   it('deletes a search', async () => {
     const { api } = setup();
-    const s = await api.createSearch({ kind: 'launches', params: { window: 'week' } });
+    const s = await api.createSearch({ kind: 'launches', params: { days: 7 } });
     await api.deleteSearch(s.id);
     expect(await api.listSearches()).toHaveLength(0);
   });
@@ -107,7 +107,7 @@ describe('mock transport', () => {
     await expect(api.getMe()).rejects.toMatchObject({ status: 401 });
     await api.signIn();
     await new Promise((r) => setTimeout(r, 5));
-    expect(states).toEqual(['signed-out', 'signed-in']);
+    expect(states).toEqual(['signed-out', 'pending', 'signed-in']);
     expect((await api.getMe()).plan).toBe('pro');
   });
 });

@@ -148,7 +148,7 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
       </button>
       {email.kind === 'personal' && <span className="shrink-0 text-2xs text-muted-foreground">person</span>}
       <span className="ml-auto" />
-      <VerificationBadge value={email.verification} pending={checking && email.checkedAt === null} />
+      <VerificationBadge value={email.verification ?? 'unknown'} pending={checking && email.verification === null} />
     </div>
   );
 }
@@ -327,7 +327,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const filterRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const rows = companies.data?.pages.flatMap((p) => p.items) ?? [];
+  const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
   const filtered = Boolean(q || verification || kind);
 
@@ -367,6 +367,8 @@ export function SearchResultsScreen({ id }: { id: string }) {
         toast.success(`Exported ${formatNumber(search.emailsFound)} emails`, {
           description: result.filePath,
         });
+      } else if (result.error) {
+        toast.error('Export failed', { description: result.error });
       }
     } catch (err) {
       toast.error('Export failed', { description: err instanceof Error ? err.message : undefined });

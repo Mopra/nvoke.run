@@ -66,6 +66,8 @@ export const CreateSearchRequest = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('launches'), params: LaunchesSearchParams, limit }),
 ]);
 export type CreateSearchRequest = z.infer<typeof CreateSearchRequest>;
+/** What a client sends: `limit` and `days` may be left out for the defaults. */
+export type CreateSearchInput = z.input<typeof CreateSearchRequest>;
 
 const SearchBase = z.object({
   id: z.uuid(),

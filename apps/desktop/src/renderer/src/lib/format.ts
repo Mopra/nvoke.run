@@ -1,4 +1,4 @@
-import type { LaunchWindow, Plan, Search, SearchKind, SearchStatus, Verification } from './types';
+import type { Plan, Search, SearchKind, SearchStatus, Verification } from './types';
 
 export const KIND_LABEL: Record<SearchKind, string> = {
   local: 'Local businesses',
@@ -32,11 +32,22 @@ export const VERIFICATION_HINT: Record<Verification, string> = {
 
 export const PLAN_LABEL: Record<Plan, string> = { free: 'Free', pro: 'Pro', business: 'Business' };
 
+/** The time windows the new search form offers for launches. The API takes `days`. */
+export type LaunchWindow = 'day' | 'week' | 'month';
+
+export const WINDOW_DAYS: Record<LaunchWindow, number> = { day: 1, week: 7, month: 30 };
+
 export const WINDOW_LABEL: Record<LaunchWindow, string> = {
   day: 'Last 24 hours',
   week: 'Last 7 days',
   month: 'Last 30 days',
 };
+
+/** "last 7 days" for a launches search. The server defaults `days` to 7. */
+export function daysLabel(days: number | undefined): string {
+  const d = days ?? 7;
+  return d === 1 ? 'last 24 hours' : `last ${d} days`;
+}
 
 export function isActive(status: SearchStatus): boolean {
   return status === 'queued' || status === 'running';
@@ -52,12 +63,12 @@ export function searchTitle(search: Pick<Search, 'kind' | 'params'> | Search): s
     case 'launches':
       return s.params.keyword
         ? `Launches matching "${s.params.keyword}"`
-        : `All launches, ${WINDOW_LABEL[s.params.window].toLowerCase()}`;
+        : `All launches, ${daysLabel(s.params.days)}`;
   }
 }
 
 export function searchSubtitle(search: Search): string {
-  if (search.kind === 'launches') return `${KIND_LABEL.launches}, ${WINDOW_LABEL[search.params.window].toLowerCase()}`;
+  if (search.kind === 'launches') return `${KIND_LABEL.launches}, ${daysLabel(search.params.days)}`;
   return KIND_LABEL[search.kind];
 }
 

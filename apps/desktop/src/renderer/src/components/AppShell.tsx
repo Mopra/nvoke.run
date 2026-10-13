@@ -78,7 +78,7 @@ function RecentSearches({ route }: { route: Route }) {
 function Footer({ route }: { route: Route }) {
   const { data } = useMe();
   if (!data) return <div className="h-[86px]" />;
-  const used = percent(data.usage.emailsFound, data.usage.limit);
+  const used = percent(data.usage.emailsFound, data.usage.emailsLimit);
   const active = route.name === 'account';
   return (
     <div className="flex flex-col gap-2.5">
@@ -86,7 +86,7 @@ function Footer({ route }: { route: Route }) {
         <div className="flex items-baseline justify-between text-xs">
           <span className="text-sidebar-foreground/55">Emails this month</span>
           <span className="tabular-nums text-sidebar-foreground/75">
-            {formatNumber(data.usage.emailsFound)} of {formatNumber(data.usage.limit)}
+            {formatNumber(data.usage.emailsFound)} of {formatNumber(data.usage.emailsLimit)}
           </span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-sidebar-foreground/10">
@@ -106,7 +106,7 @@ function Footer({ route }: { route: Route }) {
       >
         <Avatar user={data.user} />
         <span className="min-w-0 flex-1 leading-tight">
-          <span className="block truncate text-sm font-medium text-sidebar-foreground">{data.user.name ?? data.user.email}</span>
+          <span className="block truncate text-sm font-medium text-sidebar-foreground">{data.user.name ?? data.user.email ?? 'Signed in'}</span>
           <span className="block truncate text-xs text-sidebar-foreground/55">{PLAN_LABEL[data.plan]} plan</span>
         </span>
       </a>

@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import type { User } from '@/lib/types';
 
 function initials(user: User): string {
-  const source = user.name ?? user.email;
+  const source = user.name ?? user.email ?? '?';
   const parts = source.split(/[\s@.]+/).filter(Boolean);
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }

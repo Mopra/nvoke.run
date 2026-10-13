@@ -11,6 +11,7 @@ import type {
   Company,
   EmailKind,
   Me,
+  LaunchesParams,
   Search,
   SearchInput,
   SearchStatus,
@@ -21,7 +22,8 @@ import { generateCompany, sourceYield, type MockCompanySeed } from './data';
 
 const QUEUE_MS = 1500;
 const PAGE_SIZE = 100;
-const MAX_LIMIT = 1000;
+/** The mock user is on Pro: see PLANS in apps/server/src/leads/plans.ts. */
+const MAX_LIMIT = 500;
 const PLAN_LIMIT = 2000;
 
 const MOCK_USER: User = {
@@ -136,7 +138,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         emails: crawled
           ? s.emails.map((e, k) => ({
               ...e,
-              verification: verified ? s.verifications[k]! : 'unknown',
+              verification: verified ? s.verifications[k]! : null,
               checkedAt: verified ? stamp : null,
             }))
           : [],
@@ -158,7 +160,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     return {
       id: rec.id,
       kind: rec.input.kind,
-      params: rec.input.params,
+      // The server fills in the launches default, so the mock does too.
+      params: rec.input.kind === 'launches' ? ({ days: 7, ...rec.input.params } satisfies LaunchesParams) : rec.input.params,
       limit: rec.limit,
       status: p.status,
       error: rec.terminal?.error ?? null,
@@ -199,7 +202,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       terminal: { status: 'canceled', error: null },
     });
     add({ kind: 'web', params: { keyword: 'headless cms', country: 'DE' }, limit: 1000 }, t0 - 3 * day);
-    add({ kind: 'launches', params: { keyword: 'ai', window: 'week' }, limit: 250 }, t0 - 2 * day, {
+    add({ kind: 'launches', params: { keyword: 'ai', days: 7 }, limit: 250 }, t0 - 2 * day, {
       frozenAt: t0 - 2 * day + QUEUE_MS + 21000,
       terminal: { status: 'failed', error: 'quota_exceeded' },
     });
@@ -221,7 +224,9 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     const text = (v: unknown): boolean => typeof v === 'string' && v.trim().length > 0;
     if (b.kind === 'local' && text(p['niche']) && text(p['location'])) return b as unknown as SearchInput;
     if (b.kind === 'web' && text(p['keyword'])) return b as unknown as SearchInput;
-    if (b.kind === 'launches' && ['day', 'week', 'month'].includes(p['window'] as string)) return b as unknown as SearchInput;
+    const days = p['days'];
+    const validDays = days === undefined || (typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= 30);
+    if (b.kind === 'launches' && validDays) return b as unknown as SearchInput;
     return null;
   }
 
@@ -251,9 +256,9 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
           c.emails.some((e) => e.address.includes(q)),
       );
     }
-    const items = list.slice(offset, offset + PAGE_SIZE);
+    const companies = list.slice(offset, offset + PAGE_SIZE);
     const next = offset + PAGE_SIZE < list.length ? String(offset + PAGE_SIZE) : null;
-    return { items, nextCursor: next, total: list.length };
+    return { companies, nextCursor: next, total: list.length };
   }
 
   function route(method: HttpMethod, path: string, body: unknown): BridgeResponse {
@@ -267,7 +272,13 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       const used = [...searches.values()]
         .filter((r) => new Date(r.createdAt).toISOString().startsWith(period))
         .reduce((sum, r) => sum + toSearch(r).emailsFound, 0);
-      const me: Me = { user: MOCK_USER, plan: 'pro', usage: { period, emailsFound: used + 412, limit: PLAN_LIMIT } };
+      const me: Me = {
+        user: MOCK_USER,
+        via: 'device',
+        plan: 'pro',
+        usage: { period, emailsFound: used + 412, emailsLimit: PLAN_LIMIT },
+        maxSearchLimit: MAX_LIMIT,
+      };
       return json(200, me);
     }
 
@@ -276,11 +287,11 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (parts.length === 2) {
       if (method === 'GET') {
         const items = [...searches.values()].sort((a, b) => b.createdAt - a.createdAt).map(toSearch);
-        return json(200, { items });
+        return json(200, { searches: items });
       }
       if (method === 'POST') {
         const input = validInput(body);
-        if (!input) return fail(400, 'invalid_params');
+        if (!input) return fail(400, 'invalid_request');
         return json(201, toSearch(add(input, now())));
       }
     }
@@ -310,10 +321,13 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   const jitter = (): number => (latency > 0 ? latency * (0.6 + Math.random() * 0.8) : 0);
 
   const listeners = new Set<(state: AuthState) => void>();
+  let pending: ReturnType<typeof setTimeout> | null = null;
   const authState = (): AuthState =>
-    storage.getItem('nvoke.mock.auth') === 'signed-out'
-      ? { status: 'signed-out' }
-      : { status: 'signed-in', user: MOCK_USER };
+    pending
+      ? { status: 'pending' }
+      : storage.getItem('nvoke.mock.auth') === 'signed-out'
+        ? { status: 'signed-out' }
+        : { status: 'signed-in', user: MOCK_USER };
   const emit = (): void => {
     const state = authState();
     for (const l of listeners) l(state);
@@ -327,7 +341,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     async exportCsv(searchId, defaultFileName) {
       await sleep(jitter());
       const rec = searches.get(searchId);
-      if (!rec) return { saved: false };
+      if (!rec) return { saved: false, error: 'That search no longer exists.' };
       const csv = companiesToCsv(companiesOf(rec, progress(rec)));
       if (typeof document !== 'undefined') {
         const href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -348,11 +362,23 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         return authState();
       },
       async signIn() {
-        // Stands in for the browser round trip.
-        setTimeout(() => {
-          storage.setItem('nvoke.mock.auth', 'signed-in');
-          emit();
-        }, latency > 0 ? 1800 : 0);
+        // Stands in for the browser round trip: pending until it "returns".
+        if (pending) clearTimeout(pending);
+        pending = setTimeout(
+          () => {
+            pending = null;
+            storage.setItem('nvoke.mock.auth', 'signed-in');
+            emit();
+          },
+          latency > 0 ? 1800 : 0,
+        );
+        emit();
+      },
+      async cancelSignIn() {
+        if (!pending) return;
+        clearTimeout(pending);
+        pending = null;
+        emit();
       },
       async signOut() {
         await sleep(jitter());

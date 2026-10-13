@@ -20,6 +20,7 @@ import type {
   Search,
   SearchInput,
 } from './types';
+import type { SearchListResponse } from '@nvoke/shared';
 
 export type Transport = NvokeBridge;
 
@@ -69,7 +70,7 @@ export function createApi(transport: Transport) {
   const enc = encodeURIComponent;
 
   return {
-    listSearches: async (): Promise<Search[]> => (await call<{ items: Search[] }>('GET', '/v1/searches')).items,
+    listSearches: async (): Promise<Search[]> => (await call<SearchListResponse>('GET', '/v1/searches')).searches,
     getSearch: (id: string): Promise<Search> => call('GET', `/v1/searches/${enc(id)}`),
     createSearch: (input: SearchInput): Promise<Search> => call('POST', '/v1/searches', input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
@@ -84,6 +85,7 @@ export function createApi(transport: Transport) {
     openExternal: (url: string): Promise<void> => transport.openExternal(url),
     getAuthState: (): Promise<AuthState> => transport.auth.getState(),
     signIn: (): Promise<void> => transport.auth.signIn(),
+    cancelSignIn: (): Promise<void> => transport.auth.cancelSignIn(),
     signOut: (): Promise<void> => transport.auth.signOut(),
     onAuthChange: (callback: (state: AuthState) => void): (() => void) => transport.auth.onChange(callback),
   };

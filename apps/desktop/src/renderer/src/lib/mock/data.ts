@@ -166,7 +166,6 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
   return {
     company: {
       id: `${searchId}-c${index}`,
-      searchId,
       name,
       domain,
       website,

@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 const BILLING_URL = 'https://nvoke.run/account/billing';
 
 function UsageMeter({ me }: { me: Me }) {
-  const { emailsFound, limit, period } = me.usage;
+  const { emailsFound, emailsLimit: limit, period } = me.usage;
   const share = percent(emailsFound, limit);
   const left = Math.max(0, limit - emailsFound);
   return (
@@ -119,14 +119,14 @@ export function AccountScreen() {
               <div className="flex flex-col items-center gap-1 text-center">
                 <Avatar user={me.user} className="mb-2 size-16 text-lg" />
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold">{me.user.name ?? me.user.email}</h2>
+                  <h2 className="text-lg font-semibold">{me.user.name ?? me.user.email ?? 'Your account'}</h2>
                   <Badge variant="default">{PLAN_LABEL[me.plan]}</Badge>
                 </div>
-                {me.user.name && <div className="font-mono text-xs text-muted-foreground">{me.user.email}</div>}
+                {me.user.name && me.user.email && <div className="font-mono text-xs text-muted-foreground">{me.user.email}</div>}
               </div>
 
               <Group title="Plan" footer="Every email nvoke finds counts once, valid or not. Billing happens on nvoke.run.">
-                <Row label={`${PLAN_LABEL[me.plan]} plan`} description={`${formatNumber(me.usage.limit)} emails a month`}>
+                <Row label={`${PLAN_LABEL[me.plan]} plan`} description={`${formatNumber(me.usage.emailsLimit)} emails a month`}>
                   <Button variant="outline" size="sm" onClick={() => void api.openExternal(BILLING_URL)}>
                     Manage billing
                     <ArrowUpRight className="size-3.5 opacity-60" />

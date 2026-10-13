@@ -6,14 +6,14 @@ import { FieldRow, Group, Row } from '@/components/grouped';
 import { Button } from '@/components/ui/button';
 import { PlainInput } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
-import { formatNumber, searchTitle, WINDOW_LABEL } from '@/lib/format';
+import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
+import { formatNumber, searchTitle, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
 import { useCreateSearch, useMe } from '@/lib/queries';
 import { navigate } from '@/lib/router';
-import type { LaunchWindow, SearchInput, SearchKind } from '@/lib/types';
+import type { SearchInput, SearchKind } from '@/lib/types';
 import { useScrolled } from '@/lib/use-scrolled';
 
 const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
-const MAX_LIMIT = 1000;
 
 const COUNTRIES: [string, string][] = [
   ['', 'Any country'],
@@ -63,8 +63,11 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
     firstField.current?.focus();
   }, [kind]);
 
+  // The plan caps one search; the server clamps too, this just keeps the form honest.
+  const maxLimit = me.data?.maxSearchLimit ?? SEARCH_LIMIT_MAX;
+
   function buildInput(): SearchInput | null {
-    const lim = Math.min(MAX_LIMIT, Math.max(1, Math.round(limit) || 100));
+    const lim = Math.min(maxLimit, Math.max(1, Math.round(limit) || 100));
     if (kind === 'local') {
       if (!niche.trim() || !location.trim()) return null;
       return { kind, params: { niche: niche.trim(), location: location.trim() }, limit: lim };
@@ -74,7 +77,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
       return { kind, params: { keyword: keyword.trim(), ...(country ? { country } : {}) }, limit: lim };
     }
     const k = launchKeyword.trim();
-    return { kind, params: { window: launchWindow, ...(k ? { keyword: k } : {}) }, limit: lim };
+    return { kind, params: { days: WINDOW_DAYS[launchWindow], ...(k ? { keyword: k } : {}) }, limit: lim };
   }
 
   const input = buildInput();
@@ -93,7 +96,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   }
 
   const invalid = (value: string): boolean => touched && !value.trim();
-  const remaining = me.data ? me.data.usage.limit - me.data.usage.emailsFound : null;
+  const remaining = me.data ? me.data.usage.emailsLimit - me.data.usage.emailsFound : null;
   const preset = LIMIT_PRESETS.find((p) => Number(p) === limit) ?? null;
 
   return (
@@ -198,7 +201,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                   onChange={setLaunchWindow}
                   options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => ({
                     value: w,
-                    label: WINDOW_LABEL[w].replace('Last ', 'last '),
+                    label: WINDOW_LABEL[w].toLowerCase(),
                   }))}
                 />
               </Row>
@@ -210,6 +213,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
               <>
                 Only emails count toward your plan.
                 {remaining !== null && ` You have ${formatNumber(Math.max(0, remaining))} left this month.`}
+                {me.data && limit > maxLimit && ` Your plan finds up to ${formatNumber(maxLimit)} companies per search.`}
               </>
             }
           >
@@ -225,7 +229,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                 id="limit"
                 type="number"
                 min={1}
-                max={MAX_LIMIT}
+                max={maxLimit}
                 value={Number.isNaN(limit) ? '' : limit}
                 onChange={(e) => setLimit(e.target.valueAsNumber)}
                 aria-label="Custom limit"

@@ -25,7 +25,7 @@ describe('format', () => {
       'Dentists in Copenhagen',
     );
     expect(searchTitle({ ...base, kind: 'web', params: { keyword: 'cms', country: 'de' } })).toBe('"cms" in DE');
-    expect(searchTitle({ ...base, kind: 'launches', params: { window: 'week' } })).toBe('All launches, last 7 days');
+    expect(searchTitle({ ...base, kind: 'launches', params: { days: 7 } })).toBe('All launches, last 7 days');
   });
 
   it('builds safe csv file names', () => {
@@ -51,7 +51,6 @@ describe('csv', () => {
   it('writes one row per email and escapes cells', () => {
     const company: Company = {
       id: 'c1',
-      searchId: 's1',
       name: 'Smith, Jones & "Co"',
       domain: 'sj.dk',
       website: 'https://sj.dk',
