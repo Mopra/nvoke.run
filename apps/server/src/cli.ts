@@ -4,6 +4,11 @@
  *   pnpm --filter @nvoke/server cli search local "dentists" "Copenhagen" --limit 5
  *   pnpm --filter @nvoke/server cli search web "design studio" --country dk --limit 10
  *   pnpm --filter @nvoke/server cli search launches "email" --days 3 --limit 10
+ *   pnpm --filter @nvoke/server cli db
+ *
+ * `db` starts the embedded Postgres, applies the migrations, prints its URL
+ * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
+ * DATABASE_URL for a fully local run.
  *
  * Options:
  *   --limit N            companies to find (default 10)
@@ -65,6 +70,7 @@ function usage(): never {
       '  cli search local <niche> <location> [--limit N]',
       '  cli search web <keyword> [--country CC] [--limit N]',
       '  cli search launches [keyword] [--days N] [--limit N]',
+      '  cli db',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
     ].join('\n'),
   );
@@ -140,8 +146,26 @@ async function printResults(sql: Sql, searchId: string): Promise<void> {
   }
 }
 
+/** `cli db`: a local Postgres with every migration applied, until Ctrl+C. */
+async function serveDb(): Promise<void> {
+  const local = await startEmbedded();
+  const sql = postgres(local.url, { max: 1, onnotice: () => {} });
+  const applied = await applyMigrations(sql);
+  await sql.end({ timeout: 5 });
+  if (applied.length > 0) console.log(`applied migrations: ${applied.join(', ')}`);
+  console.log(`local Postgres ready. Use it as DATABASE_URL:
+  ${local.url}
+Ctrl+C stops it.`);
+  await new Promise<void>((resolveStop) => {
+    process.once('SIGINT', resolveStop);
+    process.once('SIGTERM', resolveStop);
+  });
+  await local.stop();
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  if (args.positional[0] === 'db') return serveDb();
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

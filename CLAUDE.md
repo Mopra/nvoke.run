@@ -10,8 +10,12 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   `src/renderer` (React, Tailwind v4, shadcn/ui). Packaging in
   `electron-builder.yml` (nsis, dmg, AppImage, unsigned).
 - `apps/server`: `src/api` (Fastify, entry `src/api/index.ts`), `src/worker`
-  (separate process, entry `src/worker/index.ts`), `src/db` (postgres.js client
-  and migration runner), `migrations/` (numbered `.sql` files, applied in order).
+  (separate process, entry `src/worker/index.ts`: Postgres job queue and the
+  find, crawl and verify handlers), `src/leads` (source adapters, crawler,
+  verifier, quotas, CSV, the queries behind the routes), `src/db` (postgres.js
+  client and migration runner), `src/cli.ts` (local searches and `cli db`),
+  `migrations/` (numbered `.sql` files, applied in order: `0001_desktop_auth`,
+  `0100_leads`). Behaviour is in `docs/SPEC.md`.
 - `apps/site`: Next.js (App Router) marketing and download site. Deploys to
   Vercel with root directory `apps/site`. Placeholder pages, plus the desktop
   sign-in page under `app/desktop` (Clerk is scoped there by `proxy.ts`).
@@ -39,6 +43,8 @@ pnpm dev:desktop      # electron-vite dev, reads apps/desktop/.env
 pnpm --filter @nvoke/desktop capture   # screenshots every screen, light and dark
 pnpm dev:site         # next dev on port 3001
 pnpm migrate          # needs DATABASE_URL
+pnpm --filter @nvoke/server cli db     # local embedded Postgres for dev:api and dev:worker
+pnpm --filter @nvoke/server cli search local "dentists" "Aarhus" --limit 5
 pnpm dist:desktop     # installer for the current OS
 ```
 
@@ -56,7 +62,26 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   the desktop app sends an opaque device token. Both arrive as
   `Authorization: Bearer` and `src/api/auth.ts` in the server accepts either.
   Protect a route with `{ preHandler: app.requireAuth }` and read `req.auth`
-  (`requireClerkSession` and `requireDeviceSession` narrow it).
+  (`requireClerkSession` and `requireDeviceSession` narrow it). The
+  preHandler also sets `req.userId` and creates the `accounts` row on the
+  first authenticated request. The lead routes (`src/api/routes/leads.ts`)
+  get `app.requireAuth` as their `authenticate` option and guard with
+  `requireUser` (`src/api/user.ts`).
+- `GET /v1/me` returns `MeResponse`: the Clerk profile (`user`), how the
+  request authenticated (`via`), and `plan`, `usage` and `maxSearchLimit`
+  from `accountSummary()`.
+- Desktop data flow: the renderer calls `window.nvoke.request(method, path,
+  body)` (paths under `/v1/` only) and `window.nvoke.exportCsv(searchId,
+  name)`. Main answers both through `AuthSession.api`, which attaches the
+  device token and flips to signed out on 401 (`src/main/api-bridge.ts`).
+  `request` never rejects: `{ ok, status, data }` or `{ ok: false, status,
+  error }`. The renderer's `lib/types.ts` only re-exports `@nvoke/shared` and
+  the contract, and `VITE_MOCK=1` swaps the bridge for an in-memory mock
+  with the same shapes.
+- Tests: `pnpm test` starts an embedded Postgres (the `embedded-postgres`
+  package, no Docker), builds a template database with every migration and
+  gives each database test file its own copy. `TEST_DATABASE_URL` uses an
+  existing Postgres instead; CI does that with a `postgres:17` service.
 
 ## Desktop window
 
@@ -98,8 +123,9 @@ a PKCE handoff, like Linear or Slack:
    `POST /v1/desktop/token` with the code and verifier.
 4. The server returns an opaque device token (`nvk_dt_...`), stored only as a
    sha256 hash in `device_sessions`. Main encrypts it with `safeStorage` in
-   userData. The renderer never sees it: it gets `AuthState` and calls the
-   API through `window.nvoke`. Sign out calls `POST /v1/desktop/sign-out`.
+   userData. The renderer never sees it: it gets `AuthState` (`signed-out`,
+   `pending` while the browser is open, `signed-in`) and calls the API through
+   `window.nvoke.request`. Sign out calls `POST /v1/desktop/sign-out`.
 
 Code: `apps/desktop/src/main/auth`, `apps/server/src/auth`,
 `apps/server/src/api/routes/desktop.ts`. In development the app registers
@@ -133,6 +159,8 @@ it through `protocols` in `electron-builder.yml`.
 5. **No secrets in the renderer.** Only `VITE_` variables reach it and they are
    baked into the build. Secrets stay in `apps/server/.env`.
 6. **Database is Supabase Postgres** over the direct connection or session
-   pooler on port 5432. Never the transaction pooler on 6543.
+   pooler on port 5432. Never the transaction pooler on 6543. Development
+   runs against a local Postgres (`cli db`, the CLI and tests use embedded
+   Postgres), never the shared Supabase database.
 7. **Keep `.env.example` files current** when adding a variable. Never commit
    real values.

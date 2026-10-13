@@ -35,6 +35,33 @@ systemctl daemon-reload && systemctl enable nvoke-api nvoke-worker
 /opt/nvoke/app/deploy/deploy.sh
 ```
 
+## Environment
+
+`/opt/nvoke/.env` holds every variable from `apps/server/.env.example`. Both
+units read it. The API needs the first block; the worker reads the second.
+
+| Variable | Used by | Notes |
+|---|---|---|
+| `DATABASE_URL` | API, worker, migrations | Supabase, port 5432 (see below) |
+| `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | API | Production Clerk instance |
+| `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES` | API | Optional |
+| `HOST`, `PORT` | API | `10.0.0.1` and `43310` here |
+| `CORS_ORIGINS` | API | Defaults to `https://nvoke.run,http://localhost:3001` |
+| `WORKER_CONCURRENCY` | worker | Jobs at once, default 16 |
+| `BRAVE_SEARCH_API_KEY` | worker | Needed for `web` searches; without it they fail with a clear error |
+| `PRODUCT_HUNT_TOKEN` | worker | Optional; `launches` searches use Show HN only without it |
+| `NOMINATIM_URL`, `OVERPASS_URL` | worker | OpenStreetMap endpoints for `local` searches; defaults are public |
+| `SMTP_PROBE_ENABLED` | worker | `false` verifies with MX records only |
+| `SMTP_HELO_NAME`, `SMTP_PROBE_FROM` | worker | Name and sender used by the RCPT probe (no mail is sent) |
+
+The verifier's SMTP probe needs outbound port 25. If the VPS provider blocks
+it, the worker falls back to MX checks and marks addresses `unknown`; set
+`SMTP_PROBE_ENABLED=false` to skip the attempts. `CLI_*` and
+`TEST_DATABASE_URL` are for development only and do not belong on the VPS.
+
+Migrations run in filename order (`0001_desktop_auth`, `0100_leads`, ...) and
+are recorded in `_migrations`. `deploy.sh` applies new ones before restarting.
+
 ## Database
 
 Supabase Postgres. Use the direct connection or the session pooler, both on

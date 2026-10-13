@@ -15,7 +15,8 @@ packages/
   theme/     theme.css with the shadcn tokens used by desktop and site
 deploy/      systemd units for the API and worker on the VPS
 .github/
-  workflows/ ci.yml (typecheck, lint, test, build) and release.yml (installers on tag)
+  workflows/ ci.yml (typecheck, lint, test, build; Postgres service for the
+             database tests) and release.yml (installers on tag)
 ```
 
 ## Requirements
@@ -29,7 +30,7 @@ pnpm install
 cp apps/server/.env.example apps/server/.env      # fill in Clerk keys, DATABASE_URL
 cp apps/desktop/.env.example apps/desktop/.env    # VITE_API_URL, VITE_SITE_URL
 cp apps/site/.env.example apps/site/.env.local     # Clerk keys, NEXT_PUBLIC_API_URL
-pnpm migrate        # creates the auth tables
+pnpm migrate        # applies apps/server/migrations to DATABASE_URL
 pnpm dev:api        # API on http://localhost:3000, GET /health
 pnpm dev:worker     # worker process
 pnpm dev:desktop    # Electron app with hot reload
@@ -67,8 +68,15 @@ then `verify` per email). See `docs/SPEC.md` for the behaviour and
 - `src/leads`: source adapters (`sources/`), crawler, robots.txt, email
   extraction, verifier (`verify/`), quotas, CSV and the queries behind the API.
 - `src/worker`: the job queue (`FOR UPDATE SKIP LOCKED`), handlers and runner.
-- `src/api/routes/leads.ts`: the `/v1` routes. They expect `request.userId`
-  from the auth preHandler (`src/api/user.ts`).
+- `src/api/routes/leads.ts`: the `/v1` routes. The auth preHandler
+  (`src/api/auth.ts`, device token or Clerk JWT) sets `request.userId` and
+  creates the account; the routes guard with `requireUser` (`src/api/user.ts`).
+
+To run the API, worker, site and desktop app together against a local
+database, start one with `pnpm --filter @nvoke/server cli db` (embedded
+Postgres in `apps/server/.pgdata`, migrations applied, URL printed), put that
+URL in `DATABASE_URL` in `apps/server/.env`, then run `pnpm dev:api`,
+`pnpm dev:worker`, `pnpm dev:site` and `pnpm dev:desktop`.
 
 Try a search end to end against a local database (never the shared one):
 
