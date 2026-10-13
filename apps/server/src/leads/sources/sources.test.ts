@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { fakeFetch, fixture, silentLog } from '../../testing/fakes.js';
 import type { FoundCompany, SourceAdapter } from './types.js';
 import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, type ResolvedArea } from './local.js';
-import { braveQuery, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
+import { braveQuery, braveRetryAfter, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
 import { ALGOLIA_SEARCH, PRODUCT_HUNT_GRAPHQL, hitToCompany, launchesAdapter, parseShowHnTitle, phMatches } from './launches.js';
-import { PermanentError } from './types.js';
+import { PermanentError, SourceUnavailableError } from './types.js';
 import type { CachedWebPage, WebPageKey, WebSearchCache } from '../web-cache.js';
 
 async function collect<P>(adapter: SourceAdapter<P>, params: P, limit = 50): Promise<FoundCompany[]> {
@@ -183,6 +183,39 @@ describe('web adapter (Brave Search)', () => {
     };
     const fetch = fakeFetch({ [BRAVE_ENDPOINT]: { body: fixture('sources/brave-web-search.json') } });
     const found = await collect(webAdapter({ apiKey: 'k', fetch, cache, requestsPerSecond: 1_000 }), { keyword: 'x' });
+    expect(found.length).toBeGreaterThan(0);
+  });
+
+  it('reads how long a 429 wants us to wait from the rate limit headers', () => {
+    const h = (limit: string, remaining: string, reset: string) =>
+      new Headers({ 'x-ratelimit-limit': limit, 'x-ratelimit-remaining': remaining, 'x-ratelimit-reset': reset });
+    // Per second window spent, the monthly window unlimited (limit 0).
+    expect(braveRetryAfter(h('50, 0', '0, 0', '1, 1574023'))).toBe(1);
+    // A monthly quota spent for weeks is not worth waiting for.
+    expect(braveRetryAfter(h('50, 2000', '12, 0', '1, 1574023'))).toBeNull();
+    expect(braveRetryAfter(undefined)).toBe(1);
+  });
+
+  it('turns a spend limit or a refused key into SourceUnavailableError, and waits out a short rate limit', async () => {
+    const limited = fakeFetch({
+      [BRAVE_ENDPOINT]: { status: 429, body: '{"error":"usage limit"}', headers: { 'x-ratelimit-limit': '50, 2000', 'x-ratelimit-remaining': '3, 0', 'x-ratelimit-reset': '1, 900000' } },
+    });
+    await expect(collect(webAdapter({ apiKey: 'k', fetch: limited, requestsPerSecond: 1_000 }), { keyword: 'x' })).rejects.toBeInstanceOf(SourceUnavailableError);
+    expect(limited.calls).toHaveLength(1);
+
+    const refused = fakeFetch({ [BRAVE_ENDPOINT]: { status: 402, body: 'payment required' } });
+    const err = await collect(webAdapter({ apiKey: 'k', fetch: refused, requestsPerSecond: 1_000 }), { keyword: 'x' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceUnavailableError);
+    expect((err as SourceUnavailableError).code).toBe('source_unavailable');
+
+    let n = 0;
+    const burst = fakeFetch({
+      [BRAVE_ENDPOINT]: () =>
+        ++n === 1
+          ? { status: 429, body: '', headers: { 'x-ratelimit-limit': '50, 0', 'x-ratelimit-remaining': '0, 0', 'x-ratelimit-reset': '1, 900000' } }
+          : { body: fixture('sources/brave-web-search.json') },
+    });
+    const found = await collect(webAdapter({ apiKey: 'k', fetch: burst, requestsPerSecond: 1_000 }), { keyword: 'x' });
     expect(found.length).toBeGreaterThan(0);
   });
 

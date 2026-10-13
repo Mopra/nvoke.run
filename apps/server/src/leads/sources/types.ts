@@ -48,3 +48,19 @@ export class PermanentError extends Error {
     this.name = 'PermanentError';
   }
 }
+
+/**
+ * A paid source refused us for a reason on our side: spend limit reached,
+ * billing problem, revoked key. The search fails with `source_unavailable`,
+ * the source is paused and the operator is alerted.
+ */
+export class SourceUnavailableError extends PermanentError {
+  constructor(
+    readonly source: string,
+    /** For the operator: what the source said. */
+    readonly reason: string,
+  ) {
+    super(`${source} is unavailable: ${reason}`, 'source_unavailable');
+    this.name = 'SourceUnavailableError';
+  }
+}

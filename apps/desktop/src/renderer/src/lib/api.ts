@@ -38,6 +38,7 @@ export class ApiError extends Error {
 
 function describeError(status: number, code: string): string {
   if (code === 'quota_exceeded') return 'You’re out of verified emails this month. Upgrade or wait for the reset.';
+  if (code === 'source_unavailable') return 'Web search is paused on our side. We know and we’re on it. Local and launch searches still work.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Session expired. Sign in again.';
   if (status === 404) return 'That search is gone.';

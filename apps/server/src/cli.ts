@@ -10,6 +10,8 @@
  *   pnpm --filter @nvoke/server cli privacy erase example.dk
  *   pnpm --filter @nvoke/server cli privacy suppress-domain example.dk
  *   pnpm --filter @nvoke/server cli stats --days 30
+ *   pnpm --filter @nvoke/server cli sources resume brave
+ *   pnpm --filter @nvoke/server cli alert test
  *
  * `db` starts the embedded Postgres, applies the migrations, prints its URL
  * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
@@ -46,6 +48,9 @@
  * `stats` picks its database the same way. It prints, per search kind over
  * the last --days (default 30), paid source requests, pages served from the
  * cache and valid emails, so the cost of a valid email can be read off.
+ * `sources resume <source>` ends a source pause early once its cause is
+ * fixed. `alert test` emails a test alert through Day3 (needs DAY3_API_KEY,
+ * ALERT_EMAIL_TO and ALERT_EMAIL_FROM). Both pick the database like stats.
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -54,11 +59,13 @@ import postgres, { type Sql } from 'postgres';
 import { pino } from 'pino';
 import { CreateSearchRequest, type Search } from '@nvoke/shared';
 import { applyMigrations } from './db/migrations.js';
+import { createAlerter } from './alerts.js';
 import { loadEnv } from './env.js';
 import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
 import { ensureAccount } from './leads/quota.js';
 import { createSearch, exportRows, getSearch, listCompanies } from './leads/repo.js';
+import { resumeSource } from './leads/source-pause.js';
 import { suppress, type SuppressionSource } from './leads/suppression.js';
 import { erase } from './privacy/erase.js';
 import { exportSubject } from './privacy/export.js';
@@ -103,8 +110,10 @@ function usage(): never {
       '  cli privacy erase <address|domain> [--source S] [--prod]',
       '  cli privacy suppress-domain <domain> [--source S] [--prod]',
       '  cli stats [--days N] [--prod]',
+      '  cli sources resume <source> [--prod]',
+      '  cli alert test [--prod]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
-      'privacy and stats act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+      'privacy, stats, sources and alert act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
     ].join('\n'),
   );
@@ -255,6 +264,43 @@ async function stats(args: Args): Promise<void> {
   }
 }
 
+/** `cli sources resume <source>`: ends a pause after the cause is fixed. */
+async function sources(args: Args): Promise<void> {
+  const [, action, source] = args.positional;
+  if (action !== 'resume' || !source) usage();
+  const { sql, close } = await opsDatabase(args);
+  try {
+    console.log((await resumeSource(sql, source)) ? `${source} resumed` : `${source} was not paused`);
+  } finally {
+    await close();
+  }
+}
+
+/** `cli alert test`: sends a test alert email, bypassing the once per hour limit. */
+async function alertTest(args: Args): Promise<void> {
+  if (args.positional[1] !== 'test') usage();
+  const env = loadEnv();
+  const { sql, close } = await opsDatabase(args);
+  try {
+    const alerter = createAlerter({
+      sql,
+      log: pino({ level: 'error' }),
+      apiKey: env.DAY3_API_KEY,
+      to: env.ALERT_EMAIL_TO,
+      from: env.ALERT_EMAIL_FROM,
+    });
+    const sent = await alerter.send({
+      key: `test:${Date.now()}`,
+      subject: 'Test alert',
+      text: 'Alerts from the nvoke server reach this inbox.',
+    });
+    console.log(sent ? `sent to ${env.ALERT_EMAIL_TO.join(', ')}` : 'not sent: check DAY3_API_KEY, ALERT_EMAIL_TO and ALERT_EMAIL_FROM');
+    if (!sent) process.exitCode = 1;
+  } finally {
+    await close();
+  }
+}
+
 /**
  * The database for operator commands: --database-url, then DATABASE_URL with
  * --prod, then CLI_DATABASE_URL or the embedded Postgres. Prints which.
@@ -284,6 +330,8 @@ async function main(): Promise<void> {
   if (args.positional[0] === 'db') return serveDb();
   if (args.positional[0] === 'privacy') return privacy(args);
   if (args.positional[0] === 'stats') return stats(args);
+  if (args.positional[0] === 'sources') return sources(args);
+  if (args.positional[0] === 'alert') return alertTest(args);
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

@@ -50,7 +50,10 @@ units read it. The API needs the first block; the worker reads the second.
 | `CORS_ORIGINS` | API | Defaults to `https://nvoke.run,http://localhost:3001` |
 | `WORKER_CONCURRENCY` | worker | Jobs at once, default 16 |
 | `BRAVE_SEARCH_API_KEY` | worker | Needed for `web` searches; without it they fail with a clear error |
-| `BRAVE_REQUESTS_PER_SECOND` | worker | What the Brave plan allows, default 1 (free plan) |
+| `BRAVE_REQUESTS_PER_SECOND` | worker | What the Brave plan allows, default 1 (free plan); 50 here |
+| `BRAVE_MONTHLY_BUDGET_USD` | worker | Brave spend that triggers alert emails at 80% and 100%; match the usage limit in the Brave dashboard |
+| `DAY3_API_KEY` | worker | Day3 key (Pradsgaard Labs organization, "nvoke server alerts") for operator alert emails |
+| `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` | worker | Who gets alerts, comma separated, and the sender (on a domain verified in Day3) |
 | `PRODUCT_HUNT_TOKEN` | worker | Optional; `launches` searches use Show HN only without it |
 | `NOMINATIM_URL`, `OVERPASS_URL` | worker | OpenStreetMap endpoints for `local` searches; defaults are public |
 | `SMTP_PROBE_ENABLED` | worker | `false` verifies with MX records only |

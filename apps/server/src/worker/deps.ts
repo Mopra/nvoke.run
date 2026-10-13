@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
+import { createAlerter } from '../alerts.js';
 import type { Env } from '../env.js';
 import { RateLimiter } from '../leads/limits.js';
 import { RobotsCache } from '../leads/robots.js';
@@ -18,6 +19,10 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
     sql,
     log,
     adapters: createAdapters(env, { sql }),
+    alert: createAlerter({ sql, log, apiKey: env.DAY3_API_KEY, to: env.ALERT_EMAIL_TO, from: env.ALERT_EMAIL_FROM }),
+    braveBudget: env.BRAVE_MONTHLY_BUDGET_USD
+      ? { monthlyUsd: env.BRAVE_MONTHLY_BUDGET_USD, costPer1000Usd: env.BRAVE_COST_PER_1000_USD }
+      : undefined,
     crawl: { limiter, robots: new RobotsCache({ limiter }) },
     verifier: new Verifier({
       heloName: env.SMTP_HELO_NAME,

@@ -44,6 +44,8 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 - `domain_emails`: generic addresses only, shared across users: `domain` (fk to `domains`, cascade), `address` (lowercase), `source_url`, `first_seen` (fixed at first collection, drives retention), `last_seen`. Primary key `(domain, address)`.
 - `suppressions`: opted-out addresses and domains, stored only as `hash` pk (sha256 hex of the lowercased address, or of `'domain:' || registrable domain`), `kind` (`address` | `domain`), `source` (`opt_out_page` | `email` | `bot_page` | `admin`), `created_at`. Kept forever. Code in `apps/server/src/leads/suppression.ts`.
 - `web_search_cache`: Brave result pages keyed by `(query, country, page)`: `companies` jsonb (name, website, result URL only, never the raw response), `more` (Brave has a next page), `fetched_at`.
+- `alerts_sent`: `key` pk, `sent_at`. When each operator alert last went out (see "Source costs").
+- `source_pauses`: `source` pk (`brave`), `reason`, `paused_at`, `until`.
 - `jobs`: `id`, `type` (`find` | `crawl` | `verify`), `payload` jsonb, `status`, `attempts`, `run_after`, `locked_at`, `last_error`.
 
 Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work.
@@ -92,6 +94,8 @@ Brave Search bills every request, while users pay only for valid emails. A web s
 - **Stop early.** The adapter fetches one page (20 results) at a time and the find job stops pulling as soon as the search has `limit` companies, so a search never fetches pages it does not use. At most 10 pages per search.
 - **Cache.** Every page is stored in `web_search_cache` by normalized query (trimmed, lowercased, single spaced), country and page, and reused by any search for 7 days (`RETENTION.webSearchCacheDays`). A cache read or write that fails never fails the search.
 - **Rate.** `BRAVE_REQUESTS_PER_SECOND` (default 1, the free plan) sets the shared rate limit, with a tenth of headroom.
+- **Refusals.** A 429 whose spent window resets within 5 seconds is waited out (3 tries). A 429 for a long window (monthly quota, the usage limit set in the Brave dashboard) and any 401, 402 or 403 raise `SourceUnavailableError`: the search fails with `source_unavailable` (companies already found keep crawling), Brave is paused in `source_pauses` for 10 minutes and the operator gets an alert. While paused, `POST /v1/searches` refuses web searches with 503 `source_unavailable` and the desktop says web search is paused on our side. When the pause runs out the next web search tries Brave again, so it recovers on its own once the limit is raised. `cli sources resume brave --prod` ends it at once.
+- **Alerts.** Operator alerts are emailed through the Day3 API (`DAY3_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM`), each key at most once an hour (`alerts_sent`). Without a key they are only logged. Alerts: a source refusing us, and Brave spend this calendar month passing 80% and 100% of `BRAVE_MONTHLY_BUDGET_USD` (requests counted in `source_requests` times `BRAVE_COST_PER_1000_USD`). `cli alert test --prod` sends a test.
 - **Measure.** Each search counts its paid requests (`source_requests`) and pages served from the cache (`source_cache_hits`). `cli stats --days 30 --prod` on the VPS prints them per kind next to valid emails, with valid emails per paid request.
 
 ## Desktop screens

@@ -5,7 +5,8 @@ import { ensureAccount } from '../leads/quota.js';
 import { createSearch, exportRows, getSearch, listCompanies } from '../leads/repo.js';
 import { RobotsCache } from '../leads/robots.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
-import { PermanentError, type FoundCompany, type SourceAdapter } from '../leads/sources/types.js';
+import { PermanentError, SourceUnavailableError, type FoundCompany, type SourceAdapter } from '../leads/sources/types.js';
+import type { Alert } from '../alerts.js';
 import { addressHash, domainHash, suppress } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
@@ -22,7 +23,7 @@ afterAll(async () => {
   await db.drop();
 });
 beforeEach(async () => {
-  await db.sql`truncate accounts, jobs, email_checks, suppressions, domains cascade`;
+  await db.sql`truncate accounts, jobs, email_checks, suppressions, domains, source_pauses cascade`;
 });
 
 function adapterOf(companies: FoundCompany[] | (() => AsyncIterable<FoundCompany>)): SourceAdapter<unknown> {
@@ -192,11 +193,58 @@ describe('pipeline', () => {
         ctx.onUsage?.('request');
         ctx.onUsage?.('request');
         ctx.onUsage?.('cache_hit');
+        yield* [];
       },
     };
     const final = await run(counting, { kind: 'web', params: { keyword: 'x' } });
     const [row] = await db.sql`select source_requests, source_cache_hits from searches where id = ${final.id}`;
     expect(row).toEqual({ source_requests: 2, source_cache_hits: 1 });
+  });
+
+  it('pauses the source, alerts and fails with source_unavailable when Brave refuses us', async () => {
+    const sent: Alert[] = [];
+    const refused: SourceAdapter<unknown> = {
+      kind: 'web',
+      async *find() {
+        yield* [];
+        throw new SourceUnavailableError('brave', 'the monthly quota or spend limit is reached (429)');
+      },
+    };
+    await ensureAccount(db.sql, 'u1');
+    const search = await createSearch(db.sql, 'u1', { kind: 'web', params: { keyword: 'x' } }, 10);
+    const runner = new Runner({ ...deps(refused), alert: { send: async (a) => (sent.push(a), true) } }, { concurrency: 1, pollMs: 10 });
+    runner.start();
+    try {
+      const final = await waitFor(search.id, ['failed']);
+      expect(final.error).toBe('source_unavailable');
+    } finally {
+      await runner.stop(5_000);
+    }
+    const [pause] = await db.sql`select source, reason from source_pauses`;
+    expect(pause).toEqual({ source: 'brave', reason: 'the monthly quota or spend limit is reached (429)' });
+    expect(sent.map((a) => a.key)).toEqual(['source-unavailable:brave']);
+  });
+
+  it('alerts when Brave spend passes 80% of the monthly budget', async () => {
+    const sent: Alert[] = [];
+    const counting: SourceAdapter<unknown> = {
+      kind: 'web',
+      async *find(_params, ctx) {
+        for (let i = 0; i < 9; i++) ctx.onUsage?.('request');
+        yield* [];
+      },
+    };
+    await ensureAccount(db.sql, 'u1');
+    const search = await createSearch(db.sql, 'u1', { kind: 'web', params: { keyword: 'x' } }, 10);
+    const budget = { monthlyUsd: 0.05, costPer1000Usd: 5 };
+    const runner = new Runner({ ...deps(counting), braveBudget: budget, alert: { send: async (a) => (sent.push(a), true) } }, { concurrency: 1, pollMs: 10 });
+    runner.start();
+    try {
+      await waitFor(search.id, ['done']);
+    } finally {
+      await runner.stop(5_000);
+    }
+    expect(sent.map((a) => a.key)).toEqual([`brave-budget:${new Date().toISOString().slice(0, 7)}:80`]);
   });
 
   it('marks a search with no companies done', async () => {

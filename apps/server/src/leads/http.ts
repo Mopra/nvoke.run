@@ -85,7 +85,7 @@ export async function fetchJson<T>(url: string, opts: CappedOptions = {}): Promi
     headers: { accept: 'application/json', ...opts.headers },
   });
   const text = res.body.toString('utf8');
-  if (!res.ok) throw new HttpError(res.status, `${opts.method ?? 'GET'} ${redact(url)} failed with ${res.status}`, text);
+  if (!res.ok) throw new HttpError(res.status, `${opts.method ?? 'GET'} ${redact(url)} failed with ${res.status}`, text, res.headers);
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -98,6 +98,7 @@ export class HttpError extends Error {
     readonly status: number,
     message: string,
     readonly bodySnippet?: string,
+    readonly headers?: Headers,
   ) {
     super(message);
     this.name = 'HttpError';

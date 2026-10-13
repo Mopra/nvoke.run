@@ -31,7 +31,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await db.sql`truncate accounts, jobs cascade`;
+  await db.sql`truncate accounts, jobs, source_pauses cascade`;
 });
 
 const as = (user: string) => ({ 'x-test-user': user });
@@ -94,6 +94,16 @@ describe('lead routes', () => {
       expect(res.statusCode).toBe(400);
       expect(res.json().error).toBe('invalid_request');
     }
+  });
+
+  it('refuses web searches while Brave is paused, and nothing else', async () => {
+    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes')`;
+    const web = await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } });
+    expect(web.statusCode).toBe(503);
+    expect(web.json()).toEqual({ error: 'source_unavailable' });
+    expect((await createSearch('alice')).statusCode).toBe(201);
+    await db.sql`update source_pauses set until = now() - interval '1 second'`;
+    expect((await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } })).statusCode).toBe(201);
   });
 
   it('refuses new searches when the monthly quota is used up', async () => {

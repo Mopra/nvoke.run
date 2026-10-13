@@ -73,6 +73,7 @@ export function searchSubtitle(search: Search): string {
 export function errorMessage(code: string | null): string {
   if (!code) return 'Stopped before it finished.';
   if (code === 'quota_exceeded') return "Stopped: this month's verified emails ran out.";
+  if (code === 'source_unavailable') return 'Stopped: web search is paused on our side. We know and we’re on it.';
   return 'Stopped by an error on our end. Run it again.';
 }
 

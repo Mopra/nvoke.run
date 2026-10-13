@@ -8,10 +8,10 @@
 
 import type { WebSearchParams } from '@nvoke/shared';
 import { normalizeDomain } from '../domain.js';
-import { fetchJson, type FetchLike } from '../http.js';
-import { RateLimiter } from '../limits.js';
+import { fetchJson, HttpError, type FetchLike } from '../http.js';
+import { RateLimiter, sleep } from '../limits.js';
 import type { WebSearchCache } from '../web-cache.js';
-import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
+import { PermanentError, SourceUnavailableError, type FoundCompany, type SourceAdapter } from './types.js';
 
 export const BRAVE_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
 const PAGE_SIZE = 20;
@@ -88,6 +88,31 @@ export function resultToCompany(r: BraveResult): FoundCompany | null {
   };
 }
 
+/** A rate limit window Brave reports is spent for longer than this: not worth waiting for. */
+const MAX_RATE_WAIT_S = 5;
+
+/**
+ * Seconds until Brave lets us in again after a 429, or null when a window
+ * with a real limit is spent for longer than MAX_RATE_WAIT_S (the monthly
+ * quota or the spend limit). Brave sends parallel lists per window, such as
+ * `x-ratelimit-limit: 50, 0`, `x-ratelimit-remaining: 0, 0` and
+ * `x-ratelimit-reset: 1, 1574023`. A limit of 0 means that window is unlimited.
+ */
+export function braveRetryAfter(headers: Headers | undefined): number | null {
+  const list = (name: string) => (headers?.get(name) ?? '').split(',').map((v) => Number(v.trim()));
+  const limit = list('x-ratelimit-limit');
+  const remaining = list('x-ratelimit-remaining');
+  const reset = list('x-ratelimit-reset');
+  if (!headers?.get('x-ratelimit-reset')) return 1;
+  let wait = 0;
+  for (let i = 0; i < reset.length; i++) {
+    if (!(limit[i]! > 0) || remaining[i]! > 0) continue;
+    if (reset[i]! > MAX_RATE_WAIT_S) return null;
+    wait = Math.max(wait, reset[i]!);
+  }
+  return Math.max(1, wait);
+}
+
 export function webAdapter(opts: WebAdapterOptions): SourceAdapter<WebSearchParams> {
   // A tenth of headroom over the plan's rate, so clock jitter never trips a 429.
   const limiter = new RateLimiter(Math.ceil(1_100 / (opts.requestsPerSecond ?? 1)));
@@ -111,14 +136,33 @@ export function webAdapter(opts: WebAdapterOptions): SourceAdapter<WebSearchPara
         url.searchParams.set('safesearch', 'moderate');
         if (country) url.searchParams.set('country', country);
 
-        await limiter.wait('brave', ctx.signal);
-        ctx.onUsage?.('request');
-        const res = await fetchJson<BraveResponse>(url.toString(), {
-          fetch: opts.fetch,
-          signal: ctx.signal,
-          timeoutMs: 20_000,
-          headers: { 'x-subscription-token': apiKey },
-        });
+        let res: BraveResponse;
+        for (let attempt = 1; ; attempt++) {
+          await limiter.wait('brave', ctx.signal);
+          try {
+            res = await fetchJson<BraveResponse>(url.toString(), {
+              fetch: opts.fetch,
+              signal: ctx.signal,
+              timeoutMs: 20_000,
+              headers: { 'x-subscription-token': apiKey },
+            });
+            // Brave bills answered requests only.
+            ctx.onUsage?.('request');
+            break;
+          } catch (err) {
+            if (!(err instanceof HttpError)) throw err;
+            const said = `${err.status} ${(err.bodySnippet ?? '').slice(0, 300)}`.trim();
+            if (err.status === 401 || err.status === 402 || err.status === 403) {
+              throw new SourceUnavailableError('brave', `the key or plan was refused (${said})`);
+            }
+            if (err.status !== 429) throw err;
+            const wait = braveRetryAfter(err.headers);
+            if (wait === null || attempt >= 3) {
+              throw new SourceUnavailableError('brave', `the monthly quota or spend limit is reached (${said})`);
+            }
+            await sleep(wait * 1_000, ctx.signal);
+          }
+        }
         const results = res.web?.results ?? [];
         return {
           companies: results.map(resultToCompany).filter((c): c is FoundCompany => c !== null),

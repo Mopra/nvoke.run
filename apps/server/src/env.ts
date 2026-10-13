@@ -35,6 +35,12 @@ const EnvSchema = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(16),
   BRAVE_SEARCH_API_KEY: optional,
   BRAVE_REQUESTS_PER_SECOND: z.coerce.number().positive().max(1_000).default(1),
+  BRAVE_MONTHLY_BUDGET_USD: z.coerce.number().positive().optional(),
+  BRAVE_COST_PER_1000_USD: z.coerce.number().positive().default(5),
+  // Operator alerts by email through Day3.
+  DAY3_API_KEY: optional,
+  ALERT_EMAIL_TO: list,
+  ALERT_EMAIL_FROM: optional,
   PRODUCT_HUNT_TOKEN: optional,
   NOMINATIM_URL: z.url().default('https://nominatim.openstreetmap.org'),
   // Comma separated; later entries are fallbacks when one is busy (429, 5xx).

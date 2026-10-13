@@ -15,7 +15,9 @@ import { cachedCrawl, isCacheable, recordCrawl, type CrawlOutcome } from '../lea
 import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
 import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
-import { PermanentError } from '../leads/sources/types.js';
+import type { Alerter } from '../alerts.js';
+import { pauseSource } from '../leads/source-pause.js';
+import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
 import { cancelSearchJobs, enqueue, type Job } from './queue.js';
@@ -27,6 +29,60 @@ export interface PipelineDeps {
   verifier: Verifier;
   log: Logger;
   now?: () => Date;
+  /** Operator alerts. Without it they are only logged. */
+  alert?: Alerter;
+  /** Monthly Brave spend that triggers alerts at 80% and 100%. */
+  braveBudget?: { monthlyUsd: number; costPer1000Usd: number };
+}
+
+/** Where the operator fixes a paused source. */
+const SOURCE_DASHBOARDS: Record<string, string> = {
+  brave: 'https://api-dashboard.search.brave.com/app/subscriptions/usage-limits',
+};
+
+/** Pauses a source that refused us and tells the operator. */
+async function sourceUnavailable(deps: PipelineDeps, err: SourceUnavailableError): Promise<void> {
+  await pauseSource(deps.sql, err.source, err.reason, deps.now?.());
+  const dashboard = SOURCE_DASHBOARDS[err.source];
+  await deps.alert?.send({
+    key: `source-unavailable:${err.source}`,
+    subject: `${err.source} is refusing searches`,
+    text: [
+      `${err.source} refused a request: ${err.reason}.`,
+      '',
+      `New searches that need ${err.source} are refused with a clear message for the next 10 minutes. After that the next search tries again, so it recovers by itself once the cause is fixed.`,
+      dashboard ? `Fix it here: ${dashboard}` : '',
+      `End the pause early on the VPS: nv sources resume ${err.source}`,
+    ].join('\n'),
+  });
+}
+
+/** Alerts at 80% and 100% of the monthly Brave budget, once each per month. */
+async function checkBraveBudget(deps: PipelineDeps): Promise<void> {
+  const budget = deps.braveBudget;
+  if (!budget || !deps.alert) return;
+  const now = deps.now?.() ?? new Date();
+  const [row] = await deps.sql<{ requests: number }[]>`
+    select coalesce(sum(source_requests), 0)::int as requests from searches
+    where kind = 'web' and created_at >= date_trunc('month', ${now.toISOString()}::timestamptz)
+  `;
+  const spent = ((row?.requests ?? 0) / 1_000) * budget.costPer1000Usd;
+  const share = spent / budget.monthlyUsd;
+  const level = share >= 1 ? 100 : share >= 0.8 ? 80 : null;
+  if (level === null) return;
+  const month = now.toISOString().slice(0, 7);
+  await deps.alert.send({
+    key: `brave-budget:${month}:${level}`,
+    everyMs: 40 * 86_400_000,
+    subject: `Brave spend at ${level}% of the $${budget.monthlyUsd} budget`,
+    text: [
+      `About $${spent.toFixed(2)} of Brave Search used in ${month} (${row?.requests ?? 0} paid requests), against a budget of $${budget.monthlyUsd}.`,
+      '',
+      'When Brave hits its usage limit, web searches pause and users see that web search is down on our side.',
+      `Raise the usage limit here: ${SOURCE_DASHBOARDS.brave}`,
+      'Then raise BRAVE_MONTHLY_BUDGET_USD in /opt/nvoke/.env to match and restart the worker.',
+    ].join('\n'),
+  });
 }
 
 export const QUOTA_EXCEEDED = 'quota_exceeded';
@@ -174,6 +230,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
         set source_requests = source_requests + ${usage.request}, source_cache_hits = source_cache_hits + ${usage.cache_hit}
         where id = ${searchId}
       `.catch((err: unknown) => log.warn({ err }, 'find: could not record source usage'));
+      if (usage.request > 0) await checkBraveBudget(deps).catch((err: unknown) => log.warn({ err }, 'find: budget check failed'));
     }
   }
   log.info({ found, seen, sourceRequests: usage.request, sourceCacheHits: usage.cache_hit }, 'find: done');
@@ -382,11 +439,13 @@ export async function onFindGaveUp(deps: PipelineDeps, job: Job, error: unknown)
   const searchId = job.payload.searchId;
   if (typeof searchId !== 'string') return;
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof SourceUnavailableError) await sourceUnavailable(deps, error);
   // Companies already found keep crawling; only discovery stopped.
   const found = await deps.sql<{ n: number }[]>`select count(*)::int as n from companies where search_id = ${searchId}`;
-  if ((found[0]?.n ?? 0) > 0 && !(error instanceof PermanentError)) {
+  const keepable = !(error instanceof PermanentError) || error instanceof SourceUnavailableError;
+  if ((found[0]?.n ?? 0) > 0 && keepable) {
     deps.log.warn({ searchId, err: message }, 'find: gave up after partial results, keeping them');
     return;
   }
-  await failSearch(deps.sql, searchId, message);
+  await failSearch(deps.sql, searchId, error instanceof PermanentError && error.code ? error.code : message);
 }

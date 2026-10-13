@@ -193,5 +193,6 @@ export const LeadsErrorCode = z.enum([
   'quota_exceeded',
   'not_cancelable',
   'database_unavailable',
+  'source_unavailable',
 ]);
 export type LeadsErrorCode = z.infer<typeof LeadsErrorCode>;
