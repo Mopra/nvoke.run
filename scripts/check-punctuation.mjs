@@ -5,7 +5,7 @@ import { join, relative, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'release', 'coverage', '.next']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.claude', 'dist', 'out', 'release', 'coverage', '.next']);
 const EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.mjs', '.cjs', '.json', '.md', '.css', '.html', '.yml', '.yaml', '.sql', '.example',
 ]);

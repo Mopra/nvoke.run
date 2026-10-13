@@ -18,6 +18,7 @@ const tokenMessage =
 export default tseslint.config(
   {
     ignores: [
+      '.claude/**',
       '**/node_modules/**',
       '**/dist/**',
       '**/out/**',
