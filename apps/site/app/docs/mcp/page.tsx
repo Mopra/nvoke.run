@@ -7,7 +7,7 @@ import { urls } from '@/lib/docs';
 
 export const metadata: Metadata = {
   title: 'MCP server',
-  description: 'Connect Claude, Cursor or any MCP client to nvoke with one URL. Nine tools: search, wait, read leads, export.',
+  description: 'Connect Claude, Cursor or any MCP client to nvoke with one URL. Tools to search, wait, read leads, export and set up webhooks.',
   alternates: { canonical: '/docs/mcp' },
 };
 

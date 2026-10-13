@@ -7,13 +7,14 @@ import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
   title: 'REST API',
-  description: 'The nvoke REST API: searches, leads, CSV export, API keys and agent sign-up. Every endpoint with its fields.',
+  description: 'The nvoke REST API: searches, leads, CSV export, webhooks, API keys and agent sign-up. Every endpoint with its fields.',
   alternates: { canonical: '/docs/api' },
 };
 
 const METHOD_TONE: Record<Endpoint['method'], string> = {
   GET: 'bg-foreground/[0.07] text-foreground',
   POST: 'bg-primary/12 text-primary',
+  PATCH: 'bg-primary/12 text-primary',
   DELETE: 'bg-destructive/12 text-destructive',
 };
 

@@ -22,6 +22,9 @@ import { postgresAccounts, type Accounts } from '../leads/accounts.js';
 import { clerkPlanSource } from '../billing/clerk.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { privacyRoutes } from './routes/privacy.js';
+import { userWebhookRoutes } from './routes/user-webhooks.js';
+import type { Resolve } from '../webhooks/address.js';
+import { httpSender, type WebhookSender } from '../webhooks/send.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
@@ -37,12 +40,16 @@ export interface AppDeps {
   claimMailer: ClaimMailer | null;
   /** True when the domain takes mail. Tests stub DNS out. */
   receivesMail?: (domain: string) => Promise<boolean>;
+  /** Sends webhook test pings. Tests swap in a fake. */
+  webhookSender?: WebhookSender;
+  /** DNS for checking webhook URLs. Tests stub it out. */
+  webhookResolve?: Resolve;
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail'> = {
+  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve'> = {
     getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
@@ -116,6 +123,15 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     getSql,
     authenticate: app.requireAuth,
     sourcesAvailable: sourceAvailability(createCollectors({ productHuntToken: env.PRODUCT_HUNT_TOKEN })),
+  });
+  const urlPolicy = { allowPrivate: env.WEBHOOK_ALLOW_PRIVATE };
+  await app.register(userWebhookRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    urlPolicy,
+    send: overrides.webhookSender ?? httpSender({ ...urlPolicy, resolve: overrides.webhookResolve }),
+    resolve: overrides.webhookResolve,
   });
   // Public, no auth: the site's opt-out page calls it from the browser.
   await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });

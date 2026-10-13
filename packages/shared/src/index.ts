@@ -5,3 +5,4 @@ export * from './drops.ts';
 export * from './leads.ts';
 export * from './plans.ts';
 export * from './privacy.ts';
+export * from './webhooks.ts';

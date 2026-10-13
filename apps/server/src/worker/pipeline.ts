@@ -21,6 +21,7 @@ import { pauseSource } from '../leads/source-pause.js';
 import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import { isTempfail, type Verifier } from '../leads/verify/index.js';
+import { leadSettled, searchFinished } from '../webhooks/events.js';
 import { cancelSearchJobs, enqueue, type Job } from './queue.js';
 
 export interface PipelineDeps {
@@ -117,10 +118,14 @@ async function searchStatus(sql: Sql, searchId: string): Promise<SearchStatus | 
 
 /** Marks the search failed (unless it already ended) and cancels its remaining discovery work. */
 export async function failSearch(sql: Sql, searchId: string, error: string, keepVerify = false): Promise<void> {
-  await sql`
-    update searches set status = 'failed', error = ${error.slice(0, 500)}, finished_at = now()
-    where id = ${searchId} and status in ('queued', 'running')
-  `;
+  await sql.begin(async (tx) => {
+    const rows = await tx`
+      update searches set status = 'failed', error = ${error.slice(0, 500)}, finished_at = now()
+      where id = ${searchId} and status in ('queued', 'running')
+      returning id
+    `;
+    if (rows.length > 0) await searchFinished(tx, searchId);
+  });
   await cancelSearchJobs(sql, searchId, keepVerify ? ['find', 'crawl'] : undefined);
 }
 
@@ -129,13 +134,17 @@ export async function failSearch(sql: Sql, searchId: string, error: string, keep
  * every job; READ COMMITTED makes the last finisher see an empty queue.
  */
 export async function maybeFinishSearch(sql: Sql, searchId: string): Promise<boolean> {
-  const rows = await sql`
-    update searches set status = 'done', finished_at = now()
-    where id = ${searchId} and status = 'running'
-      and not exists (select 1 from jobs where search_id = ${searchId} and status in ('queued', 'running'))
-    returning id
-  `;
-  return rows.length > 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx`
+      update searches set status = 'done', finished_at = now()
+      where id = ${searchId} and status = 'running'
+        and not exists (select 1 from jobs where search_id = ${searchId} and status in ('queued', 'running'))
+      returning id
+    `;
+    if (rows.length === 0) return false;
+    await searchFinished(tx, searchId);
+    return true;
+  });
 }
 
 // find
@@ -424,8 +433,8 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
 async function recordVerification(deps: PipelineDeps, emailId: string, verification: Verification): Promise<void> {
   const { sql } = deps;
   const outcome = await sql.begin(async (tx) => {
-    const [email] = await tx<{ search_id: string; clerk_user_id: string; address: string }[]>`
-      select search_id, clerk_user_id, address from emails
+    const [email] = await tx<{ search_id: string; company_id: string; clerk_user_id: string; address: string }[]>`
+      select search_id, company_id, clerk_user_id, address from emails
       where id = ${emailId} and verification is null
       for update
     `;
@@ -438,6 +447,10 @@ async function recordVerification(deps: PipelineDeps, emailId: string, verificat
     if (verification === 'valid') {
       await tx`update searches set emails_valid = emails_valid + 1 where id = ${email.search_id}`;
     }
+    // Checks of one company finishing together queue behind this lock, so
+    // the last one sees every other result and announces the lead.
+    await tx`select id from companies where id = ${email.company_id} for update`;
+    await leadSettled(tx, email.company_id);
     return { searchId: email.search_id, overLimit: false };
   });
   if (outcome?.overLimit) {

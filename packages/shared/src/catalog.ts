@@ -22,6 +22,16 @@ import {
 } from './leads.ts';
 import { PlansResponse } from './plans.ts';
 import { OptOutRequest, OptOutResponse } from './privacy.ts';
+import {
+  CreateWebhookRequest,
+  CreateWebhookResponse,
+  UpdateWebhookRequest,
+  Webhook,
+  WebhookDeliveryListResponse,
+  WebhookIdParams,
+  WebhookListResponse,
+  WebhookTestResponse,
+} from './webhooks.ts';
 
 /**
  * Every public endpoint and MCP tool, described once. The server builds
@@ -35,10 +45,10 @@ export type EndpointAuth = 'public' | 'key' | 'session';
 
 export interface Endpoint {
   id: string;
-  method: 'GET' | 'POST' | 'DELETE';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   /** Fastify style, `:id` for path parameters. */
   path: string;
-  group: 'Account' | 'Searches' | 'Leads' | 'API keys' | 'Agents' | 'Privacy' | 'Meta';
+  group: 'Account' | 'Searches' | 'Leads' | 'Webhooks' | 'API keys' | 'Agents' | 'Privacy' | 'Meta';
   summary: string;
   description: string;
   auth: EndpointAuth;
@@ -180,6 +190,87 @@ export const ENDPOINTS: Endpoint[] = [
     example: { verification: 'valid' },
   },
   {
+    id: 'listWebhooks',
+    method: 'GET',
+    path: '/v1/webhooks',
+    group: 'Webhooks',
+    summary: 'List webhooks',
+    description: 'Your webhooks with the outcome of their last deliveries. A webhook we turned off after a day of failures has `enabled: false` and `disabledReason` `failing`.',
+    auth: 'key',
+    status: 200,
+    response: WebhookListResponse,
+    errors: [],
+  },
+  {
+    id: 'createWebhook',
+    method: 'POST',
+    path: '/v1/webhooks',
+    group: 'Webhooks',
+    summary: 'Create a webhook',
+    description:
+      'We POST `lead.ready` for every company with a valid address once its checks settle, and `search.finished` when a search ends. `scope` `drops` or a `dropId` limits it to searches drops made. Requests are signed the Standard Webhooks way (`webhook-id`, `webhook-timestamp`, `webhook-signature`); the response holds the signing secret, and it is never shown again. HTTPS on a public address only. At most 10 webhooks.',
+    auth: 'key',
+    body: CreateWebhookRequest,
+    status: 201,
+    response: CreateWebhookResponse,
+    errors: ['invalid_request', 'too_many_webhooks', 'webhook_url_not_allowed'],
+    example: { url: 'https://example.com/hooks/nvoke', events: ['lead.ready'], scope: 'drops' },
+  },
+  {
+    id: 'updateWebhook',
+    method: 'PATCH',
+    path: '/v1/webhooks/:id',
+    group: 'Webhooks',
+    summary: 'Change a webhook',
+    description: 'Change the URL, events or scope, or pause and resume it with `enabled`. `dropId: null` widens it to the whole scope again.',
+    auth: 'key',
+    params: WebhookIdParams,
+    body: UpdateWebhookRequest,
+    status: 200,
+    response: Webhook,
+    errors: ['not_found', 'invalid_request', 'webhook_url_not_allowed'],
+    example: { enabled: true },
+  },
+  {
+    id: 'deleteWebhook',
+    method: 'DELETE',
+    path: '/v1/webhooks/:id',
+    group: 'Webhooks',
+    summary: 'Delete a webhook',
+    description: 'Stops it at once and drops its pending deliveries.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
+    id: 'testWebhook',
+    method: 'POST',
+    path: '/v1/webhooks/:id/test',
+    group: 'Webhooks',
+    summary: 'Send a test event',
+    description: 'Sends a signed `ping` event right now and tells you how your server answered.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 200,
+    response: WebhookTestResponse,
+    errors: ['not_found', 'webhook_url_not_allowed'],
+  },
+  {
+    id: 'listWebhookDeliveries',
+    method: 'GET',
+    path: '/v1/webhooks/:id/deliveries',
+    group: 'Webhooks',
+    summary: 'Recent deliveries',
+    description: 'The last 50 deliveries with their status, attempts and the last answer from your server. Kept 30 days.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 200,
+    response: WebhookDeliveryListResponse,
+    errors: ['not_found'],
+  },
+  {
     id: 'listApiKeys',
     method: 'GET',
     path: '/v1/api-keys',
@@ -302,7 +393,7 @@ export const ERROR_CODES: Record<string, string> = {
   unauthorized: 'No valid token. Send `Authorization: Bearer <key>`.',
   claim_required: 'An agent created this account more than 7 days ago and nobody claimed it. The human claims it from the emailed link.',
   invalid_request: 'The body or query failed validation. `details` lists the problems.',
-  not_found: 'No such search or key on this account.',
+  not_found: 'No such search, key or webhook on this account.',
   quota_exceeded: 'This month’s verified emails are used up. A human upgrades at `billingUrl` from `GET /v1/me`.',
   source_unavailable: 'Web search is paused on our side. Local and launch searches still work.',
   not_cancelable: 'The search already finished.',
@@ -311,6 +402,8 @@ export const ERROR_CODES: Record<string, string> = {
   email_not_accepted: 'Disposable inbox, an opted-out address, or a domain that receives no mail.',
   rate_limited: 'Too many sign-ups. Try again later.',
   signup_unavailable: 'Agent sign-up is switched off right now.',
+  too_many_webhooks: 'The account holds 10 webhooks. Delete one first.',
+  webhook_url_not_allowed: 'Webhook URLs must be HTTPS on a public address that resolves.',
   database_unavailable: 'Our database is unreachable. Retry with backoff.',
 };
 
@@ -431,12 +524,50 @@ export const MCP_TOOLS: McpTool[] = [
     readOnly: false,
     destructive: true,
   },
+  {
+    name: 'list_webhooks',
+    title: 'List webhooks',
+    description: 'Your webhooks: the URL, events, scope and how the last deliveries went.',
+    input: z.object({}),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'create_webhook',
+    title: 'Create a webhook',
+    description:
+      'Pushes leads to a URL as they are ready instead of polling: `lead.ready` per company with a valid address, `search.finished` when a search ends. Scope `drops` or a dropId limits it to daily drops. Returns the signing secret once; give it to whoever verifies the requests.',
+    input: z.object({
+      url: z.string().describe('HTTPS URL on a public address.'),
+      events: z.array(z.enum(['lead.ready', 'search.finished'])).optional().describe('Both when left out.'),
+      scope: z.enum(['all', 'drops']).optional().describe('`all` (default): every search. `drops`: only searches drops made.'),
+      dropId: z.uuid().optional().describe('Only searches this drop made.'),
+    }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'test_webhook',
+    title: 'Test a webhook',
+    description: 'Sends a signed `ping` to the webhook now and returns how the server answered.',
+    input: z.object({ webhookId: z.uuid() }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'delete_webhook',
+    title: 'Delete a webhook',
+    description: 'Stops the webhook at once and drops its pending deliveries.',
+    input: z.object({ webhookId: z.uuid() }),
+    readOnly: false,
+    destructive: true,
+  },
 ];
 
 /** Instructions the MCP server sends at `initialize`. */
 export const MCP_INSTRUCTIONS = `nvoke finds companies and the email addresses published on their own websites, and checks each address with its mail server.
 
-Typical run: get_account, then start_search, then wait_for_search until status is done, then get_leads with verification "valid" or export_csv.
+Typical run: get_account, then start_search, then wait_for_search until status is done, then get_leads with verification "valid" or export_csv. To have leads pushed to a URL as they are ready instead, use create_webhook.
 
 Searches run on nvoke's servers and take a few minutes. Only addresses whose check comes back valid count against the plan (free: 50 a month). When the allowance is used up, searches fail with quota_exceeded; a human upgrades at the billingUrl from get_account.
 

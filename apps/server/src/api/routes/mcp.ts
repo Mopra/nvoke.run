@@ -82,6 +82,14 @@ export function toolRequest(name: string, a: Args): Call {
             : { keyword: a['keyword'], days: a['days'] };
       return { method: 'POST', url: '/v1/searches', body: { kind, params, limit: a['limit'] } };
     }
+    case 'list_webhooks':
+      return { method: 'GET', url: '/v1/webhooks' };
+    case 'create_webhook':
+      return { method: 'POST', url: '/v1/webhooks', body: { url: a['url'], events: a['events'], scope: a['scope'], dropId: a['dropId'] } };
+    case 'test_webhook':
+      return { method: 'POST', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}/test` };
+    case 'delete_webhook':
+      return { method: 'DELETE', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}` };
     default:
       throw new Error(`unknown tool ${name}`);
   }

@@ -73,6 +73,10 @@ Send \`Authorization: Bearer <apiKey>\` on every request.
 3. \`GET /v1/searches/{id}/companies?verification=valid\` for companies with addresses that accept mail. Follow \`nextCursor\` as \`cursor\`.
 4. Or \`GET /v1/searches/{id}/export.csv?verification=valid\` for a CSV, one row per email.
 
+## Webhooks instead of polling
+
+\`POST /v1/webhooks\` with \`{"url":"https://...","events":["lead.ready"],"scope":"drops"}\` makes nvoke POST each company with a valid address to that URL once its checks are done (\`lead.ready\`), and each finished search (\`search.finished\`). Requests are signed the Standard Webhooks way; the 201 response holds the \`whsec_\` secret, once. Details: ${urls.docs}/webhooks
+
 ## Endpoints
 
 ${endpoints}

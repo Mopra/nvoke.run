@@ -61,6 +61,11 @@ const EnvSchema = z.object({
     .pipe(z.array(z.url()).min(1)),
   SMTP_HELO_NAME: z.string().min(1).default('nvoke.run'),
   SMTP_PROBE_FROM: z.email().default('probe@nvoke.run'),
+  // Local development only: webhooks may use http and private addresses.
+  WEBHOOK_ALLOW_PRIVATE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   SMTP_PROBE_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

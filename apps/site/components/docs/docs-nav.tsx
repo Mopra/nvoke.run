@@ -9,6 +9,7 @@ export const DOCS_NAV = [
   { href: '/docs', label: 'Quickstart' },
   { href: '/docs/api', label: 'REST API' },
   { href: '/docs/mcp', label: 'MCP server' },
+  { href: '/docs/webhooks', label: 'Webhooks' },
   { href: '/docs/agents', label: 'Agent sign-up' },
 ];
 

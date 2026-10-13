@@ -172,6 +172,35 @@ describe('pipeline', () => {
     expect(open).toHaveLength(0);
   });
 
+  it('queues lead.ready per company with a valid address, then search.finished', async () => {
+    await ensureAccount(db.sql, 'u1');
+    const [hook] = await db.sql<{ id: string }[]>`
+      insert into webhooks (clerk_user_id, url, secret, events)
+      values ('u1', 'https://hooks.example.com/x', 'whsec_eA==', '{lead.ready,search.finished}')
+      returning id`;
+    const [dropsOnly] = await db.sql<{ id: string }[]>`
+      insert into webhooks (clerk_user_id, url, secret, events, scope)
+      values ('u1', 'https://hooks.example.com/y', 'whsec_eA==', '{lead.ready,search.finished}', 'drops')
+      returning id`;
+    const final = await run(
+      adapterOf([
+        { name: 'Alpha', website: 'https://alpha.dk', source: 'test' },
+        { name: 'Beta', website: 'https://beta.dk', source: 'test' },
+        { name: 'No mail', website: 'https://nomail.dk', source: 'test' },
+      ]),
+    );
+    expect(final.status).toBe('done');
+    const queued = await db.sql<{ event: string; domain: string | null }[]>`
+      select d.event, c.domain from webhook_deliveries d left join companies c on c.id = d.company_id
+      where d.webhook_id = ${hook!.id} order by d.event, c.domain`;
+    expect(queued).toEqual([
+      { event: 'lead.ready', domain: 'alpha.dk' },
+      { event: 'lead.ready', domain: 'beta.dk' },
+      { event: 'search.finished', domain: null },
+    ]);
+    expect(await db.sql`select 1 from webhook_deliveries where webhook_id = ${dropsOnly!.id}`).toHaveLength(0);
+  });
+
   it('stops finding at the search limit', async () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ name: `C${i}`, website: `https://c${i}.dk`, source: 'test' }));
     const final = await run(adapterOf(many), LOCAL, 3);

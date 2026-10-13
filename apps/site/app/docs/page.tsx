@@ -27,7 +27,8 @@ const LEADS = `curl "${urls.apiBase}/searches/$SEARCH_ID/companies?verification=
 
 const CARDS = [
   { href: '/docs/api', title: 'REST API', body: 'Every endpoint, generated from the same schemas the server runs.' },
-  { href: '/docs/mcp', title: 'MCP server', body: 'One URL. Claude, Cursor and friends get nine tools.' },
+  { href: '/docs/mcp', title: 'MCP server', body: 'One URL. Claude, Cursor and friends get every tool.' },
+  { href: '/docs/webhooks', title: 'Webhooks', body: 'Leads pushed to your URL the moment they check out. Drops included.' },
   { href: '/docs/agents', title: 'Agent sign-up', body: 'An agent makes the account itself. A human claims it later.' },
 ];
 

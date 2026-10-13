@@ -53,6 +53,8 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 - `feed_items`: launches collected for drops: `id` (identity, the drop cursor), `source`, `source_ref` (unique together), `name`, `website`, `domain`, `tagline`, `description`, `tags`, `location`, `launched_at`, `discovered_at`, `search_text` (lowercased name, tagline, description and tags). No addresses.
 - `feed_sources`: one row per collector: `source` pk, `last_run_at`, `last_ok_at`, `last_error`, `last_found`, `last_added`.
 - `drops`: `id`, `clerk_user_id`, `name`, `keyword`, `sources`, `daily_limit`, `enabled`, `cursor` (highest `feed_items.id` already considered), `next_run_at`, `last_delivered_at`, `created_at`. `searches.drop_id` points at the drop that made a search (set null when the drop is deleted).
+- `webhooks`: `id`, `clerk_user_id`, `url`, `secret`, `events`, `scope` (`all` | `drops`), `drop_id` (cascade), `enabled`, `disabled_reason`, `last_success_at`, `last_failure_at`, `last_error`, `created_at`. See "Webhooks".
+- `webhook_deliveries`: `id` (the `webhook-id` header), `webhook_id` (cascade), `event`, `search_id` (cascade), `company_id` (cascade, `lead.ready` only), `status` (`pending` | `delivered` | `failed` | `skipped`), `attempts`, `next_attempt_at`, `locked_until`, `last_status`, `last_error`, `created_at`, `delivered_at`. Unique `(webhook_id, event, search_id, company_id)`.
 
 Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work.
 
@@ -72,6 +74,7 @@ Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work
 - `GET /v1/openapi.json` (public): OpenAPI 3.1 for every route.
 
 - `GET /v1/drops` returns the user's drops (with `companiesDelivered`) and per feed source whether it is collected and how many launches it brought in over the last 7 days. `POST /v1/drops` with `{ name, keyword?, sources?, dailyLimit? }` (409 `too_many_drops` past 20), `PATCH /v1/drops/:id` with any of those plus `enabled` (`keyword: null` removes it), `POST /v1/drops/:id/run`, `DELETE /v1/drops/:id`. Schemas in `packages/shared/src/drops.ts`.
+- `GET /v1/webhooks`, `POST /v1/webhooks`, `PATCH /v1/webhooks/:id`, `DELETE /v1/webhooks/:id`, `POST /v1/webhooks/:id/test`, `GET /v1/webhooks/:id/deliveries`: see "Webhooks".
 - `POST /v1/privacy/opt-out` (public, rate limited) with `{ email }` or `{ domain }` suppresses it at once and deletes matching data. No confirmation step. Always returns `{ ok: true }`, so it cannot be used to test whether nvoke holds an address. Schema in `packages/shared/src/privacy.ts`.
 
 Outside `/v1`: `POST /mcp` (the MCP server), `/.well-known/oauth-protected-resource[/mcp]` and `/.well-known/oauth-authorization-server` (OAuth discovery for MCP clients), and `POST /webhooks/clerk` takes Clerk Billing events (signed with `CLERK_WEBHOOK_SIGNING_SECRET`) and re-reads the paying user's plan.
@@ -110,6 +113,18 @@ Fresh leads, not a static list. The worker collects new launches around the cloc
 - **Drops.** A drop is a name, an optional keyword (every word must appear in the item's `search_text`), a set of sources and a daily limit (default 25, at most 200). At most 20 per user. The first run happens within a minute of creating the drop and reaches back 7 days (`DROP_BACKFILL_DAYS`); after that it runs every 24 hours on the same beat.
 - **A run** (`runDueDrops` in `apps/server/src/feed/drops.ts`, every minute, `FOR UPDATE SKIP LOCKED` on due drops): takes the feed items after the drop's `cursor`, from its sources, matching the keyword, on a domain this drop has not delivered before, one per domain, newest first. When there are none it only moves the cursor and the next run time: no empty searches. Otherwise it inserts a search of kind `drop` (params: `dropId`, `dropName`, `keyword`, `sources`, plus the feed slice `afterId`, `untilId` and, on the first run, `since`), limit = the daily limit, with its find job, and moves the cursor to the newest item. The find step reads that slice of the feed instead of calling a source; crawl, verify, billing and retention are the same as every other search. Items past the limit are skipped, so a drop always delivers the freshest launches. A run while the user's allowance is used up creates nothing and leaves the cursor, so those launches wait for the next run.
 - **Edits** apply from the next run. "Check now" (`POST /v1/drops/:id/run`) moves the next run to now. Deleting a drop keeps the searches it made.
+
+## Webhooks
+
+Leads pushed to the user's own URL the moment they are ready, so a drop can feed a CRM, Zapier, Make or Clay without anyone opening the app. Code in `apps/server/src/webhooks/`, schemas in `packages/shared/src/webhooks.ts`.
+
+- **Endpoints.** A webhook is an HTTPS URL, the events it wants, and which searches it covers: `scope` `all` (every search, drops included) or `drops` (only searches a drop made), optionally narrowed to one `dropId`. At most 10 per account (`WEBHOOKS_MAX`). Deleting a drop deletes the webhooks narrowed to it, so their scope never widens on its own. `GET /v1/webhooks`, `POST /v1/webhooks` with `{ url, events, scope?, dropId? }` (409 `too_many_webhooks`), `PATCH /v1/webhooks/:id` with any of those plus `enabled`, `DELETE /v1/webhooks/:id`, `POST /v1/webhooks/:id/test`, `GET /v1/webhooks/:id/deliveries` (the last 50).
+- **Events.** `lead.ready`: a company with at least one valid address, sent once its checks have settled: no address left unchecked, or the search ended (done, or failed with `quota_exceeded`, which leaves some unchecked). Once per company per webhook. `data` is `{ search: { id, kind, dropId, dropName }, company }`, where `company` has the shape of `GET /v1/searches/:id/companies`, with every checked address. `search.finished`: a search reached `done` or `failed`; `data` is `{ search }` with its counters. Canceling sends nothing. `ping`: only from the test route.
+- **Payload.** `POST` with `{ type, timestamp, data }` as JSON. Headers follow Standard Webhooks (standardwebhooks.com), so its libraries verify them: `webhook-id` (the delivery id, the same on every retry; dedupe on it), `webhook-timestamp` (unix seconds) and `webhook-signature` (`v1,` plus base64 HMAC SHA-256 of `{id}.{timestamp}.{body}`, keyed with the base64 part of the secret). The secret is `whsec_` plus 24 random bytes in base64, returned once by `POST /v1/webhooks`. To rotate, make a new webhook and delete the old.
+- **Delivery.** The worker sends due deliveries every 2 seconds (`FOR UPDATE SKIP LOCKED`, 20 at once, again while batches come back full). A 2xx within 10 seconds is success; redirects are not followed. Retries after 5 seconds, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and 10 hours, then the delivery fails. A webhook whose delivery fails for good with no success since that delivery was created (a day of failures) is disabled with `disabledReason: 'failing'`; the user turns it on again. Disabling or deleting a webhook drops its pending deliveries.
+- **Built when sent.** A delivery row holds only the event and the ids it is about. The payload is built from the current data at each attempt, so a deleted search, an opt-out or an expired search drops the delivery (`skipped`) instead of sending addresses we no longer hold. No address is stored outside `emails`.
+- **Safety.** Only `https` URLs on a public address: the host is resolved at create, update and every send, and the request connects to the address that passed. Loopback, private, link local, CGNAT, multicast and reserved ranges (IPv4 and IPv6, mapped addresses included) answer 422 `webhook_url_not_allowed`. `WEBHOOK_ALLOW_PRIVATE=true` lifts that and allows `http` for local development only.
+- **Test.** `POST /v1/webhooks/:id/test` sends a signed `ping` from the API at once and returns `{ ok, status, error, durationMs }`. It is not stored.
 
 ## Plans
 
@@ -169,6 +184,7 @@ Full documents: `docs/legal/` (`lia.md` legitimate interest assessment, `dpia.md
   - `email_checks`: 30 days.
   - `web_search_cache`: 7 days after `fetched_at`.
   - `feed_items`: 90 days after `discovered_at`. Erasing a domain deletes its feed items too.
+  - `webhook_deliveries`: 30 days after `created_at`. They hold ids only, never addresses.
   - `billed_emails`: 12 months after `billed_at`. Finding the address again after that charges it again.
   - `domains`: dropped 12 months after `recheck_at` when no search crawled the domain again.
   - `suppressions`: forever, so an opted-out address is never collected again.

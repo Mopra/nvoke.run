@@ -65,7 +65,7 @@ describe('retention', () => {
       insert into suppressions (hash, kind, created_at) values (${addressHash('x@acme.dk')}, 'address', '2020-01-01T00:00:00Z')`;
 
     const result = await purge(db.sql, NOW);
-    expect(result).toEqual({ searches: 1, domainEmails: 1, domains: 1, emailChecks: 1, billedEmails: 1, webSearchPages: 0, feedItems: 0 });
+    expect(result).toEqual({ searches: 1, domainEmails: 1, domains: 1, emailChecks: 1, billedEmails: 1, webSearchPages: 0, feedItems: 0, webhookDeliveries: 0 });
 
     const searches = await db.sql`select id from searches`;
     expect(searches).toEqual([{ id: newSearch }]);
@@ -79,6 +79,6 @@ describe('retention', () => {
     expect(await db.sql`select kind from suppressions`).toEqual([{ kind: 'address' }]);
 
     // Running again finds nothing more to delete.
-    expect(await purge(db.sql, NOW)).toEqual({ searches: 0, domainEmails: 0, domains: 0, emailChecks: 0, billedEmails: 0, webSearchPages: 0, feedItems: 0 });
+    expect(await purge(db.sql, NOW)).toEqual({ searches: 0, domainEmails: 0, domains: 0, emailChecks: 0, billedEmails: 0, webSearchPages: 0, feedItems: 0, webhookDeliveries: 0 });
   });
 });

@@ -25,6 +25,8 @@ export const RETENTION = {
   webSearchCacheDays: 7,
   /** A feed item (a launch the worker collected for drops) is deleted this many days after discovery. */
   feedItemDays: 90,
+  /** A webhook delivery (ids only, never addresses) is deleted this many days after it was made. */
+  webhookDeliveryDays: 30,
   /** How often the worker runs purge(). */
   purgeIntervalMs: 60 * 60_000,
 } as const;
@@ -43,6 +45,7 @@ export interface PurgeResult {
   billedEmails: number;
   webSearchPages: number;
   feedItems: number;
+  webhookDeliveries: number;
 }
 
 /**
@@ -87,6 +90,11 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     where discovered_at < ${at}::timestamptz - make_interval(days => ${RETENTION.feedItemDays})
     returning id
   `;
+  const webhookDeliveries = await sql`
+    delete from webhook_deliveries
+    where created_at < ${at}::timestamptz - make_interval(days => ${RETENTION.webhookDeliveryDays})
+    returning id
+  `;
   return {
     searches: searches.length,
     domainEmails: domainEmails.length,
@@ -95,5 +103,6 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     billedEmails: billedEmails.length,
     webSearchPages: webSearchPages.length,
     feedItems: feedItems.length,
+    webhookDeliveries: webhookDeliveries.length,
   };
 }

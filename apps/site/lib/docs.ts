@@ -109,7 +109,8 @@ export function fieldGroups(schema: z.ZodType, io: 'input' | 'output'): FieldGro
 
 /** URL path with example values for the parameters. */
 function examplePath(e: Endpoint): string {
-  return e.path.replace(':id', e.group === 'API keys' ? '$KEY_ID' : '$SEARCH_ID');
+  const id = e.group === 'API keys' ? '$KEY_ID' : e.group === 'Webhooks' ? '$WEBHOOK_ID' : '$SEARCH_ID';
+  return e.path.replace(':id', id);
 }
 
 export function curlFor(e: Endpoint): string {
@@ -124,7 +125,7 @@ export function curlFor(e: Endpoint): string {
     return `curl ${method}"${base}${examplePath(e)}${query}"${auth}`;
   }
   const body = e.example === undefined ? '' : ` \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(e.example)}'`;
-  return `curl -X POST "${base}${examplePath(e)}"${auth}${body}`;
+  return `curl -X ${e.method} "${base}${examplePath(e)}"${auth}${body}`;
 }
 
 /** Endpoints grouped in catalog order. The claim route belongs to the site, so it is left out. */

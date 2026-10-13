@@ -1,7 +1,7 @@
 /**
  * Worker entry point. Runs the lead pipeline jobs (find, crawl, verify) from
  * the Postgres queue, the feed collectors and daily drops (every minute) and
- * the hourly retention purge, in a separate process from the API. SIGTERM
+ * the hourly retention purge, and sends webhooks, in a separate process from the API. SIGTERM
  * stops claiming, gives running jobs time to finish, and hands the rest back.
  */
 import { loadEnv } from '../env.js';
@@ -14,10 +14,13 @@ import { createClerkClient } from '@clerk/backend';
 import { purgeAgentSignups } from '../agents/purge.js';
 import { purge, RETENTION } from '../leads/retention.js';
 import { VERSION } from '../version.js';
+import { DELIVERY_BATCH, deliverDue } from '../webhooks/deliver.js';
+import { httpSender } from '../webhooks/send.js';
 import { createPipelineDeps } from './deps.js';
 import { Runner } from './runner.js';
 
 const FEED_TICK_MS = 60_000;
+const WEBHOOK_TICK_MS = 2_000;
 
 const env = loadEnv();
 const log = logger('worker');
@@ -68,6 +71,28 @@ void runFeed();
 const feedTimer = setInterval(() => void runFeed(), FEED_TICK_MS);
 feedTimer.unref();
 
+// Webhooks: every 2 seconds, send a batch of due deliveries. Claimed with
+// SKIP LOCKED, so several workers share the work.
+const send = httpSender({ allowPrivate: env.WEBHOOK_ALLOW_PRIVATE });
+let webhooksBusy = false;
+async function runWebhooks(): Promise<void> {
+  if (webhooksBusy || stopping) return;
+  webhooksBusy = true;
+  try {
+    // Keep going while batches come back full, so a big drop drains fast.
+    for (let i = 0; i < 25 && !stopping; i++) {
+      const r = await deliverDue({ sql, send, log });
+      if (r.delivered + r.failed + r.retrying + r.skipped < DELIVERY_BATCH) break;
+    }
+  } catch (err) {
+    log.error({ err }, 'webhook tick failed');
+  } finally {
+    webhooksBusy = false;
+  }
+}
+const webhookTimer = setInterval(() => void runWebhooks(), WEBHOOK_TICK_MS);
+webhookTimer.unref();
+
 log.info(
   {
     version: VERSION,
@@ -87,6 +112,7 @@ async function shutdown(signal: string): Promise<void> {
   log.info({ signal, inFlight: runner.inFlight }, 'worker shutting down');
   clearInterval(purgeTimer);
   clearInterval(feedTimer);
+  clearInterval(webhookTimer);
   try {
     await runner.stop(25_000);
   } finally {

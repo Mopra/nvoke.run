@@ -9,6 +9,7 @@ const ROUTES: { path: string; priority: number }[] = [
   { path: '/docs', priority: 0.6 },
   { path: '/docs/api', priority: 0.6 },
   { path: '/docs/mcp', priority: 0.6 },
+  { path: '/docs/webhooks', priority: 0.6 },
   { path: '/docs/agents', priority: 0.6 },
   { path: '/bot', priority: 0.5 },
   { path: '/opt-out', priority: 0.5 },
