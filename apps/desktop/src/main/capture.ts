@@ -237,6 +237,9 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
 
       await go('#/account');
       await shot('12-account', theme);
+      await js(`document.querySelector('[data-local-mcp]')?.scrollIntoView({ block: 'start' })`);
+      await sleep(500);
+      await shot('12b-claude', theme);
       await js(`document.querySelector('[data-api-keys]')?.scrollIntoView({ block: 'start' })`);
       await sleep(500);
       await shot('13-api-keys', theme);

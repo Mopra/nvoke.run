@@ -132,6 +132,12 @@ changeable on Account) opens the quick window, the command bar over any app, on
 `#/quick` of the same renderer. Tray icons are rendered by `pnpm icons` into
 `apps/desktop/resources` and unpacked from the asar.
 
+nvoke also serves MCP to Claude Desktop, Claude Code and Cursor on the
+signed-in session (`src/main/mcp`): a local pipe in main, reached through
+`mcp-launcher.js`, which clients run with the app binary and
+`ELECTRON_RUN_AS_NODE=1`. Tools come from the catalog through `runMcpTool` in
+`packages/shared/src/mcp.ts`, the same runner as the server's `POST /mcp`.
+
 `pnpm --filter @nvoke/desktop capture` runs the app on demo data with a
 throwaway profile, screenshots every screen in light and dark into
 `apps/desktop/screenshots/` (gitignored) and quits. `*.window.png` is the

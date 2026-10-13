@@ -41,6 +41,9 @@ importers:
 
   apps/desktop:
     devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.1
+        version: 1.32.1(zod@4.6.7)
       '@nvoke/shared':
         specifier: workspace:*
         version: link:../../packages/shared

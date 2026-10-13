@@ -12,8 +12,10 @@ files:
 asar: true
 # The tray icons (resources/) are read by native code, which cannot see into
 # the asar. electron-vite's `?asset&asarUnpack` imports point at the copy here.
+# MCP clients run the launcher in Node mode, from outside the asar.
 asarUnpack:
   - resources/**
+  - out/main/mcp-launcher.js
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 publish: null
 

@@ -25,6 +25,8 @@ import { LocalStore } from './local/store';
 import { LeadSync } from './local/sync';
 import { applyOpenAtLogin, startedHidden } from './login-item';
 import { QuickWindow } from './quick-window';
+import { registerMcp } from './mcp';
+import type { LocalMcpServer } from './mcp/server';
 import { AppTray } from './tray';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
 
@@ -51,6 +53,7 @@ let quitting = false;
 let tray: AppTray | null = null;
 let mainWindow: BrowserWindow | null = null;
 let quick: QuickWindow | null = null;
+let mcp: LocalMcpServer | null = null;
 let desktop: SavedDesktop = {};
 
 function desktopFile(): string {
@@ -135,6 +138,8 @@ function main(): void {
     registerWindowIpc();
     registerDragIpc();
     registerEnrichedIpc();
+    // Claude Desktop, Claude Code and Cursor reach the signed-in session here.
+    mcp = registerMcp({ client: api, signedIn: () => api.getState().status === 'signed-in', listen: !captureDir });
     loadWindowPreferences();
     if (!captureDir) {
       tray = new AppTray({
@@ -167,6 +172,8 @@ function main(): void {
     tray = null;
     quick?.destroy();
     quick = null;
+    mcp?.close();
+    mcp = null;
   });
 
   // The window only closes for real on quit, and then the app is on its way out.

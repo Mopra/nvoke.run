@@ -13,7 +13,7 @@
 import type { FastifyInstance, FastifyReply, InjectOptions } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { MCP_INSTRUCTIONS, MCP_TOOLS } from '@nvoke/shared';
+import { MCP_INSTRUCTIONS, MCP_TOOLS, mcpToolRequest, runMcpTool, type McpToolArgs, type McpToolCall } from '@nvoke/shared';
 import { VERSION } from '../../version.js';
 
 export interface McpRoutesOptions {
@@ -36,66 +36,8 @@ export function clerkIssuerFromPublishableKey(key: string | undefined): string |
   }
 }
 
-const TERMINAL = new Set(['done', 'failed', 'canceled']);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-type Args = Record<string, unknown>;
-type Call = { method: 'GET' | 'POST' | 'DELETE'; url: string; body?: unknown };
-
-/** Query string from the defined values. */
-function qs(values: Args): string {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(values)) if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
-  const s = p.toString();
-  return s ? `?${s}` : '';
-}
-
 /** Maps a tool call to the REST route it stands for. */
-export function toolRequest(name: string, a: Args): Call {
-  const id = encodeURIComponent(String(a['searchId'] ?? ''));
-  switch (name) {
-    case 'get_account':
-      return { method: 'GET', url: '/v1/me' };
-    case 'list_searches':
-      return { method: 'GET', url: '/v1/searches' };
-    case 'get_search':
-    case 'wait_for_search':
-      return { method: 'GET', url: `/v1/searches/${id}` };
-    case 'cancel_search':
-      return { method: 'POST', url: `/v1/searches/${id}/cancel` };
-    case 'delete_search':
-      return { method: 'DELETE', url: `/v1/searches/${id}` };
-    case 'get_leads':
-      return {
-        method: 'GET',
-        url: `/v1/searches/${id}/companies${qs({ verification: a['verification'], kind: a['kind'], q: a['q'], cursor: a['cursor'], limit: a['limit'] })}`,
-      };
-    case 'export_csv':
-      return { method: 'GET', url: `/v1/searches/${id}/export.csv${qs({ verification: a['verification'], kind: a['kind'], q: a['q'] })}` };
-    case 'start_search': {
-      const kind = a['kind'];
-      const params =
-        kind === 'local'
-          ? { niche: a['niche'], location: a['location'] }
-          : kind === 'web'
-            ? { keyword: a['keyword'], country: a['country'] }
-            : kind === 'domains'
-              ? { items: a['items'], country: a['country'] }
-              : { keyword: a['keyword'], days: a['days'] };
-      return { method: 'POST', url: '/v1/searches', body: { kind, params, limit: a['limit'] } };
-    }
-    case 'list_webhooks':
-      return { method: 'GET', url: '/v1/webhooks' };
-    case 'create_webhook':
-      return { method: 'POST', url: '/v1/webhooks', body: { url: a['url'], events: a['events'], scope: a['scope'], dropId: a['dropId'] } };
-    case 'test_webhook':
-      return { method: 'POST', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}/test` };
-    case 'delete_webhook':
-      return { method: 'DELETE', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}` };
-    default:
-      throw new Error(`unknown tool ${name}`);
-  }
-}
+export const toolRequest = mcpToolRequest;
 
 export async function mcpRoutes(app: FastifyInstance, opts: McpRoutesOptions): Promise<void> {
   const resource = new URL('/mcp', opts.apiUrl).toString();
@@ -146,10 +88,11 @@ export async function mcpRoutes(app: FastifyInstance, opts: McpRoutesOptions): P
     const authorization = req.headers.authorization!;
 
     /** Runs a REST route as the caller. */
-    const call = async ({ method, url, body }: Call) => {
+    const call = async ({ method, url, body }: McpToolCall) => {
       const options: InjectOptions = { method, url, headers: { authorization } };
       if (body !== undefined) options.payload = body as InjectOptions['payload'];
-      return app.inject(options);
+      const res = await app.inject(options);
+      return { status: res.statusCode, body: res.body };
     };
 
     const server = new McpServer({ name: 'nvoke', version: VERSION }, { instructions: MCP_INSTRUCTIONS });
@@ -162,20 +105,7 @@ export async function mcpRoutes(app: FastifyInstance, opts: McpRoutesOptions): P
           inputSchema: tool.input,
           annotations: { readOnlyHint: tool.readOnly, destructiveHint: tool.destructive, openWorldHint: false },
         },
-        async (args: Args) => {
-          const request = toolRequest(tool.name, args);
-          let res = await call(request);
-          if (tool.name === 'wait_for_search' && res.statusCode === 200) {
-            const deadline = Date.now() + Math.min(Number(args['timeoutSeconds'] ?? 45), 50) * 1000;
-            while (!TERMINAL.has((res.json() as { status: string }).status) && Date.now() < deadline) {
-              await sleep(2_000);
-              res = await call(request);
-              if (res.statusCode !== 200) break;
-            }
-          }
-          const text = res.statusCode === 204 ? JSON.stringify({ ok: true }) : res.body;
-          return { content: [{ type: 'text' as const, text }], isError: res.statusCode >= 400 };
-        },
+        (args: McpToolArgs) => runMcpTool(tool.name, args, call),
       );
     }
 

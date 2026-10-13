@@ -19,6 +19,7 @@
     "dist:dir": "electron-vite build && electron-builder --dir --publish never"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@nvoke/shared": "workspace:*",
     "@nvoke/theme": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

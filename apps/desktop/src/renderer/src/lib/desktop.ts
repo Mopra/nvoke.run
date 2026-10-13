@@ -4,7 +4,7 @@
  * there is no tray and the setting is hidden.
  */
 import { useEffect, useRef } from 'react';
-import type { DesktopApi, DesktopCommand, FilesApi, QuickApi } from '../../../ipc/contract';
+import type { DesktopApi, DesktopCommand, FilesApi, McpApi, QuickApi } from '../../../ipc/contract';
 
 export function desktopApi(): DesktopApi | null {
   const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
@@ -40,4 +40,10 @@ export function isQuickWindow(): boolean {
 export function filesApi(): FilesApi | null {
   const api = (window as unknown as { nvoke?: { files?: FilesApi } }).nvoke?.files;
   return api && typeof api.saveEnriched === 'function' ? api : null;
+}
+
+/** The local MCP server's setup. Null without the bridge (VITE_MOCK in a plain browser). */
+export function mcpApi(): McpApi | null {
+  const api = (window as unknown as { nvoke?: { mcp?: McpApi } }).nvoke?.mcp;
+  return api && typeof api.getSetup === 'function' ? api : null;
 }

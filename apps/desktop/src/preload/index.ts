@@ -5,6 +5,7 @@ import {
   type AppInfo,
   type AuthState,
   type BridgeResponse,
+  type ClaudeDesktopResult,
   type DesktopCommand,
   type DesktopSettings,
   type ExportResult,
@@ -12,6 +13,7 @@ import {
   type LocalChange,
   type LocalCompaniesPage,
   type LocalStatus,
+  type McpSetup,
   type NvokeApi,
   type QuickClipboard,
   type WindowChrome,
@@ -92,6 +94,15 @@ const api: NvokeApi = {
       const handler = (_event: IpcRendererEvent, clipboard: QuickClipboard) => listener(clipboard);
       ipcRenderer.on(IpcChannel.quickShown, handler);
       return () => ipcRenderer.removeListener(IpcChannel.quickShown, handler);
+    },
+  },
+  mcp: {
+    getSetup: () => ipcRenderer.invoke(IpcChannel.mcpGetSetup) as Promise<McpSetup>,
+    addToClaudeDesktop: () => ipcRenderer.invoke(IpcChannel.mcpAddToClaudeDesktop) as Promise<ClaudeDesktopResult>,
+    onClientsChange: (listener) => {
+      const handler = (_event: IpcRendererEvent, clients: string[]) => listener(clients);
+      ipcRenderer.on(IpcChannel.mcpClientsChanged, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.mcpClientsChanged, handler);
     },
   },
 };

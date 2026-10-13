@@ -10,6 +10,12 @@ const shared = { '@nvoke/shared': resolve(__dirname, '../../packages/shared/src/
 export default defineConfig({
   main: {
     resolve: { alias: shared },
+    build: {
+      rollupOptions: {
+        // mcp-launcher runs in Node mode for MCP clients (src/main/mcp-launcher.ts).
+        input: { index: resolve(__dirname, 'src/main/index.ts'), 'mcp-launcher': resolve(__dirname, 'src/main/mcp-launcher.ts') },
+      },
+    },
   },
   preload: {
     resolve: { alias: shared },

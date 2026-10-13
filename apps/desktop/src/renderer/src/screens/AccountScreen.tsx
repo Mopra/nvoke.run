@@ -3,6 +3,7 @@ import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
 import type { DesktopSettings } from '../../../ipc/contract';
+import { LocalMcp } from '@/components/LocalMcp';
 import { Webhooks } from '@/components/Webhooks';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
@@ -201,6 +202,15 @@ function QuickHotkey() {
   );
 }
 
+/** The local MCP section with its spacing, or nothing outside the desktop app. */
+function LocalMcpBlock() {
+  return (
+    <div className="mt-16 empty:hidden">
+      <LocalMcp />
+    </div>
+  );
+}
+
 function AccountSkeleton() {
   return (
     <div className="flex flex-col gap-14">
@@ -292,6 +302,7 @@ export function AccountScreen() {
                 </Setting>
               </div>
 
+              <LocalMcpBlock />
               <div className="mt-16">
                 <ApiKeys />
               </div>
