@@ -60,6 +60,16 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
     await sleep(settle);
   }
 
+  /** Waits until a selector is on the page, for screens that load async. */
+  async function until(selector: string, timeout = 8000): Promise<void> {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) {
+      if (await js<boolean>(`!!document.querySelector(${JSON.stringify(selector)})`)) return;
+      await sleep(100);
+    }
+    console.warn(`[capture] ${selector} never showed`);
+  }
+
   async function reload(): Promise<void> {
     win.webContents.reload();
     await sleep(300);
@@ -70,6 +80,8 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
   async function shot(name: string, theme: string): Promise<void> {
     // Park the pointer state: nothing hovered.
     await sleep(250);
+    win.webContents.invalidate();
+    await sleep(100);
     const page = await capturePage(win);
     writeFileSync(join(dir, `${name}.${theme}.png`), page.toPNG());
     try {
@@ -236,9 +248,13 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       }
 
       await go('#/account');
+      // The Claude section waits on main for its setup, so the page is whole once it shows.
+      await until('[data-local-mcp]');
+      await sleep(300);
       await shot('12-account', theme);
-      await js(`document.querySelector('[data-local-mcp]')?.scrollIntoView({ block: 'start' })`);
-      await sleep(500);
+      // Clear of the top fade, so the heading reads.
+      await js(`document.querySelector('[data-local-mcp]')?.scrollIntoView({ block: 'start', behavior: 'instant' }); document.querySelector('main')?.scrollBy({ top: -56, behavior: 'instant' })`);
+      await sleep(900);
       await shot('12b-claude', theme);
       await js(`document.querySelector('[data-api-keys]')?.scrollIntoView({ block: 'start' })`);
       await sleep(500);

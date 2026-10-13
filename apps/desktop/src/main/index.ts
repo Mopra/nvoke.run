@@ -39,7 +39,13 @@ const env = {
 /** Dev only: `--capture[=dir]` screenshots every screen and quits (see capture.ts). */
 const captureDir = app.isPackaged ? null : captureDirFromArgs(process.argv, process.env['NVOKE_CAPTURE']);
 // A throwaway profile, so captures never touch the real session or window state.
-if (captureDir) app.setPath('userData', join(captureDir, '.profile'));
+if (captureDir) {
+  app.setPath('userData', join(captureDir, '.profile'));
+  // A covered window stops painting on Windows, and capturePage then returns a stale frame.
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+}
 
 // One running instance. A second launch (for example the OS opening an
 // nvoke:// link on Windows or Linux) hands its argv to the first and quits.
