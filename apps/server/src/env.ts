@@ -28,6 +28,24 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_CORS_ORIGINS)),
+
+  // Lead pipeline. See .env.example for what each one does.
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(16),
+  BRAVE_SEARCH_API_KEY: optional,
+  PRODUCT_HUNT_TOKEN: optional,
+  NOMINATIM_URL: z.url().default('https://nominatim.openstreetmap.org'),
+  // Comma separated; later entries are fallbacks when one is busy (429, 5xx).
+  OVERPASS_URL: z
+    .string()
+    .default('https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean))
+    .pipe(z.array(z.url()).min(1)),
+  SMTP_HELO_NAME: z.string().min(1).default('nvoke.run'),
+  SMTP_PROBE_FROM: z.email().default('probe@nvoke.run'),
+  SMTP_PROBE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

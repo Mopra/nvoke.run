@@ -12,5 +12,9 @@ export default defineConfig({
     include: ['packages/*/src/**/*.test.ts', 'apps/server/src/**/*.test.ts', 'apps/desktop/src/**/*.test.ts', 'apps/site/lib/**/*.test.ts'],
     environment: 'node',
     passWithNoTests: true,
+    // Starts a Postgres for the server's database tests (embedded, or
+    // TEST_DATABASE_URL when set). See apps/server/src/testing/global-setup.ts.
+    globalSetup: ['apps/server/src/testing/global-setup.ts'],
+    hookTimeout: 60_000,
   },
 });

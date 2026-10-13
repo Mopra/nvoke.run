@@ -1,0 +1,230 @@
+{
+ "version": 0.6,
+ "generator": "Overpass API 0.7.62.11 87bfad18",
+ "osm3s": {
+  "timestamp_osm_base": "2026-10-13T12:57:05Z",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+ },
+ "elements": [
+  {
+   "type": "node",
+   "id": 2321222981,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "healthcare:speciality": "dentist",
+    "name": "Tandlægerne i Hellerup",
+    "website": "https://www.tandlæge-hellerup.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 3126368760,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Palæklinikken",
+    "phone": "+45 33158855",
+    "website": "https://nicesmile.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 5644491339,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Henrik Hammer",
+    "website": "https://tandlaegehammer.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 5926551407,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Amager Tandklinik",
+    "website": "https://www.amagertandklinik.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 6579860142,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Tandlægerne på Frederiksberg",
+    "website": "https://tpfrb.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 8449664101,
+   "tags": {
+    "amenity": "dentist",
+    "description": "Entrance via elevator on Købmagergade",
+    "email": "info@tvstork.dk",
+    "healthcare": "dentist",
+    "name": "Tandlægerne ved Storkespringvandet",
+    "phone": "+45 69 89 61 69",
+    "website": "https://tvstork.dk"
+   }
+  },
+  {
+   "type": "node",
+   "id": 8544299709,
+   "tags": {
+    "amenity": "dentist",
+    "branch": "Nørrebro",
+    "check_date": "2023-04-03",
+    "healthcare": "dentist",
+    "name": "Godt Smil",
+    "website": "https://www.godtsmil.dk/noerrebro/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 8789533549,
+   "tags": {
+    "amenity": "dentist",
+    "check_date": "2026-07-21",
+    "healthcare": "dentist",
+    "level": "1",
+    "name": "Ålekistevej Tandklinik",
+    "website": "http://www.tandlæge-vanløse.dk"
+   }
+  },
+  {
+   "type": "node",
+   "id": 9460606780,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Tandreguleringen",
+    "ref:DK:cvr": "34039887",
+    "website": "https://tandreguleringen.dk/",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 10314522726,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Tandlægerne på Østerbro",
+    "phone": "+4588169696",
+    "website": "https://tpobro.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 10980218571,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Tårnby Tandteknik",
+    "ref:DK:cvr": "40320407",
+    "website": "https://tandtekniker.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 11341006672,
+   "tags": {
+    "amenity": "dentist",
+    "email": "info@jaegertand.dk",
+    "healthcare": "dentist",
+    "name": "Jægersborg Tandlægeklinik",
+    "phone": "+45 39 65 62 30",
+    "website": "https://jaegertand.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 11597393455,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "tandlægen.dk Brøndby",
+    "website": "https://tandlaegen.dk/broendby/turpinsvej/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 12166105356,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "Tandlægerne i Skottegården",
+    "ref:DK:cvr": "17742906",
+    "website": "https://www.skottetand.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 12196565680,
+   "tags": {
+    "amenity": "dentist",
+    "email": "mail@tandrosen.dk",
+    "healthcare": "dentist",
+    "name": "Tandlægegruppen Rosenhøj",
+    "opening_hours": "Mo-We 07:45-17:00; Th 07:45-16:00; Fr 07:45-14:30",
+    "phone": "+4536752199",
+    "website": "https://tandrosen.dk"
+   }
+  },
+  {
+   "type": "node",
+   "id": 13026139811,
+   "tags": {
+    "amenity": "dentist",
+    "healthcare": "dentist",
+    "name": "tandlaegen.dk",
+    "phone": "+45 44 98 34 20",
+    "website": "https://tandlaegen.dk/klinikker/bagsvaerd/forside"
+   }
+  },
+  {
+   "type": "node",
+   "id": 14086099268,
+   "tags": {
+    "amenity": "dentist",
+    "check_date": "2026-08-10",
+    "healthcare": "dentist",
+    "name": "NordSmil",
+    "website": "https://www.nord-smil.dk/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 14102425201,
+   "tags": {
+    "amenity": "dentist",
+    "check_date": "2026-08-18",
+    "check_date:opening_hours": "2026-08-18",
+    "email": "sundmund@sundmund.com",
+    "healthcare": "dentist",
+    "name": "Sundmund Frederiksberg",
+    "opening_hours": "Mo,Tu,Th 08:00-16:00, We 08:00-18:00, Fr 08:00-14:30",
+    "phone": "+45 33 22 33 21",
+    "ref:DK:cvr": "38476025",
+    "ref:DK:cvr:pnummer": "1022260479",
+    "website": "http://www.sundmund.com"
+   }
+  },
+  {
+   "type": "node",
+   "id": 14203209401,
+   "tags": {
+    "amenity": "dentist",
+    "email": "info@uniktand.dk",
+    "name": "UnikTand",
+    "opening_hours": "Mo 08:30-18:00; Tu-Th 08:00-15:00; Fr 07:30-14:00",
+    "phone": "+45 38190606",
+    "website": "https://www.uniktand.dk/"
+   }
+  }
+ ]
+}

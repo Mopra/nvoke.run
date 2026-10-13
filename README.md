@@ -58,6 +58,33 @@ alongside the desktop app to try it locally. Details in `CLAUDE.md`.
 | `pnpm migrate` | Applies `apps/server/migrations/*.sql` to `DATABASE_URL` |
 | `pnpm dist:desktop` | Builds an installer for the current OS into `apps/desktop/release/` |
 
+## Lead pipeline (apps/server)
+
+The worker runs searches as Postgres jobs (`find`, then `crawl` per company,
+then `verify` per email). See `docs/SPEC.md` for the behaviour and
+`apps/server/.env.example` for the settings.
+
+- `src/leads`: source adapters (`sources/`), crawler, robots.txt, email
+  extraction, verifier (`verify/`), quotas, CSV and the queries behind the API.
+- `src/worker`: the job queue (`FOR UPDATE SKIP LOCKED`), handlers and runner.
+- `src/api/routes/leads.ts`: the `/v1` routes. They expect `request.userId`
+  from the auth preHandler (`src/api/user.ts`).
+
+Try a search end to end against a local database (never the shared one):
+
+```bash
+pnpm --filter @nvoke/server cli search local "dentists" "Copenhagen" --limit 5
+pnpm --filter @nvoke/server cli search launches "email" --days 3 --limit 10 --no-smtp
+```
+
+The CLI starts an embedded Postgres with its data in `apps/server/.pgdata`
+(the `embedded-postgres` package ships real Postgres binaries, so no Docker
+is needed, Windows included) and applies the migrations to it.
+
+Tests do the same in a temp directory: `pnpm test` starts one Postgres, builds
+a template database with all migrations, and gives every database test file
+its own copy. Set `TEST_DATABASE_URL` to use an existing Postgres instead.
+
 ## Deploying
 
 - Server: plain Node under systemd on the VPS, code in `/opt/nvoke`. No Docker.

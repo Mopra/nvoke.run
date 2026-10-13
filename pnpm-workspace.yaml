@@ -7,6 +7,13 @@ packages:
 # `capture` scripts run `install-electron` first (a no-op once installed).
 onlyBuiltDependencies:
   - esbuild
+  # Postgres binaries for the server tests and CLI. Their postinstall restores
+  # the symlinks inside the Linux and macOS archives.
+  - '@embedded-postgres/darwin-arm64'
+  - '@embedded-postgres/darwin-x64'
+  - '@embedded-postgres/linux-arm64'
+  - '@embedded-postgres/linux-x64'
+  - '@embedded-postgres/windows-x64'
 
 # Squirrel installer tooling pulled in by electron-builder. We ship NSIS.
 ignoredBuiltDependencies:

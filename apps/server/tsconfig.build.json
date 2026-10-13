@@ -6,5 +6,5 @@
     // compiles on its own. `pnpm -r build` builds shared first.
     "customConditions": []
   },
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/testing/**"]
 }

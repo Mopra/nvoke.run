@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Env } from '../env.js';
 import { isDeviceToken, resolveDeviceToken } from '../auth/desktop.js';
 import type { DesktopAuthStore } from '../auth/store.js';
+import type { Accounts } from '../leads/accounts.js';
+import './user.js';
 
 export interface AuthContext {
   userId: string;
@@ -51,11 +53,13 @@ export function clerkVerifier(env: Env): ClerkVerifier | null {
 /**
  * Callers send `Authorization: Bearer <token>`. The desktop app sends an opaque
  * device token (prefix `nvk_dt_`, looked up by sha256 in device_sessions). The
- * site sends a Clerk session JWT.
+ * site sends a Clerk session JWT. Either way the preHandler sets `req.auth` and
+ * `req.userId` (what the lead routes read) and makes sure the user has an
+ * accounts row.
  */
 export function registerAuth(
   app: FastifyInstance,
-  deps: { store: DesktopAuthStore; verifyClerk: ClerkVerifier | null },
+  deps: { store: DesktopAuthStore; verifyClerk: ClerkVerifier | null; accounts: Accounts },
 ): void {
   app.decorateRequest('auth', null);
 
@@ -75,7 +79,7 @@ export function registerAuth(
       const session = await resolveDeviceToken(deps.store, token);
       if (!session) return reply.code(401).send({ error: 'invalid token' });
       req.auth = { userId: session.clerkUserId, via: 'device', sessionId: null, deviceSessionId: session.id };
-      return;
+      return signedIn(req, reply);
     }
 
     if (!accept.clerk) return reply.code(401).send({ error: 'a device token is required' });
@@ -89,6 +93,21 @@ export function registerAuth(
     } catch (err) {
       req.log.warn({ err }, 'clerk token verification failed');
       return reply.code(401).send({ error: 'invalid token' });
+    }
+    return signedIn(req, reply);
+  }
+
+  /** Exposes the user id and creates the account on the first authenticated request. */
+  async function signedIn(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const userId = req.auth!.userId;
+    req.userId = userId;
+    try {
+      await deps.accounts.ensure(userId);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'DATABASE_URL is not set') {
+        return reply.code(503).send({ error: 'database_unavailable' });
+      }
+      throw err;
     }
   }
 

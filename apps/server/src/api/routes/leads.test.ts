@@ -1,0 +1,279 @@
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { CompaniesPage, MeResponse, Search, SearchListResponse } from '@nvoke/shared';
+import { createTestDb, type TestDb } from '../../testing/db.js';
+import { loadEnv } from '../../env.js';
+import { memoryStore } from '../../auth/store.js';
+import { buildApp } from '../app.js';
+import { leadsRoutes } from './leads.js';
+
+let db: TestDb;
+let app: FastifyInstance;
+
+beforeAll(async () => {
+  db = await createTestDb();
+  app = Fastify();
+  await app.register(leadsRoutes, {
+    prefix: '/v1',
+    getSql: () => db.sql,
+    // Stands in for the real auth preHandler.
+    authenticate: async (req) => {
+      const user = req.headers['x-test-user'];
+      if (typeof user === 'string') req.userId = user;
+    },
+  });
+  await app.ready();
+});
+
+afterAll(async () => {
+  await app.close();
+  await db.drop();
+});
+
+beforeEach(async () => {
+  await db.sql`truncate accounts, jobs cascade`;
+});
+
+const as = (user: string) => ({ 'x-test-user': user });
+
+async function createSearch(
+  user = 'alice',
+  body: object = { kind: 'local', params: { niche: 'dentists', location: 'Copenhagen' } },
+): Promise<LightMyRequestResponse> {
+  const res = await app.inject({ method: 'POST', url: '/v1/searches', headers: as(user), payload: body });
+  return res;
+}
+
+/** Inserts a company with emails straight into the database. */
+async function seedCompany(searchId: string, user: string, name: string, domain: string, emails: Array<[string, 'generic' | 'personal', string | null]>) {
+  const [c] = await db.sql<{ id: string }[]>`
+    insert into companies (search_id, clerk_user_id, name, domain, website, source, location, phone)
+    values (${searchId}, ${user}, ${name}, ${domain}, ${`https://${domain}/`}, 'test', 'Vej 1, København', '+45 12 34 56 78')
+    returning id`;
+  for (const [address, kind, verification] of emails) {
+    await db.sql`
+      insert into emails (company_id, search_id, clerk_user_id, address, kind, source_url, verification)
+      values (${c!.id}, ${searchId}, ${user}, ${address}, ${kind}, ${`https://${domain}/kontakt`}, ${verification})`;
+  }
+  return c!.id;
+}
+
+describe('lead routes', () => {
+  it('401s without a user', async () => {
+    for (const [method, url] of [
+      ['GET', '/v1/searches'],
+      ['POST', '/v1/searches'],
+      ['GET', '/v1/searches/00000000-0000-0000-0000-000000000000/export.csv'],
+    ] as const) {
+      const res = await app.inject({ method, url });
+      expect(res.statusCode, url).toBe(401);
+      expect(res.json()).toEqual({ error: 'unauthorized' });
+    }
+  });
+
+  it('creates a search with a find job, capped by the plan', async () => {
+    const res = await createSearch('alice', { kind: 'web', params: { keyword: 'design studio', country: 'DK' }, limit: 500 });
+    expect(res.statusCode).toBe(201);
+    const search = Search.parse(res.json());
+    expect(search).toMatchObject({ kind: 'web', params: { keyword: 'design studio', country: 'dk' }, status: 'queued', limit: 50 });
+    const jobs = await db.sql`select type, payload from jobs where search_id = ${search.id}`;
+    expect(jobs).toEqual([{ type: 'find', payload: { searchId: search.id } }]);
+    const [account] = await db.sql`select plan from accounts where clerk_user_id = 'alice'`;
+    expect(account).toEqual({ plan: 'free' });
+  });
+
+  it('uses the default limit of 100 when the plan allows it', async () => {
+    await db.sql`insert into accounts (clerk_user_id, plan) values ('bob', 'pro')`;
+    const res = await createSearch('bob', { kind: 'launches', params: { days: 3 } });
+    expect(Search.parse(res.json()).limit).toBe(100);
+  });
+
+  it('rejects invalid requests with the zod issues', async () => {
+    for (const body of [{}, { kind: 'local', params: { niche: '' , location: 'x' } }, { kind: 'nope', params: {} }, { kind: 'launches', params: { days: 99 } }]) {
+      const res = await createSearch('alice', body);
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe('invalid_request');
+    }
+  });
+
+  it('refuses new searches when the monthly quota is used up', async () => {
+    await db.sql`insert into accounts (clerk_user_id) values ('carol')`;
+    await db.sql`insert into usage (clerk_user_id, period, emails_found) values ('carol', ${new Date().toISOString().slice(0, 7)}, 50)`;
+    const res = await createSearch('carol');
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ error: 'quota_exceeded' });
+  });
+
+  it("lists searches newest first and only the caller's", async () => {
+    const a = Search.parse((await createSearch('alice')).json());
+    const b = Search.parse((await createSearch('alice', { kind: 'launches', params: {} })).json());
+    await createSearch('mallory');
+    const res = await app.inject({ method: 'GET', url: '/v1/searches', headers: as('alice') });
+    const list = SearchListResponse.parse(res.json());
+    expect(list.searches.map((s) => s.id)).toEqual([b.id, a.id]);
+  });
+
+  it('gets one search, 404 for other users and bad ids', async () => {
+    const a = Search.parse((await createSearch('alice')).json());
+    expect((await app.inject({ method: 'GET', url: `/v1/searches/${a.id}`, headers: as('alice') })).json()).toEqual(a);
+    expect((await app.inject({ method: 'GET', url: `/v1/searches/${a.id}`, headers: as('mallory') })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/v1/searches/not-a-uuid', headers: as('alice') })).statusCode).toBe(404);
+  });
+
+  it('cancels a running search once, and cancels its queued jobs', async () => {
+    const a = Search.parse((await createSearch('alice')).json());
+    const res = await app.inject({ method: 'POST', url: `/v1/searches/${a.id}/cancel`, headers: as('alice') });
+    expect(res.statusCode).toBe(200);
+    expect(Search.parse(res.json()).status).toBe('canceled');
+    expect(await db.sql`select status from jobs where search_id = ${a.id}`).toEqual([{ status: 'canceled' }]);
+    const again = await app.inject({ method: 'POST', url: `/v1/searches/${a.id}/cancel`, headers: as('alice') });
+    expect(again.statusCode).toBe(409);
+    expect((await app.inject({ method: 'POST', url: `/v1/searches/${a.id}/cancel`, headers: as('mallory') })).statusCode).toBe(404);
+  });
+
+  it('deletes a search with its companies, emails and jobs', async () => {
+    const a = Search.parse((await createSearch('alice')).json());
+    await seedCompany(a.id, 'alice', 'Acme', 'acme.dk', [['info@acme.dk', 'generic', 'valid']]);
+    expect((await app.inject({ method: 'DELETE', url: `/v1/searches/${a.id}`, headers: as('mallory') })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: `/v1/searches/${a.id}`, headers: as('alice') })).statusCode).toBe(204);
+    for (const table of ['searches', 'companies', 'emails', 'jobs']) {
+      const [row] = await db.sql<{ n: number }[]>`select count(*)::int as n from ${db.sql(table)}`;
+      expect(row?.n, table).toBe(0);
+    }
+  });
+
+  describe('companies and export', () => {
+    let searchId: string;
+
+    beforeEach(async () => {
+      searchId = Search.parse((await createSearch('alice')).json()).id;
+      await seedCompany(searchId, 'alice', 'Acme Dental', 'acme.dk', [
+        ['info@acme.dk', 'generic', 'valid'],
+        ['ole@acme.dk', 'personal', 'invalid'],
+      ]);
+      await seedCompany(searchId, 'alice', 'Beta, "the" clinic', 'beta.dk', [['mette@beta.dk', 'personal', 'valid']]);
+      await seedCompany(searchId, 'alice', 'Gamma', 'gamma.dk', []);
+      await seedCompany(searchId, 'alice', 'Delta', 'delta.dk', [['=cmd@delta.dk', 'personal', null]]);
+    });
+
+    const page = async (query: string) => {
+      const res = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies${query}`, headers: as('alice') });
+      expect(res.statusCode, res.body).toBe(200);
+      return CompaniesPage.parse(res.json());
+    };
+
+    it('returns companies with their emails', async () => {
+      const p = await page('');
+      expect(p.companies.map((c) => c.name)).toEqual(['Acme Dental', 'Beta, "the" clinic', 'Gamma', 'Delta']);
+      expect(p.companies[0]?.emails.map((e) => [e.address, e.kind, e.verification])).toEqual([
+        ['info@acme.dk', 'generic', 'valid'],
+        ['ole@acme.dk', 'personal', 'invalid'],
+      ]);
+      expect(p.companies[2]?.emails).toEqual([]);
+      expect(p.nextCursor).toBeNull();
+    });
+
+    it('paginates with a cursor', async () => {
+      const first = await page('?limit=3');
+      expect(first.companies).toHaveLength(3);
+      expect(first.nextCursor).not.toBeNull();
+      const second = await page(`?limit=3&cursor=${first.nextCursor}`);
+      expect(second.companies.map((c) => c.name)).toEqual(['Delta']);
+      expect(second.nextCursor).toBeNull();
+      const bad = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies?cursor=garbage`, headers: as('alice') });
+      expect(bad.statusCode).toBe(400);
+    });
+
+    it('filters by verification, kind and text', async () => {
+      const valid = await page('?verification=valid');
+      expect(valid.companies.map((c) => [c.name, c.emails.map((e) => e.address)])).toEqual([
+        ['Acme Dental', ['info@acme.dk']],
+        ['Beta, "the" clinic', ['mette@beta.dk']],
+      ]);
+      const personalValid = await page('?verification=valid&kind=personal');
+      expect(personalValid.companies.map((c) => c.name)).toEqual(['Beta, "the" clinic']);
+      expect((await page('?q=gamma')).companies.map((c) => c.name)).toEqual(['Gamma']);
+      expect((await page('?q=OLE@')).companies.map((c) => c.name)).toEqual(['Acme Dental']);
+      expect((await page('?q=100%25')).companies).toEqual([]);
+      const bad = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies?verification=maybe`, headers: as('alice') });
+      expect(bad.statusCode).toBe(400);
+    });
+
+    it('404s for another user', async () => {
+      const res = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies`, headers: as('mallory') });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('exports one CSV row per email', async () => {
+      const res = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv`, headers: as('alice') });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toBe('text/csv; charset=utf-8');
+      expect(res.headers['content-disposition']).toMatch(/^attachment; filename="nvoke-[0-9a-f]{8}\.csv"$/);
+      const lines = res.body.slice(res.body.charCodeAt(0) === 0xfeff ? 1 : 0).trimEnd().split('\r\n');
+      expect(lines).toEqual([
+        'company,domain,website,email,kind,verification,source_url,location,phone',
+        'Acme Dental,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
+        'Acme Dental,acme.dk,https://acme.dk/,ole@acme.dk,personal,invalid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
+        '"Beta, ""the"" clinic",beta.dk,https://beta.dk/,mette@beta.dk,personal,valid,https://beta.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
+        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,personal,,https://delta.dk/kontakt,\"Vej 1, København\",+45 12 34 56 78",
+      ]);
+      const filtered = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv?verification=valid&kind=generic`, headers: as('alice') });
+      expect(filtered.body.trimEnd().split('\r\n')).toHaveLength(2);
+      const other = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv`, headers: as('mallory') });
+      expect(other.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('lead routes in the real app', () => {
+  const CLERK_JWT = 'header.payload.signature';
+  let real: FastifyInstance;
+
+  beforeAll(async () => {
+    real = await buildApp(loadEnv({ NODE_ENV: 'test', CLERK_SECRET_KEY: 'sk_test_placeholder' }), {
+      getSql: () => db.sql,
+      store: memoryStore(),
+      verifyClerk: async (token) => {
+        if (token !== CLERK_JWT) throw new Error('bad jwt');
+        return { userId: 'carol', sessionId: 'sess_carol' };
+      },
+      users: { getProfile: async () => ({ email: 'carol@example.com', name: 'Carol', imageUrl: null }) },
+    });
+  });
+
+  afterAll(async () => {
+    await real.close();
+  });
+
+  it('sit behind the real auth (401 without a bearer token)', async () => {
+    const res = await real.inject({ method: 'GET', url: '/v1/searches' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('creates the account on the first authenticated request and serves /v1/me', async () => {
+    const auth = { authorization: `Bearer ${CLERK_JWT}` };
+    const list = await real.inject({ method: 'GET', url: '/v1/searches', headers: auth });
+    expect(list.statusCode).toBe(200);
+    expect(SearchListResponse.parse(list.json()).searches).toEqual([]);
+    const [account] = await db.sql`select plan from accounts where clerk_user_id = 'carol'`;
+    expect(account).toEqual({ plan: 'free' });
+
+    const created = await real.inject({
+      method: 'POST',
+      url: '/v1/searches',
+      headers: auth,
+      payload: { kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 5 },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const me = await real.inject({ method: 'GET', url: '/v1/me', headers: auth });
+    expect(me.statusCode).toBe(200);
+    expect(MeResponse.parse(me.json())).toMatchObject({
+      user: { id: 'carol', email: 'carol@example.com', name: 'Carol', imageUrl: null },
+      via: 'clerk',
+      plan: 'free',
+      usage: { emailsFound: 0, emailsLimit: 50 },
+      maxSearchLimit: 50,
+    });
+  });
+});

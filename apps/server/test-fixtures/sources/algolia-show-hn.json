@@ -1,0 +1,68 @@
+{
+ "hits": [
+  {
+   "objectID": "50069663",
+   "title": "Show HN: Made a good work assistant but can't promote it. Like Viktor.com",
+   "url": null,
+   "author": "websku",
+   "created_at": "2026-10-13T10:50:13Z",
+   "created_at_i": 1791888613,
+   "points": 1,
+   "story_text": "I&#x27;ll be brief. It&#x27;s only me, but have 20+ yr tech experience.\nDue to lost work&#x2F;clients focused on ActorDo.<p>It connects Email, Calendar, Tasks over Microsoft and Gmail accounts.<p>It&#x27;s an agentic AI that you can ask or make requests over the tools. Also created Slack, Microsoft "
+  },
+  {
+   "objectID": "50068031",
+   "title": "Show HN: GotEmail \u2013 a native Mac mail app with one-click sign-in codes",
+   "url": "https://gotemail.net/",
+   "author": "rahul379",
+   "created_at": "2026-10-13T07:28:05Z",
+   "created_at_i": 1791876485,
+   "points": 1,
+   "story_text": "Hi HN, I&#x27;m one of the two people behind GotEmail. It&#x27;s a native Mac mail client for IMAP accounts (Gmail, Outlook, iCloud, Fastmail, any IMAP). Things we focused on: speed, a calm UI, and small things like copying a sign-in code or opening a magic link from a login email in one click. AI d"
+  },
+  {
+   "objectID": "50066559",
+   "title": "Show HN: Search for AI agents with usefulness score built in",
+   "url": "https://github.com/Ayobamiu/usefulness-search",
+   "author": "Ayobamiu",
+   "created_at": "2026-10-13T04:07:07Z",
+   "created_at_i": 1791864427,
+   "points": 2,
+   "story_text": "Hi HN. I partnered with Simon Kley to build this project at innovation intelligence hackathon (Berkeley).<p>Simply, we’re building a usefulness score on top of search for ai-agents.<p>Instead of agents reading 10 ranked relevant pages, we run a usefulness score first and give it only those that pass"
+  },
+  {
+   "objectID": "50064514",
+   "title": "Show HN: Personal Agent Proxy (Open Source)",
+   "url": "https://github.com/personalagentproxy/proxy",
+   "author": "arnestrickmann",
+   "created_at": "2026-10-12T23:30:58Z",
+   "created_at_i": 1791847858,
+   "points": 3,
+   "story_text": "Every (personal) agent (like Muse, Instinct, Grokbot, Poke) asks you to connect your email, calendar, and tools again. Permissions are intransparent and every provider ends up building the same integrations.<p>We think there needs to be an independent tool that holds all connections to third party c"
+  },
+  {
+   "objectID": "50056755",
+   "title": "Show HN: Fusebox \u2013 get emailed before an OpenAI API bill runs away",
+   "url": "https://fusebox.sifatsrk.workers.dev/",
+   "author": "SifatAhmed",
+   "created_at": "2026-10-12T14:13:05Z",
+   "created_at_i": 1791814385,
+   "points": 1,
+   "story_text": null
+  },
+  {
+   "objectID": "50055148",
+   "title": "Show HN: Orisift, an API that screens signup phone, email, IP and domain",
+   "url": "https://orisift.com",
+   "author": "elijahbrown",
+   "created_at": "2026-10-12T12:03:51Z",
+   "created_at_i": 1791806631,
+   "points": 2,
+   "story_text": null
+  }
+ ],
+ "nbHits": 6,
+ "page": 0,
+ "nbPages": 1,
+ "hitsPerPage": 100
+}

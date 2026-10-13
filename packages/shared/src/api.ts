@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Plan, Usage } from './leads.ts';
 
 /**
  * Wire contracts between apps/desktop, apps/site and apps/server. Every side
@@ -13,14 +14,28 @@ export const HealthResponse = z.object({
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;
 
-/** The signed-in user as the server sees them, with profile fields from Clerk. */
-export const MeResponse = z.object({
-  userId: z.string(),
+/** The signed-in user's profile, from Clerk. Fields are null when Clerk has none or is unreachable. */
+export const User = z.object({
+  /** Clerk user id. */
+  id: z.string(),
   email: z.string().nullable(),
   name: z.string().nullable(),
   imageUrl: z.string().nullable(),
+});
+export type User = z.infer<typeof User>;
+
+/**
+ * `GET /v1/me`: who is signed in, how, and their plan and usage for this
+ * period. The profile comes from auth; plan and usage from the account.
+ */
+export const MeResponse = z.object({
+  user: User,
   /** How the request was authenticated: a desktop device token or a Clerk session. */
   via: z.enum(['device', 'clerk']),
+  plan: Plan,
+  usage: Usage,
+  /** Highest `limit` a single search may ask for on this plan. */
+  maxSearchLimit: z.number().int().positive(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

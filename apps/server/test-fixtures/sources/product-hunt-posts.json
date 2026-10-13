@@ -1,0 +1,53 @@
+{
+  "data": {
+    "posts": {
+      "pageInfo": { "hasNextPage": false, "endCursor": "MjA" },
+      "edges": [
+        {
+          "node": {
+            "id": "1001",
+            "name": "Inboxly",
+            "tagline": "Email triage for small teams",
+            "description": "Inboxly sorts your shared inbox with rules you can read.",
+            "website": "https://www.producthunt.com/r/AAAA1111?utm_campaign=producthunt-api",
+            "url": "https://www.producthunt.com/posts/inboxly",
+            "topics": { "edges": [{ "node": { "name": "Email" } }, { "node": { "name": "Productivity" } }] }
+          }
+        },
+        {
+          "node": {
+            "id": "1002",
+            "name": "Pixel Pal",
+            "tagline": "AI avatars for your team page",
+            "description": "Generate consistent avatars.",
+            "website": "https://www.producthunt.com/r/BBBB2222",
+            "url": "https://www.producthunt.com/posts/pixel-pal",
+            "topics": { "edges": [{ "node": { "name": "Design Tools" } }] }
+          }
+        },
+        {
+          "node": {
+            "id": "1003",
+            "name": "Ghost Launch",
+            "tagline": "A post whose website never leaves Product Hunt",
+            "description": "",
+            "website": "https://www.producthunt.com/r/CCCC3333",
+            "url": "https://www.producthunt.com/posts/ghost-launch",
+            "topics": { "edges": [{ "node": { "name": "Email" } }] }
+          }
+        },
+        {
+          "node": {
+            "id": "1004",
+            "name": "No Website",
+            "tagline": "Email but no site",
+            "description": "",
+            "website": null,
+            "url": "https://www.producthunt.com/posts/no-website",
+            "topics": { "edges": [] }
+          }
+        }
+      ]
+    }
+  }
+}

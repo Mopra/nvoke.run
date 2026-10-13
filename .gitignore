@@ -20,3 +20,6 @@ next-env.d.ts
 
 # Dev screenshots from `pnpm --filter @nvoke/desktop capture`.
 apps/desktop/screenshots/
+
+# Local Postgres data for the server CLI (apps/server/src/cli.ts)
+.pgdata/

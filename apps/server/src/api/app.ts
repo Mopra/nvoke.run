@@ -1,24 +1,32 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import type { Sql } from 'postgres';
 import type { Env } from '../env.js';
-import { getSql } from '../db/client.js';
+import { getSql as defaultGetSql } from '../db/client.js';
 import { postgresStore, type DesktopAuthStore } from '../auth/store.js';
 import { clerkUserDirectory, type UserDirectory } from '../auth/users.js';
 import { clerkVerifier, registerAuth, type ClerkVerifier } from './auth.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
 import { desktopRoutes } from './routes/desktop.js';
+import { leadsRoutes } from './routes/leads.js';
+import { postgresAccounts, type Accounts } from '../leads/accounts.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
+  /** Lazily returns the pool, so the API boots without a database. */
+  getSql: () => Sql;
   store: DesktopAuthStore;
   verifyClerk: ClerkVerifier | null;
   users: UserDirectory | null;
+  accounts: Accounts;
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
+  const getSql = overrides.getSql ?? defaultGetSql;
   const deps: AppDeps = {
+    getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
     users:
@@ -27,6 +35,7 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
         : env.CLERK_SECRET_KEY
           ? clerkUserDirectory(env.CLERK_SECRET_KEY)
           : null,
+    accounts: overrides.accounts ?? postgresAccounts(getSql),
   };
 
   const app = Fastify({
@@ -41,8 +50,10 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
   registerAuth(app, deps);
 
   await app.register(healthRoutes);
-  await app.register(meRoutes, { prefix: '/v1', users: deps.users });
+  await app.register(meRoutes, { prefix: '/v1', users: deps.users, accounts: deps.accounts });
   await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
+  // requireAuth sets request.userId; the plugin's requireUser guard reads it.
+  await app.register(leadsRoutes, { prefix: '/v1', getSql, authenticate: app.requireAuth });
 
   return app;
 }

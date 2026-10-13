@@ -5,14 +5,31 @@ import { DesktopAuthorizeResponse, DesktopTokenResponse, HealthResponse, MeRespo
 import { loadEnv } from '../env.js';
 import { s256Challenge } from '../auth/crypto.js';
 import { memoryStore } from '../auth/store.js';
+import type { Accounts } from '../leads/accounts.js';
 import { buildApp } from './app.js';
 
 const CLERK_JWT = 'header.payload.signature';
 const USER_ID = 'user_test';
 
+/** In memory accounts: records who got one, everyone is on the free plan. */
+function memoryAccounts(): Accounts & { created: Set<string> } {
+  const created = new Set<string>();
+  return {
+    created,
+    ensure: async (userId) => void created.add(userId),
+    summary: async (userId) => ({
+      userId,
+      plan: 'free',
+      usage: { period: '2026-10', emailsFound: 3, emailsLimit: 50 },
+      maxSearchLimit: 50,
+    }),
+  };
+}
+
 describe('api', () => {
   let app: FastifyInstance;
   const store = memoryStore();
+  const accounts = memoryAccounts();
 
   beforeAll(async () => {
     app = await buildApp(loadEnv({ NODE_ENV: 'test', CLERK_SECRET_KEY: 'sk_test_placeholder' }), {
@@ -25,6 +42,7 @@ describe('api', () => {
       users: {
         getProfile: async () => ({ email: 'test@example.com', name: 'Test User', imageUrl: null }),
       },
+      accounts,
     });
   });
 
@@ -80,12 +98,14 @@ describe('api', () => {
     const me = await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${device}` } });
     expect(me.statusCode).toBe(200);
     expect(MeResponse.parse(me.json())).toEqual({
-      userId: USER_ID,
+      user: { id: USER_ID, email: 'test@example.com', name: 'Test User', imageUrl: null },
       via: 'device',
-      email: 'test@example.com',
-      name: 'Test User',
-      imageUrl: null,
+      plan: 'free',
+      usage: { period: '2026-10', emailsFound: 3, emailsLimit: 50 },
+      maxSearchLimit: 50,
     });
+    // The first authenticated request created the account.
+    expect(accounts.created.has(USER_ID)).toBe(true);
 
     // A device token cannot mint new codes; only a browser session can.
     const nested = await app.inject({
