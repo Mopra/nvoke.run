@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 Round after the OCR grab landed (1dbb036): told 'show the real osascript error' to merge main and go on. 15 quests since the last ship; left shipping to the human.
 - 2026-10-14 OCR grab merge fix conflicted too (contract, capture, main, preload, desktop.ts, SPEC). Second fix-up running: gave it sonnet, told it to keep both sides and merge newest main last.
 - 2026-10-14 macOS Grab test blocked: needs a Mac, left with the human. Filed 'show the real osascript error' (sonnet, after the OCR merge fix) for the one watch point that needs no Mac. Notifications landed (9d23c82, f0613da).
 - 2026-10-14 Round after the front-tab hotkey merge fix landed (be23bea) and the capture check landed (bf05ff2): OCR grab conflicted on merge, gave its fix-up sonnet and told it to keep both sides and merge newest main last; gave the macOS Grab test quest opus.
@@ -46,7 +47,7 @@
 
 ## Open
 
-- Check the OCR grab merge fix lands. macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
+- OCR grab landed (1dbb036); its screens never seen with capture. Check the osascript error quest finishes. macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
