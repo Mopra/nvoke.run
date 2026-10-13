@@ -27,7 +27,7 @@ Disallow: /staff/`;
 
 function Code({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-lg border bg-muted/60 px-4 py-3 font-mono text-sm leading-relaxed">
+    <pre className="overflow-x-auto rounded-xl bg-foreground/[0.05] px-5 py-4 font-mono text-sm leading-relaxed text-foreground">
       <code>{children}</code>
     </pre>
   );
@@ -35,9 +35,9 @@ function Code({ children }: { children: string }) {
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="grid gap-4 border-t py-10 md:grid-cols-[14rem_1fr] md:gap-10">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <div className="flex max-w-2xl flex-col gap-4 text-pretty text-muted-foreground [&_strong]:font-medium [&_strong]:text-foreground">
+    <section className="grid gap-5 border-t py-12 md:grid-cols-[15rem_1fr] md:gap-12 md:py-16">
+      <h2 className="text-2xl font-semibold tracking-[-0.025em] text-balance">{title}</h2>
+      <div className="flex max-w-2xl flex-col gap-4 text-[17px] leading-relaxed text-pretty text-muted-foreground [&_strong]:font-medium [&_strong]:text-foreground">
         {children}
       </div>
     </section>
@@ -51,12 +51,17 @@ export default function BotPage() {
         title="nvokebot"
         intro="nvokebot is the crawler behind nvoke. If you found it in your server logs, this page explains what it did and how to stop it."
       />
-      <Container className="pb-20 sm:pb-28">
-        <dl className="mb-12 grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2">
-          {FACTS.map((f) => (
-            <div key={f.label} className="flex flex-col gap-1 bg-card p-5">
+      <Container className="max-w-5xl pb-24 sm:pb-36">
+        <dl className="mb-16 grid overflow-hidden rounded-2xl border bg-card shadow-sm sm:grid-cols-2 dark:bg-card/80">
+          {FACTS.map((f, i) => (
+            <div
+              key={f.label}
+              className={`flex flex-col gap-1.5 p-6 ${i > 0 ? 'border-t' : ''} ${i === 1 ? 'sm:border-t-0' : ''} ${i % 2 === 1 ? 'sm:border-l' : ''}`}
+            >
               <dt className="text-sm text-muted-foreground">{f.label}</dt>
-              <dd className={f.mono ? 'font-mono text-sm break-words' : 'font-medium'}>{f.value}</dd>
+              <dd className={f.mono ? 'font-mono text-sm break-words' : 'text-[17px] font-medium tracking-[-0.01em]'}>
+                {f.value}
+              </dd>
             </div>
           ))}
         </dl>

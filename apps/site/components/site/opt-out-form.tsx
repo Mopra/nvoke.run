@@ -18,10 +18,10 @@ export function OptOutForm({ to }: { to: string }) {
   }
 
   const field =
-    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
+    'w-full rounded-[10px] bg-foreground/[0.05] px-3 py-2.5 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-card focus-visible:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/25 dark:focus-visible:bg-foreground/10';
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4 rounded-xl border bg-card p-6 text-card-foreground">
+    <form onSubmit={submit} className="flex flex-col gap-5 rounded-2xl border bg-card p-6 text-card-foreground shadow-sm dark:bg-card/80">
       <div className="flex flex-col gap-2">
         <label htmlFor="optout-domain" className="text-sm font-medium">
           Your domain
@@ -33,9 +33,10 @@ export function OptOutForm({ to }: { to: string }) {
           inputMode="url"
           autoComplete="url"
           placeholder="example.dk"
+          spellCheck={false}
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
-          className={field}
+          className={`${field} font-mono`}
         />
       </div>
       <div className="flex flex-col gap-2">

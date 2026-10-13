@@ -28,13 +28,13 @@ function useOs(): OsId | null {
 function FileButton({ file, primary }: { file: DownloadTarget['files'][number]; primary: boolean }) {
   if (!file.url) {
     return (
-      <Button variant="outline" disabled className="w-full justify-center">
+      <Button variant="secondary" size="lg" disabled className="w-full">
         Coming soon
       </Button>
     );
   }
   return (
-    <Button asChild variant={primary ? 'default' : 'outline'} className="w-full justify-center">
+    <Button asChild size="lg" variant={primary ? 'default' : 'secondary'} className="w-full">
       <a href={file.url} download>
         <Download />
         {file.label}
@@ -49,33 +49,33 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
   const ordered = detected ? [detected, ...downloads.targets.filter((t) => t !== detected)] : downloads.targets;
 
   return (
-    <div className="flex flex-col gap-6">
-      <p className="min-h-6 text-muted-foreground" aria-live="polite">
+    <div className="flex flex-col gap-8">
+      <p className="min-h-6 text-center text-muted-foreground" aria-live="polite">
         {detected
           ? `You are on ${detected.name}. That download is first.`
           : 'Pick the download for your computer.'}{' '}
         {downloads.available ? `Version ${downloads.version}.` : null}
       </p>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-3">
         {ordered.map((t) => {
           const isDetected = t === detected;
           return (
             <article
               key={t.os}
               className={cn(
-                'flex flex-col gap-5 rounded-xl border bg-card p-6 text-card-foreground',
-                isDetected && 'border-ring ring-1 ring-ring',
+                'flex flex-col gap-6 rounded-2xl border bg-card p-7 text-card-foreground shadow-sm dark:bg-card/80',
+                isDetected && 'border-primary/40 shadow-[0_0_0_1px_var(--ring),0_24px_64px_-28px_var(--glow)]',
               )}
             >
               <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold">{t.name}</h2>
+                <h2 className="text-xl font-semibold tracking-[-0.02em]">{t.name}</h2>
                 <p className="text-sm text-muted-foreground">{t.requirement}</p>
               </div>
               <div className="flex flex-col gap-2">
                 {downloads.available ? (
                   t.files.map((f, i) => <FileButton key={f.fileName} file={f} primary={isDetected && i === 0} />)
                 ) : (
-                  <Button variant="outline" disabled className="w-full justify-center">
+                  <Button variant="secondary" size="lg" disabled className="w-full">
                     Coming soon
                   </Button>
                 )}
