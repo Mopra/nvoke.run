@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Loader2 } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { Commands } from '@/components/CommandBar';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,9 @@ import { Kbd } from '@/components/ui/kbd';
 import { useAuth } from '@/lib/auth';
 import { quickApi } from '@/lib/desktop';
 import { formatNumber, isActive, searchTitle } from '@/lib/format';
-import { useCreateSearch, useSearch } from '@/lib/queries';
+import { useCompanies, useCreateSearch, useSearch } from '@/lib/queries';
 import type { Search, SearchInput } from '@/lib/types';
+import type { QuickClipboard } from '../../../ipc/contract';
 
 /** Window margin that leaves room for the panel's shadow. */
 const MARGIN = 20;
@@ -23,10 +24,19 @@ export function QuickWindow() {
   const auth = useAuth();
   // Bumped on every show, so each opening starts on a fresh command bar.
   const [opening, setOpening] = useState(0);
+  // What the clipboard named when the window opened, never read in the background.
+  const [clipboard, setClipboard] = useState<QuickClipboard>(null);
   const panel = useRef<HTMLDivElement>(null);
   const quick = quickApi();
 
-  useEffect(() => quick?.onShown(() => setOpening((n) => n + 1)), [quick]);
+  useEffect(
+    () =>
+      quick?.onShown((clip) => {
+        setClipboard(clip);
+        setOpening((n) => n + 1);
+      }),
+    [quick],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -58,7 +68,7 @@ export function QuickWindow() {
             <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />
           </div>
         ) : auth.status === 'signed-in' ? (
-          <Session key={opening} />
+          <Session key={opening} clipboard={clipboard} />
         ) : (
           <SignedOut />
         )}
@@ -80,7 +90,7 @@ function SignedOut() {
 }
 
 /** The command bar until a search starts, then that search's progress. */
-function Session() {
+function Session({ clipboard }: { clipboard: QuickClipboard }) {
   const create = useCreateSearch();
   const [started, setStarted] = useState<string | null>(null);
 
@@ -96,6 +106,7 @@ function Session() {
       onDone={() => quickApi()?.hide()}
       onStart={start}
       notice={create.isError ? create.error.message : null}
+      clipboard={clipboard}
     />
   );
 }
@@ -119,6 +130,7 @@ function Running({ id, onNew }: { id: string; onNew: () => void }) {
   return (
     <div className="px-6 pt-5 pb-5">
       {search ? <Progress search={search} /> : <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />}
+      {search?.kind === 'domains' && <Addresses id={id} search={search} />}
       <div className="mt-5 flex items-center justify-between">
         <Button variant="ghost" onClick={onNew}>
           New search
@@ -130,6 +142,47 @@ function Running({ id, onNew }: { id: string; onNew: () => void }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** The addresses a one-domain lookup found, as they arrive, each with a copy button. */
+function Addresses({ id, search }: { id: string; search: Search }) {
+  const live = isActive(search.status);
+  const { data } = useCompanies(id, {}, live);
+  const addresses = (data?.pages.flatMap((page) => page.companies) ?? [])
+    .flatMap((company) => company.emails)
+    .filter((email) => email.verification !== 'invalid');
+  if (addresses.length === 0) {
+    if (live) return null;
+    return <div className="mt-4 text-sm text-muted-foreground">No addresses found on this site.</div>;
+  }
+  return (
+    <ul className="mt-4 max-h-56 overflow-y-auto">
+      {addresses.map((email) => (
+        <Address key={email.id} address={email.address} />
+      ))}
+    </ul>
+  );
+}
+
+function Address({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // The clipboard can refuse; the address stays selectable.
+    }
+  }
+  return (
+    <li className="flex h-10 items-center gap-2 rounded-[16px] pr-1.5 pl-3 hover:bg-foreground/[0.05]">
+      <code className="min-w-0 flex-1 truncate font-mono text-sm select-all">{address}</code>
+      <Button variant="ghost" size="icon-sm" onClick={() => void copy()} aria-label={`Copy ${address}`}>
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      </Button>
+    </li>
   );
 }
 

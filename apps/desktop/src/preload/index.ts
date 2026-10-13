@@ -9,6 +9,7 @@ import {
   type DesktopSettings,
   type ExportResult,
   type NvokeApi,
+  type QuickClipboard,
   type WindowChrome,
   type WindowState,
 } from '../ipc/contract';
@@ -59,7 +60,7 @@ const api: NvokeApi = {
     openInMain: (hash) => ipcRenderer.send(IpcChannel.quickOpenInMain, hash),
     setHeight: (height) => ipcRenderer.send(IpcChannel.quickSetHeight, height),
     onShown: (listener) => {
-      const handler = () => listener();
+      const handler = (_event: IpcRendererEvent, clipboard: QuickClipboard) => listener(clipboard);
       ipcRenderer.on(IpcChannel.quickShown, handler);
       return () => ipcRenderer.removeListener(IpcChannel.quickShown, handler);
     },

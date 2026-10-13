@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, type WebContents } from 'electron';
+import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, screen, type WebContents } from 'electron';
 import { DEFAULT_HOTKEY, isAccelerator } from '../ipc/accelerator';
+import { clipboardLookup } from './clipboard-lookup';
 import { IpcChannel } from '../ipc/contract';
 import { clampQuickHeight, hotkeyClashMessage, isRouteHash, quickBounds, QUICK_MIN_HEIGHT, QUICK_WIDTH } from './quick-geometry';
 
@@ -97,9 +98,20 @@ export class QuickWindow {
   show(): void {
     const win = this.ensureWindow();
     this.place();
-    win.webContents.send(IpcChannel.quickShown);
     win.show();
     win.focus();
+    void this.sendShown(win);
+  }
+
+  /** The one place the clipboard is read: when the user opens the window. */
+  private async sendShown(win: BrowserWindow): Promise<void> {
+    let lookup = null;
+    try {
+      lookup = clipboardLookup(await clipboard.readText());
+    } catch {
+      // An unreadable clipboard just means no lookup row.
+    }
+    if (!win.isDestroyed()) win.webContents.send(IpcChannel.quickShown, lookup);
   }
 
   /**

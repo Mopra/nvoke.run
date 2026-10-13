@@ -7,6 +7,7 @@ import { quickApi } from '@/lib/desktop';
 import { parseQuickSearch } from '@/lib/quick-search';
 import { navigate as goTo, routeHref, type Route } from '@/lib/router';
 import type { SearchInput } from '@/lib/types';
+import type { QuickClipboard } from '../../../ipc/contract';
 import { setThemePreference, useTheme } from '@/lib/theme';
 import { StatusDot } from '@/components/indicators';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -46,7 +47,18 @@ export function CommandBar({ open, onOpenChange }: { open: boolean; onOpenChange
  * The list itself. In the quick window (`onStart` set) Enter on typed text
  * starts a search, and screens open in the main window instead of this one.
  */
-export function Commands({ onDone, onStart, notice }: { onDone: () => void; onStart?: (input: SearchInput) => void; notice?: string | null }) {
+export function Commands({
+  onDone,
+  onStart,
+  notice,
+  clipboard,
+}: {
+  onDone: () => void;
+  onStart?: (input: SearchInput) => void;
+  notice?: string | null;
+  /** What the clipboard named when the quick window opened. Offered as the first row. */
+  clipboard?: QuickClipboard;
+}) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const { data: searches } = useSearches();
@@ -147,6 +159,20 @@ export function Commands({ onDone, onStart, notice }: { onDone: () => void; onSt
     return list;
   }, [searches, resolved, onStart]);
 
+  const lookup = useMemo<Command | null>(() => {
+    if (!clipboard || !onStart) return null;
+    const { domain, from } = clipboard;
+    return {
+      id: 'lookup',
+      group: 'Start',
+      label: `Find contacts at ${domain}`,
+      hint: from === 'email' ? 'From the copied email' : from === 'url' ? 'From the copied link' : 'From the clipboard',
+      icon: <ClipboardList className="size-4 text-primary" />,
+      keepOpen: true,
+      run: () => onStart({ kind: 'domains', params: { items: [domain] }, limit: 1 }),
+    };
+  }, [clipboard, onStart]);
+
   const start = useMemo<Command | null>(() => {
     const input = onStart ? parseQuickSearch(query) : null;
     if (!input || !onStart) return null;
@@ -168,8 +194,9 @@ export function Commands({ onDone, onStart, notice }: { onDone: () => void; onSt
       : commands;
     // Without a query, show the five newest searches above the actions.
     const searchesShown = matches.filter((c) => c.group === 'Searches').slice(0, q ? 8 : 5);
-    return [...(start ? [start] : []), ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
-  }, [commands, query, start]);
+    const first = start ?? (q ? null : lookup);
+    return [...(first ? [first] : []), ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
+  }, [commands, query, start, lookup]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });

@@ -167,6 +167,9 @@ export interface DesktopApi {
   onCommand(listener: (command: DesktopCommand) => void): () => void;
 }
 
+/** What the clipboard held when the quick window opened: one domain, URL or email address, else null. */
+export type QuickClipboard = { domain: string; from: 'domain' | 'url' | 'email' } | null;
+
 /** The small command window that opens over any app from the global shortcut. */
 export interface QuickApi {
   /** Hides the window and gives focus back to the app that was in front. */
@@ -175,8 +178,12 @@ export interface QuickApi {
   openInMain(hash: string): void;
   /** Fits the window to its content, in CSS px. */
   setHeight(height: number): void;
-  /** Fires each time the window is shown, so it can start fresh. Returns an unsubscribe function. */
-  onShown(listener: () => void): () => void;
+  /**
+   * Fires each time the window is shown, so it can start fresh, with what the
+   * clipboard named at that moment. The clipboard is read only then. Returns
+   * an unsubscribe function.
+   */
+  onShown(listener: (clipboard: QuickClipboard) => void): () => void;
 }
 
 export interface NvokeApi {
