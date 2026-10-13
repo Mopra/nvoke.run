@@ -16,3 +16,6 @@ Thumbs.db
 .next/
 next-env.d.ts
 .vercel/
+
+# Local Postgres data for the server CLI (apps/server/src/cli.ts)
+.pgdata/

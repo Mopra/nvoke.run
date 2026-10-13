@@ -6,6 +6,13 @@ packages:
 # first use, so it does not need one.
 onlyBuiltDependencies:
   - esbuild
+  # Postgres binaries for the server tests and CLI. Their postinstall restores
+  # the symlinks inside the Linux and macOS archives.
+  - '@embedded-postgres/darwin-arm64'
+  - '@embedded-postgres/darwin-x64'
+  - '@embedded-postgres/linux-arm64'
+  - '@embedded-postgres/linux-x64'
+  - '@embedded-postgres/windows-x64'
 
 # Squirrel installer tooling pulled in by electron-builder. We ship NSIS.
 ignoredBuiltDependencies:
