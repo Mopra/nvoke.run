@@ -16,3 +16,4 @@ Thumbs.db
 .next/
 next-env.d.ts
 .vercel/
+.claude/worktrees/

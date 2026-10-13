@@ -7,7 +7,7 @@
 
 [Unit]
 Description=nvoke API
-Documentation=file:/opt/nvoke/deploy/README.md
+Documentation=file:/opt/nvoke/app/deploy/README.md
 After=network-online.target
 Wants=network-online.target
 
@@ -21,13 +21,13 @@ StartLimitIntervalSec=120
 Type=simple
 User=nvoke
 Group=nvoke
-WorkingDirectory=/opt/nvoke
+WorkingDirectory=/opt/nvoke/app
 
 # Secrets only. Mode 600, owned by the nvoke user.
 EnvironmentFile=/opt/nvoke/.env
 Environment=NODE_ENV=production
 
-ExecStart=/usr/bin/node apps/server/dist/api/index.js
+ExecStart=/opt/nvoke-node/bin/node apps/server/dist/api/index.js
 
 Restart=always
 RestartSec=5
