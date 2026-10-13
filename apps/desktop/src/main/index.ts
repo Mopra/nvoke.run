@@ -2,6 +2,7 @@ import { hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { HealthResponse } from '@nvoke/shared';
+import { DEFAULT_HOTKEY, isAccelerator } from '../ipc/accelerator';
 import {
   IpcChannel,
   type AppInfo,
@@ -18,6 +19,7 @@ import { captureDirFromArgs, runCapture } from './capture';
 import { registerDragIpc } from './drag';
 import { readSavedDesktop, writeSavedDesktop, type SavedDesktop } from './desktop-settings';
 import { applyOpenAtLogin, startedHidden } from './login-item';
+import { QuickWindow } from './quick-window';
 import { AppTray } from './tray';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
 
@@ -42,6 +44,8 @@ if (!app.requestSingleInstanceLock()) {
 /** True once the user quits for real. Until then closing the window only hides it. */
 let quitting = false;
 let tray: AppTray | null = null;
+let mainWindow: BrowserWindow | null = null;
+let quick: QuickWindow | null = null;
 let desktop: SavedDesktop = {};
 
 function desktopFile(): string {
@@ -50,7 +54,11 @@ function desktopFile(): string {
 
 function desktopSettings(): DesktopSettings {
   // On by default: the first sign-in saves it as on (see onAuthChange).
-  return { openAtLogin: desktop.openAtLogin ?? true };
+  return {
+    openAtLogin: desktop.openAtLogin ?? true,
+    hotkey: quick?.accelerator ?? desktop.hotkey ?? DEFAULT_HOTKEY,
+    hotkeyError: quick?.error ?? null,
+  };
 }
 
 function saveDesktop(next: SavedDesktop): void {
@@ -103,6 +111,12 @@ function main(): void {
     desktop = readSavedDesktop(desktopFile());
     // Re-register each launch, so the login item follows the app when it moves.
     if (desktop.openAtLogin) applyOpenAtLogin(true);
+    quick = new QuickWindow({
+      openInMain: (hash) => sendCommand({ name: 'route', hash }),
+      disabled: !!captureDir,
+    });
+    quick.init(desktop.hotkey);
+    quick.registerIpc();
     registerIpc(session);
     registerWindowIpc();
     registerDragIpc();
@@ -121,7 +135,7 @@ function main(): void {
     for (const url of queued.splice(0)) await session.handleCallback(url);
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow({ hidden: false });
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow({ hidden: false });
       else focusWindow();
     });
   });
@@ -133,6 +147,8 @@ function main(): void {
   app.on('will-quit', () => {
     tray?.destroy();
     tray = null;
+    quick?.destroy();
+    quick = null;
   });
 
   // The window only closes for real on quit, and then the app is on its way out.
@@ -155,8 +171,8 @@ function onAuthChange(state: AuthState): void {
 /** Shows the window and hands the renderer a command, for example from the tray. */
 function sendCommand(command: DesktopCommand): void {
   focusWindow();
-  const win = BrowserWindow.getAllWindows()[0];
-  if (!win) return;
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return;
   if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => win.webContents.send(IpcChannel.desktopCommand, command));
   else win.webContents.send(IpcChannel.desktopCommand, command);
 }
@@ -175,8 +191,8 @@ function registerProtocol(): void {
 }
 
 function focusWindow(): void {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (!win) return;
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
@@ -197,6 +213,7 @@ function isSafeExternalUrl(raw: string): boolean {
 
 function createWindow({ hidden }: { hidden: boolean }): void {
   const win = createMainWindow();
+  mainWindow = win;
 
   // Started at login: stay in the tray until the user opens the window.
   if (!hidden) win.once('ready-to-show', () => win.show());
@@ -290,6 +307,13 @@ function registerIpc(session: AuthSession): void {
     if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
     saveDesktop({ ...desktop, openAtLogin: enabled });
     applyOpenAtLogin(enabled);
+    return desktopSettings();
+  });
+
+  ipcMain.handle(IpcChannel.desktopSetHotkey, (_event, accelerator: unknown): DesktopSettings => {
+    if (!isAccelerator(accelerator)) throw new Error('hotkey must be modifiers plus a key, like CommandOrControl+Shift+Space');
+    // A clash keeps the shortcut in use and reports the reason in hotkeyError.
+    if (quick?.setHotkey(accelerator) !== false) saveDesktop({ ...desktop, hotkey: accelerator });
     return desktopSettings();
   });
 

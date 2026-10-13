@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sun } from 'lucide-react';
+import { CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sparkles, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
 import { useSearches } from '@/lib/queries';
-import { navigate } from '@/lib/router';
+import { quickApi } from '@/lib/desktop';
+import { parseQuickSearch } from '@/lib/quick-search';
+import { navigate as goTo, routeHref, type Route } from '@/lib/router';
+import type { SearchInput } from '@/lib/types';
 import { setThemePreference, useTheme } from '@/lib/theme';
 import { StatusDot } from '@/components/indicators';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -11,12 +14,14 @@ import { Kbd } from '@/components/ui/kbd';
 
 interface Command {
   id: string;
-  group: 'Searches' | 'Actions';
+  group: 'Start' | 'Searches' | 'Actions';
   label: string;
   hint?: string;
   icon: ReactNode;
   trailing?: ReactNode;
   keywords?: string;
+  /** Keep the window up after running, because the command starts something it then shows. */
+  keepOpen?: boolean;
   run: () => void;
 }
 
@@ -37,7 +42,11 @@ export function CommandBar({ open, onOpenChange }: { open: boolean; onOpenChange
   );
 }
 
-function Commands({ onDone }: { onDone: () => void }) {
+/**
+ * The list itself. In the quick window (`onStart` set) Enter on typed text
+ * starts a search, and screens open in the main window instead of this one.
+ */
+export function Commands({ onDone, onStart, notice }: { onDone: () => void; onStart?: (input: SearchInput) => void; notice?: string | null }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const { data: searches } = useSearches();
@@ -46,6 +55,9 @@ function Commands({ onDone }: { onDone: () => void }) {
 
   const commands = useMemo<Command[]>(() => {
     const iconClass = 'size-4 text-muted-foreground';
+    const quick = !!onStart;
+    // A screen opens here in the main window, or in the main window from the quick one.
+    const navigate = (route: Route): void => (quick ? quickApi()?.openInMain(routeHref(route)) : goTo(route));
     const list: Command[] = (searches ?? []).map((s) => ({
       id: `search:${s.id}`,
       group: 'Searches',
@@ -133,7 +145,21 @@ function Commands({ onDone }: { onDone: () => void }) {
       },
     );
     return list;
-  }, [searches, resolved]);
+  }, [searches, resolved, onStart]);
+
+  const start = useMemo<Command | null>(() => {
+    const input = onStart ? parseQuickSearch(query) : null;
+    if (!input || !onStart) return null;
+    return {
+      id: 'start',
+      group: 'Start',
+      label: `Find ${input.kind === 'local' ? `${input.params.niche} in ${input.params.location}` : `“${input.params.keyword}”`}`,
+      hint: input.kind === 'local' ? 'Local businesses' : 'Web search',
+      icon: <Sparkles className="size-4 text-primary" />,
+      keepOpen: true,
+      run: () => onStart(input),
+    };
+  }, [query, onStart]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -142,8 +168,8 @@ function Commands({ onDone }: { onDone: () => void }) {
       : commands;
     // Without a query, show the five newest searches above the actions.
     const searchesShown = matches.filter((c) => c.group === 'Searches').slice(0, q ? 8 : 5);
-    return [...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
-  }, [commands, query]);
+    return [...(start ? [start] : []), ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
+  }, [commands, query, start]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -151,7 +177,7 @@ function Commands({ onDone }: { onDone: () => void }) {
 
   function run(command: Command | undefined): void {
     if (!command) return;
-    onDone();
+    if (!command.keepOpen) onDone();
     command.run();
   }
 
@@ -180,12 +206,13 @@ function Commands({ onDone }: { onDone: () => void }) {
               run(filtered[active]);
             }
           }}
-          placeholder="Search or jump to"
+          placeholder={onStart ? 'Find companies, or jump to' : 'Search or jump to'}
           aria-label="Search or jump to"
           className="h-full flex-1 bg-transparent font-display text-xl tracking-[-0.02em] caret-primary outline-none placeholder:text-muted-foreground/50"
         />
         <Kbd>esc</Kbd>
       </div>
+      {notice && <div className="px-5 pt-3 text-sm text-destructive">{notice}</div>}
       <div ref={listRef} role="listbox" className="max-h-[min(460px,60vh)] overflow-y-auto p-2">
         {filtered.length === 0 && <div className="px-3 py-8 text-center text-sm text-muted-foreground">No matches</div>}
         {filtered.map((command, index) => {

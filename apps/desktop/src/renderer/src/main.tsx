@@ -5,8 +5,14 @@ import { App } from './App';
 import { ApiError } from './lib/api';
 import { refreshAuth } from './lib/auth';
 import { initChrome } from './lib/chrome';
+import { isQuickWindow } from './lib/desktop';
 import { initTheme } from './lib/theme';
+import { QuickWindow } from './components/QuickWindow';
 import './index.css';
+
+// The quick window shares this bundle and shows through to the apps behind it.
+const quick = isQuickWindow();
+if (quick) document.documentElement.dataset['quick'] = '';
 
 void initChrome();
 initTheme();
@@ -30,7 +36,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      {quick ? <QuickWindow /> : <App />}
     </QueryClientProvider>
   </StrictMode>,
 );

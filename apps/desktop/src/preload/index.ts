@@ -47,10 +47,21 @@ const api: NvokeApi = {
   desktop: {
     getSettings: () => ipcRenderer.invoke(IpcChannel.desktopGetSettings) as Promise<DesktopSettings>,
     setOpenAtLogin: (enabled) => ipcRenderer.invoke(IpcChannel.desktopSetOpenAtLogin, enabled) as Promise<DesktopSettings>,
+    setHotkey: (accelerator) => ipcRenderer.invoke(IpcChannel.desktopSetHotkey, accelerator) as Promise<DesktopSettings>,
     onCommand: (listener) => {
       const handler = (_event: IpcRendererEvent, command: DesktopCommand) => listener(command);
       ipcRenderer.on(IpcChannel.desktopCommand, handler);
       return () => ipcRenderer.removeListener(IpcChannel.desktopCommand, handler);
+    },
+  },
+  quick: {
+    hide: () => ipcRenderer.send(IpcChannel.quickHide),
+    openInMain: (hash) => ipcRenderer.send(IpcChannel.quickOpenInMain, hash),
+    setHeight: (height) => ipcRenderer.send(IpcChannel.quickSetHeight, height),
+    onShown: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(IpcChannel.quickShown, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.quickShown, handler);
     },
   },
 };

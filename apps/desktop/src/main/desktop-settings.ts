@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { isAccelerator } from '../ipc/accelerator';
 
 /**
  * How the app lives on the computer, kept in userData between launches.
@@ -10,6 +11,8 @@ export interface SavedDesktop {
   openAtLogin?: boolean;
   /** The "still running in the tray" hint is shown once, on the first close. */
   closeHintShown?: boolean;
+  /** The global shortcut for the quick window. Undefined means the default. */
+  hotkey?: string;
 }
 
 export function parseSavedDesktop(raw: string): SavedDesktop {
@@ -18,6 +21,7 @@ export function parseSavedDesktop(raw: string): SavedDesktop {
     return {
       openAtLogin: typeof data['openAtLogin'] === 'boolean' ? data['openAtLogin'] : undefined,
       closeHintShown: data['closeHintShown'] === true,
+      ...(isAccelerator(data['hotkey']) ? { hotkey: data['hotkey'] } : {}),
     };
   } catch {
     return {};

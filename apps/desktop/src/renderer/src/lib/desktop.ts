@@ -4,7 +4,7 @@
  * there is no tray and the setting is hidden.
  */
 import { useEffect, useRef } from 'react';
-import type { DesktopApi, DesktopCommand } from '../../../ipc/contract';
+import type { DesktopApi, DesktopCommand, QuickApi } from '../../../ipc/contract';
 
 export function desktopApi(): DesktopApi | null {
   const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
@@ -23,4 +23,15 @@ export function useDesktopCommands(handler: (command: DesktopCommand) => void): 
     ref.current = handler;
   });
   useEffect(() => desktopApi()?.onCommand((command) => ref.current(command)), []);
+}
+
+/** The quick window's side of the bridge. Null outside the desktop app. */
+export function quickApi(): QuickApi | null {
+  const api = (window as unknown as { nvoke?: { quick?: QuickApi } }).nvoke?.quick;
+  return api && typeof api.hide === 'function' ? api : null;
+}
+
+/** True in the quick window, which loads the same renderer on `#/quick`. */
+export function isQuickWindow(): boolean {
+  return window.location.hash.startsWith('#/quick');
 }

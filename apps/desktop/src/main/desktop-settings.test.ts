@@ -10,6 +10,11 @@ describe('parseSavedDesktop', () => {
     });
   });
 
+  it('keeps a valid hotkey and drops a bad one', () => {
+    expect(parseSavedDesktop(JSON.stringify({ hotkey: 'Alt+Space' })).hotkey).toBe('Alt+Space');
+    expect(parseSavedDesktop(JSON.stringify({ hotkey: 'Space' }))).not.toHaveProperty('hotkey');
+  });
+
   it('drops malformed fields and survives bad JSON', () => {
     expect(parseSavedDesktop(JSON.stringify({ openAtLogin: 'yes' }))).toEqual({ openAtLogin: undefined, closeHintShown: false });
     expect(parseSavedDesktop('{nope')).toEqual({});

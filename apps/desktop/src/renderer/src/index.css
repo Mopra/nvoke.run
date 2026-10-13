@@ -84,6 +84,16 @@
   html[data-material="mica"] {
     background: transparent;
   }
+  /* The quick window floats over other apps: nothing around its panel is painted. */
+  html[data-quick],
+  html[data-quick] body,
+  html[data-quick] #root {
+    background: transparent;
+  }
+  /* Nothing behind the panel to blur, so it needs a firmer fill to stay legible. */
+  html[data-quick] .glass-strong {
+    background-color: color-mix(in oklab, var(--background) 94%, transparent);
+  }
   body {
     /* Desktop apps do not select chrome text on drag; inputs and tables opt back in. */
     user-select: none;

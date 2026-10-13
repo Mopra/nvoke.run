@@ -40,6 +40,7 @@ function SignedIn() {
   useDesktopCommands((command) => {
     if (command.name === 'new-search') navigate({ name: 'new', kind: null });
     else if (command.name === 'search') navigate({ name: 'search', id: command.id });
+    else if (command.name === 'route') window.location.hash = command.hash;
     else navigate({ name: 'searches' });
   });
   return (

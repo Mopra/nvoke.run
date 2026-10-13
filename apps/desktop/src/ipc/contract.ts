@@ -27,6 +27,15 @@ export const IpcChannel = {
   windowStateChanged: 'window:state-changed',
   desktopGetSettings: 'desktop:get-settings',
   desktopSetOpenAtLogin: 'desktop:set-open-at-login',
+  desktopSetHotkey: 'desktop:set-hotkey',
+  /** Quick window to main, fire and forget. */
+  quickHide: 'quick:hide',
+  /** Quick window to main, fire and forget, payload a route hash. */
+  quickOpenInMain: 'quick:open-in-main',
+  /** Quick window to main, fire and forget, payload a height in px. */
+  quickSetHeight: 'quick:set-height',
+  /** Main to quick window push, every time the window is shown. */
+  quickShown: 'quick:shown',
   /** Main to renderer push, payload DesktopCommand. */
   desktopCommand: 'desktop:command',
 } as const;
@@ -128,20 +137,46 @@ export interface DesktopSettings {
    * window. Turned on by the first sign-in; the user can turn it off on Account.
    */
   openAtLogin: boolean;
+  /** The global shortcut that opens the quick window, in Electron's accelerator format. */
+  hotkey: string;
+  /** Why the shortcut is not active, for example another app holds it. Null when it works. */
+  hotkeyError: string | null;
 }
 
 /**
  * Something the main process asks the renderer to do, for example from the
  * tray menu: open a new search, the searches list or one search.
  */
-export type DesktopCommand = { name: 'new-search' } | { name: 'searches' } | { name: 'search'; id: string };
+export type DesktopCommand =
+  | { name: 'new-search' }
+  | { name: 'searches' }
+  | { name: 'search'; id: string }
+  /** Any screen, as a route hash such as `#/drops`. Sent by the quick window. */
+  | { name: 'route'; hash: string };
 
 export interface DesktopApi {
   getSettings(): Promise<DesktopSettings>;
   /** Registers or removes the login item and returns the saved settings. */
   setOpenAtLogin(enabled: boolean): Promise<DesktopSettings>;
+  /**
+   * Registers a new global shortcut for the quick window. A clash with another
+   * app does not throw: the old shortcut stays and `hotkeyError` says why.
+   */
+  setHotkey(accelerator: string): Promise<DesktopSettings>;
   /** Subscribes to commands from the tray. Returns an unsubscribe function. */
   onCommand(listener: (command: DesktopCommand) => void): () => void;
+}
+
+/** The small command window that opens over any app from the global shortcut. */
+export interface QuickApi {
+  /** Hides the window and gives focus back to the app that was in front. */
+  hide(): void;
+  /** Hides the window and shows the main window on a screen, given as a route hash like `#/searches/ID`. */
+  openInMain(hash: string): void;
+  /** Fits the window to its content, in CSS px. */
+  setHeight(height: number): void;
+  /** Fires each time the window is shown, so it can start fresh. Returns an unsubscribe function. */
+  onShown(listener: () => void): () => void;
 }
 
 export interface NvokeApi {
@@ -170,4 +205,5 @@ export interface NvokeApi {
   auth: AuthApi;
   window: WindowApi;
   desktop: DesktopApi;
+  quick: QuickApi;
 }

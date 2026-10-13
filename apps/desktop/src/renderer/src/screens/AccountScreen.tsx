@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
+import type { DesktopSettings } from '../../../ipc/contract';
 import { Webhooks } from '@/components/Webhooks';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
@@ -10,11 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { acceleratorFromEvent, acceleratorLabel } from '../../../ipc/accelerator';
 import { api } from '@/lib/api';
 import { FREE_PLAN, PLANS, planLabel } from '@nvoke/shared';
 import { desktopApi, trayPlace } from '@/lib/desktop';
 import { BILLING_URL } from '@/lib/env';
 import { formatNumber, percent, periodLabel, resetDate } from '@/lib/format';
+import { isMac } from '@/lib/hotkeys';
 import { useMe, usePlanSync } from '@/lib/queries';
 import { setThemePreference, useTheme, type ThemePreference } from '@/lib/theme';
 import type { Me } from '@/lib/types';
@@ -121,6 +124,61 @@ function OpenAtLogin() {
   );
 }
 
+/** The global shortcut that opens the quick window over any app. Click Change, then press the new keys. */
+function QuickHotkey() {
+  const [desktop] = useState(desktopApi);
+  const [settings, setSettings] = useState<DesktopSettings | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    desktop
+      ?.getSettings()
+      .then(setSettings)
+      .catch(() => undefined);
+  }, [desktop]);
+
+  if (!desktop || !settings) return null;
+
+  function record(event: KeyboardEvent<HTMLButtonElement>): void {
+    event.preventDefault();
+    if (event.key === 'Escape') {
+      setRecording(false);
+      return;
+    }
+    const accelerator = acceleratorFromEvent(event, isMac);
+    if (!accelerator) return;
+    setRecording(false);
+    desktop
+      ?.setHotkey(accelerator)
+      .then(setSettings)
+      .catch((err: unknown) =>
+        toast.error('Couldn’t change the shortcut', { description: err instanceof Error ? err.message : undefined }),
+      );
+  }
+
+  return (
+    <Setting
+      label="Quick search shortcut"
+      description={
+        <>
+          Opens a small search bar over any app, even while nvoke is in the {trayPlace()}.
+          {settings.hotkeyError && <span className="mt-1 block text-destructive">{settings.hotkeyError}</span>}
+        </>
+      }
+    >
+      <Button
+        variant="outline"
+        onClick={() => setRecording(true)}
+        onKeyDown={recording ? record : undefined}
+        onBlur={() => setRecording(false)}
+        aria-label="Change quick search shortcut"
+      >
+        {recording ? 'Press the new keys' : acceleratorLabel(settings.hotkey, isMac)}
+      </Button>
+    </Setting>
+  );
+}
+
 function AccountSkeleton() {
   return (
     <div className="flex flex-col gap-14">
@@ -203,6 +261,7 @@ export function AccountScreen() {
                   <ThemePicker />
                 </Setting>
                 <OpenAtLogin />
+                <QuickHotkey />
                 <Setting label="This computer" description="Sign out anytime. Your searches stay in your account.">
                   <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
                     {signingOut && <Loader2 className="motion-safe:animate-spin" />}

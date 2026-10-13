@@ -123,7 +123,9 @@ nvoke lives in the tray (menu bar on macOS, `src/main/tray.ts`): closing the
 window only hides it, and the app quits from the tray menu or Cmd+Q. Start at
 login is a setting on Account (`src/main/login-item.ts`), on after the first
 sign-in, and starts hidden. The tray talks to the renderer through
-`window.nvoke.desktop.onCommand`. Tray icons are rendered by `pnpm icons` into
+`window.nvoke.desktop.onCommand`. A global shortcut (`src/main/quick-window.ts`,
+changeable on Account) opens the quick window, the command bar over any app, on
+`#/quick` of the same renderer. Tray icons are rendered by `pnpm icons` into
 `apps/desktop/resources` and unpacked from the asar.
 
 `pnpm --filter @nvoke/desktop capture` runs the app on demo data with a
