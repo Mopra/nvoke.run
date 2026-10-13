@@ -10,7 +10,8 @@
     "dev:worker": "tsx watch --env-file-if-exists=.env --conditions=@nvoke/source src/worker/index.ts",
     "start:api": "node --env-file-if-exists=.env dist/api/index.js",
     "start:worker": "node --env-file-if-exists=.env dist/worker/index.js",
-    "migrate": "tsx --env-file-if-exists=.env --conditions=@nvoke/source src/db/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=.env --conditions=@nvoke/source src/db/migrate.ts",
+    "cli": "tsx --env-file-if-exists=.env --conditions=@nvoke/source src/cli.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.23.2",
