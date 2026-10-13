@@ -2,8 +2,9 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Packages allowed to run install scripts. Electron 44 fetches its binary on
-# first use, so it does not need one.
+# Packages allowed to run install scripts. Electron 44 has no install script:
+# its binary downloads on first use, and the desktop `dev`, `preview` and
+# `capture` scripts run `install-electron` first (a no-op once installed).
 onlyBuiltDependencies:
   - esbuild
 

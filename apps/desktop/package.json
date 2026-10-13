@@ -7,9 +7,10 @@
   "author": "nvoke",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "install-electron && electron-vite dev",
+    "capture": "install-electron && node scripts/capture.mjs",
     "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "preview": "install-electron && electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "dist": "electron-vite build && electron-builder --publish never",
     "dist:win": "electron-vite build && electron-builder --win --publish never",

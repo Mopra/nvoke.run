@@ -1,8 +1,10 @@
 /**
  * Light and dark mode. The user picks system, light or dark (stored locally);
- * system follows the OS. Applied by toggling the `dark` class on <html>.
+ * system follows the OS. Applied by toggling the `dark` class on <html>, and
+ * mirrored to the main process so the window material and caption buttons match.
  */
 import { useSyncExternalStore } from 'react';
+import { syncThemeSource, syncTitleBar } from './chrome';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
@@ -22,12 +24,14 @@ function apply(): void {
   document.documentElement.classList.toggle('dark', resolved === 'dark');
   document.documentElement.style.colorScheme = resolved;
   snapshot = { preference, resolved };
+  syncTitleBar();
   for (const l of listeners) l();
 }
 
 export function initTheme(): void {
   const stored = localStorage.getItem(KEY);
   if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+  syncThemeSource(preference);
   apply();
   media().addEventListener('change', () => {
     if (preference === 'system') apply();
@@ -37,6 +41,7 @@ export function initTheme(): void {
 export function setThemePreference(next: ThemePreference): void {
   preference = next;
   localStorage.setItem(KEY, next);
+  syncThemeSource(next);
   apply();
 }
 

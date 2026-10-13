@@ -17,3 +17,6 @@ Thumbs.db
 next-env.d.ts
 .vercel/
 .claude/worktrees/
+
+# Dev screenshots from `pnpm --filter @nvoke/desktop capture`.
+apps/desktop/screenshots/

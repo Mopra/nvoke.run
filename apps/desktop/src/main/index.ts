@@ -6,11 +6,18 @@ import { IpcChannel, type AppInfo, type AuthState } from '../ipc/contract';
 import { PROTOCOL, findProtocolUrl } from './auth/flow';
 import { AuthSession } from './auth/session';
 import { safeTokenStore } from './auth/token-store';
+import { captureDirFromArgs, runCapture } from './capture';
+import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
 
 const env = {
   apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000',
   siteUrl: import.meta.env.VITE_SITE_URL || (app.isPackaged ? 'https://nvoke.run' : 'http://localhost:3001'),
 };
+
+/** Dev only: `--capture[=dir]` screenshots every screen and quits (see capture.ts). */
+const captureDir = app.isPackaged ? null : captureDirFromArgs(process.argv, process.env['NVOKE_CAPTURE']);
+// A throwaway profile, so captures never touch the real session or window state.
+if (captureDir) app.setPath('userData', join(captureDir, '.profile'));
 
 // One running instance. A second launch (for example the OS opening an
 // nvoke:// link on Windows or Linux) hands its argv to the first and quits.
@@ -21,7 +28,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function main(): void {
-  registerProtocol();
+  if (!captureDir) registerProtocol();
 
   let session: AuthSession | null = null;
   // Callback URLs that arrive before the app is ready (macOS open-url, or the
@@ -60,6 +67,8 @@ function main(): void {
       onChange: broadcastAuthState,
     });
     registerIpc(session);
+    registerWindowIpc();
+    loadWindowPreferences();
     createWindow();
     await session.init();
     for (const url of queued.splice(0)) await session.handleCallback(url);
@@ -109,22 +118,7 @@ function isSafeExternalUrl(raw: string): boolean {
 }
 
 function createWindow(): void {
-  const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
-    show: false,
-    autoHideMenuBar: true,
-    title: 'nvoke',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-    },
-  });
+  const win = createMainWindow();
 
   win.once('ready-to-show', () => win.show());
 
@@ -145,6 +139,8 @@ function createWindow(): void {
   } else {
     void win.loadFile(join(__dirname, '../renderer/index.html'));
   }
+
+  if (captureDir) void runCapture(win, captureDir);
 }
 
 function registerIpc(session: AuthSession): void {

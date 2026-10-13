@@ -4,9 +4,11 @@ import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-qu
 import { App } from './App';
 import { ApiError } from './lib/api';
 import { refreshAuth } from './lib/auth';
+import { initChrome } from './lib/chrome';
 import { initTheme } from './lib/theme';
 import './index.css';
 
+void initChrome();
 initTheme();
 
 const queryClient = new QueryClient({

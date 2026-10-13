@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { HealthResponse } from '@nvoke/shared';
-import { IpcChannel, type AppInfo, type AuthState, type NvokeApi } from '../ipc/contract';
+import {
+  IpcChannel,
+  type AppInfo,
+  type AuthState,
+  type NvokeApi,
+  type WindowChrome,
+  type WindowState,
+} from '../ipc/contract';
 
 // The only surface the renderer gets. No raw ipcRenderer, no Node APIs, and
 // never the device token.
@@ -17,6 +24,16 @@ const api: NvokeApi = {
       const handler = (_event: IpcRendererEvent, state: AuthState) => listener(state);
       ipcRenderer.on(IpcChannel.authChanged, handler);
       return () => ipcRenderer.removeListener(IpcChannel.authChanged, handler);
+    },
+  },
+  window: {
+    getChrome: () => ipcRenderer.invoke(IpcChannel.windowGetChrome) as Promise<WindowChrome>,
+    setTheme: (theme) => ipcRenderer.invoke(IpcChannel.windowSetTheme, theme) as Promise<void>,
+    setTitleBarColors: (colors) => ipcRenderer.invoke(IpcChannel.windowSetTitleBarColors, colors) as Promise<void>,
+    onStateChange: (listener) => {
+      const handler = (_event: IpcRendererEvent, state: WindowState) => listener(state);
+      ipcRenderer.on(IpcChannel.windowStateChanged, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.windowStateChanged, handler);
     },
   },
 };
