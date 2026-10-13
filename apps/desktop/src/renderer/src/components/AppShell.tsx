@@ -69,7 +69,7 @@ function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen:
         onClick={onOpen}
         aria-label="Search or jump to"
         className={cn(
-          'glass pointer-events-auto flex h-9 items-center gap-2.5 rounded-full pr-2 pl-3.5 text-sm outline-none',
+          'glass app-no-drag pointer-events-auto flex h-9 items-center gap-2.5 rounded-full pr-2 pl-3.5 text-sm outline-none',
           'transition-[width,background-color,transform] duration-500 ease-spring hover:bg-glass-strong active:scale-[0.98]',
           'focus-visible:ring-[3px] focus-visible:ring-ring/40',
         )}

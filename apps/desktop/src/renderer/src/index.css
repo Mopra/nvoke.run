@@ -128,7 +128,9 @@
 
 /*
  * Drag regions. Anything marked `app-drag` moves the frameless window; every
- * interactive element inside opts out so it still takes clicks.
+ * interactive element inside opts out so it still takes clicks. A control that
+ * floats over a drag region without sitting inside it (the island) needs
+ * `app-no-drag` itself, since Electron hit tests drag regions by geometry.
  */
 @utility app-drag {
   -webkit-app-region: drag;
