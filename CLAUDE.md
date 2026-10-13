@@ -58,15 +58,24 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
 - Desktop bundles every dependency (all are devDependencies), so the packaged
   app ships no `node_modules`. Keep it that way: add renderer and main deps as
   devDependencies.
-- Auth: Clerk is the identity provider. The site sends Clerk session JWTs;
-  the desktop app sends an opaque device token. Both arrive as
-  `Authorization: Bearer` and `src/api/auth.ts` in the server accepts either.
+- Auth: Clerk is the identity provider. The site sends Clerk session JWTs,
+  the desktop app an opaque device token (`nvk_dt_`), scripts and agents an
+  API key (`nvk_sk_`) and MCP clients a Clerk OAuth token. All arrive as
+  `Authorization: Bearer` and `src/api/auth.ts` in the server accepts each.
   Protect a route with `{ preHandler: app.requireAuth }` and read `req.auth`
   (`requireClerkSession` and `requireDeviceSession` narrow it). The
   preHandler also sets `req.userId` and creates the `accounts` row on the
   first authenticated request. The lead routes (`src/api/routes/leads.ts`)
   get `app.requireAuth` as their `authenticate` option and guard with
   `requireUser` (`src/api/user.ts`).
+- API and agents: `packages/shared/src/catalog.ts` lists every endpoint,
+  error code and MCP tool. The server builds `/v1/openapi.json` and the MCP
+  tools (`POST /mcp`, `src/api/routes/mcp.ts`) from it and the site builds
+  `/docs`, `/llms.txt` and `/agents.md` from it. Add a route there when you
+  add it to the server; a test fails on a documented route that does not
+  exist. Agents sign up alone with `POST /v1/agents/signup`
+  (`src/agents/signup.ts`) and the owner claims on the site's `/claim`.
+  Details in `docs/SPEC.md`, "API and agents".
 - `GET /v1/me` returns `MeResponse`: the Clerk profile (`user`), how the
   request authenticated (`via`), and `plan`, `usage` and `maxSearchLimit`
   from `accountSummary()`.

@@ -1,6 +1,6 @@
 # nvoke v1 spec
 
-nvoke is a lead finder sold to paying customers. A native desktop app (Electron) is the only product surface. The user starts a search, the backend on our VPS finds companies, crawls their websites, extracts email addresses and checks that they can receive mail. The user browses, filters and exports the results.
+nvoke is a lead finder sold to paying customers. A native desktop app (Electron) is the main product surface; the same features are open to code and AI agents through a REST API and an MCP server (see "API and agents"). The user starts a search, the backend on our VPS finds companies, crawls their websites, extracts email addresses and checks that they can receive mail. The user browses, filters and exports the results.
 
 ## Search kinds
 
@@ -33,7 +33,9 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 
 ## Data model (Postgres, public schema, RLS enabled with no policies)
 
-- `accounts`: `clerk_user_id` pk, `plan` (a key from `packages/shared/src/plans.ts`, default `free`), `plan_synced_at` (last read from Clerk Billing), `created_at`. Created on first authenticated request.
+- `accounts`: `clerk_user_id` pk, `plan` (a key from `packages/shared/src/plans.ts`, default `free`), `plan_synced_at` (last read from Clerk Billing), `created_by` (`human` | `agent`), `agent_name`, `claimed_at` (null while an agent-created account is unclaimed), `created_at`. Created on first authenticated request, or by agent sign-up.
+- `api_keys`: `id`, `clerk_user_id`, `name`, `key_hash` (sha256, the key is never stored), `prefix` (shown in lists), `origin` (`user` | `agent_signup`), `created_at`, `last_used_at` (written at most once a minute), `revoked_at`.
+- `agent_signups`: one row per sign-up attempt for the rate limits: `ip_hash` (sha256, never the IP), `email_domain`, `clerk_user_id`, `created_at`. Kept 30 days.
 - `searches`: `id` uuid, `clerk_user_id`, `kind`, `params` jsonb, `limit` int, `status` (`queued` | `running` | `done` | `failed` | `canceled`), `error`, counters (`companies_found`, `companies_crawled`, `emails_found`, `emails_valid`, and `source_requests` and `source_cache_hits` from "Source costs"), `created_at`, `started_at`, `finished_at`.
 - `companies`: `id`, `search_id`, `clerk_user_id`, `name`, `domain`, `website`, `source`, `source_ref`, `location`, `phone`, `category`, `crawl_status` (`pending` | `done` | `failed` | `blocked`), `crawled_at`. Unique `(search_id, domain)`.
 - `emails`: `id`, `company_id`, `search_id`, `clerk_user_id`, `address` (lowercase), `kind` (`generic` like info@/contact@, or `personal`), `source_url`, `verification` (`valid` | `invalid` | `risky` | `catch_all` | `unknown`), `checked_at`. Unique `(company_id, address)`.
@@ -59,13 +61,41 @@ Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work
 - `DELETE /v1/searches/:id` deletes it with its companies and emails.
 - `GET /v1/searches/:id/companies?cursor=&verification=&kind=&q=` returns companies with their emails, paginated.
 - `GET /v1/searches/:id/export.csv` returns one row per email: company, domain, website, email, kind, verification, source_url, location, phone.
-- `GET /v1/me` returns user, plan and usage for this period. `?sync=1` re-reads the plan from Clerk Billing first.
+- `GET /v1/me` returns user, plan and usage for this period, how the request authenticated (`via`), the account's origin (`account`) and `billingUrl`. `?sync=1` re-reads the plan from Clerk Billing first.
+- `GET /v1/plans` (public) returns the plan ladder.
+- `GET /v1/api-keys`, `POST /v1/api-keys` with `{ name }`, `DELETE /v1/api-keys/:id`: see "API and agents".
+- `POST /v1/agents/signup` (public, rate limited) and `POST /v1/agents/claim` (Clerk session): see "API and agents".
+- `GET /v1/openapi.json` (public): OpenAPI 3.1 for every route.
 
 - `POST /v1/privacy/opt-out` (public, rate limited) with `{ email }` or `{ domain }` suppresses it at once and deletes matching data. No confirmation step. Always returns `{ ok: true }`, so it cannot be used to test whether nvoke holds an address. Schema in `packages/shared/src/privacy.ts`.
 
-Outside `/v1`: `POST /webhooks/clerk` takes Clerk Billing events (signed with `CLERK_WEBHOOK_SIGNING_SECRET`) and re-reads the paying user's plan.
+Outside `/v1`: `POST /mcp` (the MCP server), `/.well-known/oauth-protected-resource[/mcp]` and `/.well-known/oauth-authorization-server` (OAuth discovery for MCP clients), and `POST /webhooks/clerk` takes Clerk Billing events (signed with `CLERK_WEBHOOK_SIGNING_SECRET`) and re-reads the paying user's plan.
 
 Request and response shapes live as zod schemas in `packages/shared/src/leads.ts` and are the single source of truth for server and desktop. The desktop polls `GET /v1/searches/:id` every 2 seconds while a search is running.
+
+## API and agents
+
+Everything the desktop app does is open to scripts and AI agents. One catalog, `packages/shared/src/catalog.ts`, lists every endpoint (`ENDPOINTS`, with its zod schemas), every error code (`ERROR_CODES`) and every MCP tool (`MCP_TOOLS`). The server builds `GET /v1/openapi.json` and the MCP tool list from it, the site renders `/docs`, `/llms.txt` and `/agents.md` from it, and a test fails when a documented route does not exist.
+
+**Credentials.** Every `/v1` route that needs a user accepts any of: the desktop device token (`nvk_dt_`), an API key (`nvk_sk_`), a Clerk session JWT (the site) or a Clerk OAuth access token (MCP clients). Code: `apps/server/src/api/auth.ts`.
+
+**API keys.** `nvk_sk_` plus 32 random bytes, stored as a sha256 hash with a short display prefix. Made from the desktop Account screen or `POST /v1/api-keys` (any credential, so an agent can rotate its own), shown once, at most 20 live per account, revoked with `DELETE`. Keys have full access to the account; there are no scopes. Code: `apps/server/src/auth/api-keys.ts`.
+
+**Agent sign-up.** `POST /v1/agents/signup` with `{ email, agentName? }` creates an account with no human in the loop (`apps/server/src/agents/signup.ts`):
+
+1. Refuse with 422 `email_not_accepted` a disposable domain, an opted-out address (`suppressions`) or a domain without MX or A records. Refuse with 429 `rate_limited` past 3 attempts per IP an hour, 10 per email domain a day (100 for webmail domains such as gmail.com) or 300 a day overall. Attempts count, not only successes, so the 409 cannot be used to enumerate accounts.
+2. 409 `account_exists` when Clerk already has the address.
+3. Create the Clerk user with the address `reserved` (unverified, but nobody else can take it), no password and legal checks skipped. Insert `accounts` with `created_by = 'agent'`, `claimed_at = null`, and an API key with `origin = 'agent_signup'`. If the database step fails, the Clerk user is deleted again.
+4. Mail the owner one email through Day3 (`CLAIM_EMAIL_FROM`) with a Clerk sign-in ticket in the fragment of `{SITE_URL}/claim#ticket=...`, valid 30 days. A failed email does not fail the sign-up; the response says `claimEmailSent: false`.
+5. Return 201 with the key, `apiBase`, `mcpUrl`, `docsUrl` and `nextSteps`.
+
+The account is on the free plan like any other. Unclaimed, its keys work for 7 days (`UNCLAIMED_ACTIVE_DAYS`), then answer 403 `claim_required`; the worker deletes it with its Clerk user after 30 days (`UNCLAIMED_DELETE_DAYS`, `apps/server/src/agents/purge.ts`).
+
+**Claiming.** The site's `/claim` page redeems the ticket with Clerk, then calls `POST /v1/agents/claim` with `{ acceptTerms: true, keepAgentKeys }`, which sets `claimed_at` and keeps or revokes the agent's key. A person who signs in any other way (the site or the desktop app) proves they own the address too: the first such request claims the account and revokes the agent's sign-up key (`Accounts.humanSignedIn`). So an agent that signed up with someone else's address loses access as soon as the owner shows up, and the owner never inherits a key they did not choose to keep.
+
+**MCP.** `POST /mcp` on the API, Streamable HTTP, stateless, JSON responses; GET and DELETE answer 405 (`apps/server/src/api/routes/mcp.ts`, `@modelcontextprotocol/sdk`). Each tool runs the matching REST route in process (`app.inject`) with the caller's own `Authorization` header, so MCP and REST share auth, quotas and shapes. Tools: `get_account`, `start_search`, `wait_for_search` (polls up to 50 seconds), `get_search`, `list_searches`, `get_leads`, `export_csv`, `cancel_search`, `delete_search`. The server sends `MCP_INSTRUCTIONS` at `initialize`, including the EU consent caveat.
+
+MCP auth is an API key in the bearer header, or OAuth with Clerk as the authorization server: a 401 carries `WWW-Authenticate: Bearer resource_metadata=...`, the protected resource metadata names the Clerk issuer (decoded from `CLERK_PUBLISHABLE_KEY`), and the client registers itself with Clerk (client ID metadata documents or dynamic client registration) and sends the person through Clerk's sign-in, where they can also sign up. OAuth tokens are verified with the Clerk Backend API and cached for a minute.
 
 ## Plans
 
@@ -103,11 +133,11 @@ Brave Search bills every request, while users pay only for valid emails. A web s
 - **Searches** (home): list with status, counters and progress. A "New search" button.
 - **New search**: three tabs (Local businesses, Web search, New launches) with the fields above and a limit.
 - **Search results**: table of companies with their emails and verification badges. Filter by verification and email kind, text search, copy email, open website, export CSV (saved via a native save dialog).
-- **Account**: user, plan, verified email meter, sign out, and Upgrade or Manage billing, which opens `/desktop/billing` on the site.
+- **Account**: user, plan, verified email meter, sign out, Upgrade or Manage billing (opens `/desktop/billing` on the site), and API keys (create, shown once, revoke) with the MCP setup line.
 
 ## Website (nvoke.run)
 
-Landing page that sells the native app ("a lead finder that lives on your desktop"), pricing (one slider over the plan ladder, no feature grid), a `/desktop/billing` page for checkout, download page (Windows, macOS, Linux from the latest GitHub Release), `/bot` page explaining nvokebot and how to block or opt out, `/opt-out` (address or whole domain, calls `POST /v1/privacy/opt-out`), `/privacy` in Danish and English including the Article 14 notice for people whose addresses we collect, and `/terms` with the customer duties listed under "Privacy".
+Landing page that sells the native app ("a lead finder that lives on your desktop"), `/agents` (the API, MCP and agent sign-up), `/docs` (quickstart, `/docs/api` rendered from the catalog, `/docs/mcp`, `/docs/agents`), `/claim` (an agent-created account's owner takes it over; Clerk, like `/desktop`), `/llms.txt` and `/agents.md` (generated from the catalog for agents), pricing (one slider over the plan ladder, no feature grid), a `/desktop/billing` page for checkout, download page (Windows, macOS, Linux from the latest GitHub Release), `/bot` page explaining nvokebot and how to block or opt out, `/opt-out` (address or whole domain, calls `POST /v1/privacy/opt-out`), `/privacy` in Danish and English including the Article 14 notice for people whose addresses we collect, and `/terms` with the customer duties listed under "Privacy".
 
 ## Privacy
 
