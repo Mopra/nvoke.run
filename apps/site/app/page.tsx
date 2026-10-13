@@ -27,7 +27,7 @@ const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCou
 
 const STEPS = [
   {
-    title: 'Say who you want to reach',
+    title: 'Describe the companies you are looking for',
     body: 'Pick a search kind and fill in two fields, for example "dentists" and "Copenhagen". Choose how many companies to look at.',
   },
   {
@@ -35,8 +35,8 @@ const STEPS = [
     body: 'Our servers find the companies, open up to eight pages on each site (home, contact, about, team, imprint) and collect the email addresses published there.',
   },
   {
-    title: 'Export the addresses that work',
-    body: 'Every address is checked with its mail server. Filter to the valid ones, copy them, or save a CSV for your CRM or mail tool.',
+    title: 'Keep the addresses that work',
+    body: 'Every address is checked with its mail server. Filter to the valid ones, copy them, or save a CSV for your CRM.',
   },
 ];
 
@@ -53,7 +53,7 @@ const KINDS = [
   },
   {
     title: 'New launches',
-    body: 'Products launched in the last days or weeks, with an optional keyword. Useful when you sell to startups and want to reach them early.',
+    body: 'Products launched in the last days or weeks, with an optional keyword. Useful when you work with startups and want to find them early.',
     source: 'Sources: Product Hunt and Show HN',
   },
 ];
@@ -86,11 +86,11 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'May I send marketing email to these addresses?',
-    a: 'That depends on where you and the recipient are. In Denmark and much of the EU, unsolicited marketing email usually needs prior consent, also when the recipient is a business. nvoke gives you published contact details. You are responsible for how you use them, so check the rules for your market before you send.',
+    a: 'Not without checking the rules in the recipient’s country first. In Denmark, section 10 of the Marketing Practices Act requires prior consent for marketing email, also to businesses, info@ addresses and employees, and much of the EU is similar. nvoke is a research tool: it tells you who a company is and how it publishes its contact details. It does not give you permission to email anyone, and you are responsible for how you use the results.',
   },
   {
     q: 'What counts toward my monthly limit?',
-    a: `Only addresses whose mailbox check comes back valid, and each address counts once, ever. Invalid, risky, catch-all and unknown results are free. The Free plan includes ${freeEmails} a month. When you reach your limit, a running search stops with no overage charge, and you can upgrade or wait for the next month.`,
+    a: `Only addresses whose mailbox check comes back valid, and each address counts once in any 12 months. Invalid, risky, catch-all and unknown results are free. The Free plan includes ${freeEmails} a month. When you reach your limit, a running search stops with no overage charge, and you can upgrade or wait for the next month.`,
   },
   {
     q: 'Does nvoke send any email?',
@@ -108,12 +108,16 @@ const FAQ: FaqItem[] = [
     q: 'I run a website. How do I keep nvoke off it?',
     a: (
       <>
-        Block <code className="font-mono text-sm text-foreground">nvokebot</code> in your robots.txt, or ask us to add
-        your domain to the opt-out list. The{' '}
+        Block <code className="font-mono text-sm text-foreground">nvokebot</code> in your robots.txt, or opt out your
+        domain or your own address on the{' '}
+        <Link href="/opt-out" className="text-foreground underline underline-offset-4">
+          opt-out page
+        </Link>
+        . It works at once. The{' '}
         <Link href="/bot" className="text-foreground underline underline-offset-4">
           nvokebot page
         </Link>{' '}
-        explains both.
+        explains what the crawler does.
       </>
     ),
   },
@@ -183,7 +187,8 @@ export default function HomePage() {
           <h1 className="mt-8 max-w-4xl text-display font-semibold text-balance">{site.tagline}</h1>
           <p className="mt-6 max-w-2xl text-lede text-pretty text-muted-foreground">
             Search for dentists in Copenhagen, a keyword on the web, or products launched this week. nvoke finds the
-            companies, reads their websites and hands you business email addresses that are checked to receive mail.
+            companies, reads their websites and gives you the contact details they publish, with every email address
+            verified by its mail server.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">
@@ -214,7 +219,7 @@ export default function HomePage() {
         id="how-it-works"
         className="border-t"
         title="How it works"
-        intro="Three steps from a rough idea of your customers to a file of addresses you can use."
+        intro="Three steps from a rough idea of the companies you want to work with to a list of their public contact details."
       >
         <ol className="flex flex-col gap-20 sm:gap-28">
           {STEPS.map((step, i) => (
@@ -301,8 +306,8 @@ export default function HomePage() {
               Every address is checked with its mail server
             </h2>
             <p className="text-lede text-pretty text-muted-foreground">
-              Mail to dead addresses bounces and hurts your sender reputation. nvoke asks each address’s mail server
-              whether the mailbox exists, without sending anything.
+              A published address is not always a working one. nvoke asks each address’s mail server whether the
+              mailbox exists, without sending anything, so you know which details are current.
             </p>
             <dl className="mt-6 flex flex-col">
               {STATUSES.map((s) => (
@@ -357,7 +362,7 @@ export default function HomePage() {
             Run your first search in the next ten minutes.
           </h2>
           <p className="mt-5 max-w-xl text-lede text-pretty text-muted-foreground">
-            Download nvoke, sign in, and search for the companies you want to reach. The Free plan includes{' '}
+            Download nvoke, sign in, and search for the companies you want to work with. The Free plan includes{' '}
             {freeEmails} verified emails a month.
           </p>
           <div className="mt-9 flex flex-wrap justify-center gap-3">

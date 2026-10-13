@@ -33,8 +33,8 @@ export default function TermsPage() {
       <section>
         <h2>2. The service</h2>
         <p>
-          nvoke finds companies from public sources, reads their websites, collects published email addresses and
-          checks whether they can receive mail. We work to make results accurate, but we cannot promise that every
+          nvoke finds companies from public sources, reads their websites, collects the contact details they publish
+          and checks whether the email addresses can receive mail. nvoke does not send email. We work to make results accurate, but we cannot promise that every
           company, address or verification result is complete or correct.
         </p>
         <p>
@@ -53,23 +53,49 @@ export default function TermsPage() {
 
       <section>
         <h2>4. How you may use the results</h2>
-        <p>You are responsible for how you use the data you get from nvoke. In particular you agree to:</p>
+        <p>
+          nvoke is a prospecting research tool. It gives you companies and the contact details they publish. It does
+          not give you permission to contact anyone, and you are responsible for how you use the results. In
+          particular you agree to:
+        </p>
         <ul>
+          <li>use nvoke only for lawful business purposes, and only to research businesses, not consumers;</li>
           <li>
-            follow data protection law, including GDPR, when you store and use the results, and act as an independent
-            controller for that use;
+            follow data protection law, including GDPR, when you store and use the results, as an independent
+            controller for that use, including telling people where you got their details when the law requires it;
           </li>
           <li>
-            follow the rules on electronic marketing that apply to you and the recipient, such as section 10 of the
-            Danish Marketing Practices Act, which in most cases requires prior consent for marketing email;
+            follow the rules on electronic marketing in the recipient’s country, not only in yours, before you contact
+            anyone;
+          </li>
+          <li>
+            for recipients in Denmark, follow section 10 of the Danish Marketing Practices Act (Markedsføringsloven).
+            It requires prior consent for marketing by email, also when the recipient is a business, a generic address
+            like info@ or a named employee, and an email that asks for consent counts as marketing too;
+          </li>
+          <li>
+            honour every objection and opt-out you receive, at once, and never contact people or domains that nvoke
+            has suppressed or that have objected to you;
+          </li>
+          <li>
+            not use the results to profile people based on special categories of data, such as health, religion,
+            ethnic origin, political views or sexual orientation;
           </li>
           <li>not use nvoke to send spam, to harass anyone, or for any unlawful purpose;</li>
-          <li>not resell the results as a list or database product;</li>
+          <li>not resell the results as a list or database product, or share them outside your own business;</li>
           <li>
             not try to get around plan limits, overload the service, or reverse engineer it beyond what the law allows.
           </li>
         </ul>
-        <p>We may suspend accounts that break these rules.</p>
+        <p>
+          Search results are deleted from nvoke 12 months after the search ran. Results may also disappear earlier when
+          a person or domain opts out. Delete exported copies when you no longer need them.
+        </p>
+        <p>
+          We may suspend or close accounts that break these rules or that we reasonably suspect of abuse, and we may
+          tell the authorities when the law requires it. You are responsible for claims that arise from your use of the
+          results.
+        </p>
       </section>
 
       <section>
@@ -112,9 +138,21 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>9. Personal data</h2>
+        <h2>9. Personal data and roles</h2>
         <p>
-          How we handle personal data is described in our <Link href="/privacy">privacy policy</Link>.
+          <strong>nvoke is the controller</strong> for collecting company data and contact details from public sources,
+          for classifying and verifying them, for the shared cache of generic addresses, for the opt-out list, and for
+          your account data.
+        </p>
+        <p>
+          <strong>You are an independent controller</strong> for your own use of the results: what you store, export,
+          combine with other data and do with it. We do not process the results on your behalf, so there is no data
+          processing agreement between us for them. Each of us is responsible for our own part.
+        </p>
+        <p>
+          If someone asks you about data you got from nvoke, you may tell them it came from nvoke and point them to our{' '}
+          <Link href="/opt-out">opt-out page</Link>. How we handle personal data is described in our{' '}
+          <Link href="/privacy">privacy policy</Link>.
         </p>
       </section>
 

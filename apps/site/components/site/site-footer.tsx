@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-12 sm:px-6 md:flex-row md:items-start md:justify-between">
         <div className="flex max-w-xs flex-col gap-3">
           <Logo className="text-foreground" />
-          <p>A lead finder for Windows, macOS and Linux. Made in {site.company.country}.</p>
+          <p>Prospecting research for Windows, macOS and Linux. Made in {site.company.country}.</p>
           <a
             href={`mailto:${site.email.hello}`}
             className="w-fit font-mono text-xs underline-offset-4 hover:text-foreground hover:underline"

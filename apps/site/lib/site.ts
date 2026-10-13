@@ -2,7 +2,7 @@ export const site = {
   name: 'nvoke',
   tagline: 'A lead finder that lives on your desktop.',
   description:
-    'nvoke is a desktop app for Windows, macOS and Linux. It finds companies, reads their websites and gives you business email addresses that are checked to receive mail.',
+    'nvoke is a prospecting research app for Windows, macOS and Linux. It finds companies and the contact details they publish on their own websites, and verifies each address with its mail server.',
   url: process.env['NEXT_PUBLIC_SITE_URL'] ?? 'https://nvoke.run',
   botUserAgent: 'nvokebot/1.0 (+https://nvoke.run/bot)',
   email: {
@@ -10,8 +10,10 @@ export const site = {
     privacy: 'privacy@nvoke.run',
     bot: 'bot@nvoke.run',
   },
-  // Placeholder company details for the legal pages. Fill in before launch.
-  // Fields left as null are not shown.
+  // Placeholder company details for the legal pages. Fields left as null are
+  // not shown.
+  // TODO(owner): fill in the registered legal entity name, CVR number and
+  // postal address before launch. The privacy policy and terms need all three.
   company: {
     legalName: 'nvoke ApS',
     cvr: null as string | null,
@@ -31,5 +33,6 @@ export const footerNav = [
   { href: '/download', label: 'Download' },
   { href: '/bot', label: 'nvokebot' },
   { href: '/privacy', label: 'Privacy' },
+  { href: '/opt-out', label: 'Opt out' },
   { href: '/terms', label: 'Terms' },
 ];

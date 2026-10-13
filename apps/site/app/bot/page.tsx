@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { OptOutForm } from '@/components/site/opt-out-form';
 import { Container, PageHeader } from '@/components/site/section';
 import { site } from '@/lib/site';
@@ -7,15 +8,15 @@ import { site } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'nvokebot',
   description:
-    'nvokebot is the crawler behind nvoke. What it visits, what it collects, and how to block it with robots.txt or our opt-out list.',
+    'nvokebot is the crawler behind nvoke. What it visits, what it collects, and how to block it with robots.txt or opt out your domain at once.',
   alternates: { canonical: '/bot' },
 };
 
 const FACTS = [
   { label: 'User agent', value: site.botUserAgent, mono: true },
   { label: 'Pages per site', value: 'At most 8, and at most 2 MB in total' },
-  { label: 'Speed', value: 'At most 1 request per second to your domain' },
-  { label: 'robots.txt', value: 'Read before the first request and followed' },
+  { label: 'Speed', value: 'At most 1 request per second to your site, slower with Crawl-delay' },
+  { label: 'robots.txt', value: 'Read before the first request and followed for User-agent: nvokebot' },
 ];
 
 const BLOCK_ALL = `User-agent: nvokebot
@@ -68,54 +69,86 @@ export default function BotPage() {
 
         <Block title="Why it visited">
           <p>
-            nvoke helps businesses find contact details of other businesses. When a customer runs a search and your
-            company is in the results, for example because it is listed on OpenStreetMap or shows up in a web search,
-            nvokebot visits your website to find the email addresses published there.
+            nvoke is a prospecting research tool: it helps businesses find other companies and the contact details those
+            companies publish. When a customer runs a search and your company is in the results, for example because it
+            is listed on OpenStreetMap, shows up in a web search or launched on Product Hunt or Show HN, nvokebot visits
+            your website to find the contact details published there.
           </p>
           <p>
-            It does not crawl the web at large. It only visits sites that came up in a customer search.
+            It does not crawl the web at large. It only visits sites that came up in a customer search. For 90 days
+            after a visit, other searches that find your company reuse what it found. A search after that visits again
+            and drops addresses that are gone.
           </p>
         </Block>
 
         <Block title="What it reads">
           <p>
-            The home page and up to seven pages that usually hold contact details: contact, about, team, imprint,
-            privacy and legal pages. It stops at eight pages or 2 MB per site, whichever comes first.
+            The home page and up to seven pages that usually hold contact details: contact, about, team, imprint
+            (impressum), privacy and legal pages. It stops at eight pages or 2 MB per site, whichever comes first.
           </p>
           <p>
-            From those pages it keeps <strong>email addresses</strong> and the URL where each one was found. It does
-            not log in, submit forms or read pages that robots.txt disallows. nvoke never sends email to the addresses
-            it finds.
+            From those pages it keeps <strong>email addresses</strong>, the URL where each one was found and when it was
+            seen. The privacy policy explains what happens to them and how long they are kept.
           </p>
         </Block>
 
+        <Block title="What it never does">
+          <ul className="flex list-disc flex-col gap-1.5 pl-5">
+            <li>Log in, create accounts or submit forms.</li>
+            <li>Solve or get around CAPTCHAs, paywalls or other access controls.</li>
+            <li>Fetch pages that robots.txt disallows.</li>
+            <li>Send more than one request per second to your site, or more often than your Crawl-delay allows.</li>
+            <li>Send email. The mailbox check talks to your mail server and stops before a message would be sent.</li>
+          </ul>
+        </Block>
+
         <Block title="Block it with robots.txt">
-          <p>nvokebot reads your robots.txt before it fetches anything else. To keep it off your whole site:</p>
+          <p>
+            nvokebot reads your robots.txt before it fetches anything else and checks every page against it. To keep it
+            off your whole site:
+          </p>
           <Code>{BLOCK_ALL}</Code>
           <p>To keep it out of certain folders only:</p>
           <Code>{BLOCK_SOME}</Code>
           <p>
-            A rule for <strong>User-agent: *</strong> applies to nvokebot too, unless there is a more specific
-            nvokebot group.
+            A rule for <strong>User-agent: *</strong> applies to nvokebot too, unless there is a more specific nvokebot
+            group. A <strong>Crawl-delay</strong> line slows it down further, up to one request
+            every 10 seconds. If robots.txt cannot be fetched because your server errors or times out, nvokebot fetches
+            nothing else.
           </p>
         </Block>
 
-        <Block title="Ask to be left out">
+        <Block title="Opt out your domain">
           <p>
-            If you cannot change robots.txt, send us your domain. We put it on our opt-out list and nvokebot stops
-            visiting it. You can also write directly to{' '}
+            Enter your domain below. It works <strong>at once</strong> and needs no confirmation: we delete every address
+            we hold on the domain and its subdomains, remove them from customers’ results, and nvokebot stops visiting
+            the site. We keep only a one-way hash of the domain so we can keep honouring it.
+          </p>
+          <OptOutForm defaultKind="domain" />
+          <p>
+            To remove a single email address instead, use the same form or the{' '}
+            <Link href="/opt-out" className="text-foreground underline underline-offset-4">
+              opt-out page
+            </Link>
+            . The{' '}
+            <Link href="/privacy" className="text-foreground underline underline-offset-4">
+              privacy policy
+            </Link>{' '}
+            explains your rights.
+          </p>
+        </Block>
+
+        <Block title="Contact">
+          <p>
+            Questions about the crawler, or a problem with how it behaved on your site: write to{' '}
             <a href={`mailto:${site.email.bot}`} className="text-foreground underline underline-offset-4">
               {site.email.bot}
             </a>
-            .
-          </p>
-          <OptOutForm to={site.email.bot} />
-          <p>
-            If your own email address appears in nvoke results and you want it removed, write to{' '}
+            . Requests about personal data go to{' '}
             <a href={`mailto:${site.email.privacy}`} className="text-foreground underline underline-offset-4">
               {site.email.privacy}
             </a>
-            . The privacy policy explains your rights.
+            , and we answer within one month.
           </p>
         </Block>
       </Container>

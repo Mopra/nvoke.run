@@ -87,7 +87,7 @@ export default function OpengraphImage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
             <div style={{ fontSize: 66, fontWeight: 600, lineHeight: 1.02, letterSpacing: -2.2 }}>{site.tagline}</div>
             <div style={{ fontSize: 25, lineHeight: 1.35, color: t.get('muted-foreground') }}>
-              Verified business emails. Windows, macOS and Linux.
+              Companies and their public contact details, verified. Windows, macOS and Linux.
             </div>
           </div>
         </div>
