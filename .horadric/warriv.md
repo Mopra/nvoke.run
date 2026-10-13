@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-13 Round after the fourth SQLite merge fix landed (f749f19): 7 running, nothing blocked, nothing to do.
 - 2026-10-13 Third SQLite merge fix conflicted too (contract.ts, preload). Fourth fix-up already running: gave it sonnet, told it to keep both sides and merge main as its very last step.
 - 2026-10-13 Round after the CSV drop merge fix landed (e1a8d2c): gave the third SQLite fix-up sonnet; 7 running, 1 waiting on it, nothing else to do.
 - 2026-10-13 Woke with a cut-off message that named no event; quest list unchanged since the last round, both blocked quests still wait on running merge fixes. Nothing to settle.
@@ -33,4 +34,4 @@
 - Check the notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
 - Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
-- Check the fourth local SQLite merge fix ("Fix the merge of fix-the-merge-of-fix-the-merge-of-fix-the") lands; if it conflicts a fifth time, hand it to the human (ask them to pause other desktop quests while it lands). Its screens were only checked offscreen, never with capture.
+- Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
