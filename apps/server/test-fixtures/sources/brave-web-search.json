@@ -1,0 +1,56 @@
+{
+  "type": "search",
+  "query": {
+    "original": "industrial design studio copenhagen",
+    "more_results_available": false
+  },
+  "mixed": { "type": "mixed", "main": [] },
+  "web": {
+    "type": "search",
+    "family_friendly": true,
+    "results": [
+      {
+        "title": "Kibisi Studio | Industrial design from Copenhagen",
+        "url": "https://www.kibisi-studio.dk/en/",
+        "description": "An industrial design studio in Copenhagen working with furniture and products.",
+        "profile": { "name": "Kibisi Studio" },
+        "meta_url": { "scheme": "https", "netloc": "kibisi-studio.dk", "hostname": "www.kibisi-studio.dk" }
+      },
+      {
+        "title": "Industrial design - Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Industrial_design",
+        "description": "Industrial design is a process of design applied to physical products.",
+        "profile": { "name": "Wikipedia" },
+        "meta_url": { "hostname": "en.wikipedia.org" }
+      },
+      {
+        "title": "Form Lab ApS - Product design and engineering",
+        "url": "https://formlab.example-design.dk/about?utm_source=brave",
+        "description": "Product design and engineering for startups.",
+        "meta_url": { "hostname": "formlab.example-design.dk" }
+      },
+      {
+        "title": "The 10 best industrial design studios in Copenhagen (2026)",
+        "url": "https://www.linkedin.com/pulse/best-industrial-design-studios-copenhagen",
+        "description": "A list of studios.",
+        "profile": { "name": "LinkedIn" },
+        "meta_url": { "hostname": "www.linkedin.com" }
+      },
+      {
+        "title": "Nordic Shape",
+        "url": "https://nordicshape.dk",
+        "description": "Danish design studio.",
+        "meta_url": { "hostname": "nordicshape.dk" }
+      },
+      {
+        "title": "Kibisi Studio, contact",
+        "url": "https://kibisi-studio.dk/en/contact",
+        "description": "Get in touch.",
+        "meta_url": { "hostname": "kibisi-studio.dk" }
+      },
+      {
+        "title": "broken result without url"
+      }
+    ]
+  }
+}
