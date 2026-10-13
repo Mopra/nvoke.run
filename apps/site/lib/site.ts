@@ -23,12 +23,15 @@ export const site = {
 export const nav = [
   { href: '/#how-it-works', label: 'How it works' },
   { href: '/pricing', label: 'Pricing' },
-  { href: '/bot', label: 'nvokebot' },
+  { href: '/agents', label: 'Agents' },
+  { href: '/docs', label: 'Docs' },
 ];
 
 export const footerNav = [
   { href: '/pricing', label: 'Pricing' },
   { href: '/download', label: 'Download' },
+  { href: '/agents', label: 'Agents' },
+  { href: '/docs', label: 'Docs' },
   { href: '/bot', label: 'nvokebot' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/opt-out', label: 'Opt out' },

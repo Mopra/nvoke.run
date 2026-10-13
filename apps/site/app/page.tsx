@@ -331,6 +331,25 @@ export default function HomePage() {
         </Container>
       </section>
 
+      <section id="agents" aria-labelledby="agents-title" className="py-24 sm:py-36">
+        <Container className="flex max-w-4xl flex-col items-center gap-6 text-center">
+          <h2 id="agents-title" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">
+            Or let your agent do it
+          </h2>
+          <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
+            A REST API and an MCP server with everything the app does. Your agent can even sign you up on its own.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <Button asChild size="lg" variant="glass">
+              <Link href="/agents">nvoke for agents</Link>
+            </Button>
+            <Button asChild size="lg" variant="ghost">
+              <Link href="/docs">Docs</Link>
+            </Button>
+          </div>
+        </Container>
+      </section>
+
       <Section
         id="pricing"
         title="Pay for emails that work"

@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeScript />
+        <link rel="alternate" type="text/markdown" href="/agents.md" title="nvoke for agents" />
       </head>
       <body className="flex min-h-dvh flex-col">
         <SiteHeader />
