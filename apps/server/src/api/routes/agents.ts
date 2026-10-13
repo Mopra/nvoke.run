@@ -1,10 +1,11 @@
 // Agent sign-up and claiming (docs/SPEC.md, "API and agents").
 //
 //   POST /v1/agents/signup  (public)          -> account + API key, claim email to the owner
+//   GET  /v1/agents/claim   (Clerk session)   -> the account as the claim page shows it, claims nothing
 //   POST /v1/agents/claim   (Clerk session)   -> the owner takes the account over
 
 import type { FastifyInstance } from 'fastify';
-import { AgentSignupRequest, ClaimRequest, type ClaimResponse } from '@nvoke/shared';
+import { AgentSignupRequest, ClaimRequest, type ClaimResponse, type ClaimStatusResponse } from '@nvoke/shared';
 import { agentSignup, type SignupDeps } from '../../agents/signup.js';
 import { claimAccount } from '../../leads/accounts.js';
 import { accountSummary } from '../../leads/quota.js';
@@ -24,6 +25,12 @@ export async function agentRoutes(app: FastifyInstance, opts: Omit<SignupDeps, '
     const result = await agentSignup({ ...opts, log: req.log }, body.data, req.ip);
     if (!result.ok) return reply.code(result.status).send({ error: result.error });
     return reply.code(201).header('cache-control', 'no-store').send(result.response);
+  });
+
+  app.get('/claim', { preHandler: app.requireClerkSession, config: { claimRoute: true } }, async (req) => {
+    const summary = await accountSummary(opts.getSql(), req.auth!.userId);
+    const res: ClaimStatusResponse = { account: summary.account };
+    return res;
   });
 
   app.post('/claim', { preHandler: app.requireClerkSession, config: { claimRoute: true } }, async (req, reply) => {

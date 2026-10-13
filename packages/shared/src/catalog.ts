@@ -6,6 +6,7 @@ import {
   ApiKeyListResponse,
   ClaimRequest,
   ClaimResponse,
+  ClaimStatusResponse,
   CreateApiKeyRequest,
   CreateApiKeyResponse,
 } from './agents.ts';
@@ -231,6 +232,18 @@ export const ENDPOINTS: Endpoint[] = [
     response: AgentSignupResponse,
     errors: ['invalid_request', 'account_exists', 'email_not_accepted', 'rate_limited', 'signup_unavailable'],
     example: { email: 'ada@example.com', agentName: 'Claude' },
+  },
+  {
+    id: 'getClaim',
+    method: 'GET',
+    path: '/v1/agents/claim',
+    group: 'Agents',
+    summary: 'Read an account before claiming it',
+    description: 'Called by the claim page on nvoke.run: who created the account and whether it is claimed. Unlike every other signed-in request, it does not claim the account.',
+    auth: 'session',
+    status: 200,
+    response: ClaimStatusResponse,
+    errors: [],
   },
   {
     id: 'claimAccount',

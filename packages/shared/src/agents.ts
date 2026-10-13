@@ -121,6 +121,12 @@ export const AccountOrigin = z.object({
 });
 export type AccountOrigin = z.infer<typeof AccountOrigin>;
 
+/** `GET /v1/agents/claim` (Clerk session): what the claim page shows before the owner chooses. Claims nothing. */
+export const ClaimStatusResponse = z.object({
+  account: AccountOrigin,
+});
+export type ClaimStatusResponse = z.infer<typeof ClaimStatusResponse>;
+
 export const ClaimResponse = z.object({
   account: AccountOrigin,
   /** Agent keys revoked by this claim. */

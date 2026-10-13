@@ -142,6 +142,10 @@ describe('agent sign-up', () => {
 
   it('lets the owner claim and keep the agent key', async () => {
     const { apiKey } = AgentSignupResponse.parse((await signup({ email: 'ada@acme.test', agentName: 'Claude' })).json());
+    // Reading the account on the claim page claims nothing.
+    const status = await app.inject({ method: 'GET', url: '/v1/agents/claim', headers: bearer(OWNER_JWT) });
+    expect(status.json()).toEqual({ account: { createdBy: 'agent', agentName: 'Claude', claimedAt: null } });
+    expect((await app.inject({ method: 'GET', url: '/v1/me', headers: bearer(apiKey) })).statusCode).toBe(200);
     const claim = await app.inject({
       method: 'POST',
       url: '/v1/agents/claim',

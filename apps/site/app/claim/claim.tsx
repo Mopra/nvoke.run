@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { SignIn, useAuth, useClerk, useSignIn, useUser } from '@clerk/nextjs';
-import { ClaimResponse } from '@nvoke/shared';
+import { ClaimResponse, ClaimStatusResponse, type AccountOrigin } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
@@ -13,9 +13,21 @@ type Phase =
   | { kind: 'signing-in' }
   | { kind: 'no-ticket' }
   | { kind: 'ticket-failed' }
-  | { kind: 'choose'; error?: string }
-  | { kind: 'claiming'; keep: boolean }
+  | { kind: 'loading' }
+  | { kind: 'load-failed'; error: string }
+  | { kind: 'human' }
+  | { kind: 'choose'; account: AccountOrigin; error?: string }
+  | { kind: 'claiming'; account: AccountOrigin; keep: boolean }
   | { kind: 'done'; result: ClaimResponse; keep: boolean; alreadyClaimed: boolean };
+
+/** What fetch throws on a dead network, in words. */
+function failure(err: unknown): string {
+  return err instanceof TypeError
+    ? 'Couldn’t reach our server. Check your connection and try again.'
+    : err instanceof Error
+      ? err.message
+      : String(err);
+}
 
 /** Reads the ticket from `#ticket=...` and drops it from the address bar at once. */
 function takeTicket(): string | null {
@@ -27,10 +39,11 @@ function takeTicket(): string | null {
 
 /**
  * The link in the claim email lands here. It signs the owner in with the
- * Clerk ticket in the fragment, then POST /v1/agents/claim records the claim
- * and keeps or revokes the agent's key. Nothing else calls the API from this
- * page: any other signed-in request would claim the account on its own and
- * revoke the agent's key before the owner chose.
+ * Clerk ticket in the fragment, reads the account with GET /v1/agents/claim,
+ * then POST /v1/agents/claim records the claim and keeps or revokes the
+ * agent's key. Only these two routes are called from this page: any other
+ * signed-in request would claim the account on its own and revoke the
+ * agent's key before the owner chose.
  */
 export function Claim() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -40,13 +53,31 @@ export function Claim() {
   const [phase, setPhase] = useState<Phase>({ kind: 'start' });
   const started = useRef(false);
 
+  /** Reads who made the account and whether it is claimed. Claims nothing. */
+  const load = useCallback(async () => {
+    setPhase({ kind: 'loading' });
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session expired. Open the link from the email again.');
+      const res = await fetch(`${apiUrl}/v1/agents/claim`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`The server said no (${res.status}). Try again.`);
+      const { account } = ClaimStatusResponse.parse(await res.json());
+      if (account.createdBy === 'human') setPhase({ kind: 'human' });
+      else if (account.claimedAt) setPhase({ kind: 'done', result: { account, revokedKeys: 0 }, keep: true, alreadyClaimed: true });
+      else setPhase({ kind: 'choose', account });
+    } catch (err) {
+      setPhase({ kind: 'load-failed', error: failure(err) });
+    }
+  }, [getToken]);
+
   useEffect(() => {
     if (!isLoaded || started.current) return;
     started.current = true;
     const ticket = takeTicket();
     void (async () => {
       if (!ticket) {
-        setPhase({ kind: isSignedIn ? 'choose' : 'no-ticket' });
+        if (isSignedIn) void load();
+        else setPhase({ kind: 'no-ticket' });
         return;
       }
       setPhase({ kind: 'signing-in' });
@@ -58,13 +89,13 @@ export function Claim() {
         return;
       }
       await signIn.finalize();
-      setPhase({ kind: 'choose' });
+      void load();
     })();
-  }, [isLoaded, isSignedIn, signIn, signOut]);
+  }, [isLoaded, isSignedIn, signIn, signOut, load]);
 
   const claim = useCallback(
-    async (keep: boolean) => {
-      setPhase({ kind: 'claiming', keep });
+    async (account: AccountOrigin, keep: boolean) => {
+      setPhase({ kind: 'claiming', account, keep });
       try {
         const token = await getToken();
         if (!token) throw new Error('Your session expired. Open the link from the email again.');
@@ -75,18 +106,9 @@ export function Claim() {
         });
         if (!res.ok) throw new Error(`The server said no (${res.status}). Try again.`);
         const result = ClaimResponse.parse(await res.json());
-        // A claim from more than a minute ago means this account was claimed before.
-        const claimedAt = result.account.claimedAt ? Date.parse(result.account.claimedAt) : Date.now();
-        setPhase({ kind: 'done', result, keep, alreadyClaimed: Date.now() - claimedAt > 60_000 });
+        setPhase({ kind: 'done', result, keep, alreadyClaimed: false });
       } catch (err) {
-        // fetch throws a TypeError when the server is unreachable.
-        const message =
-          err instanceof TypeError
-            ? 'Couldn’t reach our server. Check your connection and try again.'
-            : err instanceof Error
-              ? err.message
-              : String(err);
-        setPhase({ kind: 'choose', error: message });
+        setPhase({ kind: 'choose', account, error: failure(err) });
       }
     },
     [getToken],
@@ -95,11 +117,30 @@ export function Claim() {
   if (phase.kind === 'start' || phase.kind === 'signing-in' || !isLoaded) {
     return <p className="text-sm text-muted-foreground">Signing you in...</p>;
   }
+  if (phase.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your account...</p>;
+
+  if (phase.kind === 'load-failed') {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <p className="text-sm text-destructive">{phase.error}</p>
+        <Button variant="secondary" onClick={() => void load()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
   if (phase.kind === 'no-ticket' || phase.kind === 'ticket-failed') {
+    // Signed in through the form below: carry on with that account.
     if (isSignedIn) {
-      if (user && user.publicMetadata['createdBy'] !== 'agent') return <NothingToClaim who={who(user)} />;
-      return <Choose who={who(user)} phase={{ kind: 'choose' }} onClaim={claim} />;
+      return (
+        <div className="flex flex-col items-center gap-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Signed in as <span className="font-mono text-foreground">{who(user)}</span>.
+          </p>
+          <Button onClick={() => void load()}>Continue</Button>
+        </div>
+      );
     }
     return (
       <div className="flex w-full flex-col items-center gap-8">
@@ -119,11 +160,9 @@ export function Claim() {
   }
 
   if (phase.kind === 'done') return <Done phase={phase} />;
+  if (phase.kind === 'human') return <NothingToClaim who={who(user)} />;
 
-  // Agent sign-up marks the Clerk user. Anyone else has nothing to claim.
-  if (user && user.publicMetadata['createdBy'] !== 'agent') return <NothingToClaim who={who(user)} />;
-
-  return <Choose who={who(user)} phase={phase} onClaim={claim} />;
+  return <Choose who={who(user)} phase={phase} onClaim={(keep) => void claim(phase.account, keep)} />;
 }
 
 function NothingToClaim({ who }: { who: string }) {
@@ -168,7 +207,8 @@ function Choose({
       <CardHeader>
         <CardTitle className="text-2xl tracking-[-0.025em]">Claim your nvoke account</CardTitle>
         <CardDescription className="text-pretty">
-          An AI agent signed you up as <span className="font-mono text-foreground">{who}</span> and got an API key.
+          {phase.account.agentName ? `An AI agent called “${phase.account.agentName}”` : 'An AI agent'} signed you up as{' '}
+          <span className="font-mono text-foreground">{who}</span> and got an API key.
           It can run searches on the free plan. Decide what happens to that key.
         </CardDescription>
       </CardHeader>
