@@ -58,6 +58,11 @@
   --highlight: oklch(1 0 0 / 0.7);
   --scrim: oklch(0.25 0.01 265 / 0.18);
 
+  /* Site extras. The macOS window buttons, drawn in the site's app mockups. */
+  --window-close: oklch(0.69 0.2 25);
+  --window-minimize: oklch(0.83 0.16 82);
+  --window-zoom: oklch(0.76 0.19 145);
+
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --radius: 0.75rem;
@@ -104,6 +109,10 @@
   --shadow-strong: oklch(0 0 0 / 0.5);
   --highlight: oklch(1 0 0 / 0.08);
   --scrim: oklch(0 0 0 / 0.4);
+
+  --window-close: oklch(0.66 0.19 25);
+  --window-minimize: oklch(0.8 0.15 82);
+  --window-zoom: oklch(0.72 0.18 145);
 }
 
 @theme inline {
@@ -144,6 +153,9 @@
   --color-sheen: var(--sheen);
   --color-highlight: var(--highlight);
   --color-scrim: var(--scrim);
+  --color-window-close: var(--window-close);
+  --color-window-minimize: var(--window-minimize);
+  --color-window-zoom: var(--window-zoom);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
