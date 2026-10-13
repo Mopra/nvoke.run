@@ -1,21 +1,36 @@
-import { useEffect, useState } from 'react';
-import type { AuthState } from '../../../ipc/contract';
+import { useEffect, useSyncExternalStore } from 'react';
+import { api } from './api';
+import type { AuthState } from './types';
 
-/** Current sign-in state from the main process, kept live through the bridge. */
-export function useAuthState(): AuthState | null {
-  const [state, setState] = useState<AuthState | null>(null);
+/**
+ * Auth state as a tiny external store. `undefined` until the first answer from
+ * the transport. The bridge pushes changes (browser sign-in finished, session
+ * expired) through `onAuthChange`.
+ */
+let current: AuthState | undefined;
+const listeners = new Set<() => void>();
 
+function set(next: AuthState): void {
+  current = next;
+  for (const l of listeners) l();
+}
+
+export function refreshAuth(): void {
+  api
+    .getAuthState()
+    .then(set)
+    .catch(() => set({ status: 'signed-out' }));
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function useAuth(): AuthState | undefined {
   useEffect(() => {
-    let active = true;
-    const off = window.nvoke.auth.onChange((next) => setState(next));
-    void window.nvoke.auth.getState().then((initial) => {
-      if (active) setState((current) => current ?? initial);
-    });
-    return () => {
-      active = false;
-      off();
-    };
+    refreshAuth();
+    return api.onAuthChange(set);
   }, []);
-
-  return state;
+  return useSyncExternalStore(subscribe, () => current);
 }

@@ -13,4 +13,27 @@
   #root {
     @apply h-full bg-background text-foreground font-sans antialiased;
   }
+  html {
+    font-size: 15px;
+  }
+  body {
+    /* Desktop apps do not select chrome text on drag; inputs and tables opt back in. */
+    user-select: none;
+    cursor: default;
+  }
+  input,
+  textarea,
+  [data-selectable] {
+    user-select: text;
+  }
+}
+
+/* Queued searches: a short block sliding across the progress track. */
+@keyframes nvoke-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
 }

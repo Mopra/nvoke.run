@@ -1,0 +1,73 @@
+import { cn } from '@/lib/utils';
+import { STATUS_LABEL, VERIFICATION_HINT, VERIFICATION_LABEL } from '@/lib/format';
+import type { SearchStatus, Verification } from '@/lib/types';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+/** Dot colors per verification result. Theme tokens only. */
+export const VERIFICATION_DOT: Record<Verification, string> = {
+  valid: 'bg-chart-1',
+  catch_all: 'bg-chart-3',
+  risky: 'bg-chart-2',
+  invalid: 'bg-destructive',
+  unknown: 'bg-muted-foreground/40',
+};
+
+export function VerificationBadge({ value, pending = false }: { value: Verification; pending?: boolean }) {
+  const label = pending ? 'Checking' : VERIFICATION_LABEL[value];
+  const hint = pending ? 'nvoke is checking whether this address receives mail.' : VERIFICATION_HINT[value];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            'inline-flex h-5 shrink-0 cursor-default items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium',
+            value === 'invalid' && !pending ? 'text-muted-foreground line-through decoration-1' : 'text-foreground/80',
+          )}
+        >
+          <span
+            className={cn(
+              'size-1.5 rounded-full',
+              pending ? 'bg-muted-foreground/50 motion-safe:animate-pulse' : VERIFICATION_DOT[value],
+            )}
+          />
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{hint}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const STATUS_DOT: Record<SearchStatus, string> = {
+  queued: 'bg-muted-foreground/50',
+  running: 'bg-ring',
+  done: 'bg-chart-1',
+  failed: 'bg-destructive',
+  canceled: 'bg-muted-foreground/40',
+};
+
+export function StatusDot({ status, className }: { status: SearchStatus; className?: string }) {
+  const live = status === 'running' || status === 'queued';
+  return (
+    <span className={cn('relative inline-flex size-2 shrink-0', className)}>
+      {live && (
+        <span
+          className={cn(
+            'absolute inset-0 rounded-full opacity-60 motion-safe:animate-ping',
+            STATUS_DOT[status],
+          )}
+        />
+      )}
+      <span className={cn('relative inline-flex size-2 rounded-full', STATUS_DOT[status])} />
+    </span>
+  );
+}
+
+export function StatusLabel({ status }: { status: SearchStatus }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <StatusDot status={status} />
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
