@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 Third notifications merge fix conflicted too (contract, main, preload, api, bridge, mock, types, Account, SPEC). Fourth fix-up already running: gave it sonnet, told it to keep both sides and merge newest main last.
 - 2026-10-14 Round after the watched inbox merge fix landed (7c41ce0): 6 running, nothing blocked, nothing to do.
 - 2026-10-14 Local lead search quest stopped again, still only waiting on its queued tests; no new message sent.
 - 2026-10-14 Local lead search quest stopped only to wait for tests queued behind the capture check's heavy job; gave it sonnet and told it to finish when they report.
@@ -42,7 +43,7 @@
 
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
-- Check the third notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
+- Check the fourth notifications merge fix lands (if it conflicts again, consider a quest to land it in smaller pieces); the Account notifications switch and badge were never seen on screen either.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
 - Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
 - Local MCP landed (4876049) and /docs/mcp landed (3658b05); its capture check quest is still running. See it lands.
