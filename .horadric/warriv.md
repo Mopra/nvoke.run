@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 OCR grab merge fix conflicted too (contract, capture, main, preload, desktop.ts, SPEC). Second fix-up running: gave it sonnet, told it to keep both sides and merge newest main last.
 - 2026-10-14 macOS Grab test blocked: needs a Mac, left with the human. Filed 'show the real osascript error' (sonnet, after the OCR merge fix) for the one watch point that needs no Mac. Notifications landed (9d23c82, f0613da).
 - 2026-10-14 Round after the front-tab hotkey merge fix landed (be23bea) and the capture check landed (bf05ff2): OCR grab conflicted on merge, gave its fix-up sonnet and told it to keep both sides and merge newest main last; gave the macOS Grab test quest opus.
 - 2026-10-14 Round as the human left: 6 running (two notifications/hotkey merge fixes, OCR grab, local render crawl, local lead search, MCP capture check), all with models, nothing blocked, no aim open. Nothing to do.
