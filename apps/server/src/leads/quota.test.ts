@@ -86,6 +86,7 @@ describe('quota', () => {
       plan: 'emails_20000',
       usage: { period: '2026-10', emailsVerified: 12, emailsLimit: 20_000 },
       maxSearchLimit: 1_000,
+      account: { createdBy: 'human', agentName: null, claimedAt: expect.any(String) },
     });
   });
 });
