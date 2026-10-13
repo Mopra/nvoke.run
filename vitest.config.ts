@@ -9,7 +9,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/src/**/*.test.ts', 'apps/server/src/**/*.test.ts', 'apps/desktop/src/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.ts', 'apps/server/src/**/*.test.ts', 'apps/desktop/src/**/*.test.ts', 'apps/site/lib/**/*.test.ts'],
     environment: 'node',
     passWithNoTests: true,
   },

@@ -31,8 +31,8 @@ export default function OpengraphImage() {
           flexDirection: 'column',
           justifyContent: 'space-between',
           padding: '64px 72px',
-          background: t['sidebar'],
-          color: t['foreground'],
+          background: t.get('sidebar'),
+          color: t.get('foreground'),
           fontFamily: 'Geist',
         }}
       >
@@ -42,7 +42,7 @@ export default function OpengraphImage() {
               width: 44,
               height: 44,
               borderRadius: 10,
-              background: t['primary'],
+              background: t.get('primary'),
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
@@ -50,10 +50,10 @@ export default function OpengraphImage() {
               padding: '0 9px',
             }}
           >
-            <div style={{ height: 5, borderRadius: 3, background: t['primary-foreground'] }} />
+            <div style={{ height: 5, borderRadius: 3, background: t.get('primary-foreground') }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 5, height: 5, borderRadius: 3, background: t['ring'] }} />
-              <div style={{ flex: 1, height: 4, borderRadius: 2, background: t['muted-foreground'] }} />
+              <div style={{ width: 5, height: 5, borderRadius: 3, background: t.get('ring') }} />
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: t.get('muted-foreground') }} />
             </div>
           </div>
           <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: -1 }}>{site.name}</div>
@@ -62,7 +62,7 @@ export default function OpengraphImage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 48 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 640 }}>
             <div style={{ fontSize: 72, fontWeight: 600, lineHeight: 1.02, letterSpacing: -3 }}>{site.tagline}</div>
-            <div style={{ fontSize: 26, color: t['muted-foreground'] }}>
+            <div style={{ fontSize: 26, color: t.get('muted-foreground') }}>
               Verified business emails. Windows, macOS and Linux.
             </div>
           </div>
@@ -72,8 +72,8 @@ export default function OpengraphImage() {
               flexDirection: 'column',
               width: 400,
               borderRadius: 16,
-              border: `1px solid ${t['border']}`,
-              background: t['card'],
+              border: `1px solid ${t.get('border')}`,
+              background: t.get('card'),
               overflow: 'hidden',
             }}
           >
@@ -85,13 +85,13 @@ export default function OpengraphImage() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '18px 22px',
-                  borderTop: i === 0 ? 'none' : `1px solid ${t['border']}`,
+                  borderTop: i === 0 ? 'none' : `1px solid ${t.get('border')}`,
                   fontSize: 20,
                 }}
               >
                 <div style={{ fontFamily: 'Geist Mono', fontSize: 18 }}>{row.email}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16 }}>
-                  <div style={{ width: 9, height: 9, borderRadius: 5, background: t[row.dot] }} />
+                  <div style={{ width: 9, height: 9, borderRadius: 5, background: t.get(row.dot) }} />
                   {row.status}
                 </div>
               </div>
