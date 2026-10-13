@@ -50,6 +50,8 @@ async function main(): Promise<void> {
         applied_at timestamptz not null default now()
       )
     `;
+    // Keep the bookkeeping table out of the Supabase REST API too.
+    await sql`alter table _migrations enable row level security`;
     const applied = new Set((await sql<{ id: string }[]>`select id from _migrations`).map((r) => r.id));
     const pending = all.filter((m) => !applied.has(m.id));
 

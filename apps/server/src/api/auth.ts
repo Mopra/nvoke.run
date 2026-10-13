@@ -1,52 +1,104 @@
 import { verifyToken } from '@clerk/backend';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Env } from '../env.js';
+import { isDeviceToken, resolveDeviceToken } from '../auth/desktop.js';
+import type { DesktopAuthStore } from '../auth/store.js';
 
 export interface AuthContext {
   userId: string;
+  /** `device`: a desktop device token. `clerk`: a Clerk session JWT (the site). */
+  via: 'device' | 'clerk';
+  /** Clerk session id, for `clerk` auth. */
   sessionId: string | null;
+  /** device_sessions.id, for `device` auth. */
+  deviceSessionId: string | null;
 }
+
+type PreHandler = (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 declare module 'fastify' {
   interface FastifyRequest {
     auth: AuthContext | null;
   }
   interface FastifyInstance {
-    /** preHandler that rejects the request unless it carries a valid Clerk session token. */
-    requireAuth: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    /** Accepts a desktop device token or a Clerk session JWT. */
+    requireAuth: PreHandler;
+    /** Accepts only a Clerk session JWT, for routes the site calls in the browser. */
+    requireClerkSession: PreHandler;
+    /** Accepts only a desktop device token. */
+    requireDeviceSession: PreHandler;
   }
 }
 
+/** Verifies a Clerk session JWT and returns its user and session ids. */
+export type ClerkVerifier = (token: string) => Promise<{ userId: string; sessionId: string | null }>;
+
+export function clerkVerifier(env: Env): ClerkVerifier | null {
+  if (!env.CLERK_SECRET_KEY && !env.CLERK_JWT_KEY) return null;
+  return async (token) => {
+    // Local verification when CLERK_JWT_KEY is set, otherwise Clerk's JWKS is
+    // fetched with CLERK_SECRET_KEY and cached by the SDK.
+    const claims = await verifyToken(token, {
+      secretKey: env.CLERK_SECRET_KEY,
+      jwtKey: env.CLERK_JWT_KEY,
+      authorizedParties: env.CLERK_AUTHORIZED_PARTIES.length > 0 ? env.CLERK_AUTHORIZED_PARTIES : undefined,
+      clockSkewInMs: 10_000,
+    });
+    return { userId: claims.sub, sessionId: typeof claims.sid === 'string' ? claims.sid : null };
+  };
+}
+
 /**
- * The desktop app sends its Clerk session token as `Authorization: Bearer <jwt>`.
- * Verification is local when CLERK_JWT_KEY is set, otherwise Clerk's JWKS is
- * fetched with CLERK_SECRET_KEY and cached by the SDK.
+ * Callers send `Authorization: Bearer <token>`. The desktop app sends an opaque
+ * device token (prefix `nvk_dt_`, looked up by sha256 in device_sessions). The
+ * site sends a Clerk session JWT.
  */
-export function registerAuth(app: FastifyInstance, env: Env): void {
+export function registerAuth(
+  app: FastifyInstance,
+  deps: { store: DesktopAuthStore; verifyClerk: ClerkVerifier | null },
+): void {
   app.decorateRequest('auth', null);
 
-  app.decorate('requireAuth', async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!env.CLERK_SECRET_KEY && !env.CLERK_JWT_KEY) {
-      req.log.error('auth is not configured: set CLERK_SECRET_KEY or CLERK_JWT_KEY');
-      return reply.code(503).send({ error: 'auth not configured' });
-    }
-
+  async function authenticate(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    accept: { device: boolean; clerk: boolean },
+  ): Promise<void> {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) {
       return reply.code(401).send({ error: 'missing bearer token' });
     }
+    const token = header.slice('Bearer '.length).trim();
 
+    if (isDeviceToken(token)) {
+      if (!accept.device) return reply.code(401).send({ error: 'device tokens are not accepted here' });
+      const session = await resolveDeviceToken(deps.store, token);
+      if (!session) return reply.code(401).send({ error: 'invalid token' });
+      req.auth = { userId: session.clerkUserId, via: 'device', sessionId: null, deviceSessionId: session.id };
+      return;
+    }
+
+    if (!accept.clerk) return reply.code(401).send({ error: 'a device token is required' });
+    if (!deps.verifyClerk) {
+      req.log.error('auth is not configured: set CLERK_SECRET_KEY or CLERK_JWT_KEY');
+      return reply.code(503).send({ error: 'auth not configured' });
+    }
     try {
-      const claims = await verifyToken(header.slice('Bearer '.length), {
-        secretKey: env.CLERK_SECRET_KEY,
-        jwtKey: env.CLERK_JWT_KEY,
-        authorizedParties: env.CLERK_AUTHORIZED_PARTIES.length > 0 ? env.CLERK_AUTHORIZED_PARTIES : undefined,
-        clockSkewInMs: 10_000,
-      });
-      req.auth = { userId: claims.sub, sessionId: typeof claims.sid === 'string' ? claims.sid : null };
+      const { userId, sessionId } = await deps.verifyClerk(token);
+      req.auth = { userId, via: 'clerk', sessionId, deviceSessionId: null };
     } catch (err) {
       req.log.warn({ err }, 'clerk token verification failed');
       return reply.code(401).send({ error: 'invalid token' });
     }
-  });
+  }
+
+  app.decorate('requireAuth', (req: FastifyRequest, reply: FastifyReply) =>
+    authenticate(req, reply, { device: true, clerk: true }),
+  );
+  app.decorate('requireClerkSession', (req: FastifyRequest, reply: FastifyReply) =>
+    authenticate(req, reply, { device: false, clerk: true }),
+  );
+  app.decorate('requireDeviceSession', (req: FastifyRequest, reply: FastifyReply) =>
+    authenticate(req, reply, { device: true, clerk: false }),
+  );
 }
