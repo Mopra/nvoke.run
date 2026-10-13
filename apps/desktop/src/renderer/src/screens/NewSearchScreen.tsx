@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
+import { CountryPicker } from '@/components/CountryPicker';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { formatNumber, searchTitle, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
 import { useCreateSearch, useMe } from '@/lib/queries';
@@ -12,24 +14,6 @@ import type { SearchInput, SearchKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
-
-const COUNTRIES: [string, string][] = [
-  ['', 'any country'],
-  ['US', 'United States'],
-  ['GB', 'United Kingdom'],
-  ['CA', 'Canada'],
-  ['AU', 'Australia'],
-  ['IE', 'Ireland'],
-  ['DE', 'Germany'],
-  ['FR', 'France'],
-  ['ES', 'Spain'],
-  ['IT', 'Italy'],
-  ['NL', 'Netherlands'],
-  ['SE', 'Sweden'],
-  ['NO', 'Norway'],
-  ['DK', 'Denmark'],
-  ['FI', 'Finland'],
-];
 
 const SOURCES: Record<SearchKind, string> = {
   local: 'Businesses on OpenStreetMap with a website, inside the area you name.',
@@ -153,7 +137,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                   />
                 </Line>
                 <Line lead="in" htmlFor="country">
-                  <SentenceSelect id="country" value={country} onChange={setCountry} options={COUNTRIES} />
+                  <CountryPicker id="country" value={country} onChange={setCountry} triggerClassName={SENTENCE} />
                 </Line>
               </>
             )}
@@ -275,21 +259,25 @@ function SentenceSelect({
   onChange: (value: string) => void;
   options: [string, string][];
 }) {
+  // Radix reserves the empty string for "no value", so "any" stands in for it.
   return (
-    <div className="relative flex items-center">
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(SENTENCE, 'w-full appearance-none pr-10 [&>option]:bg-popover [&>option]:text-base [&>option]:font-normal')}
-      >
+    <Select value={value || ANY} onValueChange={(v) => onChange(v === ANY ? '' : v)}>
+      <SelectTrigger id={id} className={cn(SENTENCE, 'w-full text-left')}>
+        {/* Room for descenders: truncation clips to the line box at this size. */}
+        <span className="min-w-0 flex-1 truncate py-[0.12em]">
+          <SelectValue />
+        </span>
+        <ChevronDown className="size-6 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
+      </SelectTrigger>
+      <SelectContent align="start">
         {options.map(([code, name]) => (
-          <option key={code} value={code}>
+          <SelectItem key={code || ANY} value={code || ANY} className="*:first-letter:uppercase">
             {name}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-1 size-6 text-muted-foreground/60" strokeWidth={1.75} />
-    </div>
+      </SelectContent>
+    </Select>
   );
 }
+
+const ANY = 'any';

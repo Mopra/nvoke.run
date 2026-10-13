@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fakeFetch, fixture, silentLog } from '../../testing/fakes.js';
 import type { FoundCompany, SourceAdapter } from './types.js';
 import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, type ResolvedArea } from './local.js';
-import { nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
+import { braveQuery, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
 import { ALGOLIA_SEARCH, PRODUCT_HUNT_GRAPHQL, hitToCompany, launchesAdapter, parseShowHnTitle, phMatches } from './launches.js';
 import { PermanentError } from './types.js';
 
@@ -127,6 +127,13 @@ describe('web adapter (Brave Search)', () => {
     const url = new URL(fetch.calls[0]!.url);
     expect(url.searchParams.get('q')).toBe('industrial design studio copenhagen');
     expect(url.searchParams.get('country')).toBe('dk');
+  });
+
+  it('scopes to countries Brave supports and names the others in the query', () => {
+    expect(braveQuery({ keyword: 'headless cms' })).toEqual({ q: 'headless cms' });
+    expect(braveQuery({ keyword: 'headless cms', country: 'de' })).toEqual({ q: 'headless cms', country: 'de' });
+    expect(braveQuery({ keyword: 'headless cms', country: 'ie' })).toEqual({ q: 'headless cms Ireland' });
+    expect(braveQuery({ keyword: 'headless cms', country: 'is' })).toEqual({ q: 'headless cms Iceland' });
   });
 
   it('derives a name from the title or the domain', () => {

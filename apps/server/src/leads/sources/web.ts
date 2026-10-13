@@ -15,6 +15,24 @@ const PAGE_SIZE = 20;
 /** Brave accepts offsets 0 to 9. */
 const MAX_PAGES = 10;
 
+/**
+ * The countries Brave can scope results to. Any other country code is
+ * rejected, so for those the country's English name joins the query instead.
+ */
+const BRAVE_COUNTRIES = new Set(
+  'ar au at be br ca cl dk fi fr de hk in id it jp kr my mx nl nz no cn pl pt ph ru sa za es se ch tw tr gb us'.split(' '),
+);
+const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** The query and country parameter for a search, given Brave's country support. */
+export function braveQuery(params: WebSearchParams): { q: string; country?: string } {
+  const country = params.country?.toLowerCase();
+  if (!country) return { q: params.keyword };
+  if (BRAVE_COUNTRIES.has(country)) return { q: params.keyword, country };
+  const name = countryNames.of(country.toUpperCase());
+  return { q: name && name !== country.toUpperCase() ? `${params.keyword} ${name}` : params.keyword };
+}
+
 export interface WebAdapterOptions {
   apiKey: string | undefined;
   fetch?: FetchLike;
@@ -79,11 +97,12 @@ export function webAdapter(opts: WebAdapterOptions): SourceAdapter<WebSearchPara
       }
       for (let page = 0; page < MAX_PAGES; page++) {
         const url = new URL(opts.endpoint ?? BRAVE_ENDPOINT);
-        url.searchParams.set('q', params.keyword);
+        const { q, country } = braveQuery(params);
+        url.searchParams.set('q', q);
         url.searchParams.set('count', String(PAGE_SIZE));
         url.searchParams.set('offset', String(page));
         url.searchParams.set('safesearch', 'moderate');
-        if (params.country) url.searchParams.set('country', params.country);
+        if (country) url.searchParams.set('country', country);
 
         await braveLimiter.wait('brave', ctx.signal);
         const res = await fetchJson<BraveResponse>(url.toString(), {
