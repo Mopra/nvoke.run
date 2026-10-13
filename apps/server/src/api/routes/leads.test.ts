@@ -106,6 +106,23 @@ describe('lead routes', () => {
     expect((await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } })).statusCode).toBe(201);
   });
 
+  it('sizes a domains search by its list, cut by a smaller limit', async () => {
+    const items = ['acme.com', 'https://www.acme.com/contact', 'Pleo', 'linear.app'];
+    const all = Search.parse((await createSearch('alice', { kind: 'domains', params: { items } })).json());
+    expect(all).toMatchObject({ kind: 'domains', params: { items: ['acme.com', 'Pleo', 'linear.app'] }, limit: 3 });
+    const cut = Search.parse((await createSearch('alice', { kind: 'domains', params: { items }, limit: 2 })).json());
+    expect(cut).toMatchObject({ params: { items: ['acme.com', 'Pleo'] }, limit: 2 });
+    expect((await createSearch('alice', { kind: 'domains', params: { items: [] } })).statusCode).toBe(400);
+  });
+
+  it('refuses a list with names while Brave is paused, but not a list of only domains', async () => {
+    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes')`;
+    const names = await createSearch('alice', { kind: 'domains', params: { items: ['acme.com', 'Pleo'] } });
+    expect(names.statusCode).toBe(503);
+    const domains = await createSearch('alice', { kind: 'domains', params: { items: ['acme.com', 'https://linear.app'] } });
+    expect(domains.statusCode).toBe(201);
+  });
+
   it('refuses new searches when the monthly quota is used up', async () => {
     await db.sql`insert into accounts (clerk_user_id) values ('carol')`;
     await db.sql`insert into usage (clerk_user_id, period, emails_verified) values ('carol', ${new Date().toISOString().slice(0, 7)}, 50)`;

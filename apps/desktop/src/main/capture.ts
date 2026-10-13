@@ -114,6 +114,15 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       await shot('05-new-web', theme);
       await go('#/new?kind=launches');
       await shot('06-new-launches', theme);
+      await go('#/new?kind=domains');
+      await shot('06a-new-list-empty', theme);
+      // Pasted for real, so the list reads back like it does for a user.
+      await js(`document.querySelector('textarea#list')?.focus()`);
+      await win.webContents.insertText(
+        ['linear.app', 'https://www.figma.com/about', 'hello@raycast.com', 'Pleo', 'Too Good To Go', 'Novo Nordisk A/S', 'vercel.com, supabase.com'].join('\n'),
+      );
+      await sleep(300);
+      await shot('06b-new-list', theme);
 
       // A running search and a finished one, read from the searches list.
       await go('#/');

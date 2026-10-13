@@ -20,7 +20,7 @@ import {
 import { toCsv } from '../../leads/csv.js';
 import { MAX_SEARCH_LIMIT } from '../../leads/plans.js';
 import { ensureAccount, quotaExhausted } from '../../leads/quota.js';
-import { kindPaused } from '../../leads/source-pause.js';
+import { kindPaused, requestNeedsSource } from '../../leads/source-pause.js';
 import {
   cancelSearch,
   createSearch,
@@ -68,9 +68,16 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     const userId = req.userId!;
     await ensureAccount(sql, userId);
     if (await quotaExhausted(sql, userId)) return sendError(reply, 403, 'quota_exceeded');
-    if (await kindPaused(sql, body.data.kind)) return sendError(reply, 503, 'source_unavailable');
-    const limit = Math.min(body.data.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT);
-    const search = await createSearch(sql, userId, body.data, limit);
+    let request = body.data;
+    let limit = Math.min(request.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT);
+    if (request.kind === 'domains') {
+      // A list is as long as it is: the limit only cuts it, taking the first items.
+      const items = request.params.items.slice(0, Math.min(request.limit ?? MAX_SEARCH_LIMIT, MAX_SEARCH_LIMIT));
+      request = { ...request, params: { ...request.params, items } };
+      limit = items.length;
+    }
+    if (await kindPaused(sql, request.kind, requestNeedsSource(request))) return sendError(reply, 503, 'source_unavailable');
+    const search = await createSearch(sql, userId, request, limit);
     return reply.code(201).send(search);
   });
 

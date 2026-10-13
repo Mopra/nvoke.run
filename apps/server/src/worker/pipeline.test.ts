@@ -6,7 +6,9 @@ import { RateLimiter, sleep } from '../leads/limits.js';
 import { ensureAccount } from '../leads/quota.js';
 import { createSearch, exportRows, getSearch, listCompanies } from '../leads/repo.js';
 import { RobotsCache } from '../leads/robots.js';
+import { domainsAdapter } from '../leads/sources/domains.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
+import { BRAVE_ENDPOINT, braveClient } from '../leads/sources/web.js';
 import { PermanentError, SourceUnavailableError, type FoundCompany, type SourceAdapter } from '../leads/sources/types.js';
 import type { Alert } from '../alerts.js';
 import { addressHash, domainHash, suppress } from '../leads/suppression.js';
@@ -63,12 +65,32 @@ const stubVerifier = {
   }),
 } as unknown as Verifier;
 
+/** Brave knows Beta ApS by its LinkedIn page and its own site. */
+const braveFetch = fakeFetch({
+  [BRAVE_ENDPOINT]: (url) => ({
+    body: JSON.stringify({
+      web: {
+        results:
+          url.searchParams.get('q') === 'Beta ApS'
+            ? [{ url: 'https://www.linkedin.com/company/beta' }, { url: 'https://beta.dk/' }]
+            : [],
+      },
+    }),
+  }),
+});
+
 function deps(local: SourceAdapter<unknown>): PipelineDeps {
   const limiter = new RateLimiter(1);
   return {
     sql: db.sql,
     log: silentLog,
-    adapters: { local, web: local, launches: local, drop: dropAdapter(() => db.sql) } as AdapterRegistry,
+    adapters: {
+      local,
+      web: local,
+      launches: local,
+      domains: domainsAdapter(braveClient({ apiKey: 'k', fetch: braveFetch, requestsPerSecond: 1_000 })),
+      drop: dropAdapter(() => db.sql),
+    } as AdapterRegistry,
     crawl: { fetch: sites, limiter, robots: new RobotsCache({ fetch: sites, limiter }) },
     verifier: stubVerifier,
   };
@@ -170,6 +192,22 @@ describe('pipeline', () => {
     expect(billed).toEqual([{ address: 'info@alpha.dk' }, { address: 'info@beta.dk' }]);
     const open = await db.sql`select 1 from jobs where search_id = ${final.id} and status in ('queued', 'running')`;
     expect(open).toHaveLength(0);
+  });
+
+  it('runs a domains search: domains as given, names through web search', async () => {
+    const req: CreateSearchRequest = {
+      kind: 'domains',
+      params: { items: ['https://www.alpha.dk/om-os', 'Beta ApS', 'Nobody Knows Us', 'someone@gmail.com', 'facebook.com'] },
+    };
+    const final = await run(adapterOf([]), req, 5);
+    expect(final).toMatchObject({ kind: 'domains', status: 'done', companiesFound: 2, emailsValid: 2 });
+    const companies = await db.sql`select name, domain, source from companies where search_id = ${final.id} order by domain`;
+    expect(companies).toEqual([
+      { name: 'Alpha', domain: 'alpha.dk', source: 'list' },
+      { name: 'Beta ApS', domain: 'beta.dk', source: 'brave' },
+    ]);
+    const [row] = await db.sql`select source_requests from searches where id = ${final.id}`;
+    expect(row).toEqual({ source_requests: 2 });
   });
 
   it('queues lead.ready per company with a valid address, then search.finished', async () => {

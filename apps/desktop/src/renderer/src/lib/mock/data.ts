@@ -2,6 +2,7 @@
  * Deterministic fake companies and emails for the mock transport. Everything
  * derives from a seed, so a search shows the same leads on every poll.
  */
+import { itemDomain } from '@nvoke/shared';
 import type { Company, Email, EmailKind, SearchInput, Verification } from '../types';
 
 /** mulberry32: small, fast, good enough for fake data. */
@@ -129,6 +130,14 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     tld = input.params.country ? input.params.country.toLowerCase() : pick(r, ['com', 'io', 'co']);
     source = 'brave';
     category = input.params.keyword;
+  } else if (input.kind === 'domains') {
+    // The list as the user gave it: domains stay, names get a made up website.
+    const item = input.params.items[index % input.params.items.length] ?? 'acme.com';
+    const given = itemDomain(item);
+    name = given ? titleCase(given.split('.')[0]!.replace(/-/g, ' ')) : item;
+    tld = given ? given.slice(given.indexOf('.') + 1) : pick(r, ['com', 'dk', 'io']);
+    source = given ? 'list' : 'brave';
+    category = null;
   } else {
     name = `${pick(r, LAUNCH_STEMS)}${r() < 0.3 ? ` ${pick(r, ['AI', 'App', 'Pro'])}` : ''}`;
     tld = pick(r, ['com', 'app', 'ai', 'io', 'so']);
@@ -136,7 +145,8 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     category = input.params.keyword ?? null;
   }
 
-  const domain = `${slug(name)}${index > 40 && r() < 0.4 ? Math.floor(r() * 90 + 10) : ''}.${tld}`;
+  const listed = input.kind === 'domains' ? itemDomain(input.params.items[index % input.params.items.length] ?? '') : null;
+  const domain = listed ?? `${slug(name)}${index > 40 && r() < 0.4 ? Math.floor(r() * 90 + 10) : ''}.${tld}`;
   const website = `https://${r() < 0.7 ? 'www.' : ''}${domain}`;
 
   const crawlRoll = r();

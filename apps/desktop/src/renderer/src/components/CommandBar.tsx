@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleUser, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sun } from 'lucide-react';
+import { CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
 import { useSearches } from '@/lib/queries';
@@ -83,6 +83,14 @@ function Commands({ onDone }: { onDone: () => void }) {
         icon: <Rocket className={iconClass} />,
         keywords: 'new search product hunt show hn',
         run: () => navigate({ name: 'new', kind: 'launches' }),
+      },
+      {
+        id: 'new:domains',
+        group: 'Actions',
+        label: 'Paste a list of companies',
+        icon: <ClipboardList className={iconClass} />,
+        keywords: 'new search domains websites names list enrich',
+        run: () => navigate({ name: 'new', kind: 'domains' }),
       },
       {
         id: 'new:drop',

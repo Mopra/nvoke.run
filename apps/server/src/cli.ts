@@ -4,6 +4,7 @@
  *   pnpm --filter @nvoke/server cli search local "dentists" "Copenhagen" --limit 5
  *   pnpm --filter @nvoke/server cli search web "design studio" --country dk --limit 10
  *   pnpm --filter @nvoke/server cli search launches "email" --days 3 --limit 10
+ *   pnpm --filter @nvoke/server cli search domains acme.com "Novo Nordisk" --country dk
  *   pnpm --filter @nvoke/server cli db
  *   pnpm --filter @nvoke/server cli privacy export someone@example.dk
  *   pnpm --filter @nvoke/server cli privacy erase someone@example.dk
@@ -20,7 +21,7 @@
  *
  * Options:
  *   --limit N            companies to find (default 10)
- *   --country CC         web: ISO country code
+ *   --country CC         web and domains: ISO country code
  *   --days N             launches: time window (default 7)
  *   --csv PATH           also write the CSV export to PATH
  *   --no-smtp            verify with MX records only (port 25 is often blocked on home networks)
@@ -112,6 +113,7 @@ function usage(): never {
       '  cli search local <niche> <location> [--limit N]',
       '  cli search web <keyword> [--country CC] [--limit N]',
       '  cli search launches [keyword] [--days N] [--limit N]',
+      '  cli search domains <domain or name>... [--country CC]',
       '  cli db',
       '  cli privacy export <address> [--prod]',
       '  cli privacy erase <address|domain> [--source S] [--prod]',
@@ -140,13 +142,14 @@ function buildRequest(args: Args): { request: CreateSearchRequest; limit: number
   if (kind === 'local') raw = { kind, params: { niche: rest[0], location: rest[1] } };
   else if (kind === 'web') raw = { kind, params: { keyword: rest[0], country: flag('country') } };
   else if (kind === 'launches') raw = { kind, params: { keyword: rest[0], days: Number(flag('days') ?? 7) } };
+  else if (kind === 'domains') raw = { kind, params: { items: rest, country: flag('country') } };
   else usage();
-  const parsed = CreateSearchRequest.safeParse({ ...(raw as object), limit });
+  const parsed = CreateSearchRequest.safeParse({ ...(raw as object), limit: kind === 'domains' ? undefined : limit });
   if (!parsed.success) {
     console.error(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n'));
     usage();
   }
-  return { request: parsed.data, limit };
+  return { request: parsed.data, limit: parsed.data.kind === 'domains' ? parsed.data.params.items.length : limit };
 }
 
 interface LocalDb {

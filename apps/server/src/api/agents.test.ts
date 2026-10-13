@@ -270,6 +270,19 @@ describe('mcp', () => {
     const search = Search.parse(JSON.parse(result.content[0].text));
     expect(search).toMatchObject({ kind: 'local', status: 'queued', limit: 5 });
 
+    const list = await rpc(apiKey, {
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: { name: 'start_search', arguments: { kind: 'domains', items: ['acme.com', 'Novo Nordisk'], country: 'dk' } },
+    });
+    expect(list.json().result.isError).toBe(false);
+    expect(Search.parse(JSON.parse(list.json().result.content[0].text))).toMatchObject({
+      kind: 'domains',
+      params: { items: ['acme.com', 'Novo Nordisk'], country: 'dk' },
+      limit: 2,
+    });
+
     const missing = await rpc(apiKey, {
       jsonrpc: '2.0',
       id: 4,

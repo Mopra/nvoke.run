@@ -4,6 +4,7 @@ export const KIND_LABEL: Record<SearchKind, string> = {
   local: 'Local businesses',
   web: 'Web search',
   launches: 'New launches',
+  domains: 'Your list',
   drop: 'Daily drop',
 };
 
@@ -70,13 +71,24 @@ export function searchTitle(search: Pick<Search, 'kind' | 'params'> | Search): s
       return s.params.keyword
         ? `Launches matching "${s.params.keyword}"`
         : `All launches, ${daysLabel(s.params.days)}`;
+    case 'domains':
+      return listTitle(s.params.items);
     case 'drop':
       return s.params.dropName;
   }
 }
 
+/** "linear.app", "linear.app and Pleo", "linear.app, Pleo and 5 more". */
+export function listTitle(items: string[]): string {
+  const [a, b] = items;
+  if (items.length <= 1) return a ?? 'An empty list';
+  if (items.length === 2) return `${a} and ${b}`;
+  return `${a}, ${b} and ${formatNumber(items.length - 2)} more`;
+}
+
 export function searchSubtitle(search: Search): string {
   if (search.kind === 'launches') return `${KIND_LABEL.launches}, ${daysLabel(search.params.days)}`;
+  if (search.kind === 'domains') return `${KIND_LABEL.domains}, ${formatNumber(search.params.items.length)} ${search.params.items.length === 1 ? 'company' : 'companies'}`;
   if (search.kind === 'drop') return search.params.keyword ? `${KIND_LABEL.drop}, "${search.params.keyword}"` : KIND_LABEL.drop;
   return KIND_LABEL[search.kind];
 }

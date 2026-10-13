@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AccountOrigin } from './agents.ts';
 import { DropRunParams } from './drops.ts';
+import { itemDomain } from './lists.ts';
 import { Plan } from './plans.ts';
 
 /**
@@ -10,7 +11,7 @@ import { Plan } from './plans.ts';
  */
 
 /** `drop` searches are made by drops (drops.ts), never by a client. */
-export const SearchKind = z.enum(['local', 'web', 'launches', 'drop']);
+export const SearchKind = z.enum(['local', 'web', 'launches', 'domains', 'drop']);
 export type SearchKind = z.infer<typeof SearchKind>;
 
 export const SearchStatus = z.enum(['queued', 'running', 'done', 'failed', 'canceled']);
@@ -29,6 +30,11 @@ export const LaunchSource = z.enum(['product_hunt', 'show_hn']);
 export type LaunchSource = z.infer<typeof LaunchSource>;
 
 const text = (max: number) => z.string().trim().min(1).max(max);
+const country = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{2}$/)
+  .transform((v) => v.toLowerCase());
 
 /** "dentists" in "Copenhagen". Resolved through OpenStreetMap. */
 export const LocalSearchParams = z.object({
@@ -40,12 +46,7 @@ export type LocalSearchParams = z.infer<typeof LocalSearchParams>;
 /** A web search keyword, optionally scoped to a country (ISO 3166-1 alpha-2). */
 export const WebSearchParams = z.object({
   keyword: text(200),
-  country: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z]{2}$/)
-    .transform((v) => v.toLowerCase())
-    .optional(),
+  country: country.optional(),
 });
 export type WebSearchParams = z.infer<typeof WebSearchParams>;
 
@@ -59,12 +60,39 @@ export type LaunchesSearchParams = z.infer<typeof LaunchesSearchParams>;
 
 export const SEARCH_LIMIT_DEFAULT = 100;
 export const SEARCH_LIMIT_MAX = 1000;
+
+/**
+ * A list the user already has: domains, URLs, email addresses (for their
+ * domain) or company names, up to the search limit. Domains are crawled
+ * as given; names are looked up through web search. `splitList` (lists.ts)
+ * turns pasted text into `items`. Repeats are dropped.
+ */
+export const DomainsSearchParams = z.object({
+  items: z
+    .array(text(200))
+    .min(1)
+    .max(SEARCH_LIMIT_MAX)
+    .transform((items) => {
+      const seen = new Set<string>();
+      return items.filter((item) => {
+        const key = itemDomain(item) ?? item.toLowerCase().replace(/\s+/g, ' ');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }),
+  /** Where the named companies are, to pick the right website. ISO 3166-1 alpha-2. */
+  country: country.optional(),
+});
+export type DomainsSearchParams = z.infer<typeof DomainsSearchParams>;
 const limit = z.number().int().min(1).max(SEARCH_LIMIT_MAX).optional();
 
 export const CreateSearchRequest = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('local'), params: LocalSearchParams, limit }),
   z.object({ kind: z.literal('web'), params: WebSearchParams, limit }),
   z.object({ kind: z.literal('launches'), params: LaunchesSearchParams, limit }),
+  /** `limit` defaults to the number of items; a smaller one takes the first ones. */
+  z.object({ kind: z.literal('domains'), params: DomainsSearchParams, limit }),
 ]);
 export type CreateSearchRequest = z.infer<typeof CreateSearchRequest>;
 /** What a client sends: `limit` and `days` may be left out for the defaults. */
@@ -89,6 +117,7 @@ export const Search = z.discriminatedUnion('kind', [
   SearchBase.extend({ kind: z.literal('local'), params: LocalSearchParams }),
   SearchBase.extend({ kind: z.literal('web'), params: WebSearchParams }),
   SearchBase.extend({ kind: z.literal('launches'), params: LaunchesSearchParams }),
+  SearchBase.extend({ kind: z.literal('domains'), params: DomainsSearchParams }),
   SearchBase.extend({ kind: z.literal('drop'), params: DropRunParams }),
 ]);
 export type Search = z.infer<typeof Search>;

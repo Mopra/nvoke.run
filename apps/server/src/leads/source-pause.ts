@@ -4,13 +4,19 @@
 // failing one by one. When the pause runs out, the next search tries again.
 
 import type { Sql } from 'postgres';
-import type { SearchKind } from '@nvoke/shared';
+import { itemDomain, type CreateSearchRequest, type SearchKind } from '@nvoke/shared';
 
 /** How long a refusal pauses its source before the next search tries again. */
 export const SOURCE_PAUSE_MS = 10 * 60_000;
 
 /** The source behind each search kind that can be paused. */
-export const PAUSABLE_SOURCE: Partial<Record<SearchKind, string>> = { web: 'brave' };
+export const PAUSABLE_SOURCE: Partial<Record<SearchKind, string>> = { web: 'brave', domains: 'brave' };
+
+/** False for a search that never calls its kind's source: a list of only domains. */
+export function requestNeedsSource(req: CreateSearchRequest): boolean {
+  if (req.kind === 'domains') return req.params.items.some((item) => itemDomain(item) === null);
+  return true;
+}
 
 export async function pauseSource(sql: Sql, source: string, reason: string, now: Date = new Date()): Promise<void> {
   const until = new Date(now.getTime() + SOURCE_PAUSE_MS).toISOString();
@@ -21,10 +27,10 @@ export async function pauseSource(sql: Sql, source: string, reason: string, now:
   `;
 }
 
-/** Whether searches of this kind are paused right now. */
-export async function kindPaused(sql: Sql, kind: SearchKind, now: Date = new Date()): Promise<boolean> {
+/** Whether searches of this kind are paused right now. `needsSource` false skips the check. */
+export async function kindPaused(sql: Sql, kind: SearchKind, needsSource = true, now: Date = new Date()): Promise<boolean> {
   const source = PAUSABLE_SOURCE[kind];
-  if (!source) return false;
+  if (!source || !needsSource) return false;
   const rows = await sql`select 1 from source_pauses where source = ${source} and until > ${now.toISOString()}::timestamptz`;
   return rows.length > 0;
 }

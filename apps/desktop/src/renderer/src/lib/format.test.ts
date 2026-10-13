@@ -26,6 +26,11 @@ describe('format', () => {
     );
     expect(searchTitle({ ...base, kind: 'web', params: { keyword: 'cms', country: 'de' } })).toBe('"cms" in DE');
     expect(searchTitle({ ...base, kind: 'launches', params: { days: 7 } })).toBe('All launches, last 7 days');
+    expect(searchTitle({ ...base, kind: 'domains', params: { items: ['acme.com'] } })).toBe('acme.com');
+    expect(searchTitle({ ...base, kind: 'domains', params: { items: ['acme.com', 'Pleo'] } })).toBe('acme.com and Pleo');
+    expect(searchTitle({ ...base, kind: 'domains', params: { items: ['acme.com', 'Pleo', 'a.dk', 'b.dk'] } })).toBe(
+      'acme.com, Pleo and 2 more',
+    );
   });
 
   it('builds safe csv file names', () => {

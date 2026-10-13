@@ -97,7 +97,7 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Searches',
     summary: 'Start a search',
     description:
-      'Queues a search and returns it at once with status `queued`. Our servers find the companies, read their websites and check every address. Poll `GET /v1/searches/{id}` until the status is `done`, `failed` or `canceled`. `limit` caps the companies looked at (default 100, at most 1,000).',
+      'Queues a search and returns it at once with status `queued`. Our servers find the companies, read their websites and check every address. Poll `GET /v1/searches/{id}` until the status is `done`, `failed` or `canceled`. `limit` caps the companies looked at (default 100, at most 1,000). Kind `domains` takes a list you already have in `params.items`: domains, URLs, email addresses (for their domain) or company names, up to 1,000. Domains are read as given; each name is looked up on the web and its website kept. Its `limit` defaults to the length of the list.',
     auth: 'key',
     body: CreateSearchRequest,
     status: 201,
@@ -438,15 +438,20 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'start_search',
     title: 'Start a lead search',
     description:
-      'Starts finding companies and their verified emails. kind `local`: a trade in a place, from OpenStreetMap (needs niche and location). kind `web`: a keyword, optionally in a country, from web search (needs keyword). kind `launches`: products launched recently on Product Hunt and Show HN (keyword optional). Returns the search at once; it runs for a few minutes on our servers. Then call wait_for_search.',
+      'Starts finding companies and their verified emails. kind `local`: a trade in a place, from OpenStreetMap (needs niche and location). kind `web`: a keyword, optionally in a country, from web search (needs keyword). kind `launches`: products launched recently on Product Hunt and Show HN (keyword optional). kind `domains`: contacts at companies you already know (needs items: domains, URLs or company names). Returns the search at once; it runs for a few minutes on our servers. Then call wait_for_search.',
     input: z.object({
-      kind: z.enum(['local', 'web', 'launches']),
+      kind: z.enum(['local', 'web', 'launches', 'domains']),
       niche: z.string().optional().describe('local: the trade, e.g. "dentists".'),
       location: z.string().optional().describe('local: a city, region or country, e.g. "Aarhus".'),
       keyword: z.string().optional().describe('web: required. launches: optional filter.'),
-      country: z.string().optional().describe('web: ISO 3166-1 alpha-2 country code, e.g. "dk".'),
+      items: z
+        .array(z.string())
+        .max(1000)
+        .optional()
+        .describe('domains: required. Domains ("acme.com"), URLs, email addresses or company names ("Novo Nordisk"), up to 1,000.'),
+      country: z.string().optional().describe('web and domains: ISO 3166-1 alpha-2 country code, e.g. "dk". For domains it helps find the right website for a name.'),
       days: z.number().int().min(1).max(30).optional().describe('launches: how many days back, default 7.'),
-      limit: z.number().int().min(1).max(1000).optional().describe('Companies to look at, default 100.'),
+      limit: z.number().int().min(1).max(1000).optional().describe('Companies to look at, default 100. domains: the length of the list.'),
     }),
     readOnly: false,
     destructive: false,

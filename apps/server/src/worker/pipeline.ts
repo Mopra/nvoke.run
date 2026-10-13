@@ -3,6 +3,7 @@
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import {
+  DomainsSearchParams,
   LaunchesSearchParams,
   LocalSearchParams,
   WebSearchParams,
@@ -66,7 +67,7 @@ async function checkBraveBudget(deps: PipelineDeps): Promise<void> {
   const now = deps.now?.() ?? new Date();
   const [row] = await deps.sql<{ requests: number }[]>`
     select coalesce(sum(source_requests), 0)::int as requests from searches
-    where kind = 'web' and created_at >= date_trunc('month', ${now.toISOString()}::timestamptz)
+    where kind in ('web', 'domains') and created_at >= date_trunc('month', ${now.toISOString()}::timestamptz)
   `;
   const spent = ((row?.requests ?? 0) / 1_000) * budget.costPer1000Usd;
   const share = spent / budget.monthlyUsd;
@@ -93,6 +94,7 @@ const PARAMS = {
   local: LocalSearchParams,
   web: WebSearchParams,
   launches: LaunchesSearchParams,
+  domains: DomainsSearchParams,
   drop: DropRunInternal,
 } as const;
 

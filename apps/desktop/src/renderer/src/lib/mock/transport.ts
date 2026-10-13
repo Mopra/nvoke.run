@@ -204,7 +204,9 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   function add(input: SearchInput, createdAt: number, extra: Partial<SearchRecord> = {}): SearchRecord {
     counter += 1;
     const id = `mock-${counter.toString().padStart(4, '0')}`;
-    const limit = clamp(input.limit ?? 100, 1, MAX_LIMIT);
+    // A list is as long as it is, like on the server.
+    if (input.kind === 'domains') input = { ...input, params: { ...input.params, items: input.params.items.slice(0, clamp(input.limit ?? MAX_LIMIT, 1, MAX_LIMIT)) } };
+    const limit = input.kind === 'domains' ? input.params.items.length : clamp(input.limit ?? 100, 1, MAX_LIMIT);
     const rec: SearchRecord = {
       id,
       input,
@@ -212,7 +214,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       createdAt,
       frozenAt: null,
       terminal: null,
-      total: sourceYield(id, limit),
+      // Every domain is found; a name now and then has no website.
+      total: input.kind === 'domains' ? Math.max(1, limit - Math.floor(limit / 9)) : sourceYield(id, limit),
       ...extra,
     };
     searches.set(id, rec);
@@ -233,6 +236,13 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       terminal: { status: 'failed', error: 'quota_exceeded' },
     });
     add({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 100 }, t0 - day - 3 * 60 * min);
+    add(
+      {
+        kind: 'domains',
+        params: { items: ['linear.app', 'vercel.com', 'Pleo', 'https://www.figma.com', 'Too Good To Go', 'raycast.com', 'Lunar'] },
+      },
+      t0 - day - 6 * 60 * min,
+    );
     add({ kind: 'local', params: { niche: 'bakeries', location: 'Lisbon' }, limit: 80 }, t0 - 9000);
   }
 
@@ -253,6 +263,10 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     const days = p['days'];
     const validDays = days === undefined || (typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= 30);
     if (b.kind === 'launches' && validDays) return b as unknown as SearchInput;
+    const items = p['items'];
+    if (b.kind === 'domains' && Array.isArray(items) && items.length > 0 && items.length <= MAX_LIMIT && items.every(text)) {
+      return b as unknown as SearchInput;
+    }
     return null;
   }
 

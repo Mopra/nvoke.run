@@ -23,12 +23,13 @@ export interface RunnerOptions {
   workerId?: string;
   /** Per job type wall clock limits. */
   timeoutsMs?: Partial<Record<JobType, number>>;
-  /** Jobs running longer than this without finishing are assumed lost and requeued. */
+  /** Jobs running longer than this without finishing are assumed lost and requeued. Above the longest timeout. */
   staleAfterMs?: number;
 }
 
 const DEFAULT_TIMEOUTS: Record<JobType, number> = {
-  find: 10 * 60_000,
+  // A domains search looks up up to 1,000 names at Brave's rate.
+  find: 30 * 60_000,
   crawl: 3 * 60_000,
   verify: 2 * 60_000,
 };
@@ -119,7 +120,7 @@ export class Runner {
   private async sweepStale(): Promise<void> {
     if (Date.now() - this.lastStaleSweep < 60_000) return;
     this.lastStaleSweep = Date.now();
-    const n = await requeueStale(this.deps.sql, this.opts.staleAfterMs ?? 15 * 60_000);
+    const n = await requeueStale(this.deps.sql, this.opts.staleAfterMs ?? 35 * 60_000);
     if (n > 0) this.deps.log.warn({ jobs: n }, 'worker: requeued stale jobs');
   }
 

@@ -76,9 +76,10 @@ export default function DocsIndex() {
       <DocsSection id="search" title="2. Start a search">
         <Prose>
           <p>
-            Three kinds: <code>local</code> (a trade in a place), <code>web</code> (a keyword, optionally a country) and{' '}
-            <code>launches</code> (fresh products on Product Hunt and Show HN). The search comes back at once with status{' '}
-            <code>queued</code>.
+            Four kinds: <code>local</code> (a trade in a place), <code>web</code> (a keyword, optionally a country),{' '}
+            <code>launches</code> (fresh products on Product Hunt and Show HN) and <code>domains</code> (a list you already
+            have: domains, URLs or company names in <code>params.items</code>, up to 1,000). The search comes back at once
+            with status <code>queued</code>.
           </p>
         </Prose>
         <CodeBlock label="shell" code={START} />

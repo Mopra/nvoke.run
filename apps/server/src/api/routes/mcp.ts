@@ -79,7 +79,9 @@ export function toolRequest(name: string, a: Args): Call {
           ? { niche: a['niche'], location: a['location'] }
           : kind === 'web'
             ? { keyword: a['keyword'], country: a['country'] }
-            : { keyword: a['keyword'], days: a['days'] };
+            : kind === 'domains'
+              ? { items: a['items'], country: a['country'] }
+              : { keyword: a['keyword'], days: a['days'] };
       return { method: 'POST', url: '/v1/searches', body: { kind, params, limit: a['limit'] } };
     }
     case 'list_webhooks':
