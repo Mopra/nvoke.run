@@ -19,6 +19,8 @@ export interface SourceContext {
   limit: number;
   signal: AbortSignal;
   log: Logger;
+  /** Called for each request to a paid source, and for each page a cache served instead. */
+  onUsage?: (event: 'request' | 'cache_hit') => void;
 }
 
 export interface SourceAdapter<P> {

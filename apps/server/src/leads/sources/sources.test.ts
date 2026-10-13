@@ -5,6 +5,7 @@ import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, type Res
 import { braveQuery, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
 import { ALGOLIA_SEARCH, PRODUCT_HUNT_GRAPHQL, hitToCompany, launchesAdapter, parseShowHnTitle, phMatches } from './launches.js';
 import { PermanentError } from './types.js';
+import type { CachedWebPage, WebPageKey, WebSearchCache } from '../web-cache.js';
 
 async function collect<P>(adapter: SourceAdapter<P>, params: P, limit = 50): Promise<FoundCompany[]> {
   const out: FoundCompany[] = [];
@@ -127,6 +128,62 @@ describe('web adapter (Brave Search)', () => {
     const url = new URL(fetch.calls[0]!.url);
     expect(url.searchParams.get('q')).toBe('industrial design studio copenhagen');
     expect(url.searchParams.get('country')).toBe('dk');
+  });
+
+  it('fetches the next page only when the caller keeps reading', async () => {
+    const fetch = fakeFetch({
+      [BRAVE_ENDPOINT]: (url) => {
+        const n = Number(url.searchParams.get('offset'));
+        const results = Array.from({ length: 20 }, (_, i) => ({ url: `https://p${n}-${i}.dk/`, title: `P${n} ${i}` }));
+        return { body: JSON.stringify({ web: { results }, query: { more_results_available: n < 1 } }) };
+      },
+    });
+    const adapter = webAdapter({ apiKey: 'k', fetch, requestsPerSecond: 1_000 });
+    const out: string[] = [];
+    for await (const c of adapter.find({ keyword: 'dentists' }, { limit: 5, signal: new AbortController().signal, log: silentLog })) {
+      out.push(c.website);
+      if (out.length === 5) break;
+    }
+    expect(fetch.calls).toHaveLength(1);
+    expect(await collect(adapter, { keyword: 'dentists' })).toHaveLength(40);
+    expect(fetch.calls).toHaveLength(3);
+  });
+
+  it('serves pages from the cache and reports paid requests and cache hits', async () => {
+    const store = new Map<string, CachedWebPage>();
+    const k = (key: WebPageKey) => `${key.q}|${key.country ?? ''}|${key.page}`;
+    const cache: WebSearchCache = {
+      get: async (key) => store.get(k(key)) ?? null,
+      put: async (key, page) => void store.set(k(key), page),
+    };
+    const fetch = fakeFetch({ [BRAVE_ENDPOINT]: { body: fixture('sources/brave-web-search.json') } });
+    const adapter = webAdapter({ apiKey: 'k', fetch, cache, requestsPerSecond: 1_000 });
+    const events: string[] = [];
+    const run = async () => {
+      const out: string[] = [];
+      const ctx = { limit: 50, signal: new AbortController().signal, log: silentLog, onUsage: (e: string) => void events.push(e) };
+      for await (const c of adapter.find({ keyword: 'design studio', country: 'dk' }, ctx)) out.push(c.website);
+      return out;
+    };
+    const first = await run();
+    const calls = fetch.calls.length;
+    expect(calls).toBeGreaterThan(0);
+    expect(events.every((e) => e === 'request')).toBe(true);
+    events.length = 0;
+    expect(await run()).toEqual(first);
+    expect(fetch.calls).toHaveLength(calls);
+    expect(events.length).toBe(calls);
+    expect(events.every((e) => e === 'cache_hit')).toBe(true);
+  });
+
+  it('still searches when the cache fails', async () => {
+    const cache: WebSearchCache = {
+      get: () => Promise.reject(new Error('db down')),
+      put: () => Promise.reject(new Error('db down')),
+    };
+    const fetch = fakeFetch({ [BRAVE_ENDPOINT]: { body: fixture('sources/brave-web-search.json') } });
+    const found = await collect(webAdapter({ apiKey: 'k', fetch, cache, requestsPerSecond: 1_000 }), { keyword: 'x' });
+    expect(found.length).toBeGreaterThan(0);
   });
 
   it('scopes to countries Brave supports and names the others in the query', () => {

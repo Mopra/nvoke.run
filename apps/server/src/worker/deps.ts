@@ -17,7 +17,7 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
   return {
     sql,
     log,
-    adapters: createAdapters(env),
+    adapters: createAdapters(env, { sql }),
     crawl: { limiter, robots: new RobotsCache({ limiter }) },
     verifier: new Verifier({
       heloName: env.SMTP_HELO_NAME,

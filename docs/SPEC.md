@@ -7,7 +7,7 @@ nvoke is a lead finder sold to paying customers. A native desktop app (Electron)
 | kind | user gives | where companies come from |
 |---|---|---|
 | `local` | niche + location, e.g. "dentists" + "Copenhagen" | OpenStreetMap: Nominatim to resolve the location to a bounding box, Overpass to find matching businesses (by tag and name) that have a `website`. Free, no key. |
-| `web` | keyword, optional country | Brave Search API (`BRAVE_SEARCH_API_KEY`). Take result domains, drop big platforms (social networks, marketplaces, Wikipedia, news). |
+| `web` | keyword, optional country | Brave Search API (`BRAVE_SEARCH_API_KEY`). Take result domains, drop big platforms (social networks, marketplaces, Wikipedia, news). Paid per request, see "Source costs". |
 | `launches` | optional keyword filter, time window | Product Hunt and Hacker News "Show HN" (port from `../probe/apps/worker/src/sources`). |
 
 Each source is an adapter with the same interface, so more can be added later:
@@ -34,7 +34,7 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 ## Data model (Postgres, public schema, RLS enabled with no policies)
 
 - `accounts`: `clerk_user_id` pk, `plan` (a key from `packages/shared/src/plans.ts`, default `free`), `plan_synced_at` (last read from Clerk Billing), `created_at`. Created on first authenticated request.
-- `searches`: `id` uuid, `clerk_user_id`, `kind`, `params` jsonb, `limit` int, `status` (`queued` | `running` | `done` | `failed` | `canceled`), `error`, counters (`companies_found`, `companies_crawled`, `emails_found`, `emails_valid`), `created_at`, `started_at`, `finished_at`.
+- `searches`: `id` uuid, `clerk_user_id`, `kind`, `params` jsonb, `limit` int, `status` (`queued` | `running` | `done` | `failed` | `canceled`), `error`, counters (`companies_found`, `companies_crawled`, `emails_found`, `emails_valid`, and `source_requests` and `source_cache_hits` from "Source costs"), `created_at`, `started_at`, `finished_at`.
 - `companies`: `id`, `search_id`, `clerk_user_id`, `name`, `domain`, `website`, `source`, `source_ref`, `location`, `phone`, `category`, `crawl_status` (`pending` | `done` | `failed` | `blocked`), `crawled_at`. Unique `(search_id, domain)`.
 - `emails`: `id`, `company_id`, `search_id`, `clerk_user_id`, `address` (lowercase), `kind` (`generic` like info@/contact@, or `personal`), `source_url`, `verification` (`valid` | `invalid` | `risky` | `catch_all` | `unknown`), `checked_at`. Unique `(company_id, address)`.
 - `email_checks`: cache keyed by `address`, with `verification`, `mx_host`, `checked_at`.
@@ -43,6 +43,7 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 - `domains`: shared crawl cache, one row per domain: `domain` pk (lowercase), `crawl_status` (`done` | `failed` | `blocked`), `crawled_at`, `has_personal` (the last crawl found personal addresses, which are not cached), `recheck_at` (after this the next search that finds the domain crawls it again).
 - `domain_emails`: generic addresses only, shared across users: `domain` (fk to `domains`, cascade), `address` (lowercase), `source_url`, `first_seen` (fixed at first collection, drives retention), `last_seen`. Primary key `(domain, address)`.
 - `suppressions`: opted-out addresses and domains, stored only as `hash` pk (sha256 hex of the lowercased address, or of `'domain:' || registrable domain`), `kind` (`address` | `domain`), `source` (`opt_out_page` | `email` | `bot_page` | `admin`), `created_at`. Kept forever. Code in `apps/server/src/leads/suppression.ts`.
+- `web_search_cache`: Brave result pages keyed by `(query, country, page)`: `companies` jsonb (name, website, result URL only, never the raw response), `more` (Brave has a next page), `fetched_at`.
 - `jobs`: `id`, `type` (`find` | `crawl` | `verify`), `payload` jsonb, `status`, `attempts`, `run_after`, `locked_at`, `last_error`.
 
 Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work.
@@ -84,6 +85,15 @@ One product for everyone. Every feature is on every plan; a plan is only a month
 - When the allowance is used up, the search stops with status `failed` and error `quota_exceeded`, and new searches are refused with 403. No overage is ever charged. Usage resets each calendar month (UTC); nothing rolls over.
 - Plans are Clerk Billing user plans. Checkout and cancel happen on the site at `/desktop/billing`, which the desktop app opens in the browser. The server reads the held plan with the Clerk Backend API (`billing.getUserBillingSubscription`): on `GET /v1/me` when the stored plan is older than 5 minutes, on `?sync=1`, and on every billing webhook. Active and past due items count, a canceled item counts until its period ends, and the most generous plan wins. A slug Clerk reports that the catalog does not know is logged as an error and never drops the user to Free.
 
+## Source costs
+
+Brave Search bills every request, while users pay only for valid emails. A web search that finds nothing still costs requests, so the find job keeps that cost down:
+
+- **Stop early.** The adapter fetches one page (20 results) at a time and the find job stops pulling as soon as the search has `limit` companies, so a search never fetches pages it does not use. At most 10 pages per search.
+- **Cache.** Every page is stored in `web_search_cache` by normalized query (trimmed, lowercased, single spaced), country and page, and reused by any search for 7 days (`RETENTION.webSearchCacheDays`). A cache read or write that fails never fails the search.
+- **Rate.** `BRAVE_REQUESTS_PER_SECOND` (default 1, the free plan) sets the shared rate limit, with a tenth of headroom.
+- **Measure.** Each search counts its paid requests (`source_requests`) and pages served from the cache (`source_cache_hits`). `cli stats --days 30 --prod` on the VPS prints them per kind next to valid emails, with valid emails per paid request.
+
 ## Desktop screens
 
 - **Searches** (home): list with status, counters and progress. A "New search" button.
@@ -108,6 +118,7 @@ Full documents: `docs/legal/` (`lia.md` legitimate interest assessment, `dpia.md
   - `domain_emails`: deleted 12 months after `first_seen` (never reset by a new search or recrawl), and as soon as a recrawl no longer finds the address.
   - `searches` with their `companies` and `emails`: deleted 12 months after `created_at`, or earlier when the user deletes the search.
   - `email_checks`: 30 days.
+  - `web_search_cache`: 7 days after `fetched_at`.
   - `billed_emails`: 12 months after `billed_at`. Finding the address again after that charges it again.
   - `domains`: dropped 12 months after `recheck_at` when no search crawled the domain again.
   - `suppressions`: forever, so an opted-out address is never collected again.

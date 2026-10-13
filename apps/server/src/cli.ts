@@ -9,6 +9,7 @@
  *   pnpm --filter @nvoke/server cli privacy erase someone@example.dk
  *   pnpm --filter @nvoke/server cli privacy erase example.dk
  *   pnpm --filter @nvoke/server cli privacy suppress-domain example.dk
+ *   pnpm --filter @nvoke/server cli stats --days 30
  *
  * `db` starts the embedded Postgres, applies the migrations, prints its URL
  * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
@@ -41,6 +42,10 @@
  *   --source S                        erase and suppress-domain: where the request
  *                                     came from (email, opt_out_page, bot_page, admin;
  *                                     default email)
+ *
+ * `stats` picks its database the same way. It prints, per search kind over
+ * the last --days (default 30), paid source requests, pages served from the
+ * cache and valid emails, so the cost of a valid email can be read off.
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -97,8 +102,9 @@ function usage(): never {
       '  cli privacy export <address> [--prod]',
       '  cli privacy erase <address|domain> [--source S] [--prod]',
       '  cli privacy suppress-domain <domain> [--source S] [--prod]',
+      '  cli stats [--days N] [--prod]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
-      'privacy commands act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+      'privacy and stats act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
     ].join('\n'),
   );
@@ -204,17 +210,8 @@ async function privacy(args: Args): Promise<void> {
     process.exit(2);
   }
 
-  const explicitUrl = args.flags.get('database-url');
-  const url =
-    (typeof explicitUrl === 'string' ? explicitUrl : undefined) ??
-    (args.flags.has('prod') ? process.env.DATABASE_URL : undefined) ??
-    process.env.CLI_DATABASE_URL;
-  const local = url ? null : await startEmbedded();
-  const target = new URL(url ?? local!.url);
-  console.error(`database: ${target.hostname}:${target.port || 5432}${target.pathname}`);
-  const sql = postgres(url ?? local!.url, { max: 4, onnotice: () => {} });
+  const { sql, close } = await opsDatabase(args);
   try {
-    if (local) await applyMigrations(sql);
     if (action === 'export') {
       console.log(JSON.stringify(await exportSubject(sql, subject), null, 2));
     } else if (action === 'erase') {
@@ -228,15 +225,65 @@ async function privacy(args: Args): Promise<void> {
       console.log(JSON.stringify({ suppressed: { domain }, source }, null, 2));
     }
   } finally {
-    await sql.end({ timeout: 5 });
-    await local?.stop();
+    await close();
   }
+}
+
+/** `cli stats`: paid source usage against valid emails, per search kind. */
+async function stats(args: Args): Promise<void> {
+  const daysFlag = args.flags.get('days');
+  const days = Number(typeof daysFlag === 'string' ? daysFlag : 30);
+  if (!Number.isInteger(days) || days < 1) usage();
+  const { sql, close } = await opsDatabase(args);
+  try {
+    const rows = await sql<{ kind: string; searches: number; requests: number; cache_hits: number; valid: number }[]>`
+      select kind, count(*)::int as searches, sum(source_requests)::int as requests,
+             sum(source_cache_hits)::int as cache_hits, sum(emails_valid)::int as valid
+      from searches
+      where created_at > now() - make_interval(days => ${days})
+      group by kind order by kind
+    `;
+    console.log(`last ${days} days`);
+    for (const r of rows) {
+      const perRequest = r.requests > 0 ? (r.valid / r.requests).toFixed(2) : 'n/a';
+      console.log(
+        `${r.kind.padEnd(9)} searches ${r.searches}  paid requests ${r.requests}  cache hits ${r.cache_hits}  valid emails ${r.valid}  valid per request ${perRequest}`,
+      );
+    }
+  } finally {
+    await close();
+  }
+}
+
+/**
+ * The database for operator commands: --database-url, then DATABASE_URL with
+ * --prod, then CLI_DATABASE_URL or the embedded Postgres. Prints which.
+ */
+async function opsDatabase(args: Args): Promise<{ sql: Sql; close: () => Promise<void> }> {
+  const explicitUrl = args.flags.get('database-url');
+  const url =
+    (typeof explicitUrl === 'string' ? explicitUrl : undefined) ??
+    (args.flags.has('prod') ? process.env.DATABASE_URL : undefined) ??
+    process.env.CLI_DATABASE_URL;
+  const local = url ? null : await startEmbedded();
+  const target = new URL(url ?? local!.url);
+  console.error(`database: ${target.hostname}:${target.port || 5432}${target.pathname}`);
+  const sql = postgres(url ?? local!.url, { max: 4, onnotice: () => {} });
+  if (local) await applyMigrations(sql);
+  return {
+    sql,
+    close: async () => {
+      await sql.end({ timeout: 5 });
+      await local?.stop();
+    },
+  };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.positional[0] === 'db') return serveDb();
   if (args.positional[0] === 'privacy') return privacy(args);
+  if (args.positional[0] === 'stats') return stats(args);
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

@@ -125,45 +125,58 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
   let seen = 0;
   if (found >= search.limit) return;
 
-  const iterator = abortable(adapter.find(params, { limit: search.limit - found, signal, log }), signal);
-  for await (const company of iterator) {
-    seen++;
-    const website = normalizeWebsite(company.website);
-    const domain = website ? normalizeDomain(website) : null;
-    if (!website || !domain || isPlatformDomain(domain)) continue;
+  // Paid source calls, recorded even when the find fails, so cost per valid email can be measured.
+  const usage = { request: 0, cache_hit: 0 };
+  const onUsage = (event: keyof typeof usage) => void usage[event]++;
+  const iterator = abortable(adapter.find(params, { limit: search.limit - found, signal, log, onUsage }), signal);
+  try {
+    for await (const company of iterator) {
+      seen++;
+      const website = normalizeWebsite(company.website);
+      const domain = website ? normalizeDomain(website) : null;
+      if (!website || !domain || isPlatformDomain(domain)) continue;
 
-    if (await isDomainSuppressed(sql, domain)) continue;
+      if (await isDomainSuppressed(sql, domain)) continue;
 
-    const inserted = await sql.begin(async (tx) => {
-      const rows = await tx<{ id: string }[]>`
-        insert into companies ${tx({
-          search_id: searchId,
-          clerk_user_id: search.clerk_user_id,
-          name: company.name.slice(0, 300),
-          domain,
-          website,
-          source: company.source,
-          source_ref: company.sourceRef ?? null,
-          location: company.location ?? null,
-          phone: company.phone ?? null,
-          category: company.category ?? null,
-        })}
-        on conflict (search_id, domain) do nothing
-        returning id
-      `;
-      const id = rows[0]?.id;
-      if (!id) return false;
-      await enqueue(tx, { type: 'crawl', payload: { companyId: id }, searchId });
-      await tx`update searches set companies_found = companies_found + 1 where id = ${searchId}`;
-      return true;
-    });
-    if (!inserted) continue;
-    found++;
-    if (found >= search.limit) break;
-    // Stop discovering when the user canceled or the quota ran out.
-    if (found % 10 === 0 && (await searchStatus(sql, searchId)) !== 'running') break;
+      const inserted = await sql.begin(async (tx) => {
+        const rows = await tx<{ id: string }[]>`
+          insert into companies ${tx({
+            search_id: searchId,
+            clerk_user_id: search.clerk_user_id,
+            name: company.name.slice(0, 300),
+            domain,
+            website,
+            source: company.source,
+            source_ref: company.sourceRef ?? null,
+            location: company.location ?? null,
+            phone: company.phone ?? null,
+            category: company.category ?? null,
+          })}
+          on conflict (search_id, domain) do nothing
+          returning id
+        `;
+        const id = rows[0]?.id;
+        if (!id) return false;
+        await enqueue(tx, { type: 'crawl', payload: { companyId: id }, searchId });
+        await tx`update searches set companies_found = companies_found + 1 where id = ${searchId}`;
+        return true;
+      });
+      if (!inserted) continue;
+      found++;
+      if (found >= search.limit) break;
+      // Stop discovering when the user canceled or the quota ran out.
+      if (found % 10 === 0 && (await searchStatus(sql, searchId)) !== 'running') break;
+    }
+  } finally {
+    if (usage.request > 0 || usage.cache_hit > 0) {
+      await sql`
+        update searches
+        set source_requests = source_requests + ${usage.request}, source_cache_hits = source_cache_hits + ${usage.cache_hit}
+        where id = ${searchId}
+      `.catch((err: unknown) => log.warn({ err }, 'find: could not record source usage'));
+    }
   }
-  log.info({ found, seen }, 'find: done');
+  log.info({ found, seen, sourceRequests: usage.request, sourceCacheHits: usage.cache_hit }, 'find: done');
 }
 
 // crawl

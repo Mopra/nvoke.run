@@ -185,6 +185,20 @@ describe('pipeline', () => {
     expect(job).toEqual({ attempts: 1, status: 'failed' });
   });
 
+  it('records paid source requests and cache hits on the search', async () => {
+    const counting: SourceAdapter<unknown> = {
+      kind: 'web',
+      async *find(_params, ctx) {
+        ctx.onUsage?.('request');
+        ctx.onUsage?.('request');
+        ctx.onUsage?.('cache_hit');
+      },
+    };
+    const final = await run(counting, { kind: 'web', params: { keyword: 'x' } });
+    const [row] = await db.sql`select source_requests, source_cache_hits from searches where id = ${final.id}`;
+    expect(row).toEqual({ source_requests: 2, source_cache_hits: 1 });
+  });
+
   it('marks a search with no companies done', async () => {
     const final = await run(adapterOf([]));
     expect(final).toMatchObject({ status: 'done', companiesFound: 0 });

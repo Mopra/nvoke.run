@@ -2,12 +2,15 @@
 // https://api-dashboard.search.brave.com/app/documentation/web-search
 //
 // Result domains are deduplicated and platforms (social networks,
-// marketplaces, Wikipedia, news) are dropped by the find job.
+// marketplaces, Wikipedia, news) are dropped by the find job. Brave bills
+// every request, so pages come from the shared cache when they can, and the
+// find job stops pulling pages once the search has enough companies.
 
 import type { WebSearchParams } from '@nvoke/shared';
 import { normalizeDomain } from '../domain.js';
 import { fetchJson, type FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
+import type { WebSearchCache } from '../web-cache.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 
 export const BRAVE_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
@@ -37,6 +40,9 @@ export interface WebAdapterOptions {
   apiKey: string | undefined;
   fetch?: FetchLike;
   endpoint?: string;
+  /** Requests per second the Brave plan allows. Default 1, the free plan. */
+  requestsPerSecond?: number;
+  cache?: WebSearchCache;
 }
 
 interface BraveResult {
@@ -51,9 +57,6 @@ interface BraveResponse {
   web?: { results?: BraveResult[] };
   query?: { more_results_available?: boolean };
 }
-
-// The free plan allows one query per second.
-const braveLimiter = new RateLimiter(1_100);
 
 /** "Acme Dental | Best dentist in town" becomes "Acme Dental". */
 export function nameFromTitle(title: string | undefined, domain: string): string {
@@ -86,6 +89,8 @@ export function resultToCompany(r: BraveResult): FoundCompany | null {
 }
 
 export function webAdapter(opts: WebAdapterOptions): SourceAdapter<WebSearchParams> {
+  // A tenth of headroom over the plan's rate, so clock jitter never trips a 429.
+  const limiter = new RateLimiter(Math.ceil(1_100 / (opts.requestsPerSecond ?? 1)));
   return {
     kind: 'web',
     async *find(params, ctx) {
@@ -95,28 +100,46 @@ export function webAdapter(opts: WebAdapterOptions): SourceAdapter<WebSearchPara
           'source_not_configured',
         );
       }
-      for (let page = 0; page < MAX_PAGES; page++) {
+      const apiKey = opts.apiKey;
+      const { q, country } = braveQuery(params);
+
+      const fetchPage = async (page: number): Promise<{ companies: FoundCompany[]; more: boolean }> => {
         const url = new URL(opts.endpoint ?? BRAVE_ENDPOINT);
-        const { q, country } = braveQuery(params);
         url.searchParams.set('q', q);
         url.searchParams.set('count', String(PAGE_SIZE));
         url.searchParams.set('offset', String(page));
         url.searchParams.set('safesearch', 'moderate');
         if (country) url.searchParams.set('country', country);
 
-        await braveLimiter.wait('brave', ctx.signal);
+        await limiter.wait('brave', ctx.signal);
+        ctx.onUsage?.('request');
         const res = await fetchJson<BraveResponse>(url.toString(), {
           fetch: opts.fetch,
           signal: ctx.signal,
           timeoutMs: 20_000,
-          headers: { 'x-subscription-token': opts.apiKey },
+          headers: { 'x-subscription-token': apiKey },
         });
         const results = res.web?.results ?? [];
-        for (const r of results) {
-          const company = resultToCompany(r);
-          if (company) yield company;
+        return {
+          companies: results.map(resultToCompany).filter((c): c is FoundCompany => c !== null),
+          more: results.length > 0 && res.query?.more_results_available !== false,
+        };
+      };
+
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const key = { q, country, page };
+        let result = await opts.cache?.get(key).catch((err: unknown) => {
+          ctx.log.warn({ err }, 'web: cache read failed');
+          return null;
+        });
+        if (result) {
+          ctx.onUsage?.('cache_hit');
+        } else {
+          result = await fetchPage(page);
+          await opts.cache?.put(key, result).catch((err: unknown) => ctx.log.warn({ err }, 'web: cache write failed'));
         }
-        if (results.length === 0 || res.query?.more_results_available === false) return;
+        yield* result.companies;
+        if (!result.more) return;
       }
     },
   };

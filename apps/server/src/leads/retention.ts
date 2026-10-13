@@ -21,6 +21,8 @@ export const RETENTION = {
   emailCheckDays: 30,
   /** A domain row not crawled again within this many months after its recheck date is dropped. */
   domainRowMonths: 12,
+  /** A cached Brave Search result page is reused, then deleted, after this many days. */
+  webSearchCacheDays: 7,
   /** How often the worker runs purge(). */
   purgeIntervalMs: 60 * 60_000,
 } as const;
@@ -37,6 +39,7 @@ export interface PurgeResult {
   domains: number;
   emailChecks: number;
   billedEmails: number;
+  webSearchPages: number;
 }
 
 /**
@@ -71,11 +74,17 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     where billed_at < ${at}::timestamptz - make_interval(months => ${RETENTION.billedEmailMonths})
     returning address
   `;
+  const webSearchPages = await sql`
+    delete from web_search_cache
+    where fetched_at < ${at}::timestamptz - make_interval(days => ${RETENTION.webSearchCacheDays})
+    returning page
+  `;
   return {
     searches: searches.length,
     domainEmails: domainEmails.length,
     domains: domains.length,
     emailChecks: emailChecks.length,
     billedEmails: billedEmails.length,
+    webSearchPages: webSearchPages.length,
   };
 }

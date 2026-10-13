@@ -50,6 +50,7 @@ units read it. The API needs the first block; the worker reads the second.
 | `CORS_ORIGINS` | API | Defaults to `https://nvoke.run,http://localhost:3001` |
 | `WORKER_CONCURRENCY` | worker | Jobs at once, default 16 |
 | `BRAVE_SEARCH_API_KEY` | worker | Needed for `web` searches; without it they fail with a clear error |
+| `BRAVE_REQUESTS_PER_SECOND` | worker | What the Brave plan allows, default 1 (free plan) |
 | `PRODUCT_HUNT_TOKEN` | worker | Optional; `launches` searches use Show HN only without it |
 | `NOMINATIM_URL`, `OVERPASS_URL` | worker | OpenStreetMap endpoints for `local` searches; defaults are public |
 | `SMTP_PROBE_ENABLED` | worker | `false` verifies with MX records only |

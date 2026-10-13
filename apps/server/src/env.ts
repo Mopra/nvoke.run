@@ -34,6 +34,7 @@ const EnvSchema = z.object({
   // Lead pipeline. See .env.example for what each one does.
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(16),
   BRAVE_SEARCH_API_KEY: optional,
+  BRAVE_REQUESTS_PER_SECOND: z.coerce.number().positive().max(1_000).default(1),
   PRODUCT_HUNT_TOKEN: optional,
   NOMINATIM_URL: z.url().default('https://nominatim.openstreetmap.org'),
   // Comma separated; later entries are fallbacks when one is busy (429, 5xx).
