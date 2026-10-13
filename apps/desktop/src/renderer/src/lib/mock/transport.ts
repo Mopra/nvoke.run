@@ -12,19 +12,21 @@ import type {
   EmailKind,
   Me,
   LaunchesParams,
+  Plan,
   Search,
   SearchInput,
   SearchStatus,
   User,
   Verification,
 } from '../types';
+import { PLANS, SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { generateCompany, sourceYield, type MockCompanySeed } from './data';
 
 const QUEUE_MS = 1500;
 const PAGE_SIZE = 100;
 /** The mock user is on Pro: see PLANS in apps/server/src/leads/plans.ts. */
-const MAX_LIMIT = 500;
-const PLAN_LIMIT = 2000;
+const MAX_LIMIT = SEARCH_LIMIT_MAX;
+const MOCK_PLAN: Plan = 'emails_2500';
 
 const MOCK_USER: User = {
   id: 'user_mock',
@@ -271,12 +273,12 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       const period = new Date(now()).toISOString().slice(0, 7);
       const used = [...searches.values()]
         .filter((r) => new Date(r.createdAt).toISOString().startsWith(period))
-        .reduce((sum, r) => sum + toSearch(r).emailsFound, 0);
+        .reduce((sum, r) => sum + toSearch(r).emailsValid, 0);
       const me: Me = {
         user: MOCK_USER,
         via: 'device',
-        plan: 'pro',
-        usage: { period, emailsFound: used + 412, emailsLimit: PLAN_LIMIT },
+        plan: MOCK_PLAN,
+        usage: { period, emailsVerified: used + 412, emailsLimit: PLANS[MOCK_PLAN].emailsPerMonth },
         maxSearchLimit: MAX_LIMIT,
       };
       return json(200, me);

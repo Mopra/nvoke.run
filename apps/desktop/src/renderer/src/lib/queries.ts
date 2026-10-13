@@ -64,7 +64,26 @@ export function useRefreshWhenFinished(live: boolean, id: string | null): void {
 }
 
 export function useMe() {
-  return useQuery({ queryKey: keys.me, queryFn: api.getMe, staleTime: 30_000 });
+  return useQuery({ queryKey: keys.me, queryFn: () => api.getMe(), staleTime: 30_000 });
+}
+
+/**
+ * Re-reads the plan from Clerk Billing when mounted and whenever the window
+ * regains focus, so a checkout finished in the browser shows up on return.
+ */
+export function usePlanSync(): void {
+  const client = useQueryClient();
+  useEffect(() => {
+    const sync = (): void => {
+      api.getMe(true).then(
+        (me) => client.setQueryData(keys.me, me),
+        () => undefined,
+      );
+    };
+    sync();
+    window.addEventListener('focus', sync);
+    return () => window.removeEventListener('focus', sync);
+  }, [client]);
 }
 
 export function useCreateSearch() {

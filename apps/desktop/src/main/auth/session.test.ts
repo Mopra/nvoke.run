@@ -7,9 +7,9 @@ const USER = { id: 'user_1', email: 'a@example.com', name: 'A', imageUrl: null }
 const ME = {
   user: USER,
   via: 'device' as const,
-  plan: 'free' as const,
-  usage: { period: '2026-10', emailsFound: 0, emailsLimit: 50 },
-  maxSearchLimit: 50,
+  plan: 'free_user' as const,
+  usage: { period: '2026-10', emailsVerified: 0, emailsLimit: 50 },
+  maxSearchLimit: 1000,
 };
 
 function memoryTokenStore(initial: string | null = null): TokenStore & { value: string | null } {

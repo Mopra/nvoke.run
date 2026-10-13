@@ -1,4 +1,4 @@
-import type { Plan, Search, SearchKind, SearchStatus, Verification } from './types';
+import type { Search, SearchKind, SearchStatus, Verification } from './types';
 
 export const KIND_LABEL: Record<SearchKind, string> = {
   local: 'Local businesses',
@@ -29,8 +29,6 @@ export const VERIFICATION_HINT: Record<Verification, string> = {
   invalid: 'The mail server rejects this address.',
   unknown: 'The mail server could not be checked.',
 };
-
-export const PLAN_LABEL: Record<Plan, string> = { free: 'Free', pro: 'Pro', business: 'Business' };
 
 /** The time windows the new search form offers for launches. The API takes `days`. */
 export type LaunchWindow = 'day' | 'week' | 'month';
@@ -74,7 +72,7 @@ export function searchSubtitle(search: Search): string {
 
 export function errorMessage(code: string | null): string {
   if (!code) return 'The search stopped before it finished.';
-  if (code === 'quota_exceeded') return 'Stopped at your monthly email limit.';
+  if (code === 'quota_exceeded') return "Stopped because this month's verified emails ran out.";
   return 'The search stopped because of an error on our side.';
 }
 

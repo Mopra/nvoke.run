@@ -10,34 +10,34 @@ import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
-import { formatNumber, percent, periodLabel, PLAN_LABEL, resetDate } from '@/lib/format';
-import { useMe } from '@/lib/queries';
+import { FREE_PLAN, PLANS, planLabel } from '@nvoke/shared';
+import { BILLING_URL } from '@/lib/env';
+import { formatNumber, percent, periodLabel, resetDate } from '@/lib/format';
+import { useMe, usePlanSync } from '@/lib/queries';
 import { setThemePreference, useTheme, type ThemePreference } from '@/lib/theme';
 import type { Me } from '@/lib/types';
 import { useScrolled } from '@/lib/use-scrolled';
 import { cn } from '@/lib/utils';
 
-const BILLING_URL = 'https://nvoke.run/account/billing';
-
 function UsageMeter({ me }: { me: Me }) {
-  const { emailsFound, emailsLimit: limit, period } = me.usage;
-  const share = percent(emailsFound, limit);
-  const left = Math.max(0, limit - emailsFound);
+  const { emailsVerified, emailsLimit: limit, period } = me.usage;
+  const share = percent(emailsVerified, limit);
+  const left = Math.max(0, limit - emailsVerified);
   return (
     <div className="flex flex-col gap-3 px-3.5 py-4">
       <div className="flex items-baseline justify-between gap-4">
         <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl font-semibold tabular-nums">{formatNumber(emailsFound)}</span>
-          <span className="text-sm text-muted-foreground">of {formatNumber(limit)} emails</span>
+          <span className="text-2xl font-semibold tabular-nums">{formatNumber(emailsVerified)}</span>
+          <span className="text-sm text-muted-foreground">of {formatNumber(limit)} verified emails</span>
         </div>
         <span className="text-xs tabular-nums text-muted-foreground">{Math.round(share)}%</span>
       </div>
       <div
         role="meter"
-        aria-label="Emails used this month"
+        aria-label="Verified emails used this month"
         aria-valuemin={0}
         aria-valuemax={limit}
-        aria-valuenow={emailsFound}
+        aria-valuenow={emailsVerified}
         className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.07]"
       >
         <div
@@ -50,7 +50,7 @@ function UsageMeter({ me }: { me: Me }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {left === 0
-          ? `You have used every email for ${periodLabel(period)}. New searches stop at the limit until ${resetDate(period)}.`
+          ? `You have used every verified email for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}, or upgrade to keep going.`
           : `${formatNumber(left)} left in ${periodLabel(period)}. Resets on ${resetDate(period)}.`}
       </p>
     </div>
@@ -94,6 +94,7 @@ export function AccountScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
   const scrolled = useScrolled(scrollRef);
+  usePlanSync();
 
   async function signOut(): Promise<void> {
     setSigningOut(true);
@@ -120,15 +121,25 @@ export function AccountScreen() {
                 <Avatar user={me.user} className="mb-2 size-16 text-lg" />
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-semibold">{me.user.name ?? me.user.email ?? 'Your account'}</h2>
-                  <Badge variant="default">{PLAN_LABEL[me.plan]}</Badge>
+                  <Badge variant="default">{planLabel(me.plan)}</Badge>
                 </div>
                 {me.user.name && me.user.email && <div className="font-mono text-xs text-muted-foreground">{me.user.email}</div>}
               </div>
 
-              <Group title="Plan" footer="Every email nvoke finds counts once, valid or not. Billing happens on nvoke.run.">
-                <Row label={`${PLAN_LABEL[me.plan]} plan`} description={`${formatNumber(me.usage.emailsLimit)} emails a month`}>
-                  <Button variant="outline" size="sm" onClick={() => void api.openExternal(BILLING_URL)}>
-                    Manage billing
+              <Group
+                title="Plan"
+                footer="Only valid emails count, and each address only once. Invalid, risky and catch-all results are free. Billing happens on nvoke.run."
+              >
+                <Row
+                  label={me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd}/month`}
+                  description={`${formatNumber(me.usage.emailsLimit)} verified emails a month. Every feature included.`}
+                >
+                  <Button
+                    variant={me.plan === FREE_PLAN ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => void api.openExternal(BILLING_URL)}
+                  >
+                    {me.plan === FREE_PLAN ? 'Upgrade' : 'Manage billing'}
                     <ArrowUpRight className="size-3.5 opacity-60" />
                   </Button>
                 </Row>

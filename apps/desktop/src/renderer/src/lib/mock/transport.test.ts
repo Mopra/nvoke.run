@@ -108,6 +108,6 @@ describe('mock transport', () => {
     await api.signIn();
     await new Promise((r) => setTimeout(r, 5));
     expect(states).toEqual(['signed-out', 'pending', 'signed-in']);
-    expect((await api.getMe()).plan).toBe('pro');
+    expect((await api.getMe()).plan).toBe('emails_2500');
   });
 });

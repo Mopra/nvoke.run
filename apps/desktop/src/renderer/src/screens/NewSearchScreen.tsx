@@ -96,7 +96,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   }
 
   const invalid = (value: string): boolean => touched && !value.trim();
-  const remaining = me.data ? me.data.usage.emailsLimit - me.data.usage.emailsFound : null;
+  const remaining = me.data ? me.data.usage.emailsLimit - me.data.usage.emailsVerified : null;
   const preset = LIMIT_PRESETS.find((p) => Number(p) === limit) ?? null;
 
   return (
@@ -211,9 +211,9 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
           <Group
             footer={
               <>
-                Only emails count toward your plan.
+                Only verified emails count toward your plan. Invalid, risky and catch-all addresses are free.
                 {remaining !== null && ` You have ${formatNumber(Math.max(0, remaining))} left this month.`}
-                {me.data && limit > maxLimit && ` Your plan finds up to ${formatNumber(maxLimit)} companies per search.`}
+                {me.data && limit > maxLimit && ` A search finds up to ${formatNumber(maxLimit)} companies.`}
               </>
             }
           >

@@ -37,7 +37,7 @@ export class ApiError extends Error {
 }
 
 function describeError(status: number, code: string): string {
-  if (code === 'quota_exceeded') return 'You have used all emails in your plan for this month.';
+  if (code === 'quota_exceeded') return 'You have used every verified email in your plan this month.';
   if (status === 0) return 'Could not reach nvoke. Check your connection and try again.';
   if (status === 401) return 'Your session has ended. Sign in again.';
   if (status === 404) return 'That search no longer exists.';
@@ -81,7 +81,8 @@ export function createApi(transport: Transport) {
       call('GET', `/v1/searches/${enc(id)}/companies${buildQuery({ ...query })}`),
     exportCsv: (id: string, defaultFileName: string): Promise<ExportResult> =>
       transport.exportCsv(id, defaultFileName),
-    getMe: (): Promise<Me> => call('GET', '/v1/me'),
+    /** `sync` asks the server to re-read the plan from Clerk Billing first. */
+    getMe: (sync = false): Promise<Me> => call('GET', sync ? '/v1/me?sync=1' : '/v1/me'),
     openExternal: (url: string): Promise<void> => transport.openExternal(url),
     getAuthState: (): Promise<AuthState> => transport.auth.getState(),
     signIn: (): Promise<void> => transport.auth.signIn(),

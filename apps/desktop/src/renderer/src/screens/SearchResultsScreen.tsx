@@ -39,6 +39,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { api, ApiError } from '@/lib/api';
+import { BILLING_URL } from '@/lib/env';
 import {
   csvFileName,
   duration,
@@ -122,8 +123,8 @@ function Overview({ search }: { search: Search }) {
           <TriangleAlert className="size-4 shrink-0 text-destructive" />
           <span className="flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
           {search.error === 'quota_exceeded' && (
-            <Button size="sm" variant="outline" onClick={() => navigate({ name: 'account' })}>
-              View plan
+            <Button size="sm" variant="outline" onClick={() => void api.openExternal(BILLING_URL)}>
+              Upgrade
             </Button>
           )}
         </div>
