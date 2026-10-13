@@ -170,6 +170,31 @@ describe('crawlSite', () => {
     expect(result.emails.map((e) => e.address)).toEqual(['hej@bare.dk']);
   });
 
+  it('is refused when the homepage answers 403 or a bot challenge, so the desktop may read it', async () => {
+    const forbidden = await crawlSite('https://walled.dk/', 'walled.dk', deps(fakeFetch({ 'https://walled.dk/': { status: 403 } })));
+    expect(forbidden.status).toBe('refused');
+
+    const challenge = fakeFetch({
+      'https://cf.dk/': page('<html><head><title>Just a moment...</title></head><body><script>window._cf_chl_opt={}</script></body></html>'),
+    });
+    const result = await crawlSite('https://cf.dk/', 'cf.dk', deps(challenge));
+    expect(result.status).toBe('refused');
+    expect(challenge.calls.filter((c) => !c.url.endsWith('/robots.txt'))).toHaveLength(1);
+  });
+
+  it('is js_only when nothing is found and the homepage is an app shell', async () => {
+    const fetch = fakeFetch({
+      'https://spa.dk/': page('<html><body><div id="root"></div><script src="/app.js"></script></body></html>'),
+    });
+    const result = await crawlSite('https://spa.dk/', 'spa.dk', deps(fetch));
+    expect(result.status).toBe('js_only');
+
+    const found = fakeFetch({
+      'https://spa2.dk/': page('<html><body><div id="root">info@spa2.dk</div><script src="/app.js"></script></body></html>'),
+    });
+    expect((await crawlSite('https://spa2.dk/', 'spa2.dk', deps(found))).status).toBe('done');
+  });
+
   it('decodes legacy charsets', async () => {
     const latin1 = Buffer.from('<p>Kontakt Søren: søren@acme.dk eller info@acme.dk</p>', 'latin1').toString('latin1');
     const fetch: FetchLike = async (input) => {

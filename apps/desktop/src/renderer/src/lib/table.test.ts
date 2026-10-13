@@ -79,6 +79,7 @@ function company(name: string, domain: string, emails: Company['emails'] = []): 
     category: null,
     crawlStatus: 'done',
     crawledAt: null,
+    localCrawl: null,
     emails,
   };
 }

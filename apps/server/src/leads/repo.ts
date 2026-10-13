@@ -8,6 +8,7 @@ import type {
   CompaniesQuery,
   CreateSearchRequest,
   CrawlStatus,
+  LocalCrawlStatus,
   EmailKind,
   LeadFilters,
   Search,
@@ -135,6 +136,7 @@ interface CompanyRow {
   category: string | null;
   crawl_status: CrawlStatus;
   crawled_at: Date | null;
+  local_crawl: LocalCrawlStatus | null;
   /** Full microsecond precision, for the cursor. */
   created_at_text: string;
   emails: EmailJson[];
@@ -189,7 +191,7 @@ export async function listCompanies(
 
   const rows = await sql<CompanyRow[]>`
     select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category,
-           c.crawl_status, c.crawled_at, c.created_at::text as created_at_text,
+           c.crawl_status, c.crawled_at, c.local_crawl, c.created_at::text as created_at_text,
            coalesce(
              json_agg(json_build_object(
                'id', e.id, 'address', e.address, 'kind', e.kind, 'source_url', e.source_url,
@@ -249,6 +251,7 @@ export async function listCompanies(
     category: r.category,
     crawlStatus: r.crawl_status,
     crawledAt: iso(r.crawled_at),
+    localCrawl: r.local_crawl,
     emails: r.emails.map((e) => ({
       id: e.id,
       address: e.address,

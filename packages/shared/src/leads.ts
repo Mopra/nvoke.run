@@ -23,8 +23,17 @@ export type Verification = z.infer<typeof Verification>;
 export const EmailKind = z.enum(['generic', 'personal']);
 export type EmailKind = z.infer<typeof EmailKind>;
 
-export const CrawlStatus = z.enum(['pending', 'done', 'failed', 'blocked']);
+/**
+ * How the server crawl ended. `blocked`: robots.txt or an opt-out keeps us
+ * out. `refused`: the site refuses our servers. `js_only`: the site needs
+ * JavaScript. The last two can be read by the desktop app (local-crawl.ts).
+ */
+export const CrawlStatus = z.enum(['pending', 'done', 'failed', 'blocked', 'refused', 'js_only']);
 export type CrawlStatus = z.infer<typeof CrawlStatus>;
+
+/** The desktop's local render crawl of a refused or JS-only site: claimed, then how it ended. */
+export const LocalCrawlStatus = z.enum(['claimed', 'done', 'failed', 'blocked']);
+export type LocalCrawlStatus = z.infer<typeof LocalCrawlStatus>;
 
 export const LaunchSource = z.enum(['product_hunt', 'show_hn']);
 export type LaunchSource = z.infer<typeof LaunchSource>;
@@ -150,6 +159,8 @@ export const Company = z.object({
   category: z.string().nullable(),
   crawlStatus: CrawlStatus,
   crawledAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Null unless the desktop app took up a refused or JS-only site. */
+  localCrawl: LocalCrawlStatus.nullable(),
   emails: z.array(Email),
 });
 export type Company = z.infer<typeof Company>;
@@ -226,6 +237,7 @@ export const LeadsErrorCode = z.enum([
   'invalid_request',
   'quota_exceeded',
   'not_cancelable',
+  'not_claimed',
   'database_unavailable',
   'source_unavailable',
 ]);

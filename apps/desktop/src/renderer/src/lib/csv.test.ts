@@ -14,6 +14,7 @@ const company = (over: Partial<Company>): Company => ({
   category: null,
   crawlStatus: 'done',
   crawledAt: null,
+  localCrawl: null,
   emails: [],
   ...over,
 });

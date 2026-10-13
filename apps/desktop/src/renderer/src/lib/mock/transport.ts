@@ -161,6 +161,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         ...s.company,
         crawlStatus: crawled ? s.crawlOutcome : 'pending',
         crawledAt: crawled ? stamp : null,
+        localCrawl: crawled ? s.localCrawl : null,
         emails: crawled
           ? s.emails.map((e, k) => ({
               ...e,

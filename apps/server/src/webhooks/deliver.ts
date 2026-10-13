@@ -75,6 +75,7 @@ interface CompanyRow {
   category: string | null;
   crawl_status: Company['crawlStatus'];
   crawled_at: Date | null;
+  local_crawl: Company['localCrawl'];
   emails: Array<{
     id: string;
     address: string;
@@ -89,7 +90,7 @@ interface CompanyRow {
 async function loadLead(sql: Sql, userId: string, companyId: string): Promise<Company | null> {
   const [row] = await sql<CompanyRow[]>`
     select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category,
-           c.crawl_status, c.crawled_at,
+           c.crawl_status, c.crawled_at, c.local_crawl,
            coalesce(
              json_agg(json_build_object(
                'id', e.id, 'address', e.address, 'kind', e.kind, 'source_url', e.source_url,
@@ -115,6 +116,7 @@ async function loadLead(sql: Sql, userId: string, companyId: string): Promise<Co
     category: row.category,
     crawlStatus: row.crawl_status,
     crawledAt: iso(row.crawled_at),
+    localCrawl: row.local_crawl,
     emails: row.emails.map((e) => ({
       id: e.id,
       address: e.address,

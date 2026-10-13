@@ -3,9 +3,10 @@ import { parseSavedDesktop } from './desktop-settings';
 
 describe('parseSavedDesktop', () => {
   it('keeps openAtLogin unset until the first sign-in saves it', () => {
-    expect(parseSavedDesktop('{}')).toEqual({ openAtLogin: undefined, closeHintShown: false });
-    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: false, closeHintShown: true }))).toEqual({
+    expect(parseSavedDesktop('{}')).toEqual({ openAtLogin: undefined, localCrawl: false, closeHintShown: false });
+    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: false, localCrawl: true, closeHintShown: true }))).toEqual({
       openAtLogin: false,
+      localCrawl: true,
       closeHintShown: true,
     });
   });
@@ -21,7 +22,11 @@ describe('parseSavedDesktop', () => {
   });
 
   it('drops malformed fields and survives bad JSON', () => {
-    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: 'yes' }))).toEqual({ openAtLogin: undefined, closeHintShown: false });
+    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: 'yes', localCrawl: 'yes' }))).toEqual({
+      openAtLogin: undefined,
+      localCrawl: false,
+      closeHintShown: false,
+    });
     expect(parseSavedDesktop('{nope')).toEqual({});
   });
 });

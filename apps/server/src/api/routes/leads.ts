@@ -10,16 +10,21 @@ import {
   CompaniesQuery,
   CreateSearchRequest,
   LeadFilters,
+  LocalCrawlClaimRequest,
+  LocalCrawlResultRequest,
   SEARCH_LIMIT_DEFAULT,
   SearchIdParams,
   type CompaniesPage,
   type LeadsErrorCode,
+  type LocalCrawlClaimResponse,
+  type LocalCrawlResultResponse,
   type Search,
   type SearchListResponse,
 } from '@nvoke/shared';
 import { toCsv } from '../../leads/csv.js';
 import { MAX_SEARCH_LIMIT } from '../../leads/plans.js';
 import { ensureAccount, quotaExhausted } from '../../leads/quota.js';
+import { claimLocalCrawl, submitLocalCrawl } from '../../leads/local-crawl.js';
 import { kindPaused, requestNeedsSource } from '../../leads/source-pause.js';
 import {
   cancelSearch,
@@ -134,5 +139,21 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
       .header('content-disposition', `attachment; filename="nvoke-${params.data.id.slice(0, 8)}.csv"`)
       .header('cache-control', 'no-store')
       .send(toCsv(rows));
+  });
+
+  // The desktop's local render crawl (docs/SPEC.md, "Local render crawl").
+  app.post('/local-crawl/claim', async (req, reply): Promise<LocalCrawlClaimResponse | void> => {
+    const body = parse(LocalCrawlClaimRequest, req.body ?? {});
+    if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
+    return { tasks: await claimLocalCrawl(opts.getSql(), req.userId!, body.data.max) };
+  });
+
+  app.post('/local-crawl/results', async (req, reply): Promise<LocalCrawlResultResponse | void> => {
+    const body = parse(LocalCrawlResultRequest, req.body);
+    if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
+    const result = await submitLocalCrawl(opts.getSql(), req.userId!, body.data);
+    if (result.status === 'not_found') return sendError(reply, 404, 'not_found');
+    if (result.status === 'not_claimed') return sendError(reply, 409, 'not_claimed');
+    return { stored: result.stored };
   });
 };

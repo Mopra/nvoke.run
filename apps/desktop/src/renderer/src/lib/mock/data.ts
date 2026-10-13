@@ -97,11 +97,13 @@ function nicheNoun(niche: string): string {
 }
 
 export interface MockCompanySeed {
-  company: Omit<Company, 'crawlStatus' | 'crawledAt' | 'emails'>;
+  company: Omit<Company, 'crawlStatus' | 'crawledAt' | 'localCrawl' | 'emails'>;
   emails: Omit<Email, 'checkedAt' | 'verification'>[];
   verifications: Verification[];
-  /** Some sites refuse crawling or fail. */
-  crawlOutcome: 'done' | 'failed' | 'blocked';
+  /** Some sites refuse crawling, need JavaScript or fail. */
+  crawlOutcome: 'done' | 'failed' | 'blocked' | 'refused' | 'js_only';
+  /** A refused or JS-only site the desktop read (or is reading) itself. */
+  localCrawl: Company['localCrawl'];
 }
 
 export function generateCompany(searchId: string, input: SearchInput, index: number): MockCompanySeed {
@@ -150,11 +152,15 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
   const website = `https://${r() < 0.7 ? 'www.' : ''}${domain}`;
 
   const crawlRoll = r();
-  const crawlOutcome = crawlRoll < 0.04 ? 'blocked' : crawlRoll < 0.09 ? 'failed' : 'done';
+  const crawlOutcome =
+    crawlRoll < 0.03 ? 'blocked' : crawlRoll < 0.07 ? 'refused' : crawlRoll < 0.1 ? 'js_only' : crawlRoll < 0.13 ? 'failed' : 'done';
+  const localRoll = r();
+  const localCrawl: Company['localCrawl'] =
+    crawlOutcome !== 'refused' && crawlOutcome !== 'js_only' ? null : localRoll < 0.5 ? 'done' : localRoll < 0.7 ? 'claimed' : null;
 
   const emails: MockCompanySeed['emails'] = [];
   const verifications: Verification[] = [];
-  if (crawlOutcome === 'done') {
+  if (crawlOutcome === 'done' || localCrawl === 'done') {
     const countRoll = r();
     const count = countRoll < 0.22 ? 0 : countRoll < 0.6 ? 1 : countRoll < 0.85 ? 2 : countRoll < 0.95 ? 3 : 4;
     const used = new Set<string>();
@@ -191,6 +197,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     emails,
     verifications,
     crawlOutcome,
+    localCrawl,
   };
 }
 

@@ -2,11 +2,10 @@
 // else's server: untrusted, sometimes slow, occasionally enormous. These
 // helpers cap time and bytes and never buffer more than asked for.
 
-/** How the crawler identifies itself, on every request. */
-export const BOT_USER_AGENT = 'nvokebot/1.0 (+https://nvoke.run/bot)';
+import { BOT_USER_AGENT } from '@nvoke/shared/crawl';
 
-/** The token robots.txt groups are matched against. */
-export const BOT_TOKEN = 'nvokebot';
+/** How the crawler identifies itself (BOT_USER_AGENT) and what robots.txt groups match (BOT_TOKEN). */
+export { BOT_TOKEN, BOT_USER_AGENT } from '@nvoke/shared/crawl';
 
 export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 

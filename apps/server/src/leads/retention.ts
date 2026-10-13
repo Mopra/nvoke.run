@@ -32,7 +32,7 @@ export const RETENTION = {
 } as const;
 
 /** When a domain crawled at `now` with this outcome is due for a recrawl. */
-export function recheckAt(status: 'done' | 'failed' | 'blocked', now: Date): Date {
+export function recheckAt(status: 'done' | 'failed' | 'blocked' | 'refused' | 'js_only', now: Date): Date {
   const days = status === 'done' ? RETENTION.domainRecheckDays : RETENTION.domainRecheckFailedDays;
   return new Date(now.getTime() + days * 86_400_000);
 }

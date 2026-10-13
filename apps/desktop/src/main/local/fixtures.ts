@@ -36,6 +36,7 @@ export function company(n: number, name: string, emails: [string, 'generic' | 'p
     category: null,
     crawlStatus: 'done',
     crawledAt: null,
+    localCrawl: null,
     emails: emails.map(([address, kind, verification], i) => ({
       id: uuid(2_000_000 + n * 10 + i),
       address,

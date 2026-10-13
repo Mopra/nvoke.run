@@ -5,16 +5,27 @@
 // robots.txt honored on every hop, at most one request per second per host
 // (longer if robots.txt asks for a Crawl-delay).
 
-import { load } from 'cheerio';
-import { hostToDomain, sameSite } from './domain.js';
-import { extractEmails, selectForCompany, type ExtractedEmail } from './extract.js';
+import {
+  CRAWL_MAX_BYTES,
+  CRAWL_MAX_PAGES,
+  GUESSED_PATHS,
+  extractEmails,
+  hostToDomain,
+  looksJsOnly,
+  pageWall,
+  pickLikelyPages,
+  selectForCompany,
+  type ExtractedEmail,
+} from '@nvoke/shared/crawl';
 import { decodeBody, fetchCapped, type FetchLike } from './http.js';
 import type { RateLimiter } from './limits.js';
 import type { RobotsCache } from './robots.js';
 
-export const CRAWL_MAX_PAGES = 8;
-export const CRAWL_MAX_BYTES = 2_000_000;
+export { CRAWL_MAX_BYTES, CRAWL_MAX_PAGES, pickLikelyPages };
+
 const MAX_REDIRECTS = 5;
+/** Homepage answers that mean "not you" rather than "not here": usually a block on datacenter addresses. */
+const REFUSED_STATUSES = new Set([401, 403, 429, 503]);
 const PAGE_TIMEOUT_MS = 15_000;
 
 export interface CrawlDeps {
@@ -38,71 +49,21 @@ export interface PageVisit {
 }
 
 export interface CrawlResult {
-  status: 'done' | 'failed' | 'blocked';
+  /**
+   * `blocked`: robots.txt keeps us out. `refused`: the site refuses our
+   * servers (401, 403, 429 or 503 on the homepage, or a bot challenge).
+   * `js_only`: nothing found and the homepage is a JavaScript app shell.
+   * The desktop's local render crawl can read the last two (docs/SPEC.md).
+   */
+  status: 'done' | 'failed' | 'blocked' | 'refused' | 'js_only';
   emails: ExtractedEmail[];
   pages: PageVisit[];
   error?: string;
 }
 
-/** Path and link text keywords, strongest first. English, Danish, German, a little Nordic and Romance. */
-const PAGE_HINTS: Array<{ re: RegExp; score: number }> = [
-  { re: /kontakt|contact|kontakta|contatt|contacto|yhteystiedot/i, score: 100 },
-  { re: /impressum|imprint/i, score: 90 },
-  { re: /\bteam\b|medarbejder|employees|our-people|\bpeople\b|staff|personale|ansatte|mitarbeiter/i, score: 80 },
-  { re: /about|om-os|omos|om-oss|ueber-uns|uber-uns|über|qui-sommes|chi-siamo|sobre/i, score: 70 },
-  { re: /privacy|privatliv|persondata|datenschutz|gdpr|personvern|integritet/i, score: 50 },
-  { re: /legal|juridisk|vilkaar|terms|agb|cvr/i, score: 40 },
-];
-
-const GUESSED_PATHS = ['/contact', '/kontakt', '/about', '/impressum'];
-
-const SKIP_EXTENSIONS = /\.(png|jpe?g|gif|webp|avif|svg|ico|pdf|zip|rar|docx?|xlsx?|pptx?|mp4|mp3|mov|webm|css|js|xml|json|txt)$/i;
-
 function isHtml(contentType: string | null): boolean {
   if (!contentType) return true;
   return /text\/html|application\/xhtml\+xml|text\/plain/i.test(contentType);
-}
-
-/** Same-site links that look like they lead to contact details, best first. */
-export function pickLikelyPages(html: string, pageUrl: string, max: number): string[] {
-  const base = new URL(pageUrl);
-  const scored = new Map<string, number>();
-  let $;
-  try {
-    $ = load(html);
-  } catch {
-    return [];
-  }
-  $('a[href]').each((_i, el) => {
-    const href = ($(el).attr('href') ?? '').trim();
-    if (!href || href.startsWith('#') || /^(mailto|tel|javascript|data):/i.test(href)) return;
-    let url: URL;
-    try {
-      url = new URL(href, base);
-    } catch {
-      return;
-    }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-    const host = hostToDomain(url.hostname);
-    const baseHost = hostToDomain(base.hostname);
-    if (!host || !baseHost || !sameSite(host, baseHost)) return;
-    if (SKIP_EXTENSIONS.test(url.pathname)) return;
-    url.hash = '';
-    const key = url.toString();
-    if (key === base.toString() || url.pathname === '/' || url.pathname === '') return;
-    const haystack = `${safeDecode(url.pathname)} ${$(el).text().slice(0, 80)}`;
-    let score = 0;
-    for (const hint of PAGE_HINTS) if (hint.re.test(haystack)) score = Math.max(score, hint.score);
-    if (score === 0) return;
-    // Shallow pages first: /kontakt beats /blog/2019/how-to-contact-us.
-    score -= Math.min(60, (url.pathname.split('/').filter(Boolean).length - 1) * 25);
-    if (url.search) score -= 5;
-    scored.set(key, Math.max(scored.get(key) ?? -Infinity, score));
-  });
-  return [...scored.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, max)
-    .map(([url]) => url);
 }
 
 interface Fetched {
@@ -192,11 +153,15 @@ export async function crawlSite(
     pages.push(visit(home));
   }
   if (home.kind === 'robots') return { status: 'blocked', emails: [], pages };
+  if (home.kind === 'ok' && REFUSED_STATUSES.has(home.status)) {
+    return { status: 'refused', emails: [], pages, error: `homepage answered ${home.status}` };
+  }
   if (home.kind === 'error' || home.status >= 400) {
     return { status: 'failed', emails: [], pages, error: home.error ?? `homepage answered ${home.status}` };
   }
 
   const homeHtml = isHtml(home.contentType) ? decodeBody(home.body, home.contentType) : '';
+  if (pageWall(homeHtml) === 'challenge') return { status: 'refused', emails: [], pages, error: 'bot challenge' };
   found.push(...extractEmails(homeHtml, home.url));
 
   let queue = pickLikelyPages(homeHtml, home.url, maxPages - 1);
@@ -223,15 +188,9 @@ export async function crawlSite(
   // A homepage that redirects to a new brand domain makes that domain "own site" too.
   const landed = hostToDomain(new URL(home.url).hostname);
   const own = landed && landed !== companyDomain ? [companyDomain, landed] : [companyDomain];
-  return { status: 'done', emails: selectForCompany(found, own), pages };
-}
-
-function safeDecode(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
+  const emails = selectForCompany(found, own);
+  if (emails.length === 0 && looksJsOnly(homeHtml)) return { status: 'js_only', emails, pages };
+  return { status: 'done', emails, pages };
 }
 
 function visit(f: Fetched): PageVisit {

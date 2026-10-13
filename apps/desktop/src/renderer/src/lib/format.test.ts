@@ -66,6 +66,7 @@ describe('csv', () => {
       category: null,
       crawlStatus: 'done',
       crawledAt: null,
+      localCrawl: null,
       emails: [
         { id: 'e1', address: 'info@sj.com', kind: 'generic', sourceUrl: null, verification: 'valid', checkedAt: null },
         { id: 'e2', address: 'anna@sj.com', kind: 'personal', sourceUrl: null, verification: 'risky', checkedAt: null },

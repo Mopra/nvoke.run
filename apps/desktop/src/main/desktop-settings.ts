@@ -10,6 +10,8 @@ import { isAccelerator } from '../ipc/accelerator';
 export interface SavedDesktop {
   /** Undefined until the first sign-in turns it on. */
   openAtLogin?: boolean;
+  /** Read refused and JS-only sites from this computer while idle. Off unless the user turns it on. */
+  localCrawl?: boolean;
   /** The "still running in the tray" hint is shown once, on the first close. */
   closeHintShown?: boolean;
   /** The global shortcut for the quick window. Undefined means the default. */
@@ -26,6 +28,7 @@ export function parseSavedDesktop(raw: string): SavedDesktop {
     const data = JSON.parse(raw) as Record<string, unknown>;
     return {
       openAtLogin: typeof data['openAtLogin'] === 'boolean' ? data['openAtLogin'] : undefined,
+      localCrawl: data['localCrawl'] === true,
       closeHintShown: data['closeHintShown'] === true,
       ...(isAccelerator(data['hotkey']) ? { hotkey: data['hotkey'] } : {}),
       ...(data['inboxEnabled'] === true ? { inboxEnabled: true } : {}),

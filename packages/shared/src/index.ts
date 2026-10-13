@@ -4,6 +4,7 @@ export * from './catalog.ts';
 export * from './drops.ts';
 export * from './leads.ts';
 export * from './lists.ts';
+export * from './local-crawl.ts';
 export * from './plans.ts';
 export * from './privacy.ts';
 export * from './webhooks.ts';

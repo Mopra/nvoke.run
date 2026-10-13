@@ -5,7 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 // Every dependency is a devDependency and gets bundled, so the packaged app
 // ships no node_modules. This keeps electron-builder simple under pnpm.
-const shared = { '@nvoke/shared': resolve(__dirname, '../../packages/shared/src/index.ts') };
+const shared = [
+  { find: /^@nvoke\/shared\/crawl$/, replacement: resolve(__dirname, '../../packages/shared/src/crawl/index.ts') },
+  { find: /^@nvoke\/shared$/, replacement: resolve(__dirname, '../../packages/shared/src/index.ts') },
+];
 
 export default defineConfig({
   main: {
@@ -23,10 +26,7 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     resolve: {
-      alias: {
-        ...shared,
-        '@': resolve(__dirname, 'src/renderer/src'),
-      },
+      alias: [...shared, { find: '@', replacement: resolve(__dirname, 'src/renderer/src') }],
     },
     plugins: [react(), tailwindcss()],
   },

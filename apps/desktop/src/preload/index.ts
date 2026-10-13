@@ -99,6 +99,7 @@ const api: NvokeApi = {
     setInboxEnabled: (enabled) => ipcRenderer.invoke(IpcChannel.desktopSetInboxEnabled, enabled) as Promise<DesktopSettings>,
     chooseInboxFolder: () => ipcRenderer.invoke(IpcChannel.desktopChooseInboxFolder) as Promise<DesktopSettings>,
     openInboxFolder: () => ipcRenderer.invoke(IpcChannel.desktopOpenInboxFolder) as Promise<void>,
+    setLocalCrawl: (enabled) => ipcRenderer.invoke(IpcChannel.desktopSetLocalCrawl, enabled) as Promise<DesktopSettings>,
     onCommand: (listener) => {
       const handler = (_event: IpcRendererEvent, command: DesktopCommand) => listener(command);
       ipcRenderer.on(IpcChannel.desktopCommand, handler);

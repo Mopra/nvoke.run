@@ -1,4 +1,5 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
@@ -15,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { acceleratorFromEvent, acceleratorLabel } from '../../../ipc/accelerator';
 import { api } from '@/lib/api';
 import { FREE_PLAN, PLANS, planLabel } from '@nvoke/shared';
-import { desktopApi, trayPlace } from '@/lib/desktop';
+import { desktopApi, desktopSettingsKey, trayPlace, useDesktopSettings } from '@/lib/desktop';
 import { BILLING_URL } from '@/lib/env';
 import { formatNumber, percent, periodLabel, relativeTime, resetDate } from '@/lib/format';
 import { isMac } from '@/lib/hotkeys';
@@ -309,6 +310,39 @@ function NotificationsSwitch() {
   );
 }
 
+/**
+ * The local render crawl: sites that refuse our servers or need JavaScript,
+ * read from this computer while it is idle. Off by default, and the copy says
+ * plainly that it uses the user's connection.
+ */
+function LocalCrawl() {
+  const client = useQueryClient();
+  const { data: settings } = useDesktopSettings();
+  const desktop = desktopApi();
+  if (!desktop || !settings) return null;
+
+  function change(next: boolean): void {
+    if (!settings) return;
+    client.setQueryData(desktopSettingsKey, { ...settings, localCrawl: next });
+    desktop
+      ?.setLocalCrawl(next)
+      .then((s) => client.setQueryData(desktopSettingsKey, s))
+      .catch((err: unknown) => {
+        client.setQueryData(desktopSettingsKey, settings);
+        toast.error('Couldn’t change reading from this computer', { description: err instanceof Error ? err.message : undefined });
+      });
+  }
+
+  return (
+    <Setting
+      label="Read blocked sites from this computer"
+      description="Some sites refuse our servers or only show an address with JavaScript. When your computer is idle and plugged in, nvoke reads those from here, over your connection, as nvokebot: robots.txt, one page a second, no logins. Only the addresses leave this computer."
+    >
+      <Switch checked={settings.localCrawl} onCheckedChange={change} aria-label="Read blocked sites from this computer" />
+    </Setting>
+  );
+}
+
 function AccountSkeleton() {
   return (
     <div className="flex flex-col gap-14">
@@ -394,6 +428,7 @@ export function AccountScreen() {
                 <QuickHotkey />
                 <InboxFolder />
                 <NotificationsSwitch />
+                <LocalCrawl />
                 <Setting label="This computer" description={<LocalCopyDescription />}>
                   <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
                     {signingOut && <Loader2 className="motion-safe:animate-spin" />}

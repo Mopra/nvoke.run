@@ -69,6 +69,7 @@ import {
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
 import type { Company, Email, EmailKind, Search, SearchInput, Verification } from '@/lib/types';
+import { useDesktopSettings } from '@/lib/desktop';
 import { cn } from '@/lib/utils';
 
 const COLUMNS = 'grid grid-cols-[minmax(12rem,1fr)_minmax(19rem,1.6fr)_minmax(8rem,0.6fr)_4rem] gap-6';
@@ -191,6 +192,26 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
   );
 }
 
+/** A site our servers could not read, and where the desktop's own read of it stands. */
+function LocalCrawlLine({ company }: { company: Company }) {
+  const { data: settings } = useDesktopSettings();
+  const quiet = 'text-xs leading-5 text-muted-foreground';
+  const why = company.crawlStatus === 'js_only' ? 'Needs JavaScript' : 'Refuses our servers';
+  if (company.localCrawl === 'claimed') {
+    return (
+      <span className={cn(quiet, 'inline-flex items-center gap-2')}>
+        <Loader2 className="size-3 text-primary motion-safe:animate-spin" />
+        Reading from this computer
+      </span>
+    );
+  }
+  if (company.localCrawl === 'failed') return <span className={quiet}>{why}, and unreachable from here too</span>;
+  if (company.localCrawl === 'blocked') return <span className={quiet}>Asks for a login or a CAPTCHA, so we stay out</span>;
+  if (settings?.localCrawl) return <span className={quiet}>{why}. Read from this computer when it’s idle</span>;
+  if (settings) return <span className={quiet}>{why}. Turn on reading from this computer in Account</span>;
+  return <span className={quiet}>{why}. The desktop app can read it</span>;
+}
+
 function EmailsCell({ company, live }: { company: Company; live: boolean }) {
   const quiet = 'text-xs leading-5 text-muted-foreground';
   if (company.crawlStatus === 'pending') {
@@ -203,6 +224,9 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
   }
   if (company.crawlStatus === 'blocked') return <span className={quiet}>Site blocks crawlers, so we stay out</span>;
   if (company.crawlStatus === 'failed') return <span className={quiet}>Site unreachable</span>;
+  if ((company.crawlStatus === 'refused' || company.crawlStatus === 'js_only') && company.localCrawl !== 'done') {
+    return <LocalCrawlLine company={company} />;
+  }
   if (company.emails.length === 0) return <span className={quiet}>No public email</span>;
   return (
     <div className="flex min-w-0 flex-col gap-1">

@@ -44,6 +44,7 @@ export const IpcChannel = {
   quickFrontTab: 'quick:front-tab',
   /** Quick window to main, no payload: reads the front tab after asking macOS for permission. */
   quickReadFrontTab: 'quick:read-front-tab',
+  desktopSetLocalCrawl: 'desktop:set-local-crawl',
   /** Main to renderer push, payload DesktopCommand. */
   desktopCommand: 'desktop:command',
   localSearches: 'local:searches',
@@ -212,6 +213,12 @@ export interface DesktopSettings {
   inboxFolder: string;
   /** Why the inbox is not watching, for example the folder can't be created. Null when it works. */
   inboxError: string | null;
+  /**
+   * Read sites that refuse our servers or need JavaScript from this computer,
+   * in a hidden window while it is idle (docs/SPEC.md, "Local render crawl").
+   * Off by default.
+   */
+  localCrawl: boolean;
 }
 
 /** A table file that landed in the inbox and has stopped growing. `id` is opaque: main maps it back to the path. */
@@ -277,6 +284,8 @@ export interface DesktopApi {
   chooseInboxFolder(): Promise<DesktopSettings>;
   /** Shows the inbox folder in the file manager. */
   openInboxFolder(): Promise<void>;
+  /** Turns the local render crawl on or off and returns the saved settings. */
+  setLocalCrawl(enabled: boolean): Promise<DesktopSettings>;
   /** Subscribes to commands from the tray. Returns an unsubscribe function. */
   onCommand(listener: (command: DesktopCommand) => void): () => void;
 }

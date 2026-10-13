@@ -20,6 +20,12 @@ import {
   SearchIdParams,
   SearchListResponse,
 } from './leads.ts';
+import {
+  LocalCrawlClaimRequest,
+  LocalCrawlClaimResponse,
+  LocalCrawlResultRequest,
+  LocalCrawlResultResponse,
+} from './local-crawl.ts';
 import { PlansResponse } from './plans.ts';
 import { OptOutRequest, OptOutResponse } from './privacy.ts';
 import {
@@ -188,6 +194,36 @@ export const ENDPOINTS: Endpoint[] = [
     response: 'csv',
     errors: ['not_found', 'invalid_request'],
     example: { verification: 'valid' },
+  },
+  {
+    id: 'claimLocalCrawl',
+    method: 'POST',
+    path: '/v1/local-crawl/claim',
+    group: 'Leads',
+    summary: 'Claim sites to read from your own computer',
+    description:
+      'For the desktop app’s local render crawl. Hands out up to `max` companies from your searches of the last 30 days whose site refused our servers (`refused`) or needs JavaScript (`js_only`), each held for 10 minutes. Read them under the same rules as nvokebot (robots.txt, one page a second, 8 pages, no logins, no CAPTCHAs) and send what you found to `POST /v1/local-crawl/results`. Empty while this month’s allowance is used up.',
+    auth: 'key',
+    body: LocalCrawlClaimRequest,
+    status: 200,
+    response: LocalCrawlClaimResponse,
+    errors: ['invalid_request'],
+    example: { max: 3 },
+  },
+  {
+    id: 'submitLocalCrawl',
+    method: 'POST',
+    path: '/v1/local-crawl/results',
+    group: 'Leads',
+    summary: 'Send what a local crawl found',
+    description:
+      'The addresses found on a claimed company’s site and the page each was on. We check every address again (shape, placeholders, the company’s own domain, opt-outs), store the rest in that search and verify them like any other; you pay only for valid ones. Nothing sent here enters the shared cache.',
+    auth: 'key',
+    body: LocalCrawlResultRequest,
+    status: 200,
+    response: LocalCrawlResultResponse,
+    errors: ['invalid_request', 'not_found', 'not_claimed'],
+    example: { companyId: '00000000-0000-4000-8000-000000000000', outcome: 'done', emails: [{ address: 'info@example.dk', sourceUrl: 'https://example.dk/kontakt' }], pages: 3 },
   },
   {
     id: 'listWebhooks',
@@ -397,6 +433,7 @@ export const ERROR_CODES: Record<string, string> = {
   quota_exceeded: 'This month’s verified emails are used up. A human upgrades at `billingUrl` from `GET /v1/me`.',
   source_unavailable: 'Web search is paused on our side. Local and launch searches still work.',
   not_cancelable: 'The search already finished.',
+  not_claimed: 'The company is not claimed for a local crawl right now. Claim it again with `POST /v1/local-crawl/claim`.',
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
   account_exists: 'An account with this email exists. Ask the human for an API key.',
   email_not_accepted: 'Disposable inbox, an opted-out address, or a domain that receives no mail.',

@@ -30,7 +30,11 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   the VPS runbook. Server runs as plain Node in `/opt/nvoke` under a dedicated
   `nvoke` user, with secrets in `/opt/nvoke/.env`. No Docker, no Coolify.
 - `packages/shared`: zod schemas for every request and response between desktop
-  and server. Change the schema here first, then both sides.
+  and server. Change the schema here first, then both sides. The subpath
+  `@nvoke/shared/crawl` holds the crawl rules both crawls share (domains,
+  email extraction, page picking, app shell and bot wall detection): the
+  server crawl and the desktop's local render crawl
+  (`apps/desktop/src/main/local-crawl`, docs/SPEC.md "Local render crawl").
 
 ## Commands
 

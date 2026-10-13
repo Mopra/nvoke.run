@@ -4,7 +4,8 @@
  * there is no tray and the setting is hidden.
  */
 import { useEffect, useRef } from 'react';
-import type { DesktopApi, DesktopCommand, FilesApi, GrabApi, InboxApi, McpApi, QuickApi } from '../../../ipc/contract';
+import { useQuery } from '@tanstack/react-query';
+import type { DesktopApi, DesktopCommand, DesktopSettings, FilesApi, GrabApi, InboxApi, McpApi, QuickApi } from '../../../ipc/contract';
 
 export function desktopApi(): DesktopApi | null {
   const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
@@ -63,4 +64,15 @@ export function grabApi(): GrabApi | null {
 /** True in the screen grab overlay, which loads the same renderer on `#/grab`. */
 export function isGrabOverlay(): boolean {
   return window.location.hash.startsWith('#/grab');
+}
+
+export const desktopSettingsKey = ['desktop-settings'] as const;
+
+/** The app's settings on this computer. Null without the bridge (a plain browser), where none apply. */
+export function useDesktopSettings() {
+  return useQuery({
+    queryKey: desktopSettingsKey,
+    queryFn: async (): Promise<DesktopSettings | null> => (await desktopApi()?.getSettings()) ?? null,
+    staleTime: Infinity,
+  });
 }

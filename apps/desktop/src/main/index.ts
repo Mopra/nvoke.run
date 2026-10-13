@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from 'electron';
 import { HealthResponse } from '@nvoke/shared';
 import { DEFAULT_HOTKEY, isAccelerator } from '../ipc/accelerator';
 import {
@@ -24,6 +24,8 @@ import { registerLocalIpc } from './local/ipc';
 import { LocalStore } from './local/store';
 import { LeadSync } from './local/sync';
 import { defaultInboxFolder, InboxWatcher } from './inbox';
+import { HiddenBrowser } from './local-crawl/browser';
+import { IDLE_AFTER_S, LocalCrawler } from './local-crawl';
 import { applyOpenAtLogin, startedHidden } from './login-item';
 import { QuickWindow } from './quick-window';
 import { registerMcp } from './mcp';
@@ -65,6 +67,7 @@ let quick: QuickWindow | null = null;
 let mcp: LocalMcpServer | null = null;
 let notifier: Notifier | null = null;
 let grab: ScreenGrab | null = null;
+let localCrawler: LocalCrawler | null = null;
 let desktop: SavedDesktop = {};
 let inbox: InboxWatcher | null = null;
 
@@ -81,6 +84,7 @@ function desktopSettings(): DesktopSettings {
     inboxEnabled: desktop.inboxEnabled === true,
     inboxFolder: inboxFolder(),
     inboxError: inbox?.error ?? null,
+    localCrawl: desktop.localCrawl === true,
   };
 }
 
@@ -211,6 +215,23 @@ function main(): void {
         fetchSearches: () => (api.getState().status === 'signed-in' ? api.api('/v1/searches') : Promise.resolve(null)),
       });
     }
+    if (!captureDir) {
+      let browser: HiddenBrowser | null = null;
+      localCrawler = new LocalCrawler({
+        api: (path, init) => api.api(path, init),
+        conditions: () => ({
+          enabled: desktop.localCrawl === true,
+          signedIn: api.getState().status === 'signed-in',
+          onBattery: powerMonitor.isOnBatteryPower(),
+          idleState: powerMonitor.getSystemIdleState(IDLE_AFTER_S),
+        }),
+        browser: () => (browser ??= new HiddenBrowser()),
+        log: (message) => console.info(`[local-crawl] ${message}`),
+      });
+      localCrawler.start();
+      // Locking the screen is the clearest "I am away": start then rather than at the next check.
+      powerMonitor.on('lock-screen', () => void localCrawler?.tick());
+    }
     createWindow({ hidden: !captureDir && startedHidden(process.argv) });
     await session.init();
     tray?.setSignedIn(session.getState().status === 'signed-in');
@@ -231,6 +252,7 @@ function main(): void {
   });
 
   app.on('will-quit', () => {
+    localCrawler?.stop();
     tray?.destroy();
     tray = null;
     grab?.destroy();
@@ -448,6 +470,12 @@ function registerIpc(session: AuthSession, sync: LeadSync): void {
   ipcMain.on(IpcChannel.inboxReady, () => inbox?.rendererIsReady());
   ipcMain.handle(IpcChannel.inboxDone, (_event, payload: unknown) => inbox?.done(payload) ?? { saved: false, error: 'The inbox is off.' });
   ipcMain.handle(IpcChannel.inboxFailed, (_event, payload: unknown): void => inbox?.failed(payload));
+
+  ipcMain.handle(IpcChannel.desktopSetLocalCrawl, (_event, enabled: unknown): DesktopSettings => {
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
+    saveDesktop({ ...desktop, localCrawl: enabled });
+    return desktopSettings();
+  });
 
   ipcMain.handle(IpcChannel.authGetState, () => session.getState());
   ipcMain.handle(IpcChannel.authSignIn, () => session.signIn());
