@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { HealthResponse } from '@nvoke/shared';
+import type { HealthResponse } from '@nvoke/shared';
 import type { AppInfo } from '../../../ipc/contract';
-import { apiGet } from '@/lib/api';
-import { env } from '@/lib/env';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -13,7 +11,8 @@ export function StatusCards() {
   const [app, setApp] = useState<AppInfo | null>(null);
 
   useEffect(() => {
-    apiGet('/health', HealthResponse)
+    window.nvoke
+      .getHealth()
       .then((health) => setServer({ kind: 'ok', health }))
       .catch((err: unknown) => setServer({ kind: 'error', message: err instanceof Error ? err.message : String(err) }));
     window.nvoke
@@ -27,7 +26,7 @@ export function StatusCards() {
       <Card>
         <CardHeader>
           <CardTitle>Server</CardTitle>
-          <CardDescription>{env.apiUrl}</CardDescription>
+          <CardDescription>{app?.apiUrl ?? 'Unknown'}</CardDescription>
         </CardHeader>
         <CardContent className="text-sm">
           {server.kind === 'loading' && <span className="text-muted-foreground">Checking...</span>}

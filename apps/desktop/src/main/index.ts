@@ -1,6 +1,103 @@
-import { join } from 'node:path';
+import { hostname } from 'node:os';
+import { join, resolve } from 'node:path';
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { IpcChannel, type AppInfo } from '../ipc/contract';
+import { HealthResponse } from '@nvoke/shared';
+import { IpcChannel, type AppInfo, type AuthState } from '../ipc/contract';
+import { PROTOCOL, findProtocolUrl } from './auth/flow';
+import { AuthSession } from './auth/session';
+import { safeTokenStore } from './auth/token-store';
+
+const env = {
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  siteUrl: import.meta.env.VITE_SITE_URL || (app.isPackaged ? 'https://nvoke.run' : 'http://localhost:3001'),
+};
+
+// One running instance. A second launch (for example the OS opening an
+// nvoke:// link on Windows or Linux) hands its argv to the first and quits.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  main();
+}
+
+function main(): void {
+  registerProtocol();
+
+  let session: AuthSession | null = null;
+  // Callback URLs that arrive before the app is ready (macOS open-url, or the
+  // URL that launched the app on Windows and Linux).
+  const queued: string[] = [];
+  const launchUrl = findProtocolUrl(process.argv);
+  if (launchUrl) queued.push(launchUrl);
+
+  function handleUrl(url: string): void {
+    focusWindow();
+    if (!session) {
+      queued.push(url);
+      return;
+    }
+    void session.handleCallback(url);
+  }
+
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleUrl(url);
+  });
+
+  app.on('second-instance', (_event, argv) => {
+    const url = findProtocolUrl(argv);
+    if (url) handleUrl(url);
+    else focusWindow();
+  });
+
+  app.whenReady().then(async () => {
+    session = new AuthSession({
+      apiUrl: env.apiUrl,
+      siteUrl: env.siteUrl,
+      deviceName: hostname(),
+      tokenStore: safeTokenStore(),
+      openExternal: (url) => shell.openExternal(url),
+      onChange: broadcastAuthState,
+    });
+    registerIpc(session);
+    createWindow();
+    await session.init();
+    for (const url of queued.splice(0)) await session.handleCallback(url);
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}
+
+/**
+ * Registers nvoke:// with the OS. Installers also register it (see
+ * `protocols` in electron-builder.yml). In development on Windows the OS has
+ * to launch electron.exe with the app path, so pass both.
+ */
+function registerProtocol(): void {
+  if (process.defaultApp && process.argv[1]) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient(PROTOCOL);
+  }
+}
+
+function focusWindow(): void {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function broadcastAuthState(state: AuthState): void {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IpcChannel.authChanged, state);
+}
 
 function isSafeExternalUrl(raw: string): boolean {
   try {
@@ -50,13 +147,14 @@ function createWindow(): void {
   }
 }
 
-function registerIpc(): void {
+function registerIpc(session: AuthSession): void {
   ipcMain.handle(IpcChannel.getAppInfo, (): AppInfo => ({
     name: app.getName(),
     version: app.getVersion(),
     platform: process.platform,
     arch: process.arch,
     electron: process.versions.electron,
+    apiUrl: env.apiUrl,
   }));
 
   ipcMain.handle(IpcChannel.openExternal, async (_event, url: unknown) => {
@@ -65,17 +163,15 @@ function registerIpc(): void {
     }
     await shell.openExternal(url);
   });
-}
 
-app.whenReady().then(() => {
-  registerIpc();
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  ipcMain.handle(IpcChannel.getHealth, async () => {
+    const res = await session.api('/health');
+    if (!res.ok) throw new Error(`/health responded ${res.status}`);
+    return HealthResponse.parse(await res.json());
   });
-});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+  ipcMain.handle(IpcChannel.authGetState, () => session.getState());
+  ipcMain.handle(IpcChannel.authSignIn, () => session.signIn());
+  ipcMain.handle(IpcChannel.authCancel, () => session.cancelSignIn());
+  ipcMain.handle(IpcChannel.authSignOut, () => session.signOut());
+}

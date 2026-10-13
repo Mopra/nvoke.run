@@ -38,9 +38,6 @@ importers:
 
   apps/desktop:
     devDependencies:
-      '@clerk/react':
-        specifier: ^6.17.8
-        version: 6.17.8(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@nvoke/shared':
         specifier: workspace:*
         version: link:../../packages/shared

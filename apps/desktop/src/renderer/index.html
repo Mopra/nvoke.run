@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
-      Content Security Policy. https: is allowed for scripts, frames and
-      connections because Clerk loads its UI from its own domain. Tighten to
-      the exact Clerk and API hosts once they are known.
+      Content Security Policy. The renderer loads nothing remote except the
+      user's avatar. API calls go through the main process (window.nvoke), so
+      connect-src only needs the Vite dev server.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* https: wss:; frame-src https:; worker-src 'self' blob:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:*; worker-src 'self' blob:"
     />
     <title>nvoke</title>
   </head>

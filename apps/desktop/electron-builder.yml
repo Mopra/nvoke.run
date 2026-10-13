@@ -12,6 +12,12 @@ asar: true
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 publish: null
 
+# nvoke:// links (the browser sign-in callback) open the app. NSIS and the
+# AppImage register it with the OS, macOS reads it from Info.plist.
+protocols:
+  - name: nvoke
+    schemes: [nvoke]
+
 win:
   target:
     - target: nsis

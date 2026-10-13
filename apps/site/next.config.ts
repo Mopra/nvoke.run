@@ -2,6 +2,8 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Do not let next dev write an AGENTS.md into the app.
+  agentRules: false,
   // Compile @nvoke/shared from source, so the site never needs a prior build
   // of the package (Vercel only builds apps/site).
   transpilePackages: ['@nvoke/shared'],
