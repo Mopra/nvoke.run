@@ -90,6 +90,8 @@ export async function erase(sql: Sql, input: PrivacyTarget, source: SuppressionS
           where split_part(address, '@', 2) = ${domain} or split_part(address, '@', 2) like ${sub}`;
       // Emails of these companies go with them (on delete cascade).
       companies = (await tx`delete from companies where domain = ${domain} or domain like ${sub}`).count;
+      // Launches on the domain in the drops feed.
+      await tx`delete from feed_items where domain = ${domain} or domain like ${sub}`;
       emailChecks = (
         await tx`delete from email_checks
           where split_part(address, '@', 2) = ${domain} or split_part(address, '@', 2) like ${sub}`

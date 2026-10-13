@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AccountOrigin } from './agents.ts';
+import { DropRunParams } from './drops.ts';
 import { Plan } from './plans.ts';
 
 /**
@@ -8,7 +9,8 @@ import { Plan } from './plans.ts';
  * responses with them.
  */
 
-export const SearchKind = z.enum(['local', 'web', 'launches']);
+/** `drop` searches are made by drops (drops.ts), never by a client. */
+export const SearchKind = z.enum(['local', 'web', 'launches', 'drop']);
 export type SearchKind = z.infer<typeof SearchKind>;
 
 export const SearchStatus = z.enum(['queued', 'running', 'done', 'failed', 'canceled']);
@@ -87,6 +89,7 @@ export const Search = z.discriminatedUnion('kind', [
   SearchBase.extend({ kind: z.literal('local'), params: LocalSearchParams }),
   SearchBase.extend({ kind: z.literal('web'), params: WebSearchParams }),
   SearchBase.extend({ kind: z.literal('launches'), params: LaunchesSearchParams }),
+  SearchBase.extend({ kind: z.literal('drop'), params: DropRunParams }),
 ]);
 export type Search = z.infer<typeof Search>;
 

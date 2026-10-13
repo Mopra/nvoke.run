@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { CreateSearchRequest, SearchStatus } from '@nvoke/shared';
+import { storeItems } from '../feed/collect.js';
+import { createDrop, dropAdapter, runDueDrops } from '../feed/drops.js';
 import { RateLimiter, sleep } from '../leads/limits.js';
 import { ensureAccount } from '../leads/quota.js';
 import { createSearch, exportRows, getSearch, listCompanies } from '../leads/repo.js';
@@ -65,7 +67,7 @@ function deps(local: SourceAdapter<unknown>): PipelineDeps {
   return {
     sql: db.sql,
     log: silentLog,
-    adapters: { local, web: local, launches: local } as AdapterRegistry,
+    adapters: { local, web: local, launches: local, drop: dropAdapter(() => db.sql) } as AdapterRegistry,
     crawl: { fetch: sites, limiter, robots: new RobotsCache({ fetch: sites, limiter }) },
     verifier: stubVerifier,
   };
@@ -96,6 +98,28 @@ async function run(local: SourceAdapter<unknown>, req: CreateSearchRequest = LOC
 }
 
 describe('pipeline', () => {
+  it('runs a drop search from the feed', async () => {
+    await db.sql`truncate feed_items`;
+    await ensureAccount(db.sql, 'u1');
+    await storeItems(db.sql, [
+      { source: 'show_hn', sourceRef: '1', name: 'Alpha', website: 'https://alpha.dk', launchedAt: new Date() },
+      { source: 'yc', sourceRef: 'beta', name: 'Beta', website: 'https://beta.dk' },
+    ]);
+    const drop = await createDrop(db.sql, 'u1', { name: 'Everything' });
+    const [ran] = await runDueDrops(db.sql, silentLog);
+    expect(ran).toMatchObject({ dropId: drop.id, outcome: 'delivered' });
+    const runner = new Runner(deps(adapterOf([])), { concurrency: 4, pollMs: 20 });
+    runner.start();
+    try {
+      const [search] = await db.sql<{ id: string }[]>`select id from searches where drop_id = ${drop.id}`;
+      const final = await waitFor(search!.id, ['done', 'failed']);
+      expect(final).toMatchObject({ kind: 'drop', status: 'done', companiesFound: 2, emailsValid: 2 });
+      expect(final.params).toMatchObject({ dropId: drop.id, dropName: 'Everything' });
+    } finally {
+      await runner.stop(5_000);
+    }
+  });
+
   it('finds, dedupes, crawls and verifies a search end to end', async () => {
     await suppress(db.sql, { domain: 'optedout.dk' }, 'bot_page');
     const final = await run(

@@ -12,6 +12,7 @@
  *   pnpm --filter @nvoke/server cli stats --days 30
  *   pnpm --filter @nvoke/server cli sources resume brave
  *   pnpm --filter @nvoke/server cli alert test
+ *   pnpm --filter @nvoke/server cli feed collect
  *
  * `db` starts the embedded Postgres, applies the migrations, prints its URL
  * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
@@ -51,6 +52,9 @@
  * `sources resume <source>` ends a source pause early once its cause is
  * fixed. `alert test` emails a test alert through Day3 (needs DAY3_API_KEY,
  * ALERT_EMAIL_TO and ALERT_EMAIL_FROM). Both pick the database like stats.
+ * `feed collect` runs every feed collector now, whatever its interval, and
+ * prints what each found and how much of it was new; `feed` alone prints
+ * the feed per source. Both pick the database like stats.
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -60,6 +64,9 @@ import { pino } from 'pino';
 import { CreateSearchRequest, type Search } from '@nvoke/shared';
 import { applyMigrations } from './db/migrations.js';
 import { createAlerter } from './alerts.js';
+import { collectDue } from './feed/collect.js';
+import { createCollectors, sourceAvailability } from './feed/collectors.js';
+import { feedSourceStatus } from './feed/drops.js';
 import { loadEnv } from './env.js';
 import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
@@ -112,8 +119,9 @@ function usage(): never {
       '  cli stats [--days N] [--prod]',
       '  cli sources resume <source> [--prod]',
       '  cli alert test [--prod]',
+      '  cli feed [collect] [--prod]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
-      'privacy, stats, sources and alert act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+      'privacy, stats, sources, alert and feed act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
     ].join('\n'),
   );
@@ -301,6 +309,29 @@ async function alertTest(args: Args): Promise<void> {
   }
 }
 
+/** `cli feed [collect]`: the drops feed per source, optionally collecting first. */
+async function feed(args: Args): Promise<void> {
+  const action = args.positional[1];
+  if (action !== undefined && action !== 'collect') usage();
+  const env = loadEnv();
+  const { sql, close } = await opsDatabase(args);
+  try {
+    const collectors = createCollectors({ productHuntToken: env.PRODUCT_HUNT_TOKEN });
+    if (action === 'collect') {
+      const log = pino({ level: args.flags.has('verbose') ? 'debug' : 'error' });
+      for (const r of await collectDue(sql, collectors, log, { force: true })) {
+        console.log(`${r.source.padEnd(13)} found ${String(r.found).padStart(4)}  new ${String(r.added).padStart(4)}${r.error ? `  error: ${r.error}` : ''}`);
+      }
+    }
+    for (const s of await feedSourceStatus(sql, sourceAvailability(collectors))) {
+      const last = s.lastCollectedAt ? s.lastCollectedAt.slice(0, 16).replace('T', ' ') : 'never';
+      console.log(`${s.source.padEnd(13)} ${s.available ? 'on ' : 'off'}  last 7 days ${String(s.lastWeek).padStart(5)}  last collected ${last}`);
+    }
+  } finally {
+    await close();
+  }
+}
+
 /**
  * The database for operator commands: --database-url, then DATABASE_URL with
  * --prod, then CLI_DATABASE_URL or the embedded Postgres. Prints which.
@@ -332,6 +363,7 @@ async function main(): Promise<void> {
   if (args.positional[0] === 'stats') return stats(args);
   if (args.positional[0] === 'sources') return sources(args);
   if (args.positional[0] === 'alert') return alertTest(args);
+  if (args.positional[0] === 'feed') return feed(args);
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

@@ -23,6 +23,8 @@ export const RETENTION = {
   domainRowMonths: 12,
   /** A cached Brave Search result page is reused, then deleted, after this many days. */
   webSearchCacheDays: 7,
+  /** A feed item (a launch the worker collected for drops) is deleted this many days after discovery. */
+  feedItemDays: 90,
   /** How often the worker runs purge(). */
   purgeIntervalMs: 60 * 60_000,
 } as const;
@@ -40,6 +42,7 @@ export interface PurgeResult {
   emailChecks: number;
   billedEmails: number;
   webSearchPages: number;
+  feedItems: number;
 }
 
 /**
@@ -79,6 +82,11 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     where fetched_at < ${at}::timestamptz - make_interval(days => ${RETENTION.webSearchCacheDays})
     returning page
   `;
+  const feedItems = await sql`
+    delete from feed_items
+    where discovered_at < ${at}::timestamptz - make_interval(days => ${RETENTION.feedItemDays})
+    returning id
+  `;
   return {
     searches: searches.length,
     domainEmails: domainEmails.length,
@@ -86,5 +94,6 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     emailChecks: emailChecks.length,
     billedEmails: billedEmails.length,
     webSearchPages: webSearchPages.length,
+    feedItems: feedItems.length,
   };
 }

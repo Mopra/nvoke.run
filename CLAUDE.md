@@ -12,7 +12,8 @@ pnpm workspaces, TypeScript everywhere, Node 24.
 - `apps/server`: `src/api` (Fastify, entry `src/api/index.ts`), `src/worker`
   (separate process, entry `src/worker/index.ts`: Postgres job queue and the
   find, crawl and verify handlers), `src/leads` (source adapters, crawler,
-  verifier, quotas, CSV, the queries behind the routes), `src/db` (postgres.js
+  verifier, quotas, CSV, the queries behind the routes), `src/feed` (the
+  launch collectors the worker runs around the clock and daily drops), `src/db` (postgres.js
   client and migration runner), `src/cli.ts` (local searches and `cli db`),
   `migrations/` (numbered `.sql` files, applied in order: `0001_desktop_auth`,
   `0100_leads`, `0200_pricing`). Behaviour is in `docs/SPEC.md`.

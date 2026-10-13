@@ -22,14 +22,14 @@ export interface LaunchesAdapterOptions {
 
 // Show HN
 
-interface AlgoliaHit {
+export interface AlgoliaHit {
   objectID?: string;
   title?: string | null;
   url?: string | null;
   created_at?: string | null;
 }
 
-interface AlgoliaResponse {
+export interface AlgoliaResponse {
   hits?: AlgoliaHit[];
   nbPages?: number;
 }
@@ -88,7 +88,7 @@ async function* showHn(
 
 // Product Hunt
 
-const PH_QUERY = `
+export const PH_QUERY = `
 query NvokePosts($postedAfter: DateTime!, $first: Int!, $after: String) {
   posts(order: NEWEST, postedAfter: $postedAfter, first: $first, after: $after) {
     pageInfo { hasNextPage endCursor }
@@ -116,7 +116,7 @@ export interface PhNode {
   topics?: { edges?: Array<{ node?: { name?: string | null } }> };
 }
 
-interface PhResponse {
+export interface PhResponse {
   data?: {
     posts?: {
       pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };

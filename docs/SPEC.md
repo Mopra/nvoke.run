@@ -9,6 +9,7 @@ nvoke is a lead finder sold to paying customers. A native desktop app (Electron)
 | `local` | niche + location, e.g. "dentists" + "Copenhagen" | OpenStreetMap: Nominatim to resolve the location to a bounding box, Overpass to find matching businesses (by tag and name) that have a `website`. Free, no key. |
 | `web` | keyword, optional country | Brave Search API (`BRAVE_SEARCH_API_KEY`). Take result domains, drop big platforms (social networks, marketplaces, Wikipedia, news). Paid per request, see "Source costs". |
 | `launches` | optional keyword filter, time window | Product Hunt and Hacker News "Show HN" (port from `../probe/apps/worker/src/sources`). |
+| `drop` | nothing: a drop makes it (see "Drops") | The feed the worker collects around the clock. |
 
 Each source is an adapter with the same interface, so more can be added later:
 
@@ -49,6 +50,9 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 - `alerts_sent`: `key` pk, `sent_at`. When each operator alert last went out (see "Source costs").
 - `source_pauses`: `source` pk (`brave`), `reason`, `paused_at`, `until`.
 - `jobs`: `id`, `type` (`find` | `crawl` | `verify`), `payload` jsonb, `status`, `attempts`, `run_after`, `locked_at`, `last_error`.
+- `feed_items`: launches collected for drops: `id` (identity, the drop cursor), `source`, `source_ref` (unique together), `name`, `website`, `domain`, `tagline`, `description`, `tags`, `location`, `launched_at`, `discovered_at`, `search_text` (lowercased name, tagline, description and tags). No addresses.
+- `feed_sources`: one row per collector: `source` pk, `last_run_at`, `last_ok_at`, `last_error`, `last_found`, `last_added`.
+- `drops`: `id`, `clerk_user_id`, `name`, `keyword`, `sources`, `daily_limit`, `enabled`, `cursor` (highest `feed_items.id` already considered), `next_run_at`, `last_delivered_at`, `created_at`. `searches.drop_id` points at the drop that made a search (set null when the drop is deleted).
 
 Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work.
 
@@ -67,6 +71,7 @@ Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work
 - `POST /v1/agents/signup` (public, rate limited) and `POST /v1/agents/claim` (Clerk session): see "API and agents".
 - `GET /v1/openapi.json` (public): OpenAPI 3.1 for every route.
 
+- `GET /v1/drops` returns the user's drops (with `companiesDelivered`) and per feed source whether it is collected and how many launches it brought in over the last 7 days. `POST /v1/drops` with `{ name, keyword?, sources?, dailyLimit? }` (409 `too_many_drops` past 20), `PATCH /v1/drops/:id` with any of those plus `enabled` (`keyword: null` removes it), `POST /v1/drops/:id/run`, `DELETE /v1/drops/:id`. Schemas in `packages/shared/src/drops.ts`.
 - `POST /v1/privacy/opt-out` (public, rate limited) with `{ email }` or `{ domain }` suppresses it at once and deletes matching data. No confirmation step. Always returns `{ ok: true }`, so it cannot be used to test whether nvoke holds an address. Schema in `packages/shared/src/privacy.ts`.
 
 Outside `/v1`: `POST /mcp` (the MCP server), `/.well-known/oauth-protected-resource[/mcp]` and `/.well-known/oauth-authorization-server` (OAuth discovery for MCP clients), and `POST /webhooks/clerk` takes Clerk Billing events (signed with `CLERK_WEBHOOK_SIGNING_SECRET`) and re-reads the paying user's plan.
@@ -96,6 +101,15 @@ The account is on the free plan like any other. Unclaimed, its keys work for 7 d
 **MCP.** `POST /mcp` on the API, Streamable HTTP, stateless, JSON responses; GET and DELETE answer 405 (`apps/server/src/api/routes/mcp.ts`, `@modelcontextprotocol/sdk`). Each tool runs the matching REST route in process (`app.inject`) with the caller's own `Authorization` header, so MCP and REST share auth, quotas and shapes. Tools: `get_account`, `start_search`, `wait_for_search` (polls up to 50 seconds), `get_search`, `list_searches`, `get_leads`, `export_csv`, `cancel_search`, `delete_search`. The server sends `MCP_INSTRUCTIONS` at `initialize`, including the EU consent caveat.
 
 MCP auth is an API key in the bearer header, or OAuth with Clerk as the authorization server: a 401 carries `WWW-Authenticate: Bearer resource_metadata=...`, the protected resource metadata names the Clerk issuer (decoded from `CLERK_PUBLISHABLE_KEY`), and the client registers itself with Clerk (client ID metadata documents or dynamic client registration) and sends the person through Clerk's sign-in, where they can also sign up. OAuth tokens are verified with the Clerk Backend API and cached for a minute.
+
+## Drops
+
+Fresh leads, not a static list. The worker collects new launches around the clock, and a drop turns the new ones that match a user's filter into a search once a day.
+
+- **Feed.** Every minute the worker runs the collectors that are due (`apps/server/src/feed/collectors.ts`) and stores what they find in `feed_items`: Show HN and Launch HN through the Algolia HN API every 30 minutes, Product Hunt every hour (needs `PRODUCT_HUNT_TOKEN`, skipped without it), Y Combinator's three newest batches from the public yc-oss mirror of the YC directory every 6 hours. A run reaches back to the last good run minus 2 hours (7 days the first time). Only what the source publishes goes in: name, website, tagline, description, tags, location. Nothing is crawled and no address is stored at collection time. Items on platform domains are skipped. A failing collector is recorded in `feed_sources` and retried at its next interval; it never stops the others. An advisory lock keeps it to one worker. `cli feed collect --prod` runs every collector now and `cli feed --prod` prints the feed per source.
+- **Drops.** A drop is a name, an optional keyword (every word must appear in the item's `search_text`), a set of sources and a daily limit (default 25, at most 200). At most 20 per user. The first run happens within a minute of creating the drop and reaches back 7 days (`DROP_BACKFILL_DAYS`); after that it runs every 24 hours on the same beat.
+- **A run** (`runDueDrops` in `apps/server/src/feed/drops.ts`, every minute, `FOR UPDATE SKIP LOCKED` on due drops): takes the feed items after the drop's `cursor`, from its sources, matching the keyword, on a domain this drop has not delivered before, one per domain, newest first. When there are none it only moves the cursor and the next run time: no empty searches. Otherwise it inserts a search of kind `drop` (params: `dropId`, `dropName`, `keyword`, `sources`, plus the feed slice `afterId`, `untilId` and, on the first run, `since`), limit = the daily limit, with its find job, and moves the cursor to the newest item. The find step reads that slice of the feed instead of calling a source; crawl, verify, billing and retention are the same as every other search. Items past the limit are skipped, so a drop always delivers the freshest launches. A run while the user's allowance is used up creates nothing and leaves the cursor, so those launches wait for the next run.
+- **Edits** apply from the next run. "Check now" (`POST /v1/drops/:id/run`) moves the next run to now. Deleting a drop keeps the searches it made.
 
 ## Plans
 
@@ -133,6 +147,7 @@ Brave Search bills every request, while users pay only for valid emails. A web s
 - **Searches** (home): list with status, counters and progress. A "New search" button.
 - **New search**: three tabs (Local businesses, Web search, New launches) with the fields above and a limit.
 - **Search results**: table of companies with their emails and verification badges. Filter by verification and email kind, text search, copy email, open website, export CSV (saved via a native save dialog).
+- **Drops**: the user's drops with what each delivered and when it runs next, and the feed's last week per source. Each drop has Edit, Check now, Pause or Resume and Delete. The editor is a sentence like New search: "Watch [keyword] from [sources] up to [N] a day called [name]". The searches a drop makes appear in Searches with the drop's name; their menu has Open drop instead of Run again.
 - **Account**: user, plan, verified email meter, sign out, Upgrade or Manage billing (opens `/desktop/billing` on the site), and API keys (create, shown once, revoke) with the MCP setup line.
 
 ## Website (nvoke.run)
@@ -153,6 +168,7 @@ Full documents: `docs/legal/` (`lia.md` legitimate interest assessment, `dpia.md
   - `searches` with their `companies` and `emails`: deleted 12 months after `created_at`, or earlier when the user deletes the search.
   - `email_checks`: 30 days.
   - `web_search_cache`: 7 days after `fetched_at`.
+  - `feed_items`: 90 days after `discovered_at`. Erasing a domain deletes its feed items too.
   - `billed_emails`: 12 months after `billed_at`. Finding the address again after that charges it again.
   - `domains`: dropped 12 months after `recheck_at` when no search crawled the domain again.
   - `suppressions`: forever, so an opted-out address is never collected again.

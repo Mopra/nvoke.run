@@ -10,6 +10,7 @@ import {
   type SearchStatus,
   type Verification,
 } from '@nvoke/shared';
+import { DropRunInternal } from '../feed/drops.js';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
 import { cachedCrawl, isCacheable, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
 import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
@@ -91,6 +92,7 @@ const PARAMS = {
   local: LocalSearchParams,
   web: WebSearchParams,
   launches: LaunchesSearchParams,
+  drop: DropRunInternal,
 } as const;
 
 interface SearchRow {
