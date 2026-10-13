@@ -8,6 +8,8 @@
 
 ## Lately
 
+- 2026-10-13 Woke with a cut-off message that named no event; quest list unchanged since the last round, both blocked quests still wait on running merge fixes. Nothing to settle.
+- 2026-10-13 Round after "hotkey looks up a copied domain" landed: SQLite merge conflicted a third time; told the third fix-up to merge newest main right before finishing. Everything else running or waiting cleanly.
 - 2026-10-13 CSV drop quest conflicted on merge; fix-up already running, gave it sonnet. Its Assumed lines (no XLSX, extra domain column, jobs in renderer) stand as written.
 - 2026-10-13 SQLite merge fix-up conflicted again (main moved under it); second fix-up already running, gave it sonnet.
 - 2026-10-13 Round: 6 running, 1 waiting cleanly on the SQLite merge fix, notifications and SQLite fixes still running, nothing to do.
@@ -28,4 +30,5 @@
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Check the notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
-- Check the second local SQLite merge fix ("Fix the merge of fix-the-merge-of-desktop-local-sqlite") lands; its screens were only checked offscreen, never with capture.
+- Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
+- Check the third local SQLite merge fix ("Fix the merge of fix-the-merge-of-fix-the-merge-of-desktop") lands; if it conflicts a fourth time, file one quest to bring the SQLite branch in by hand rather than another automatic fix-up; its screens were only checked offscreen, never with capture.
