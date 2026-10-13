@@ -102,19 +102,19 @@ export function safeCsvFileName(name: unknown): string {
  * the save dialog. Never rejects; a partial file is removed on failure.
  */
 export async function exportCsvToFile(client: ApiClient, searchId: unknown, filePath: string): Promise<ExportResult> {
-  if (typeof searchId !== 'string' || !UUID.test(searchId)) return { saved: false, error: 'That search no longer exists.' };
+  if (typeof searchId !== 'string' || !UUID.test(searchId)) return { saved: false, error: 'That search is gone.' };
   let res: Response;
   try {
     res = await client.api(`/v1/searches/${searchId}/export.csv`, { headers: { Accept: 'text/csv' } });
   } catch {
-    return { saved: false, error: 'Could not reach nvoke. Check your connection and try again.' };
+    return { saved: false, error: 'Can’t reach nvoke. Check your connection.' };
   }
   if (!res.ok || !res.body) {
     const reason =
       res.status === 401
-        ? 'Your session has ended. Sign in again.'
+        ? 'Session expired. Sign in again.'
         : res.status === 404
-          ? 'That search no longer exists.'
+          ? 'That search is gone.'
           : `The server answered ${res.status}.`;
     return { saved: false, error: reason };
   }
@@ -123,6 +123,6 @@ export async function exportCsvToFile(client: ApiClient, searchId: unknown, file
     return { saved: true, filePath };
   } catch (err) {
     await rm(filePath, { force: true }).catch(() => undefined);
-    return { saved: false, error: err instanceof Error ? err.message : 'Could not write the file.' };
+    return { saved: false, error: err instanceof Error ? err.message : 'Couldn’t write the file.' };
   }
 }

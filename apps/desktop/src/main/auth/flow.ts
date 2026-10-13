@@ -63,24 +63,24 @@ export function parseCallbackUrl(raw: string, pending: PendingAuth | null, now: 
   try {
     url = new URL(raw);
   } catch {
-    return { ok: false, error: 'The sign-in link was malformed.' };
+    return { ok: false, error: 'Malformed sign-in link.' };
   }
   if (url.protocol !== `${PROTOCOL}:` || url.hostname !== CALLBACK_HOST || url.pathname !== CALLBACK_PATH) {
-    return { ok: false, error: 'The sign-in link was not a callback.' };
+    return { ok: false, error: 'Not a sign-in callback link.' };
   }
   if (!pending) {
-    return { ok: false, error: 'No sign-in is in progress. Start again from this app.' };
+    return { ok: false, error: 'No sign-in in progress. Start again from the app.' };
   }
   if (now - pending.startedAt > PENDING_TTL_MS) {
-    return { ok: false, error: 'The sign-in took too long. Try again.' };
+    return { ok: false, error: 'Sign-in timed out. Try again.' };
   }
   const state = url.searchParams.get('state');
   if (!state || !sameString(state, pending.state)) {
-    return { ok: false, error: 'The sign-in did not match this app. Try again.' };
+    return { ok: false, error: 'Sign-in didn’t match this app. Try again.' };
   }
   const code = url.searchParams.get('code');
   if (!code) {
-    return { ok: false, error: 'The sign-in was not completed.' };
+    return { ok: false, error: 'Sign-in wasn’t completed. Try again.' };
   }
   return { ok: true, code };
 }

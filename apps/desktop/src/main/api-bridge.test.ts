@@ -112,7 +112,7 @@ describe('bridgeRequest', () => {
 
 describe('exportCsvToFile', () => {
   it('streams the CSV to disk', async () => {
-    const csv = 'company,email\r\nAcme,info@acme.dk\r\n';
+    const csv = 'company,email\r\nAcme,info@acme.com\r\n';
     const t = await signedIn((url) => {
       expect(url).toBe(`http://api.test/v1/searches/${SEARCH_ID}/export.csv`);
       return new Response(csv, { headers: { 'content-type': 'text/csv' } });
@@ -125,7 +125,7 @@ describe('exportCsvToFile', () => {
   it('reports failures without writing a file', async () => {
     const t = await signedIn(() => Response.json({ error: 'not_found' }, { status: 404 }));
     const file = join(dir, 'missing.csv');
-    expect(await exportCsvToFile(t.session, SEARCH_ID, file)).toEqual({ saved: false, error: 'That search no longer exists.' });
+    expect(await exportCsvToFile(t.session, SEARCH_ID, file)).toEqual({ saved: false, error: 'That search is gone.' });
     expect(existsSync(file)).toBe(false);
     expect((await exportCsvToFile(t.session, '../etc', file)).saved).toBe(false);
   });
@@ -133,7 +133,7 @@ describe('exportCsvToFile', () => {
 
 describe('safeCsvFileName', () => {
   it('keeps names usable on every OS', () => {
-    expect(safeCsvFileName('dentists-aarhus.csv')).toBe('dentists-aarhus.csv');
+    expect(safeCsvFileName('dentists-austin.csv')).toBe('dentists-austin.csv');
     expect(safeCsvFileName('a/b:c')).toBe('a-b-c.csv');
     expect(safeCsvFileName('..')).toBe('nvoke-export.csv');
     expect(safeCsvFileName(undefined)).toBe('nvoke-export.csv');

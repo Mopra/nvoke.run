@@ -76,7 +76,7 @@ async function copy(text: string, what: string): Promise<void> {
     await navigator.clipboard.writeText(text);
     toast.success(`Copied ${what}`);
   } catch {
-    toast.error('Could not copy to the clipboard');
+    toast.error('Couldn’t copy to the clipboard');
   }
 }
 
@@ -170,12 +170,12 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
     return (
       <span className={cn(quiet, 'inline-flex items-center gap-2')}>
         <Loader2 className="size-3 motion-safe:animate-spin" />
-        Waiting to crawl
+        Queued
       </span>
     );
   }
-  if (company.crawlStatus === 'blocked') return <span className={quiet}>The site asks crawlers to stay out</span>;
-  if (company.crawlStatus === 'failed') return <span className={quiet}>The site could not be reached</span>;
+  if (company.crawlStatus === 'blocked') return <span className={quiet}>Site blocks crawlers, so we stay out</span>;
+  if (company.crawlStatus === 'failed') return <span className={quiet}>Site unreachable</span>;
   if (company.emails.length === 0) return <span className={quiet}>No public email</span>;
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -404,8 +404,8 @@ export function SearchResultsScreen({ id }: { id: string }) {
 
   function doCancel(): void {
     cancel.mutate(id, {
-      onSuccess: () => toast('Search stopped', { description: 'Results found so far are kept.' }),
-      onError: (err) => toast.error('Could not stop the search', { description: err.message }),
+      onSuccess: () => toast('Search stopped', { description: 'Everything found so far is kept.' }),
+      onError: (err) => toast.error('Couldn’t stop the search', { description: err.message }),
     });
   }
 
@@ -419,14 +419,14 @@ export function SearchResultsScreen({ id }: { id: string }) {
         {missing ? (
           <EmptyState
             icon={SearchX}
-            title="This search no longer exists"
+            title="This search is gone"
             action={
               <Button variant="outline" onClick={() => navigate({ name: 'searches' })}>
                 Back to searches
               </Button>
             }
           >
-            It may have been deleted on another device.
+            Probably deleted on another device.
           </EmptyState>
         ) : (
           <ErrorState error={searchQuery.error} onRetry={() => void searchQuery.refetch()} />
@@ -516,9 +516,8 @@ export function SearchResultsScreen({ id }: { id: string }) {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-72 rounded-2xl px-3 py-2 leading-relaxed">
-                    Public addresses from each company's own website. Email marketing rules differ by country: in
-                    Denmark you need prior consent, even for business addresses. Results are deleted 12 months after
-                    the search.
+                    Public addresses from each company's own website. Many EU countries require prior consent for
+                    marketing email, even to businesses. Results are deleted 12 months after the search.
                   </TooltipContent>
                 </Tooltip>
               </span>
@@ -552,11 +551,11 @@ export function SearchResultsScreen({ id }: { id: string }) {
                 />
               ) : live ? (
                 <EmptyState icon={Radar} title="Looking for companies">
-                  They appear here as soon as they are found.
+                  They show up here the moment we find them.
                 </EmptyState>
               ) : (
                 <EmptyState icon={Inbox} title="No companies found">
-                  Try a broader keyword or a larger area.
+                  Try a broader keyword or a bigger area.
                 </EmptyState>
               )
             ) : (

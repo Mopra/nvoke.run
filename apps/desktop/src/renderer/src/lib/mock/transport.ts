@@ -208,8 +208,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       frozenAt: t0 - 2 * day + QUEUE_MS + 21000,
       terminal: { status: 'failed', error: 'quota_exceeded' },
     });
-    add({ kind: 'local', params: { niche: 'dentists', location: 'Copenhagen' }, limit: 100 }, t0 - day - 3 * 60 * min);
-    add({ kind: 'local', params: { niche: 'bakeries', location: 'Aarhus' }, limit: 80 }, t0 - 9000);
+    add({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 100 }, t0 - day - 3 * 60 * min);
+    add({ kind: 'local', params: { niche: 'bakeries', location: 'Lisbon' }, limit: 80 }, t0 - 9000);
   }
 
   function json(status: number, data: unknown): BridgeResponse {

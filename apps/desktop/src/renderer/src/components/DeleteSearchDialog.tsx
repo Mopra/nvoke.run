@@ -32,7 +32,7 @@ export function DeleteSearchDialog({
         toast.success('Search deleted', { description: searchTitle(search) });
         onDeleted?.();
       },
-      onError: (err) => toast.error('Could not delete the search', { description: err.message }),
+      onError: (err) => toast.error('Couldn’t delete the search', { description: err.message }),
     });
   }
 
@@ -42,13 +42,13 @@ export function DeleteSearchDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {searchTitle(search)}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Its {formatNumber(search.companiesFound)} companies and {formatNumber(search.emailsFound)} emails are
-            removed for good. Emails already counted toward your plan stay counted.
+            {formatNumber(search.companiesFound)} companies and {formatNumber(search.emailsFound)} emails, gone for
+            good. Emails already counted against your plan stay counted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep it</AlertDialogCancel>
-          <AlertDialogAction onClick={doDelete}>Delete search</AlertDialogAction>
+          <AlertDialogAction onClick={doDelete}>Delete</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

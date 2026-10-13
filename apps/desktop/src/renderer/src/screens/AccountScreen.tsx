@@ -45,7 +45,7 @@ function Usage({ me }: { me: Me }) {
       </div>
       <p className="mt-3 text-sm text-muted-foreground">
         {left === 0
-          ? `You have used every verified email for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}, or upgrade to keep going.`
+          ? `Out of verified emails for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}. Or upgrade.`
           : `${formatNumber(left)} left in ${periodLabel(period)}. Resets on ${resetDate(period)}.`}
       </p>
     </section>
@@ -108,7 +108,7 @@ export function AccountScreen() {
     try {
       await api.signOut();
     } catch (err) {
-      toast.error('Could not sign out', { description: err instanceof Error ? err.message : undefined });
+      toast.error('Couldn’t sign out', { description: err instanceof Error ? err.message : undefined });
       setSigningOut(false);
     }
   }
@@ -143,7 +143,7 @@ export function AccountScreen() {
               <div className="mt-14 flex flex-col divide-y divide-border">
                 <Setting
                   label={me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month`}
-                  description="Only valid emails count, each address once. Billing happens on nvoke.run."
+                  description="Only valid emails count, each address once. Billing lives on nvoke.run."
                 >
                   <Button
                     variant={me.plan === FREE_PLAN ? 'default' : 'outline'}
@@ -156,7 +156,7 @@ export function AccountScreen() {
                 <Setting label="Appearance" description="System follows your computer.">
                   <ThemePicker />
                 </Setting>
-                <Setting label="This computer" description="Signing out keeps your searches in your account.">
+                <Setting label="This computer" description="Sign out anytime. Your searches stay in your account.">
                   <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
                     {signingOut && <Loader2 className="motion-safe:animate-spin" />}
                     Sign out

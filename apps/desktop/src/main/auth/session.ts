@@ -78,7 +78,7 @@ export class AuthSession {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: parsed.code, code_verifier: pending.codeVerifier, device_name: this.deps.deviceName }),
       });
-      if (!res.ok) throw new Error(`The server refused the sign-in (${res.status}).`);
+      if (!res.ok) throw new Error(`Server refused the sign-in (${res.status}). Try again.`);
       const { token } = DesktopTokenResponse.parse(await res.json());
       this.token = token;
       await this.deps.tokenStore.save(token);
@@ -118,7 +118,7 @@ export class AuthSession {
     if (res.status === 401 && this.token) {
       this.token = null;
       await this.deps.tokenStore.clear();
-      this.setState({ status: 'signed-out', error: 'You were signed out. Sign in again.' });
+      this.setState({ status: 'signed-out', error: 'Signed out. Sign in again.' });
     }
     return res;
   }

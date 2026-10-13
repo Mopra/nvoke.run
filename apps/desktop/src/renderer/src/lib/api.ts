@@ -37,11 +37,11 @@ export class ApiError extends Error {
 }
 
 function describeError(status: number, code: string): string {
-  if (code === 'quota_exceeded') return 'You have used every verified email in your plan this month.';
-  if (status === 0) return 'Could not reach nvoke. Check your connection and try again.';
-  if (status === 401) return 'Your session has ended. Sign in again.';
-  if (status === 404) return 'That search no longer exists.';
-  if (status >= 500) return 'nvoke had a problem on its side. Try again in a moment.';
+  if (code === 'quota_exceeded') return 'You’re out of verified emails this month. Upgrade or wait for the reset.';
+  if (status === 0) return 'Can’t reach nvoke. Check your connection.';
+  if (status === 401) return 'Session expired. Sign in again.';
+  if (status === 404) return 'That search is gone.';
+  if (status >= 500) return 'Our server broke. Try again in a minute.';
   return code || `Request failed with status ${status}`;
 }
 

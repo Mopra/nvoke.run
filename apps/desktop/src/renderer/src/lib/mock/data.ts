@@ -28,9 +28,9 @@ export function hashString(text: string): number {
 const pick = <T>(r: () => number, items: readonly T[]): T => items[Math.floor(r() * items.length)]!;
 
 const DISTRICTS = [
-  'Nordhavn', 'Østerbro', 'Amager', 'Vesterbro', 'Frederiksberg', 'Christianshavn', 'Valby', 'Hellerup',
-  'Nørrebro', 'Islands Brygge', 'Sydhavn', 'Brønshøj', 'Vanløse', 'Kastrup', 'Lyngby', 'Gentofte',
-  'Charlottenlund', 'Holte', 'Søborg', 'Ørestad',
+  'Northside', 'Riverside', 'Old Town', 'Midtown', 'Westend', 'Hillcrest', 'Parkview', 'Eastgate',
+  'Lakeside', 'Southbank', 'Uptown', 'Greenway', 'Market Square', 'Elm Park', 'Oakridge', 'Bayview',
+  'Cedar Hill', 'Mill Lane', 'Canal Street', 'Harbourfront',
 ];
 const WEB_STEMS = [
   'Lumen', 'Strata', 'Cobalt', 'Kite', 'Orbit', 'Harbor', 'Pixel', 'Fable', 'Quarry', 'Tandem', 'North',
@@ -43,11 +43,11 @@ const LAUNCH_STEMS = [
   'Sketchpad', 'Formflow', 'Pagecraft', 'Taskmint', 'Clipnote', 'Voxel', 'Brieflet', 'Docsmith', 'Scribe',
 ];
 const FIRST_NAMES = [
-  'anna', 'mads', 'sofie', 'jonas', 'freja', 'lukas', 'ida', 'emil', 'clara', 'oscar', 'laura', 'noah',
-  'maja', 'william', 'ella', 'felix', 'karla', 'viktor', 'alma', 'magnus',
+  'anna', 'james', 'sofia', 'lucas', 'maria', 'noah', 'emma', 'leo', 'clara', 'oscar', 'laura', 'daniel',
+  'mia', 'william', 'ella', 'felix', 'nora', 'victor', 'alma', 'sam',
 ];
-const LAST_NAMES = ['jensen', 'nielsen', 'hansen', 'pedersen', 'larsen', 'berg', 'holm', 'lund', 'krogh', 'friis'];
-const GENERIC_LOCAL = ['info', 'kontakt', 'booking', 'mail', 'hello', 'post'];
+const LAST_NAMES = ['smith', 'garcia', 'silva', 'brown', 'miller', 'costa', 'lee', 'walker', 'santos', 'clark'];
+const GENERIC_LOCAL = ['info', 'contact', 'booking', 'mail', 'hello', 'office'];
 const GENERIC_WEB = ['info', 'contact', 'hello', 'sales', 'support', 'team'];
 
 const VERIFICATION_WEIGHTS: [Verification, number][] = [
@@ -86,9 +86,9 @@ function titleCase(text: string): string {
 function nicheNoun(niche: string): string {
   const clean = niche.trim().toLowerCase();
   const map: Record<string, string[]> = {
-    dentists: ['Tandklinik', 'Dental', 'Tandlægerne', 'Smile Studio'],
-    bakeries: ['Bageri', 'Bakery', 'Brød & Co', 'Surdejsbageriet'],
-    architects: ['Architekten', 'Studio', 'Arkitekter', 'Design Office'],
+    dentists: ['Dental', 'Dental Care', 'Family Dentistry', 'Smile Studio'],
+    bakeries: ['Bakery', 'Bakehouse', 'Bread & Co', 'Sourdough'],
+    architects: ['Architects', 'Studio', 'Architecture', 'Design Office'],
   };
   if (map[clean]) return map[clean].join('|');
   const singular = clean.endsWith('ies') ? `${clean.slice(0, -3)}y` : clean.replace(/s$/, '');
@@ -116,11 +116,14 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     const nouns = nicheNoun(input.params.niche).split('|');
     const district = pick(r, DISTRICTS);
     name = r() < 0.5 ? `${district} ${pick(r, nouns)}` : `${pick(r, nouns)} ${district}`;
-    tld = /copenhagen|københavn|aarhus|odense|denmark/i.test(input.params.location) ? 'dk' : pick(r, ['de', 'com', 'eu']);
+    const lisbon = /lisbon|lisboa/i.test(input.params.location);
+    tld = lisbon ? 'pt' : pick(r, ['com', 'com', 'co']);
     location = `${district}, ${titleCase(input.params.location)}`;
     source = 'osm';
     category = titleCase(input.params.niche.replace(/s$/, ''));
-    phone = `${tld === 'dk' ? '+45' : '+49'} ${Math.floor(20 + r() * 79)} ${Math.floor(10 + r() * 89)} ${Math.floor(10 + r() * 89)} ${Math.floor(10 + r() * 89)}`;
+    phone = lisbon
+      ? `+351 21 ${Math.floor(100 + r() * 899)} ${Math.floor(1000 + r() * 8999)}`
+      : `+1 512 ${Math.floor(200 + r() * 799)} ${Math.floor(1000 + r() * 8999)}`;
   } else if (input.kind === 'web') {
     name = `${pick(r, WEB_STEMS)} ${pick(r, WEB_SUFFIX)}`.trim();
     tld = input.params.country ? input.params.country.toLowerCase() : pick(r, ['com', 'io', 'co']);
@@ -157,7 +160,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
       const address = `${local}@${domain}`;
       if (used.has(address)) continue;
       used.add(address);
-      const page = kind === 'generic' ? pick(r, ['/', '/kontakt', '/contact', '/about']) : pick(r, ['/team', '/om-os', '/about']);
+      const page = kind === 'generic' ? pick(r, ['/', '/contact-us', '/contact', '/about']) : pick(r, ['/team', '/our-team', '/about']);
       emails.push({ id: `${searchId}-e${index}-${e}`, address, kind, sourceUrl: `https://${domain}${page}` });
       verifications.push(pickVerification(r));
     }

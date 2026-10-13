@@ -25,7 +25,7 @@ describe('mock transport', () => {
 
   it('moves a search from queued through running to done', async () => {
     const { api, advance } = setup();
-    const created = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Copenhagen' }, limit: 40 });
+    const created = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 40 });
     expect(created.status).toBe('queued');
     expect(created.companiesFound).toBe(0);
 

@@ -46,8 +46,8 @@ function RowMenu({ search }: { search: Search }) {
             <DropdownMenuItem
               onSelect={() =>
                 cancel.mutate(search.id, {
-                  onSuccess: () => toast('Search stopped', { description: 'Results found so far are kept.' }),
-                  onError: (err) => toast.error('Could not stop the search', { description: err.message }),
+                  onSuccess: () => toast('Search stopped', { description: 'Everything found so far is kept.' }),
+                  onError: (err) => toast.error('Couldn’t stop the search', { description: err.message }),
                 })
               }
             >
@@ -181,7 +181,7 @@ export function SearchesScreen() {
                 </Button>
               }
             >
-              Start one and companies appear here as nvoke finds them.
+              Start one. Companies show up here as nvoke finds them.
             </EmptyState>
           ) : (
             <>

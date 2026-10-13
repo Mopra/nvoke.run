@@ -15,26 +15,26 @@ const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
 
 const COUNTRIES: [string, string][] = [
   ['', 'any country'],
-  ['DK', 'Denmark'],
-  ['SE', 'Sweden'],
-  ['NO', 'Norway'],
-  ['FI', 'Finland'],
-  ['DE', 'Germany'],
-  ['NL', 'Netherlands'],
+  ['US', 'United States'],
   ['GB', 'United Kingdom'],
+  ['CA', 'Canada'],
+  ['AU', 'Australia'],
   ['IE', 'Ireland'],
+  ['DE', 'Germany'],
   ['FR', 'France'],
   ['ES', 'Spain'],
   ['IT', 'Italy'],
-  ['US', 'United States'],
-  ['CA', 'Canada'],
-  ['AU', 'Australia'],
+  ['NL', 'Netherlands'],
+  ['SE', 'Sweden'],
+  ['NO', 'Norway'],
+  ['DK', 'Denmark'],
+  ['FI', 'Finland'],
 ];
 
 const SOURCES: Record<SearchKind, string> = {
-  local: 'Businesses on OpenStreetMap that list a website, inside the area you name.',
-  web: 'Company websites from web search results. Social networks, marketplaces and news sites are left out.',
-  launches: 'Products launched recently on Product Hunt and Show HN.',
+  local: 'Businesses on OpenStreetMap with a website, inside the area you name.',
+  web: 'Company sites from web search. No social networks, marketplaces or news.',
+  launches: 'Fresh launches from Product Hunt and Show HN.',
 };
 
 function isKind(value: string | null): value is SearchKind {
@@ -87,7 +87,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
         toast.success('Search started', { description: searchTitle(search) });
         navigate({ name: 'search', id: search.id }, { replace: true });
       },
-      onError: (err) => toast.error('Could not start the search', { description: err.message }),
+      onError: (err) => toast.error('Couldn’t start the search', { description: err.message }),
     });
   }
 
@@ -133,7 +133,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                     id="location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Copenhagen"
+                    placeholder="Austin"
                     aria-invalid={invalid(location)}
                   />
                 </Line>
@@ -225,9 +225,9 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
               <span className="text-sm text-destructive">Fill in the highlighted words.</span>
             ) : (
               <p className="max-w-sm text-xs text-muted-foreground">
-                Only verified emails count toward your plan.
+                Only verified emails count.
                 {remaining !== null && ` ${formatNumber(Math.max(0, remaining))} left this month.`}
-                {me.data && limit > maxLimit && ` A search finds up to ${formatNumber(maxLimit)} companies.`}
+                {me.data && limit > maxLimit && ` Max ${formatNumber(maxLimit)} companies per search.`}
                 {' Results are kept for 12 months.'}
               </p>
             )}

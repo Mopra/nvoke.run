@@ -28,10 +28,10 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry, className }: { error: unknown; onRetry?: () => void; className?: string }) {
-  const message = error instanceof Error ? error.message : 'Something went wrong.';
+  const message = error instanceof Error ? error.message : 'Unknown error.';
   return (
     <div className={cn('flex flex-col items-center justify-center px-6 py-20 text-center', className)}>
-      <h2 className="text-base font-semibold">Could not load this</h2>
+      <h2 className="text-base font-semibold">Couldn’t load this</h2>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">{message}</p>
       {onRetry && (
         <Button variant="outline" size="sm" className="mt-5" onClick={onRetry}>

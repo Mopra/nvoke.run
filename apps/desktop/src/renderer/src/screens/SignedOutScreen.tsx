@@ -22,7 +22,7 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
     try {
       await api.signIn();
     } catch (err) {
-      toast.error('Could not open your browser', { description: err instanceof Error ? err.message : undefined });
+      toast.error('Couldn’t open your browser', { description: err instanceof Error ? err.message : undefined });
     } finally {
       setOpening(false);
     }
@@ -53,11 +53,11 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
               <h1 className="mt-10 font-display text-4xl font-semibold">Finish in your browser</h1>
               <div className="mt-10 flex h-11 items-center gap-2.5 text-sm text-muted-foreground">
                 <Loader2 className="size-4 motion-safe:animate-spin" />
-                Waiting for the browser
+                Waiting on your browser
               </div>
               <div className="mt-4 flex gap-2">
                 <Button variant="glass" onClick={() => void signIn()}>
-                  Open the page again
+                  Reopen the page
                 </Button>
                 <Button variant="ghost" onClick={cancel}>
                   Cancel
@@ -66,7 +66,7 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
             </>
           ) : (
             <>
-              <h1 className="mt-10 font-display text-4xl font-semibold text-balance">Research companies and their public contact details.</h1>
+              <h1 className="mt-10 font-display text-4xl font-semibold text-balance">Find companies. Get emails that actually work.</h1>
               <Button size="lg" className="mt-12 px-8" onClick={() => void signIn()}>
                 Sign in with your browser
                 <ArrowUpRight className="size-4 opacity-75" />

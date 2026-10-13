@@ -24,10 +24,10 @@ export const VERIFICATION_LABEL: Record<Verification, string> = {
 
 export const VERIFICATION_HINT: Record<Verification, string> = {
   valid: 'The mail server accepts this address.',
-  catch_all: 'The domain accepts every address, so this one cannot be confirmed.',
-  risky: 'The address exists but may bounce or belong to a shared role.',
+  catch_all: 'The domain accepts every address, so this one can’t be confirmed.',
+  risky: 'Exists, but may bounce or be a shared inbox.',
   invalid: 'The mail server rejects this address.',
-  unknown: 'The mail server could not be checked.',
+  unknown: 'Couldn’t reach the mail server to check.',
 };
 
 /** The time windows the new search form offers for launches. The API takes `days`. */
@@ -71,9 +71,9 @@ export function searchSubtitle(search: Search): string {
 }
 
 export function errorMessage(code: string | null): string {
-  if (!code) return 'The search stopped before it finished.';
-  if (code === 'quota_exceeded') return "Stopped because this month's verified emails ran out.";
-  return 'The search stopped because of an error on our side.';
+  if (!code) return 'Stopped before it finished.';
+  if (code === 'quota_exceeded') return "Stopped: this month's verified emails ran out.";
+  return 'Stopped by an error on our end. Run it again.';
 }
 
 export function capitalize(text: string): string {

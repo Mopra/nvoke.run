@@ -40,11 +40,11 @@ export function ExportNoticeDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-[420px]">
         <AlertDialogHeader>
-          <AlertDialogTitle>Before you use these contacts</AlertDialogTitle>
+          <AlertDialogTitle>Before you email anyone</AlertDialogTitle>
           <AlertDialogDescription>
-            Email marketing rules differ by country. In Denmark you need prior consent, even for business addresses
-            like info@. You are responsible for how you use these contacts. Calls, letters and LinkedIn follow other
-            rules.
+            Under EU ePrivacy rules, many countries require prior consent for marketing email, including to
+            businesses and addresses like info@. Calls, letters and LinkedIn follow other rules. How you use these
+            contacts is on you.
           </AlertDialogDescription>
           <button
             type="button"

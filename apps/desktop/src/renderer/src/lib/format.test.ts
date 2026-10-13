@@ -21,8 +21,8 @@ const base = {
 
 describe('format', () => {
   it('titles each kind of search', () => {
-    expect(searchTitle({ ...base, kind: 'local', params: { niche: 'dentists', location: 'copenhagen' } })).toBe(
-      'Dentists in Copenhagen',
+    expect(searchTitle({ ...base, kind: 'local', params: { niche: 'dentists', location: 'austin' } })).toBe(
+      'Dentists in Austin',
     );
     expect(searchTitle({ ...base, kind: 'web', params: { keyword: 'cms', country: 'de' } })).toBe('"cms" in DE');
     expect(searchTitle({ ...base, kind: 'launches', params: { days: 7 } })).toBe('All launches, last 7 days');
@@ -52,8 +52,8 @@ describe('csv', () => {
     const company: Company = {
       id: 'c1',
       name: 'Smith, Jones & "Co"',
-      domain: 'sj.dk',
-      website: 'https://sj.dk',
+      domain: 'sj.com',
+      website: 'https://sj.com',
       source: 'osm',
       sourceRef: null,
       location: null,
@@ -62,14 +62,14 @@ describe('csv', () => {
       crawlStatus: 'done',
       crawledAt: null,
       emails: [
-        { id: 'e1', address: 'info@sj.dk', kind: 'generic', sourceUrl: null, verification: 'valid', checkedAt: null },
-        { id: 'e2', address: 'anna@sj.dk', kind: 'personal', sourceUrl: null, verification: 'risky', checkedAt: null },
+        { id: 'e1', address: 'info@sj.com', kind: 'generic', sourceUrl: null, verification: 'valid', checkedAt: null },
+        { id: 'e2', address: 'anna@sj.com', kind: 'personal', sourceUrl: null, verification: 'risky', checkedAt: null },
       ],
     };
     const lines = companiesToCsv([company]).trim().split('\r\n');
     expect(lines).toHaveLength(3);
     expect(lines[0]).toBe('company,domain,website,email,kind,verification,source_url,location,phone');
-    expect(lines[1]).toBe('"Smith, Jones & ""Co""",sj.dk,https://sj.dk,info@sj.dk,generic,valid,,,');
+    expect(lines[1]).toBe('"Smith, Jones & ""Co""",sj.com,https://sj.com,info@sj.com,generic,valid,,,');
   });
 });
 
