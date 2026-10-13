@@ -20,7 +20,7 @@ import type {
   Search,
   SearchInput,
 } from './types';
-import type { SearchListResponse } from '@nvoke/shared';
+import type { ApiKey, ApiKeyListResponse, CreateApiKeyResponse, SearchListResponse } from '@nvoke/shared';
 
 export type Transport = NvokeBridge;
 
@@ -41,6 +41,7 @@ function describeError(status: number, code: string): string {
   if (code === 'source_unavailable') return 'Web search is paused on our side. We know and we’re on it. Local and launch searches still work.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Session expired. Sign in again.';
+  if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
   if (status === 404) return 'That search is gone.';
   if (status >= 500) return 'Our server broke. Try again in a minute.';
   return code || `Request failed with status ${status}`;
@@ -84,6 +85,11 @@ export function createApi(transport: Transport) {
       transport.exportCsv(id, defaultFileName),
     /** `sync` asks the server to re-read the plan from Clerk Billing first. */
     getMe: (sync = false): Promise<Me> => call('GET', sync ? '/v1/me?sync=1' : '/v1/me'),
+    listApiKeys: async (): Promise<ApiKey[]> => (await call<ApiKeyListResponse>('GET', '/v1/api-keys')).apiKeys,
+    createApiKey: (name: string): Promise<CreateApiKeyResponse> => call('POST', '/v1/api-keys', { name }),
+    revokeApiKey: async (id: string): Promise<void> => {
+      await call<null>('DELETE', `/v1/api-keys/${enc(id)}`);
+    },
     openExternal: (url: string): Promise<void> => transport.openExternal(url),
     getAuthState: (): Promise<AuthState> => transport.auth.getState(),
     signIn: (): Promise<void> => transport.auth.signIn(),

@@ -19,7 +19,7 @@ import type {
   User,
   Verification,
 } from '../types';
-import { PLANS, SEARCH_LIMIT_MAX } from '@nvoke/shared';
+import { API_KEY_PREFIX, PLANS, SEARCH_LIMIT_MAX, type ApiKey } from '@nvoke/shared';
 import { generateCompany, sourceYield, type MockCompanySeed } from './data';
 
 const QUEUE_MS = 1500;
@@ -77,6 +77,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   const storage = options.storage ?? (typeof localStorage === 'undefined' ? memoryStorage() : localStorage);
 
   const searches = new Map<string, SearchRecord>();
+  const apiKeys: ApiKey[] = [];
   const seedCache = new Map<string, MockCompanySeed[]>();
   let counter = 0;
 
@@ -286,6 +287,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       return json(200, me);
     }
 
+    if (parts[1] === 'api-keys') return apiKeyRoute(method, parts[2], body);
+
     if (parts[1] !== 'searches') return fail(404, 'not_found');
 
     if (parts.length === 2) {
@@ -318,6 +321,51 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       return json(200, toSearch(rec));
     }
     if (parts[3] === 'companies' && method === 'GET') return json(200, listCompanies(rec, url.searchParams));
+    return fail(404, 'not_found');
+  }
+
+  function randomKey(): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+    let out = API_KEY_PREFIX;
+    for (let i = 0; i < 43; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return out;
+  }
+
+  function addKey(name: string, origin: ApiKey['origin'], createdAt: number, lastUsedAt: number | null): string {
+    const key = randomKey();
+    apiKeys.unshift({
+      id: crypto.randomUUID(),
+      name,
+      prefix: key.slice(0, API_KEY_PREFIX.length + 4),
+      origin,
+      createdAt: new Date(createdAt).toISOString(),
+      lastUsedAt: lastUsedAt === null ? null : new Date(lastUsedAt).toISOString(),
+    });
+    return key;
+  }
+
+  if (options.seed !== false) {
+    const t0 = now();
+    addKey('Claude', 'agent_signup', t0 - 12 * 86_400_000, t0 - 40 * 60_000);
+    addKey('CRM sync', 'user', t0 - 3 * 86_400_000, null);
+  }
+
+  /** GET, POST /v1/api-keys and DELETE /v1/api-keys/:id, as the server answers them. */
+  function apiKeyRoute(method: HttpMethod, id: string | undefined, body: unknown): BridgeResponse {
+    if (id === undefined && method === 'GET') return json(200, { apiKeys: [...apiKeys] });
+    if (id === undefined && method === 'POST') {
+      const name = typeof (body as { name?: unknown } | null)?.name === 'string' ? (body as { name: string }).name.trim() : '';
+      if (!name || name.length > 60) return fail(400, 'invalid_request');
+      if (apiKeys.length >= 20) return fail(409, 'api_key_limit');
+      const key = addKey(name, 'user', now(), null);
+      return json(201, { ...apiKeys[0]!, key });
+    }
+    if (id !== undefined && method === 'DELETE') {
+      const i = apiKeys.findIndex((k) => k.id === id);
+      if (i < 0) return fail(404, 'not_found');
+      apiKeys.splice(i, 1);
+      return json(204, null);
+    }
     return fail(404, 'not_found');
   }
 

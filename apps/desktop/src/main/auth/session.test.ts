@@ -10,6 +10,8 @@ const ME = {
   plan: 'free' as const,
   usage: { period: '2026-10', emailsVerified: 0, emailsLimit: 50 },
   maxSearchLimit: 1000,
+  account: { createdBy: 'human' as const, agentName: null, claimedAt: '2026-10-01T00:00:00.000Z' },
+  billingUrl: 'https://nvoke.run/desktop/billing',
 };
 
 function memoryTokenStore(initial: string | null = null): TokenStore & { value: string | null } {

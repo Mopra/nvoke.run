@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
 import { isActive } from './format';
+import type { ApiKey } from '@nvoke/shared';
 import type { CompaniesQuery, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
@@ -12,6 +13,7 @@ export const keys = {
   search: (id: string) => ['searches', id] as const,
   companies: (id: string, filters: Omit<CompaniesQuery, 'cursor'>) => ['searches', id, 'companies', filters] as const,
   me: ['me'] as const,
+  apiKeys: ['api-keys'] as const,
 };
 
 export function useSearches() {
@@ -117,6 +119,32 @@ export function useDeleteSearch() {
       client.setQueryData<Search[]>(keys.searches, (list) => list?.filter((s) => s.id !== id));
       client.removeQueries({ queryKey: keys.search(id) });
       void client.invalidateQueries({ queryKey: keys.me });
+    },
+  });
+}
+
+export function useApiKeys() {
+  return useQuery({ queryKey: keys.apiKeys, queryFn: api.listApiKeys });
+}
+
+export function useCreateApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.createApiKey(name),
+    onSuccess: (created) => {
+      // Never keep the secret in the cache: only the listed shape.
+      const { key: _secret, ...listed } = created;
+      client.setQueryData<ApiKey[]>(keys.apiKeys, (list) => (list ? [listed, ...list] : [listed]));
+    },
+  });
+}
+
+export function useRevokeApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.revokeApiKey(id),
+    onSuccess: (_void, id) => {
+      client.setQueryData<ApiKey[]>(keys.apiKeys, (list) => list?.filter((k) => k.id !== id));
     },
   });
 }

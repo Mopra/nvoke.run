@@ -152,6 +152,24 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
 
       await go('#/account');
       await shot('12-account', theme);
+      await js(`document.querySelector('[data-api-keys]')?.scrollIntoView({ block: 'start' })`);
+      await sleep(500);
+      await shot('13-api-keys', theme);
+      await js(`[...document.querySelectorAll('button')].find((e) => /New key/.test(e.textContent))?.click()`);
+      await sleep(500);
+      await shot('14-new-key', theme);
+      await js(`(() => {
+        const input = document.querySelector('input[aria-label="Key name"]');
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        set.call(input, 'Zapier');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await sleep(200);
+      await js(`[...document.querySelectorAll('button')].find((e) => /Create key/.test(e.textContent))?.click()`);
+      await sleep(900);
+      await shot('15-key-created', theme);
+      await js(`[...document.querySelectorAll('button')].find((e) => /^Done$/.test(e.textContent))?.click()`);
+      await sleep(400);
     }
   } catch (err) {
     console.error('[capture] failed', err);

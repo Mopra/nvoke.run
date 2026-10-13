@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
+import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
 import { ErrorState } from '@/components/states';
@@ -136,6 +137,13 @@ export function AccountScreen() {
                 </div>
               </div>
 
+              {me.account.createdBy === 'agent' && (
+                <p className="mt-6 text-sm text-muted-foreground">
+                  {me.account.agentName ? `An agent, ${me.account.agentName},` : 'An agent'} created this account for
+                  you.
+                </p>
+              )}
+
               <div className="mt-16">
                 <Usage me={me} />
               </div>
@@ -162,6 +170,13 @@ export function AccountScreen() {
                     Sign out
                   </Button>
                 </Setting>
+              </div>
+
+              <div className="mt-16">
+                <ApiKeys />
+              </div>
+              <div className="mt-16">
+                <ConnectAgent />
               </div>
             </>
           )}
