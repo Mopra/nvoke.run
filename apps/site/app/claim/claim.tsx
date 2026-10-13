@@ -97,7 +97,10 @@ export function Claim() {
   }
 
   if (phase.kind === 'no-ticket' || phase.kind === 'ticket-failed') {
-    if (isSignedIn) return <Choose who={who(user)} phase={{ kind: 'choose' }} onClaim={claim} />;
+    if (isSignedIn) {
+      if (user && user.publicMetadata['createdBy'] !== 'agent') return <NothingToClaim who={who(user)} />;
+      return <Choose who={who(user)} phase={{ kind: 'choose' }} onClaim={claim} />;
+    }
     return (
       <div className="flex w-full flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3 text-center">
@@ -117,7 +120,32 @@ export function Claim() {
 
   if (phase.kind === 'done') return <Done phase={phase} />;
 
+  // Agent sign-up marks the Clerk user. Anyone else has nothing to claim.
+  if (user && user.publicMetadata['createdBy'] !== 'agent') return <NothingToClaim who={who(user)} />;
+
   return <Choose who={who(user)} phase={phase} onClaim={claim} />;
+}
+
+function NothingToClaim({ who }: { who: string }) {
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="text-2xl tracking-[-0.025em]">Nothing to claim</CardTitle>
+        <CardDescription className="text-pretty">
+          <span className="font-mono text-foreground">{who}</span> was not signed up by an agent. The account is
+          already yours.
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="flex flex-col gap-2 sm:flex-row">
+        <Button asChild className="w-full sm:flex-1">
+          <Link href="/download">Get the app</Link>
+        </Button>
+        <Button asChild variant="secondary" className="w-full sm:flex-1">
+          <Link href="/docs">Read the docs</Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
 }
 
 function who(user: ReturnType<typeof useUser>['user']): string {

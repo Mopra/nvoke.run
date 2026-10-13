@@ -59,7 +59,10 @@ function typeOf(s: Json): string {
   const variants = s.anyOf ?? s.oneOf;
   if (variants) return [...new Set(variants.map(typeOf))].join(' | ');
   if (Array.isArray(s.type)) return s.type.join(' | ');
-  if (s.type === 'array') return `${s.items ? typeOf(s.items) : 'any'}[]`;
+  if (s.type === 'array') {
+    const item = s.items ? typeOf(s.items) : 'any';
+    return item.includes(' | ') ? `(${item})[]` : `${item}[]`;
+  }
   if (s.format === 'date-time') return 'datetime';
   if (s.format === 'uuid') return 'uuid';
   if (s.format === 'email') return 'email';

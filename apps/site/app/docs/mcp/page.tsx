@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { z } from 'zod';
 import { MCP_TOOLS } from '@nvoke/shared';
 import { CodeBlock } from '@/components/docs/code-block';
-import { DocsSection, DocsTitle, Prose } from '@/components/docs/prose';
+import { DocsSection, DocsTitle, Inline, Prose } from '@/components/docs/prose';
 import { urls } from '@/lib/docs';
 
 export const metadata: Metadata = {
@@ -121,7 +121,9 @@ export default function McpDocs() {
                   <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive">destructive</span>
                 ) : null}
               </div>
-              <p className="text-sm text-pretty text-muted-foreground">{t.description}</p>
+              <p className="text-sm text-pretty text-muted-foreground">
+                <Inline text={t.description} />
+              </p>
               {argsOf(t.input).length > 0 ? (
                 <p className="font-mono text-[12px] break-words text-muted-foreground">({argsOf(t.input).join(', ')})</p>
               ) : null}
