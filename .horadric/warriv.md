@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-13 Round after the CSV drop merge fix landed (e1a8d2c): gave the third SQLite fix-up sonnet; 7 running, 1 waiting on it, nothing else to do.
 - 2026-10-13 Woke with a cut-off message that named no event; quest list unchanged since the last round, both blocked quests still wait on running merge fixes. Nothing to settle.
 - 2026-10-13 Round after "hotkey looks up a copied domain" landed: SQLite merge conflicted a third time; told the third fix-up to merge newest main right before finishing. Everything else running or waiting cleanly.
 - 2026-10-13 CSV drop quest conflicted on merge; fix-up already running, gave it sonnet. Its Assumed lines (no XLSX, extra domain column, jobs in renderer) stand as written.
@@ -26,7 +27,7 @@
 
 ## Open
 
-- CSV drop merge fix should land; the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
+- CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Check the notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
