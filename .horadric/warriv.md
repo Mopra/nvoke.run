@@ -8,6 +8,8 @@
 
 ## Lately
 
+- 2026-10-14 macOS Grab test blocked: needs a Mac, left with the human. Filed 'show the real osascript error' (sonnet, after the OCR merge fix) for the one watch point that needs no Mac. Notifications landed (9d23c82, f0613da).
+- 2026-10-14 Round after the front-tab hotkey merge fix landed (be23bea) and the capture check landed (bf05ff2): OCR grab conflicted on merge, gave its fix-up sonnet and told it to keep both sides and merge newest main last; gave the macOS Grab test quest opus.
 - 2026-10-14 Round as the human left: 6 running (two notifications/hotkey merge fixes, OCR grab, local render crawl, local lead search, MCP capture check), all with models, nothing blocked, no aim open. Nothing to do.
 - 2026-10-14 Fourth notifications merge fix conflicted too (contract, main, preload, Account, SPEC). Fifth fix-up running: gave it sonnet, told it to keep both sides, merge newest main last and finish at once.
 - 2026-10-14 Third notifications merge fix conflicted too (contract, main, preload, api, bridge, mock, types, Account, SPEC). Fourth fix-up already running: gave it sonnet, told it to keep both sides and merge newest main last.
@@ -43,13 +45,14 @@
 
 ## Open
 
+- Check the OCR grab merge fix lands. macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
-- Check the fifth notifications merge fix lands (if it conflicts again, file a quest to land it in smaller pieces); the Account notifications switch and badge were never seen on screen either.
+- Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
 - Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
-- Local MCP landed (4876049) and /docs/mcp landed (3658b05); its capture check quest is still running. See it lands.
-- Check the second front-tab hotkey merge fix lands. Never verified: macOS AppleScript path, Firefox and Brave, the real hotkey over a live window.
+- Local MCP, /docs/mcp and its capture check all landed (bf05ff2).
+- Front-tab hotkey landed (be23bea). Never verified: macOS AppleScript path, Firefox and Brave, the real hotkey over a live window.
 - Watched inbox landed (7c41ce0). Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
 - Check the local lead search quest finishes after its queued test run.
