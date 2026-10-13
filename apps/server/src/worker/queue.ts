@@ -18,6 +18,8 @@ export interface CrawlPayload {
 }
 export interface VerifyPayload {
   emailId: string;
+  /** Greylisting retries so far. */
+  retry?: number;
 }
 export type JobPayload = FindPayload | CrawlPayload | VerifyPayload;
 

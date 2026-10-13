@@ -13,7 +13,8 @@ import { addressHash, domainHash, suppress } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
-import type { PipelineDeps } from './pipeline.js';
+import { GREYLIST_DELAY_MS, GREYLIST_RETRIES, runVerify, type PipelineDeps } from './pipeline.js';
+import type { Job } from './queue.js';
 import { Runner } from './runner.js';
 
 let db: TestDb;
@@ -505,5 +506,48 @@ describe('crawl cache', () => {
       { domain: 'agencyonly.dk', has_personal: true },
       { domain: 'freemail.dk', has_personal: true },
     ]);
+  });
+});
+
+describe('greylisting', () => {
+  const greyVerifier = {
+    verify: async (address: string) => ({ address, verification: 'unknown' as const, mxHost: 'mx.test', reason: 'rcpt_tempfail_451' }),
+  } as unknown as Verifier;
+
+  async function seedEmail() {
+    await ensureAccount(db.sql, 'u1');
+    const search = await createSearch(db.sql, 'u1', LOCAL, 10);
+    await db.sql`update searches set status = 'running' where id = ${search.id}`;
+    const [company] = await db.sql<{ id: string }[]>`
+      insert into companies (search_id, clerk_user_id, name, domain, website, source)
+      values (${search.id}, 'u1', 'Grey', 'grey.dk', 'https://grey.dk', 'test') returning id
+    `;
+    const [email] = await db.sql<{ id: string }[]>`
+      insert into emails (company_id, search_id, clerk_user_id, address, kind)
+      values (${company!.id}, ${search.id}, 'u1', 'info@grey.dk', 'generic') returning id
+    `;
+    return { searchId: search.id, emailId: email!.id };
+  }
+
+  function verifyJob(payload: Record<string, unknown>, searchId: string): Job {
+    return { id: '1', type: 'verify', payload, searchId, attempts: 1, maxAttempts: 3 };
+  }
+
+  it('asks again in ten minutes, twice, then settles as unknown', async () => {
+    const { searchId, emailId } = await seedEmail();
+    await db.sql`delete from jobs`;
+    const now = new Date('2026-10-13T12:00:00Z');
+    const d = { ...deps(adapterOf([])), verifier: greyVerifier, now: () => now };
+    const signal = new AbortController().signal;
+
+    await runVerify(d, verifyJob({ emailId }, searchId), signal);
+    const [retry] = await db.sql<{ payload: { retry: number }; run_after: Date }[]>`select payload, run_after from jobs where type = 'verify'`;
+    expect(retry?.payload.retry).toBe(1);
+    expect(retry?.run_after.getTime()).toBe(now.getTime() + GREYLIST_DELAY_MS);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBeNull();
+
+    await runVerify(d, verifyJob({ emailId, retry: GREYLIST_RETRIES }, searchId), signal);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBe('unknown');
+    expect(await db.sql`select 1 from jobs where type = 'verify'`).toHaveLength(1);
   });
 });

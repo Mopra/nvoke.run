@@ -20,7 +20,7 @@ import type { Alerter } from '../alerts.js';
 import { pauseSource } from '../leads/source-pause.js';
 import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
-import type { Verifier } from '../leads/verify/index.js';
+import { isTempfail, type Verifier } from '../leads/verify/index.js';
 import { cancelSearchJobs, enqueue, type Job } from './queue.js';
 
 export interface PipelineDeps {
@@ -382,6 +382,10 @@ export async function onCrawlGaveUp(deps: PipelineDeps, job: Job): Promise<void>
 
 // verify
 
+/** Greylisted addresses are asked again this many times, this far apart, before settling as unknown. */
+export const GREYLIST_RETRIES = 2;
+export const GREYLIST_DELAY_MS = 10 * 60_000;
+
 export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const emailId = str(job.payload, 'emailId');
@@ -397,6 +401,18 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
   }
 
   const result = await deps.verifier.verify(email.address, signal);
+  const retry = typeof job.payload.retry === 'number' ? job.payload.retry : 0;
+  if (isTempfail(result) && retry < GREYLIST_RETRIES) {
+    // Greylisting: the server wants us to come back later. A queued job keeps the search running.
+    const now = deps.now?.() ?? new Date();
+    await enqueue(sql, {
+      type: 'verify',
+      payload: { emailId, retry: retry + 1 },
+      searchId: email.search_id,
+      runAfter: new Date(now.getTime() + GREYLIST_DELAY_MS),
+    });
+    return;
+  }
   await recordVerification(deps, emailId, result.verification);
 }
 
