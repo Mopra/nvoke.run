@@ -17,6 +17,7 @@ import { AuthSession } from './auth/session';
 import { safeTokenStore } from './auth/token-store';
 import { captureDirFromArgs, runCapture } from './capture';
 import { registerDragIpc } from './drag';
+import { registerEnrichedIpc } from './enriched-file';
 import { readSavedDesktop, writeSavedDesktop, type SavedDesktop } from './desktop-settings';
 import { applyOpenAtLogin, startedHidden } from './login-item';
 import { QuickWindow } from './quick-window';
@@ -120,6 +121,7 @@ function main(): void {
     registerIpc(session);
     registerWindowIpc();
     registerDragIpc();
+    registerEnrichedIpc();
     loadWindowPreferences();
     if (!captureDir) {
       tray = new AppTray({

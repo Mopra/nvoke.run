@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { app, desktopCapturer, nativeTheme, screen, type BrowserWindow } from 'electron';
 
@@ -146,6 +147,30 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       );
       await sleep(300);
       await shot('06b-new-list', theme);
+
+      // A CSV dragged over the window, then dropped, as the OS would do it.
+      const csvPath = join(tmpdir(), 'nvoke-capture-prospects.csv');
+      writeFileSync(
+        csvPath,
+        ['Company,Website,City', 'Linear,https://linear.app,Remote', 'Pleo,pleo.io,Copenhagen', 'Too Good To Go,,Copenhagen', 'Figma,figma.com,San Francisco'].join('\n'),
+      );
+      await go('#/');
+      try {
+        const dbg = win.webContents.debugger;
+        if (!dbg.isAttached()) dbg.attach('1.3');
+        const data = { items: [], files: [csvPath], dragOperationsMask: 1 };
+        await dbg.sendCommand('Input.dispatchDragEvent', { type: 'dragEnter', x: 600, y: 400, data });
+        await dbg.sendCommand('Input.dispatchDragEvent', { type: 'dragOver', x: 600, y: 400, data });
+        await sleep(500);
+        await shot('06c-file-drop-target', theme);
+        await dbg.sendCommand('Input.dispatchDragEvent', { type: 'drop', x: 600, y: 400, data });
+        await sleep(900);
+        await shot('06d-file-drop-dialog', theme);
+        await js(`[...document.querySelectorAll('button')].find((e) => /^Cancel$/.test(e.textContent))?.click()`);
+        await sleep(400);
+      } catch (err) {
+        console.warn(`[capture] file drop failed: ${String(err)}`);
+      }
 
       // A running search and a finished one, read from the searches list.
       await go('#/');

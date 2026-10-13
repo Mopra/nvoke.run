@@ -4,7 +4,7 @@
  * there is no tray and the setting is hidden.
  */
 import { useEffect, useRef } from 'react';
-import type { DesktopApi, DesktopCommand, QuickApi } from '../../../ipc/contract';
+import type { DesktopApi, DesktopCommand, FilesApi, QuickApi } from '../../../ipc/contract';
 
 export function desktopApi(): DesktopApi | null {
   const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
@@ -34,4 +34,10 @@ export function quickApi(): QuickApi | null {
 /** True in the quick window, which loads the same renderer on `#/quick`. */
 export function isQuickWindow(): boolean {
   return window.location.hash.startsWith('#/quick');
+}
+
+/** The file drop's half of the bridge. Missing in a plain browser, where the enriched copy downloads instead. */
+export function filesApi(): FilesApi | null {
+  const api = (window as unknown as { nvoke?: { files?: FilesApi } }).nvoke?.files;
+  return api && typeof api.saveEnriched === 'function' ? api : null;
 }

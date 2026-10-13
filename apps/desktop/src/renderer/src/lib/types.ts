@@ -36,4 +36,4 @@ export type {
 export type { AuthState, BridgeResponse, ExportResult, HttpMethod } from '../../../ipc/contract';
 
 /** Filters for `GET /v1/searches/:id/companies`, plus the page cursor. */
-export type CompaniesQuery = LeadFilters & { cursor?: string };
+export type CompaniesQuery = LeadFilters & { cursor?: string; /** Page size, 200 at most. The server defaults to 50. */ limit?: number };

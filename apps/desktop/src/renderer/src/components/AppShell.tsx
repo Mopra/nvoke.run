@@ -9,6 +9,7 @@ import { navigate, routeHref, type Route } from '@/lib/router';
 import type { Search } from '@/lib/types';
 import { Avatar } from '@/components/Avatar';
 import { CommandBar } from '@/components/CommandBar';
+import { FileDrop } from '@/components/FileDrop';
 import { LogoMark } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -31,6 +32,7 @@ export function AppShell({ route, children }: { route: Route; children: ReactNod
       {children}
       <Island live={live} route={route} onOpen={() => setCommandOpen(true)} />
       <CommandBar open={commandOpen} onOpenChange={setCommandOpen} />
+      <FileDrop />
     </div>
   );
 }

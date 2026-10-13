@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { HealthResponse } from '@nvoke/shared';
 import {
   IpcChannel,
@@ -8,6 +8,7 @@ import {
   type DesktopCommand,
   type DesktopSettings,
   type ExportResult,
+  type SaveEnrichedResult,
   type NvokeApi,
   type QuickClipboard,
   type WindowChrome,
@@ -34,6 +35,18 @@ const api: NvokeApi = {
       ipcRenderer.on(IpcChannel.authChanged, handler);
       return () => ipcRenderer.removeListener(IpcChannel.authChanged, handler);
     },
+  },
+  files: {
+    pathFor: (file) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return '';
+      }
+    },
+    saveEnriched: (sourcePath, csv) =>
+      ipcRenderer.invoke(IpcChannel.saveEnriched, { sourcePath, csv }) as Promise<SaveEnrichedResult>,
+    reveal: (filePath) => ipcRenderer.invoke(IpcChannel.revealFile, filePath) as Promise<void>,
   },
   window: {
     getChrome: () => ipcRenderer.invoke(IpcChannel.windowGetChrome) as Promise<WindowChrome>,

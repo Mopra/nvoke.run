@@ -14,7 +14,7 @@ type Row = (string | null)[];
 const PHONE_LIKE = /^[+-][\d\s()./-]+$/;
 
 /** Same rule as the server's csvCell: a value a spreadsheet would run as a formula gets a leading apostrophe. */
-function defuse(value: string | null | undefined): string {
+export function defuse(value: string | null | undefined): string {
   const v = value ?? '';
   return /^[=+\-@\t\r]/.test(v) && !PHONE_LIKE.test(v) ? `'${v}` : v;
 }

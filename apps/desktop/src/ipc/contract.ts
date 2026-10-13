@@ -14,6 +14,10 @@ export const IpcChannel = {
   exportCsv: 'api:export-csv',
   /** Renderer to main, fire and forget, payload DragCsv. */
   startDragCsv: 'leads:start-drag-csv',
+  /** Renderer to main, payload SaveEnriched, answers SaveEnrichedResult. */
+  saveEnriched: 'files:save-enriched',
+  /** Renderer to main, payload a path written by saveEnriched. */
+  revealFile: 'files:reveal',
   authGetState: 'auth:get-state',
   authSignIn: 'auth:sign-in',
   authCancel: 'auth:cancel',
@@ -186,6 +190,28 @@ export interface QuickApi {
   onShown(listener: (clipboard: QuickClipboard) => void): () => void;
 }
 
+export type SaveEnrichedResult =
+  /** Written to `filePath`, next to the original. */
+  | { saved: true; filePath: string }
+  | { saved: false; error: string };
+
+/** Files dropped on the window and the enriched copy written next to them. */
+export interface FilesApi {
+  /**
+   * The path of a file from a drop event, or '' when it has none. Runs in the
+   * preload (`webUtils.getPathForFile`); the renderer reads the file's text itself.
+   */
+  pathFor(file: File): string;
+  /**
+   * Writes `csv` as `<name>.nvoke.csv` in the folder of `sourcePath`, a CSV,
+   * TSV or TXT file that must exist. Main works out the name, never the
+   * renderer, and replaces an earlier enriched copy.
+   */
+  saveEnriched(sourcePath: string, csv: string): Promise<SaveEnrichedResult>;
+  /** Shows a file written by `saveEnriched` in the file manager. Refuses any other file. */
+  reveal(filePath: string): Promise<void>;
+}
+
 export interface NvokeApi {
   getAppInfo(): Promise<AppInfo>;
   /** Opens an http(s) URL in the system browser. Other schemes are refused. */
@@ -210,6 +236,7 @@ export interface NvokeApi {
    */
   startDragCsv(fileName: string, csv: string): void;
   auth: AuthApi;
+  files: FilesApi;
   window: WindowApi;
   desktop: DesktopApi;
   quick: QuickApi;
