@@ -22,12 +22,35 @@ export function captureDirFromArgs(argv: string[], envValue: string | undefined)
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * capturePage rejects with UnknownVizError while the compositor has no fresh
+ * frame, which is common right after a reload or when the window first shows.
+ * Retrying a few times clears it. If it never does, the display is probably
+ * locked or off, so say that in one line instead of a bare stack.
+ */
+async function capturePage(win: BrowserWindow): Promise<Electron.NativeImage> {
+  const tries = 8;
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await win.webContents.capturePage();
+    } catch (err) {
+      last = err;
+      await sleep(1000);
+    }
+  }
+  throw new Error(
+    `capturePage failed ${tries} times (${String(last)}). The display is probably locked or off: unlock it, keep the window uncovered and run again.`,
+  );
+}
+
 async function waitForLoad(win: BrowserWindow): Promise<void> {
   if (!win.webContents.isLoading()) return;
   await new Promise<void>((r) => win.webContents.once('did-finish-load', () => r()));
 }
 
 export async function runCapture(win: BrowserWindow, dir: string): Promise<void> {
+  let failed = false;
   mkdirSync(dir, { recursive: true });
   const js = <T = unknown>(code: string): Promise<T> => win.webContents.executeJavaScript(code, true) as Promise<T>;
 
@@ -46,7 +69,7 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
   async function shot(name: string, theme: string): Promise<void> {
     // Park the pointer state: nothing hovered.
     await sleep(250);
-    const page = await win.webContents.capturePage();
+    const page = await capturePage(win);
     writeFileSync(join(dir, `${name}.${theme}.png`), page.toPNG());
     try {
       // The screen, cropped to the window: the only capture that includes the
@@ -195,9 +218,10 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       await sleep(400);
     }
   } catch (err) {
-    console.error('[capture] failed', err);
+    failed = true;
+    console.error(`[capture] failed: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
-    console.log(`[capture] wrote screenshots to ${dir}`);
-    app.exit(0);
+    if (!failed) console.log(`[capture] wrote screenshots to ${dir}`);
+    app.exit(failed ? 1 : 0);
   }
 }
