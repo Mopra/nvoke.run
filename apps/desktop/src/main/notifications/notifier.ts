@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { app, BrowserWindow, ipcMain, nativeImage, Notification } from 'electron';
+import { app, ipcMain, nativeImage, Notification, type BrowserWindow } from 'electron';
 import { SearchListResponse, type Search } from '@nvoke/shared';
 import { IpcChannel, type AuthState, type NotificationSettings } from '../../ipc/contract';
 import { bridgeRequest, type ApiClient } from '../api-bridge';
