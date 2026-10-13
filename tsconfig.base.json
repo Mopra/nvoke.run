@@ -17,6 +17,10 @@
     "sourceMap": true,
     // Workspace packages export their TypeScript source under this condition,
     // so typechecking and dev servers never need a prior build step.
-    "customConditions": ["@nvoke/source"]
+    "customConditions": ["@nvoke/source"],
+    // Relative imports may name the .ts file; tsc rewrites them to .js on
+    // emit. Turbopack (the site) cannot map ".js" back to ".ts" in workspace
+    // source, so shared code imports with ".ts".
+    "rewriteRelativeImportExtensions": true
   }
 }
