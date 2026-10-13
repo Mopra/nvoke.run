@@ -9,6 +9,9 @@ import type {
   AuthState,
   CompaniesPage,
   Company,
+  Drop,
+  DropRunParams,
+  FeedSource,
   EmailKind,
   Me,
   LaunchesParams,
@@ -19,7 +22,16 @@ import type {
   User,
   Verification,
 } from '../types';
-import { API_KEY_PREFIX, PLANS, SEARCH_LIMIT_MAX, type ApiKey } from '@nvoke/shared';
+import {
+  API_KEY_PREFIX,
+  CreateDropRequest,
+  DROP_DAILY_LIMIT_DEFAULT,
+  FEED_SOURCES,
+  PLANS,
+  SEARCH_LIMIT_MAX,
+  UpdateDropRequest,
+  type ApiKey,
+} from '@nvoke/shared';
 import { generateCompany, sourceYield, type MockCompanySeed } from './data';
 
 const QUEUE_MS = 1500;
@@ -44,6 +56,8 @@ interface SearchRecord {
   frozenAt: number | null;
   terminal: { status: 'failed' | 'canceled'; error: string | null } | null;
   total: number;
+  /** Set when a drop made this search. The input then only seeds the fake companies. */
+  dropRun?: DropRunParams;
 }
 
 interface Progress {
@@ -78,6 +92,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
 
   const searches = new Map<string, SearchRecord>();
   const apiKeys: ApiKey[] = [];
+  const drops: Drop[] = [];
   const seedCache = new Map<string, MockCompanySeed[]>();
   let counter = 0;
 
@@ -160,7 +175,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       emailsValid += c.emails.filter((e) => e.verification === 'valid').length;
     }
     const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
-    return {
+    const search = {
       id: rec.id,
       kind: rec.input.kind,
       // The server fills in the launches default, so the mock does too.
@@ -176,6 +191,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       startedAt: iso(p.startedAt),
       finishedAt: iso(p.finishedAt),
     } as Search;
+    return rec.dropRun ? ({ ...search, kind: 'drop', params: rec.dropRun } as Search) : search;
   }
 
   function add(input: SearchInput, createdAt: number, extra: Partial<SearchRecord> = {}): SearchRecord {
@@ -288,6 +304,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     }
 
     if (parts[1] === 'api-keys') return apiKeyRoute(method, parts[2], body);
+    if (parts[1] === 'drops') return dropRoute(method, parts[2], parts[3], body);
 
     if (parts[1] !== 'searches') return fail(404, 'not_found');
 
@@ -364,6 +381,114 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       const i = apiKeys.findIndex((k) => k.id === id);
       if (i < 0) return fail(404, 'not_found');
       apiKeys.splice(i, 1);
+      return json(204, null);
+    }
+    return fail(404, 'not_found');
+  }
+
+  /** Delivers a drop's launches as a search, the way the worker's daily run does. */
+  function deliverDrop(drop: Drop, at: number): void {
+    add({ kind: 'launches', params: { keyword: drop.keyword ?? undefined, days: 1 }, limit: drop.dailyLimit }, at, {
+      dropRun: { dropId: drop.id, dropName: drop.name, keyword: drop.keyword ?? undefined, sources: drop.sources },
+    });
+    drop.lastDeliveredAt = new Date(at).toISOString();
+    drop.nextRunAt = new Date(at + 86_400_000).toISOString();
+  }
+
+  function withDelivered(drop: Drop): Drop {
+    const delivered = [...searches.values()]
+      .filter((r) => r.dropRun?.dropId === drop.id)
+      .reduce((sum, r) => sum + progress(r).found, 0);
+    return { ...drop, companiesDelivered: delivered };
+  }
+
+  if (options.seed !== false) {
+    const t0 = now();
+    const hour = 3_600_000;
+    const agents: Drop = {
+      id: crypto.randomUUID(),
+      name: 'AI agents',
+      keyword: 'agent',
+      sources: [...FEED_SOURCES],
+      dailyLimit: 25,
+      enabled: true,
+      nextRunAt: '',
+      lastDeliveredAt: null,
+      companiesDelivered: 0,
+      createdAt: new Date(t0 - 9 * 24 * hour).toISOString(),
+    };
+    const fintech: Drop = {
+      ...agents,
+      id: crypto.randomUUID(),
+      name: 'YC fintech',
+      keyword: 'fintech',
+      sources: ['yc', 'launch_hn'],
+      dailyLimit: 10,
+      enabled: false,
+      createdAt: new Date(t0 - 20 * 24 * hour).toISOString(),
+    };
+    deliverDrop(fintech, t0 - 4 * 24 * hour);
+    deliverDrop(agents, t0 - 26 * hour);
+    deliverDrop(agents, t0 - 2 * hour);
+    drops.push(agents, fintech);
+  }
+
+  const MOCK_FEED: Record<FeedSource, number> = { show_hn: 173, launch_hn: 4, product_hunt: 0, yc: 134 };
+
+  /** GET, POST /v1/drops, PATCH and DELETE /v1/drops/:id, POST /v1/drops/:id/run. */
+  function dropRoute(method: HttpMethod, id: string | undefined, action: string | undefined, body: unknown): BridgeResponse {
+    if (id === undefined && method === 'GET') {
+      return json(200, {
+        drops: drops.map(withDelivered),
+        sources: FEED_SOURCES.map((source) => ({
+          source,
+          available: source !== 'product_hunt',
+          lastWeek: MOCK_FEED[source],
+          lastCollectedAt: source === 'product_hunt' ? null : new Date(now() - 12 * 60_000).toISOString(),
+        })),
+      });
+    }
+    if (id === undefined && method === 'POST') {
+      const req = CreateDropRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      if (drops.length >= 20) return fail(409, 'too_many_drops');
+      const drop: Drop = {
+        id: crypto.randomUUID(),
+        name: req.data.name,
+        keyword: req.data.keyword ?? null,
+        sources: req.data.sources ?? [...FEED_SOURCES],
+        dailyLimit: req.data.dailyLimit ?? DROP_DAILY_LIMIT_DEFAULT,
+        enabled: true,
+        nextRunAt: new Date(now()).toISOString(),
+        lastDeliveredAt: null,
+        companiesDelivered: 0,
+        createdAt: new Date(now()).toISOString(),
+      };
+      drops.unshift(drop);
+      // The first run happens within a minute; the demo runs it at once.
+      deliverDrop(drop, now());
+      return json(201, withDelivered(drop));
+    }
+    const drop = drops.find((d) => d.id === id);
+    if (!drop) return fail(404, 'not_found');
+    if (action === undefined && method === 'PATCH') {
+      const req = UpdateDropRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      const u = req.data;
+      if (u.name !== undefined) drop.name = u.name;
+      if (u.keyword !== undefined) drop.keyword = u.keyword;
+      if (u.sources !== undefined) drop.sources = u.sources;
+      if (u.dailyLimit !== undefined) drop.dailyLimit = u.dailyLimit;
+      if (u.enabled !== undefined) drop.enabled = u.enabled;
+      return json(200, withDelivered(drop));
+    }
+    if (action === 'run' && method === 'POST') {
+      drop.enabled = true;
+      deliverDrop(drop, now());
+      return json(200, withDelivered(drop));
+    }
+    if (action === undefined && method === 'DELETE') {
+      drops.splice(drops.indexOf(drop), 1);
       return json(204, null);
     }
     return fail(404, 'not_found');

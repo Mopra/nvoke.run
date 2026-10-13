@@ -10,7 +10,7 @@ export interface ApiClient {
   api(path: string, init?: RequestInit): Promise<Response>;
 }
 
-const METHODS: readonly HttpMethod[] = ['GET', 'POST', 'DELETE'];
+const METHODS: readonly HttpMethod[] = ['GET', 'POST', 'PATCH', 'DELETE'];
 const MAX_PATH = 2048;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

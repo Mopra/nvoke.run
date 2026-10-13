@@ -88,7 +88,7 @@ export type AuthState =
   /** `user` is null while the profile loads or when the server is unreachable. */
   | { status: 'signed-in'; user: User | null };
 
-export type HttpMethod = 'GET' | 'POST' | 'DELETE';
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 /**
  * The answer to `request()`. It never rejects: `ok: true` with the parsed JSON

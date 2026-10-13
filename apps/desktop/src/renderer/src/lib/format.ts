@@ -1,9 +1,17 @@
-import type { Search, SearchKind, SearchStatus, Verification } from './types';
+import type { Drop, FeedSource, Search, SearchKind, SearchStatus, Verification } from './types';
 
 export const KIND_LABEL: Record<SearchKind, string> = {
   local: 'Local businesses',
   web: 'Web search',
   launches: 'New launches',
+  drop: 'Daily drop',
+};
+
+export const FEED_SOURCE_LABEL: Record<FeedSource, string> = {
+  show_hn: 'Show HN',
+  launch_hn: 'Launch HN',
+  product_hunt: 'Product Hunt',
+  yc: 'Y Combinator',
 };
 
 export const STATUS_LABEL: Record<SearchStatus, string> = {
@@ -62,11 +70,14 @@ export function searchTitle(search: Pick<Search, 'kind' | 'params'> | Search): s
       return s.params.keyword
         ? `Launches matching "${s.params.keyword}"`
         : `All launches, ${daysLabel(s.params.days)}`;
+    case 'drop':
+      return s.params.dropName;
   }
 }
 
 export function searchSubtitle(search: Search): string {
   if (search.kind === 'launches') return `${KIND_LABEL.launches}, ${daysLabel(search.params.days)}`;
+  if (search.kind === 'drop') return search.params.keyword ? `${KIND_LABEL.drop}, "${search.params.keyword}"` : KIND_LABEL.drop;
   return KIND_LABEL[search.kind];
 }
 
@@ -134,4 +145,24 @@ export function resetDate(period: string): string {
   const [y, m] = period.split('-').map(Number);
   if (!y || !m) return '';
   return new Date(y, m, 1).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+}
+
+/** "Show HN and Y Combinator", or "every source". */
+export function sourcesLabel(sources: FeedSource[], all: number): string {
+  if (sources.length >= all) return 'every source';
+  const names = sources.map((s) => FEED_SOURCE_LABEL[s]);
+  return names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
+/** When a drop runs next: "Paused", "Checking any minute", "Next in 5 h", "Next tomorrow at 07:00". */
+export function nextRunLabel(drop: Pick<Drop, 'enabled' | 'nextRunAt'>, now: number = Date.now()): string {
+  if (!drop.enabled) return 'Paused';
+  const at = new Date(drop.nextRunAt).getTime();
+  const minutes = Math.round((at - now) / 60_000);
+  if (minutes <= 1) return 'Checking any minute';
+  if (minutes < 60) return `Next in ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 12) return `Next in ${hours} h`;
+  const time = new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return new Date(at).getDate() === new Date(now).getDate() ? `Next today at ${time}` : `Next tomorrow at ${time}`;
 }

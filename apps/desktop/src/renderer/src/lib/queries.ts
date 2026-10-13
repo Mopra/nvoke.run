@@ -3,7 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api, ApiError } from './api';
 import { isActive } from './format';
 import type { ApiKey } from '@nvoke/shared';
-import type { CompaniesQuery, Search, SearchInput } from './types';
+import type { CompaniesQuery, Drop, DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
 export const POLL_MS = 2000;
@@ -14,6 +14,7 @@ export const keys = {
   companies: (id: string, filters: Omit<CompaniesQuery, 'cursor'>) => ['searches', id, 'companies', filters] as const,
   me: ['me'] as const,
   apiKeys: ['api-keys'] as const,
+  drops: ['drops'] as const,
 };
 
 export function useSearches() {
@@ -145,6 +146,81 @@ export function useRevokeApiKey() {
     mutationFn: (id: string) => api.revokeApiKey(id),
     onSuccess: (_void, id) => {
       client.setQueryData<ApiKey[]>(keys.apiKeys, (list) => list?.filter((k) => k.id !== id));
+    },
+  });
+}
+
+export function useDrops() {
+  return useQuery({ queryKey: keys.drops, queryFn: api.listDrops });
+}
+
+/** Puts a changed drop into the cached list. */
+function useStoreDrop() {
+  const client = useQueryClient();
+  return (drop: Drop): void => {
+    client.setQueryData<DropListResponse>(keys.drops, (list) =>
+      list
+        ? {
+            ...list,
+            drops: list.drops.some((d) => d.id === drop.id)
+              ? list.drops.map((d) => (d.id === drop.id ? drop : d))
+              : [drop, ...list.drops],
+          }
+        : list,
+    );
+  };
+}
+
+export function useCreateDrop() {
+  const store = useStoreDrop();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DropInput) => api.createDrop(input),
+    onSuccess: (drop) => {
+      store(drop);
+      // The first run lands within a minute.
+      for (const ms of [0, 20_000, 65_000]) {
+        setTimeout(() => void client.invalidateQueries({ queryKey: keys.searches, exact: true }), ms);
+      }
+    },
+  });
+}
+
+export function useUpdateDrop() {
+  const store = useStoreDrop();
+  return useMutation({
+    mutationFn: ({ id, update }: { id: string; update: DropUpdate }) => api.updateDrop(id, update),
+    onSuccess: store,
+  });
+}
+
+/**
+ * Runs a drop now. The worker picks it up within a minute, so the searches
+ * list is refreshed a little later to show what it delivered.
+ */
+export function useRunDrop() {
+  const store = useStoreDrop();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.runDrop(id),
+    onSuccess: (drop) => {
+      store(drop);
+      for (const ms of [20_000, 65_000]) {
+        setTimeout(() => {
+          void client.invalidateQueries({ queryKey: keys.searches, exact: true });
+          void client.invalidateQueries({ queryKey: keys.drops });
+        }, ms);
+      }
+    },
+  });
+}
+
+export function useDeleteDrop() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDrop(id),
+    onSuccess: (_void, id) => {
+      client.setQueryData<DropListResponse>(keys.drops, (list) => (list ? { ...list, drops: list.drops.filter((d) => d.id !== id) } : list));
     },
   });
 }

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ArrowUpRight, Ban, MoreHorizontal, Plus, Rows3, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Ban, Inbox, MoreHorizontal, Plus, Rows3, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DisplayTitle, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
@@ -160,7 +160,14 @@ export function SearchesScreen() {
 
   return (
     <>
-      <PageHeader />
+      <PageHeader
+        actions={
+          <Button variant="glass" className="pr-4 pl-3" onClick={() => navigate({ name: 'drops' })}>
+            <Inbox className="size-[17px] text-muted-foreground" />
+            Drops
+          </Button>
+        }
+      />
       <main ref={scrollRef} className="fade-edges flex-1 overflow-auto px-8 pb-24">
         <div className="mx-auto max-w-[880px] motion-safe:animate-rise">
           <DisplayTitle className="px-6" subtitle={subtitle}>

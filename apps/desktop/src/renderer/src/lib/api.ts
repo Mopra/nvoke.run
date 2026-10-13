@@ -15,6 +15,10 @@ import type {
   AuthState,
   CompaniesPage,
   CompaniesQuery,
+  Drop,
+  DropInput,
+  DropListResponse,
+  DropUpdate,
   ExportResult,
   Me,
   Search,
@@ -42,6 +46,7 @@ function describeError(status: number, code: string): string {
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Session expired. Sign in again.';
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
+  if (code === 'too_many_drops') return 'You have 20 drops. Delete one first.';
   if (status === 404) return 'That search is gone.';
   if (status >= 500) return 'Our server broke. Try again in a minute.';
   return code || `Request failed with status ${status}`;
@@ -89,6 +94,14 @@ export function createApi(transport: Transport) {
     createApiKey: (name: string): Promise<CreateApiKeyResponse> => call('POST', '/v1/api-keys', { name }),
     revokeApiKey: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/api-keys/${enc(id)}`);
+    },
+    listDrops: (): Promise<DropListResponse> => call('GET', '/v1/drops'),
+    createDrop: (input: DropInput): Promise<Drop> => call('POST', '/v1/drops', input),
+    updateDrop: (id: string, update: DropUpdate): Promise<Drop> => call('PATCH', `/v1/drops/${enc(id)}`, update),
+    /** Runs the drop within a minute instead of at its daily time. */
+    runDrop: (id: string): Promise<Drop> => call('POST', `/v1/drops/${enc(id)}/run`),
+    deleteDrop: async (id: string): Promise<void> => {
+      await call<null>('DELETE', `/v1/drops/${enc(id)}`);
     },
     openExternal: (url: string): Promise<void> => transport.openExternal(url),
     getAuthState: (): Promise<AuthState> => transport.auth.getState(),

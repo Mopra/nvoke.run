@@ -146,7 +146,7 @@ function Overview({
             <Button size="sm" variant="outline" onClick={() => void api.openExternal(BILLING_URL)}>
               Upgrade
             </Button>
-          ) : (
+          ) : search.kind === 'drop' ? null : (
             <Button size="sm" variant="outline" onClick={onRunAgain} disabled={starting}>
               <RotateCw />
               Run again
@@ -511,10 +511,17 @@ export function SearchResultsScreen({ id }: { id: string }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={runAgain} disabled={live || create.isPending}>
-                  <RotateCw />
-                  Run again
-                </DropdownMenuItem>
+                {search.kind === 'drop' ? (
+                  <DropdownMenuItem onSelect={() => navigate({ name: 'drop', id: search.params.dropId })}>
+                    <Inbox />
+                    Open drop
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={runAgain} disabled={live || create.isPending}>
+                    <RotateCw />
+                    Run again
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={requestExport} disabled={search.emailsFound === 0}>
                   <Download />
                   Export CSV

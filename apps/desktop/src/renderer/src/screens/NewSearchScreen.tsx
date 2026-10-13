@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
-import { ChevronDown, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowRight, ChevronDown, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { CountryPicker } from '@/components/CountryPicker';
+import { Line, Pill, SENTENCE, SentenceInput } from '@/components/Sentence';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { formatNumber, searchTitle, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
@@ -15,18 +16,21 @@ import { cn } from '@/lib/utils';
 
 const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
 
-const SOURCES: Record<SearchKind, string> = {
+/** Drop searches come from drops, never from this form. */
+type FormKind = Exclude<SearchKind, 'drop'>;
+
+const SOURCES: Record<FormKind, string> = {
   local: 'Businesses on OpenStreetMap with a website, inside the area you name.',
   web: 'Company sites from web search. No social networks, marketplaces or news.',
   launches: 'Fresh launches from Product Hunt and Show HN.',
 };
 
-function isKind(value: string | null): value is SearchKind {
+function isKind(value: string | null): value is FormKind {
   return value === 'local' || value === 'web' || value === 'launches';
 }
 
 export function NewSearchScreen({ initialKind }: { initialKind: string | null }) {
-  const [kind, setKind] = useState<SearchKind>(isKind(initialKind) ? initialKind : 'local');
+  const [kind, setKind] = useState<FormKind>(isKind(initialKind) ? initialKind : 'local');
   const [niche, setNiche] = useState('');
   const [location, setLocation] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -161,6 +165,15 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                     options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => [w, WINDOW_LABEL[w].toLowerCase()])}
                   />
                 </Line>
+                <div className="col-start-2 -mt-1 -ml-3 mb-4">
+                  <Pill
+                    onClick={() => navigate({ name: 'drop', id: null, keyword: launchKeyword.trim() || null })}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    Get the new ones every day
+                    <ArrowRight className="size-3" />
+                  </Pill>
+                </div>
               </>
             )}
 
@@ -181,20 +194,9 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
             </Line>
             <div className="col-start-2 -mt-1 -ml-3 flex gap-1" role="group" aria-label="Preset limits">
               {LIMIT_PRESETS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  aria-pressed={preset === p}
-                  onClick={() => setLimit(Number(p))}
-                  className={cn(
-                    'h-7 rounded-full px-3 text-xs tabular-nums outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40',
-                    preset === p
-                      ? 'bg-foreground/[0.08] font-medium text-foreground'
-                      : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
-                  )}
-                >
+                <Pill key={p} pressed={preset === p} onClick={() => setLimit(Number(p))}>
                   {p}
-                </button>
+                </Pill>
               ))}
             </div>
           </div>
@@ -220,32 +222,6 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
       </main>
     </>
   );
-}
-
-const SENTENCE =
-  'min-w-0 bg-transparent font-display text-4xl font-semibold caret-primary outline-none placeholder:text-foreground/[0.17] aria-invalid:placeholder:text-destructive/40';
-
-/**
- * One line of the sentence: a quiet lead word, then the field in display type.
- * The lead words share one column of the parent grid, so the fields align.
- */
-function Line({ lead, htmlFor, children }: { lead: string; htmlFor: string; children: ReactNode }) {
-  return (
-    <div className="group/line contents">
-      <label htmlFor={htmlFor} className="self-baseline pb-2 font-display text-4xl font-semibold text-muted-foreground/50">
-        {lead}
-      </label>
-      <div className="relative min-w-0 self-baseline pb-2">
-        {children}
-        {/* A hairline that lights up with the accent while the line has focus. */}
-        <span className="absolute inset-x-0 bottom-0 h-px bg-border transition-colors duration-300 group-focus-within/line:bg-primary/70" />
-      </div>
-    </div>
-  );
-}
-
-function SentenceInput(props: ComponentProps<'input'>) {
-  return <input autoComplete="off" spellCheck={false} {...props} className={cn(SENTENCE, 'w-full')} />;
 }
 
 function SentenceSelect({

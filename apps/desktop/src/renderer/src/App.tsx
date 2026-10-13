@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { useModHotkey } from '@/lib/hotkeys';
 import { navigate, useRoute, type Route } from '@/lib/router';
 import { AccountScreen } from '@/screens/AccountScreen';
+import { DropEditorScreen } from '@/screens/DropEditorScreen';
+import { DropsScreen } from '@/screens/DropsScreen';
 import { NewSearchScreen } from '@/screens/NewSearchScreen';
 import { SearchesScreen } from '@/screens/SearchesScreen';
 import { SearchResultsScreen } from '@/screens/SearchResultsScreen';
@@ -23,6 +25,10 @@ function Screen({ route }: { route: Route }) {
       return <SearchResultsScreen key={route.id} id={route.id} />;
     case 'account':
       return <AccountScreen />;
+    case 'drops':
+      return <DropsScreen />;
+    case 'drop':
+      return <DropEditorScreen key={route.id ?? 'new'} id={route.id} keyword={route.keyword} />;
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * A tiny hash router. The packaged renderer loads from file://, where hash
- * routes work without any server rewrites, and four screens do not justify a
+ * routes work without any server rewrites, and six screens do not justify a
  * routing library.
  */
 import { useSyncExternalStore } from 'react';
@@ -9,7 +9,10 @@ export type Route =
   | { name: 'searches' }
   | { name: 'new'; kind: string | null }
   | { name: 'search'; id: string }
-  | { name: 'account' };
+  | { name: 'account' }
+  | { name: 'drops' }
+  /** The drop editor: an existing drop by id, or a new one, optionally prefilled with a keyword. */
+  | { name: 'drop'; id: string | null; keyword?: string | null };
 
 export function parseRoute(hash: string): Route {
   const raw = hash.replace(/^#/, '') || '/';
@@ -18,6 +21,9 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === 'new') return { name: 'new', kind: new URLSearchParams(query).get('kind') };
   if (parts[0] === 'searches' && parts[1]) return { name: 'search', id: decodeURIComponent(parts[1]) };
   if (parts[0] === 'account') return { name: 'account' };
+  if (parts[0] === 'drops' && parts[1] === 'new') return { name: 'drop', id: null, keyword: new URLSearchParams(query).get('keyword') };
+  if (parts[0] === 'drops' && parts[1]) return { name: 'drop', id: decodeURIComponent(parts[1]) };
+  if (parts[0] === 'drops') return { name: 'drops' };
   return { name: 'searches' };
 }
 
@@ -31,6 +37,11 @@ export function routeHref(route: Route): string {
       return `#/searches/${encodeURIComponent(route.id)}`;
     case 'account':
       return '#/account';
+    case 'drops':
+      return '#/drops';
+    case 'drop':
+      if (route.id) return `#/drops/${encodeURIComponent(route.id)}`;
+      return route.keyword ? `#/drops/new?keyword=${encodeURIComponent(route.keyword)}` : '#/drops/new';
   }
 }
 

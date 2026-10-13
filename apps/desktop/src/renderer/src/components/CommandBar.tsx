@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleUser, CornerDownLeft, Globe, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sun } from 'lucide-react';
+import { CircleUser, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
 import { useSearches } from '@/lib/queries';
@@ -83,6 +83,22 @@ function Commands({ onDone }: { onDone: () => void }) {
         icon: <Rocket className={iconClass} />,
         keywords: 'new search product hunt show hn',
         run: () => navigate({ name: 'new', kind: 'launches' }),
+      },
+      {
+        id: 'new:drop',
+        group: 'Actions',
+        label: 'New daily drop',
+        icon: <Inbox className={iconClass} />,
+        keywords: 'drops fresh daily launches subscribe',
+        run: () => navigate({ name: 'drop', id: null }),
+      },
+      {
+        id: 'go:drops',
+        group: 'Actions',
+        label: 'Drops',
+        icon: <Inbox className={iconClass} />,
+        keywords: 'fresh daily launches',
+        run: () => navigate({ name: 'drops' }),
       },
       {
         id: 'go:searches',
