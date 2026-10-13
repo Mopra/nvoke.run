@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
 import { isActive } from './format';
@@ -42,6 +43,24 @@ export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>
     refetchInterval: live ? POLL_MS : false,
     placeholderData: (previous) => previous,
   });
+}
+
+/**
+ * Polling stops when a search finishes, so the last poll can miss the final
+ * crawls and the usage meter is still the old one. When `live` turns false,
+ * refetch the given search's companies (all searches' when `id` is null) and
+ * the account.
+ */
+export function useRefreshWhenFinished(live: boolean, id: string | null): void {
+  const client = useQueryClient();
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) {
+      void client.invalidateQueries({ queryKey: id ? [...keys.search(id), 'companies'] : keys.searches });
+      void client.invalidateQueries({ queryKey: keys.me });
+    }
+    wasLive.current = live;
+  }, [live, id, client]);
 }
 
 export function useMe() {

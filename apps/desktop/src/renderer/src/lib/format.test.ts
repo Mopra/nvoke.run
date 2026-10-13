@@ -54,7 +54,7 @@ describe('csv', () => {
       name: 'Smith, Jones & "Co"',
       domain: 'sj.dk',
       website: 'https://sj.dk',
-      source: 'openstreetmap',
+      source: 'osm',
       sourceRef: null,
       location: null,
       phone: null,

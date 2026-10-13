@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/format';
 import { modKey } from '@/lib/hotkeys';
-import { useCancelSearch, useSearches } from '@/lib/queries';
+import { useCancelSearch, useRefreshWhenFinished, useSearches } from '@/lib/queries';
 import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
 import { useScrolled } from '@/lib/use-scrolled';
@@ -162,8 +162,12 @@ export function SearchesScreen() {
   const active = data?.filter((s) => isActive(s.status)) ?? [];
   const earlier = data?.filter((s) => !isActive(s.status)) ?? [];
 
-  const subtitle =
-    data && data.length > 0
+  // Only the account needs a refresh here; the list itself is still polled.
+  useRefreshWhenFinished(active.length > 0, null);
+
+  const subtitle = !data
+    ? 'Loading'
+    : data.length > 0
       ? `${data.length} ${data.length === 1 ? 'search' : 'searches'}${active.length ? `, ${active.length} running` : ''}`
       : undefined;
 
@@ -189,7 +193,7 @@ export function SearchesScreen() {
       />
       <main ref={scrollRef} className="flex-1 overflow-auto px-5 pb-8">
         <div className="mx-auto max-w-[920px] motion-safe:animate-page-in">
-          <LargeTitle className="px-3" subtitle={subtitle ?? 'Loading'}>
+          <LargeTitle className="px-3" subtitle={subtitle}>
             Searches
           </LargeTitle>
           {isPending ? (

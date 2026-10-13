@@ -51,18 +51,19 @@ import {
   VERIFICATION_LABEL,
 } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
-import { useCancelSearch, useCompanies, useSearch } from '@/lib/queries';
+import { useCancelSearch, useCompanies, useRefreshWhenFinished, useSearch } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import type { Company, Email, EmailKind, Search, Verification } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const COLUMNS = 'grid grid-cols-[minmax(12rem,1fr)_minmax(19rem,1.6fr)_minmax(8rem,0.6fr)_4rem] gap-6';
 
+/** Labels for Company.source, as the server's source adapters set it. */
 const SOURCE_LABEL: Record<string, string> = {
-  openstreetmap: 'OpenStreetMap',
+  osm: 'OpenStreetMap',
   brave: 'Web search',
-  producthunt: 'Product Hunt',
-  hackernews: 'Show HN',
+  product_hunt: 'Product Hunt',
+  show_hn: 'Show HN',
 };
 
 const VERIFICATION_ORDER: Verification[] = ['valid', 'catch_all', 'risky', 'unknown', 'invalid'];
@@ -323,6 +324,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
+  useRefreshWhenFinished(live, id);
   const cancel = useCancelSearch();
   const filterRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);

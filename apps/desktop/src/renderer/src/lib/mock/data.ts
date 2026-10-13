@@ -118,7 +118,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     name = r() < 0.5 ? `${district} ${pick(r, nouns)}` : `${pick(r, nouns)} ${district}`;
     tld = /copenhagen|københavn|aarhus|odense|denmark/i.test(input.params.location) ? 'dk' : pick(r, ['de', 'com', 'eu']);
     location = `${district}, ${titleCase(input.params.location)}`;
-    source = 'openstreetmap';
+    source = 'osm';
     category = titleCase(input.params.niche.replace(/s$/, ''));
     phone = `${tld === 'dk' ? '+45' : '+49'} ${Math.floor(20 + r() * 79)} ${Math.floor(10 + r() * 89)} ${Math.floor(10 + r() * 89)} ${Math.floor(10 + r() * 89)}`;
   } else if (input.kind === 'web') {
@@ -129,7 +129,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
   } else {
     name = `${pick(r, LAUNCH_STEMS)}${r() < 0.3 ? ` ${pick(r, ['AI', 'App', 'Pro'])}` : ''}`;
     tld = pick(r, ['com', 'app', 'ai', 'io', 'so']);
-    source = r() < 0.6 ? 'producthunt' : 'hackernews';
+    source = r() < 0.6 ? 'product_hunt' : 'show_hn';
     category = input.params.keyword ?? null;
   }
 
@@ -170,7 +170,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
       domain,
       website,
       source,
-      sourceRef: source === 'openstreetmap' ? `node/${Math.floor(r() * 9e9)}` : null,
+      sourceRef: source === 'osm' ? `node/${Math.floor(r() * 9e9)}` : null,
       location,
       phone,
       category,
