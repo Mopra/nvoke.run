@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 Watched inbox quest finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides and merge newest main last.
 - 2026-10-13 Round after /docs/mcp landed (3658b05): 7 running, nothing blocked, nothing to do.
 - 2026-10-13 Round after the local MCP merge fix landed (4876049): its check and /docs/mcp quests started; gave both sonnet. 7 running, nothing blocked.
 - 2026-10-13 Front-tab hotkey quest finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides and merge newest main last.
@@ -41,4 +42,5 @@
 - Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
 - Local MCP landed (4876049) and /docs/mcp landed (3658b05); its capture check quest is still running. See it lands.
 - Check the front-tab hotkey merge fix lands. Never verified: macOS AppleScript path, Firefox and Brave, the real hotkey over a live window.
+- Check the watched inbox merge fix lands. Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
