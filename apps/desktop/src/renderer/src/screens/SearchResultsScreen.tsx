@@ -11,6 +11,7 @@ import {
   Loader2,
   MoreHorizontal,
   Radar,
+  RotateCw,
   SearchX,
   Search as SearchIcon,
   Trash2,
@@ -54,9 +55,9 @@ import {
   VERIFICATION_LABEL,
 } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
-import { useCancelSearch, useCompanies, useRefreshWhenFinished, useSearch } from '@/lib/queries';
+import { useCancelSearch, useCompanies, useCreateSearch, useRefreshWhenFinished, useSearch } from '@/lib/queries';
 import { navigate } from '@/lib/router';
-import type { Company, Email, EmailKind, Search, Verification } from '@/lib/types';
+import type { Company, Email, EmailKind, Search, SearchInput, Verification } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const COLUMNS = 'grid grid-cols-[minmax(12rem,1fr)_minmax(19rem,1.6fr)_minmax(8rem,0.6fr)_4rem] gap-6';
@@ -103,7 +104,17 @@ function Stat({ label, value, sub }: { label: string; value: number; sub?: strin
   );
 }
 
-function Overview({ search, timing }: { search: Search; timing: string }) {
+function Overview({
+  search,
+  timing,
+  onRunAgain,
+  starting,
+}: {
+  search: Search;
+  timing: string;
+  onRunAgain: () => void;
+  starting: boolean;
+}) {
   const active = isActive(search.status);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
@@ -131,9 +142,14 @@ function Overview({ search, timing }: { search: Search; timing: string }) {
         <div className="mt-8 flex items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
           <TriangleAlert className="size-4 shrink-0 text-destructive" />
           <span className="flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
-          {search.error === 'quota_exceeded' && (
+          {search.error === 'quota_exceeded' ? (
             <Button size="sm" variant="outline" onClick={() => void api.openExternal(BILLING_URL)}>
               Upgrade
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={onRunAgain} disabled={starting}>
+              <RotateCw />
+              Run again
             </Button>
           )}
         </div>
@@ -328,6 +344,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
   useRefreshWhenFinished(live, id);
   const cancel = useCancelSearch();
+  const create = useCreateSearch();
   const filterRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -409,6 +426,19 @@ export function SearchResultsScreen({ id }: { id: string }) {
     });
   }
 
+  /** Starts a fresh search with the same parameters and opens it. */
+  function runAgain(): void {
+    if (!search || create.isPending) return;
+    const input = { kind: search.kind, params: search.params, limit: search.limit } as SearchInput;
+    create.mutate(input, {
+      onSuccess: (next) => {
+        toast.success('Search started', { description: searchTitle(next) });
+        navigate({ name: 'search', id: next.id }, { replace: true });
+      },
+      onError: (err) => toast.error('Couldn’t start the search', { description: err.message }),
+    });
+  }
+
   const back = <BackButton />;
 
   if (searchQuery.error) {
@@ -481,6 +511,10 @@ export function SearchResultsScreen({ id }: { id: string }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={runAgain} disabled={live || create.isPending}>
+                  <RotateCw />
+                  Run again
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={requestExport} disabled={search.emailsFound === 0}>
                   <Download />
                   Export CSV
@@ -498,7 +532,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
 
       <div ref={scrollRef} className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-[1120px]">
-          <Overview search={search} timing={timing} />
+          <Overview search={search} timing={timing} onRunAgain={runAgain} starting={create.isPending} />
 
           <div>
             <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground')}>
@@ -552,6 +586,10 @@ export function SearchResultsScreen({ id }: { id: string }) {
               ) : live ? (
                 <EmptyState icon={Radar} title="Looking for companies">
                   They show up here the moment we find them.
+                </EmptyState>
+              ) : search.status === 'failed' ? (
+                <EmptyState icon={Inbox} title="No companies found">
+                  It stopped before finding any.
                 </EmptyState>
               ) : (
                 <EmptyState icon={Inbox} title="No companies found">
