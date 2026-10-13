@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
-import { DOCS_URL, MCP_URL } from '@/lib/env';
+import { API_DOCS_URL, DOCS_URL, MCP_DOCS_URL, MCP_URL } from '@/lib/env';
 import { relativeTime } from '@/lib/format';
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '@/lib/queries';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,16 @@ function CopyField({ value, what, className }: { value: string; what: string; cl
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </Button>
     </div>
+  );
+}
+
+/** Opens a docs page on the site in the system browser. */
+function DocsLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+  return (
+    <Button variant="ghost" className={className} onClick={() => void api.openExternal(href)}>
+      {children}
+      <ArrowUpRight className="size-3.5 opacity-60" />
+    </Button>
   );
 }
 
@@ -129,7 +139,10 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
             <p className="text-sm text-muted-foreground">
               Send it as <code className="font-mono text-xs">Authorization: Bearer</code> to the API or the MCP server.
             </p>
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-2">
+              <DocsLink href={API_DOCS_URL} className="-ml-3">
+                How to use it
+              </DocsLink>
               <Button onClick={() => close(false)}>Done</Button>
             </div>
           </div>
@@ -207,10 +220,13 @@ export function ApiKeys() {
         title="API keys"
         description="For scripts and agents. A key can do everything you can."
         action={
-          <Button variant="outline" onClick={() => setCreating(true)}>
-            <Plus />
-            New key
-          </Button>
+          <div className="flex items-center gap-1">
+            <DocsLink href={DOCS_URL}>Docs</DocsLink>
+            <Button variant="outline" onClick={() => setCreating(true)}>
+              <Plus />
+              New key
+            </Button>
+          </div>
         }
       />
       <div className="mt-4">
@@ -249,10 +265,20 @@ export function ConnectAgent() {
       <SectionHeading
         title="Use nvoke from code or an agent"
         description="The REST API and the MCP server take the same key and do what this app does."
+        action={<DocsLink href={DOCS_URL}>Docs</DocsLink>}
       />
       <div className="mt-6 flex flex-col gap-5">
         <div>
-          <div className="mb-2 text-sm font-medium">MCP server</div>
+          <div className="mb-2 flex items-baseline justify-between gap-4">
+            <span className="text-sm font-medium">MCP server</span>
+            <button
+              type="button"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              onClick={() => void api.openExternal(MCP_DOCS_URL)}
+            >
+              Setup for other clients
+            </button>
+          </div>
           <CopyField value={MCP_URL} what="MCP URL" />
         </div>
         <div>
@@ -263,10 +289,9 @@ export function ConnectAgent() {
           />
         </div>
         <div>
-          <Button variant="ghost" className="-ml-3" onClick={() => void api.openExternal(DOCS_URL)}>
-            API and MCP docs
-            <ArrowUpRight className="size-3.5 opacity-60" />
-          </Button>
+          <DocsLink href={API_DOCS_URL} className="-ml-3">
+            REST API reference
+          </DocsLink>
         </div>
       </div>
     </section>
