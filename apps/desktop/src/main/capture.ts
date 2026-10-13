@@ -74,6 +74,12 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
     console.log(`[capture] ${name}.${theme}`);
   }
 
+  // A blank shot usually means the renderer died or threw. Say so.
+  win.webContents.on('render-process-gone', (_e, details) => console.error('[capture] renderer gone', details));
+  win.webContents.on('console-message', (e) => {
+    if (e.level === 'error') console.error(`[capture] renderer: ${e.message}`);
+  });
+
   try {
     await waitForLoad(win);
     win.setBounds({ width: 1200, height: 780 });
@@ -158,12 +164,9 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       await js(`[...document.querySelectorAll('button')].find((e) => /New key/.test(e.textContent))?.click()`);
       await sleep(500);
       await shot('14-new-key', theme);
-      await js(`(() => {
-        const input = document.querySelector('input[aria-label="Key name"]');
-        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-        set.call(input, 'Zapier');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      })()`);
+      // Type for real, so React sees the change like a keystroke.
+      await js(`document.querySelector('input[aria-label="Key name"]')?.focus()`);
+      await win.webContents.insertText('Zapier');
       await sleep(200);
       await js(`[...document.querySelectorAll('button')].find((e) => /Create key/.test(e.textContent))?.click()`);
       await sleep(900);
