@@ -184,9 +184,10 @@ export function TopBar({
       <span className="flex-1" />
       {actions}
       {newSearch && (
-        <GlassIcon>
-          <Plus className="size-[18px]" />
-        </GlassIcon>
+        <span className="glass flex h-9 items-center gap-1.5 rounded-full pr-4 pl-3 text-[13px] font-medium text-foreground/85">
+          <Plus className="size-[18px] text-primary" strokeWidth={2.25} />
+          New search
+        </span>
       )}
       <AccountRing />
     </div>

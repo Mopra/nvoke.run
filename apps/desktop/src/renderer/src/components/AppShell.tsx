@@ -194,8 +194,9 @@ export function PageHeader({
         {newSearch && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="glass" size="icon" aria-label="New search" onClick={() => navigate({ name: 'new', kind: null })}>
-                <Plus className="size-[18px]" />
+              <Button variant="glass" className="pr-4 pl-3" onClick={() => navigate({ name: 'new', kind: null })}>
+                <Plus className="size-[18px] text-primary" strokeWidth={2.25} />
+                New search
               </Button>
             </TooltipTrigger>
             <TooltipContent>
