@@ -5,7 +5,7 @@ import type { SearchInput } from './types';
  * Aarhus" (or "dentists near Aarhus") is a local search, anything else is a
  * web search on that keyword. Null while there is nothing to search for.
  */
-export function parseQuickSearch(query: string): SearchInput | null {
+export function parseQuickSearch(query: string): Extract<SearchInput, { kind: 'local' | 'web' }> | null {
   const text = query.trim().replace(/\s+/g, ' ');
   if (text.length < 2) return null;
   const local = /^(.{1,100}?)\s+(?:in|near|i|nær)\s+(.{1,200})$/i.exec(text);
