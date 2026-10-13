@@ -1,29 +1,51 @@
 /**
- * Worker entry point. Lead collection jobs will run here, in a separate
- * process from the API. For now it only proves the process lifecycle:
- * start, idle tick, graceful shutdown.
+ * Worker entry point. Runs the lead pipeline jobs (find, crawl, verify) from
+ * the Postgres queue, in a separate process from the API. SIGTERM stops
+ * claiming, gives running jobs time to finish, and hands the rest back.
  */
 import { loadEnv } from '../env.js';
-import { closeSql } from '../db/client.js';
+import { closeSql, getSql } from '../db/client.js';
 import { logger } from '../logger.js';
 import { VERSION } from '../version.js';
-
-const TICK_MS = 60_000;
+import { createPipelineDeps } from './deps.js';
+import { Runner } from './runner.js';
 
 const env = loadEnv();
 const log = logger('worker');
 
-log.info({ version: VERSION, env: env.NODE_ENV, database: Boolean(env.DATABASE_URL) }, 'worker started');
+if (!env.DATABASE_URL) {
+  log.error('DATABASE_URL is not set; the worker has nothing to do');
+  process.exit(1);
+}
 
-const timer = setInterval(() => {
-  log.debug('tick: no jobs registered');
-}, TICK_MS);
+const sql = getSql();
+const runner = new Runner(createPipelineDeps(sql, env, log), { concurrency: env.WORKER_CONCURRENCY });
+runner.start();
 
+log.info(
+  {
+    version: VERSION,
+    env: env.NODE_ENV,
+    workerId: runner.workerId,
+    concurrency: env.WORKER_CONCURRENCY,
+    web: Boolean(env.BRAVE_SEARCH_API_KEY),
+    productHunt: Boolean(env.PRODUCT_HUNT_TOKEN),
+    smtpProbe: env.SMTP_PROBE_ENABLED,
+  },
+  'worker started',
+);
+
+let stopping = false;
 async function shutdown(signal: string): Promise<void> {
-  log.info({ signal }, 'worker shutting down');
-  clearInterval(timer);
-  await closeSql();
-  process.exit(0);
+  if (stopping) return;
+  stopping = true;
+  log.info({ signal, inFlight: runner.inFlight }, 'worker shutting down');
+  try {
+    await runner.stop(25_000);
+  } finally {
+    await closeSql();
+    process.exit(0);
+  }
 }
 
 process.once('SIGINT', () => void shutdown('SIGINT'));
