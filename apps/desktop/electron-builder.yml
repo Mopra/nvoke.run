@@ -45,6 +45,10 @@ mac:
       arch: [x64, arm64]
   category: public.app-category.business
   identity: null
+  # The text macOS shows when the quick window first reads the front tab of
+  # Safari, Chrome or Arc (AppleScript needs the user's Automation permission).
+  extendInfo:
+    NSAppleEventsUsageDescription: nvoke reads the address of the browser tab in front when you press the quick search shortcut, to offer who runs that site. It reads nothing else and never in the background.
 
 linux:
   icon: build/icon-desktop.png

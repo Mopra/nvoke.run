@@ -11,6 +11,7 @@ import {
   type ExportResult,
   type InboxFile,
   type InboxResult,
+  type FrontTab,
   type SaveEnrichedResult,
   type LocalChange,
   type LocalCompaniesPage,
@@ -110,6 +111,12 @@ const api: NvokeApi = {
       ipcRenderer.on(IpcChannel.quickShown, handler);
       return () => ipcRenderer.removeListener(IpcChannel.quickShown, handler);
     },
+    onFrontTab: (listener) => {
+      const handler = (_event: IpcRendererEvent, tab: FrontTab | null) => listener(tab);
+      ipcRenderer.on(IpcChannel.quickFrontTab, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.quickFrontTab, handler);
+    },
+    readFrontTab: () => ipcRenderer.invoke(IpcChannel.quickReadFrontTab) as Promise<FrontTab | null>,
   },
   mcp: {
     getSetup: () => ipcRenderer.invoke(IpcChannel.mcpGetSetup) as Promise<McpSetup>,

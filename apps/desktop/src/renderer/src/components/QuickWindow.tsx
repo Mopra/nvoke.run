@@ -9,7 +9,7 @@ import { quickApi } from '@/lib/desktop';
 import { formatNumber, isActive, searchTitle } from '@/lib/format';
 import { useCompanies, useCreateSearch, useSearch } from '@/lib/queries';
 import type { Search, SearchInput } from '@/lib/types';
-import type { QuickClipboard } from '../../../ipc/contract';
+import type { FrontTab, QuickClipboard } from '../../../ipc/contract';
 
 /** Window margin that leaves room for the panel's shadow. */
 const MARGIN = 20;
@@ -26,6 +26,8 @@ export function QuickWindow() {
   const [opening, setOpening] = useState(0);
   // What the clipboard named when the window opened, never read in the background.
   const [clipboard, setClipboard] = useState<QuickClipboard>(null);
+  // The site in the browser tab that was in front, read only on the shortcut. Arrives just after the show.
+  const [frontTab, setFrontTab] = useState<FrontTab | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const quick = quickApi();
 
@@ -33,10 +35,13 @@ export function QuickWindow() {
     () =>
       quick?.onShown((clip) => {
         setClipboard(clip);
+        setFrontTab(null);
         setOpening((n) => n + 1);
       }),
     [quick],
   );
+
+  useEffect(() => quick?.onFrontTab(setFrontTab), [quick]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -68,7 +73,7 @@ export function QuickWindow() {
             <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />
           </div>
         ) : auth.status === 'signed-in' ? (
-          <Session key={opening} clipboard={clipboard} />
+          <Session key={opening} clipboard={clipboard} frontTab={frontTab} />
         ) : (
           <SignedOut />
         )}
@@ -90,13 +95,23 @@ function SignedOut() {
 }
 
 /** The command bar until a search starts, then that search's progress. */
-function Session({ clipboard }: { clipboard: QuickClipboard }) {
+function Session({ clipboard, frontTab }: { clipboard: QuickClipboard; frontTab: FrontTab | null }) {
   const create = useCreateSearch();
   const [started, setStarted] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function start(input: SearchInput): void {
     if (create.isPending) return;
+    setNotice(null);
     create.mutate(input, { onSuccess: (search) => setStarted(search.id) });
+  }
+
+  /** macOS: asks for the Automation permission (the OS prompt), then looks the site up. */
+  async function readFrontTab(): Promise<void> {
+    const tab = await quickApi()?.readFrontTab();
+    if (tab?.status === 'read') start({ kind: 'domains', params: { items: [tab.domain] }, limit: 1 });
+    else if (tab?.status === 'denied') setNotice(automationHelp(tab.browser));
+    else setNotice('Couldn’t read the address of the front tab.');
   }
 
   if (started) return <Running id={started} onNew={() => setStarted(null)} />;
@@ -105,10 +120,17 @@ function Session({ clipboard }: { clipboard: QuickClipboard }) {
     <Commands
       onDone={() => quickApi()?.hide()}
       onStart={start}
-      notice={create.isError ? create.error.message : null}
+      notice={create.isError ? create.error.message : notice}
       clipboard={clipboard}
+      frontTab={frontTab}
+      onReadFrontTab={() => void readFrontTab()}
+      onFrontTabDenied={(browser) => setNotice(automationHelp(browser))}
     />
   );
+}
+
+function automationHelp(browser: string): string {
+  return `macOS keeps nvoke from reading ${browser}. Allow it in System Settings, Privacy & Security, Automation.`;
 }
 
 function Running({ id, onNew }: { id: string; onNew: () => void }) {

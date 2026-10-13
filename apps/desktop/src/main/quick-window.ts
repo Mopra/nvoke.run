@@ -2,7 +2,8 @@ import { join } from 'node:path';
 import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, screen, type WebContents } from 'electron';
 import { DEFAULT_HOTKEY, isAccelerator } from '../ipc/accelerator';
 import { clipboardLookup } from './clipboard-lookup';
-import { IpcChannel } from '../ipc/contract';
+import { detectFrontTab, readMacTab } from './front-tab';
+import { IpcChannel, type FrontTab } from '../ipc/contract';
 import { clampQuickHeight, hotkeyClashMessage, isRouteHash, quickBounds, QUICK_MIN_HEIGHT, QUICK_WIDTH } from './quick-geometry';
 
 /**
@@ -17,6 +18,10 @@ export interface QuickOptions {
   openInMain(hash: string): void;
   /** True when no shortcut should be registered, for example during a capture run. */
   disabled?: boolean;
+  /** macOS: true once the Automation prompt has been shown for this browser. */
+  automationAsked(browser: string): boolean;
+  /** macOS: remembers that the Automation prompt has been shown for this browser. */
+  markAutomationAsked(browser: string): void;
 }
 
 export class QuickWindow {
@@ -26,6 +31,12 @@ export class QuickWindow {
   private registered = false;
   /** Why the shortcut is not active. Null when it is registered. */
   error: string | null = null;
+  /** Counts shows, so a slow front tab read never lands on a later opening. */
+  private shows = 0;
+  /** What the last front tab read found, for `quick:read-front-tab`. */
+  private frontTab: FrontTab | null = null;
+  /** True while macOS shows its Automation prompt, which takes focus without meaning to close the window. */
+  private holding = false;
 
   constructor(private readonly options: QuickOptions) {}
 
@@ -82,6 +93,21 @@ export class QuickWindow {
       this.height = clampQuickHeight(height);
       if (this.win && !this.win.isDestroyed() && this.win.isVisible()) this.place();
     });
+    ipcMain.handle(IpcChannel.quickReadFrontTab, async (event): Promise<FrontTab | null> => {
+      // Only after the window was told the browser needs asking, and only on macOS.
+      const tab = this.frontTab;
+      if (!fromQuick(event.sender) || process.platform !== 'darwin' || tab?.status !== 'ask') return null;
+      this.options.markAutomationAsked(tab.browser);
+      this.holding = true;
+      try {
+        // macOS waits for the user's answer to its prompt, so allow a minute.
+        this.frontTab = await readMacTab(tab.browser, 60_000);
+      } finally {
+        this.holding = false;
+        if (this.win && !this.win.isDestroyed() && this.win.isVisible()) this.win.focus();
+      }
+      return this.frontTab;
+    });
   }
 
   destroy(): void {
@@ -100,7 +126,18 @@ export class QuickWindow {
     this.place();
     win.show();
     win.focus();
+    const show = ++this.shows;
+    this.frontTab = null;
     void this.sendShown(win);
+    void this.sendFrontTab(win, show);
+  }
+
+  /** The one place the front browser tab is read: when the user opens the window. */
+  private async sendFrontTab(win: BrowserWindow, show: number): Promise<void> {
+    const tab = await detectFrontTab({ ownPid: process.pid, asked: (browser) => this.options.automationAsked(browser) });
+    if (show !== this.shows || win.isDestroyed() || !win.isVisible()) return;
+    this.frontTab = tab;
+    win.webContents.send(IpcChannel.quickFrontTab, tab);
   }
 
   /** The one place the clipboard is read: when the user opens the window. */
@@ -162,7 +199,9 @@ export class QuickWindow {
     // Above full screen apps too, like Spotlight.
     win.setAlwaysOnTop(true, 'pop-up-menu');
     if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    win.on('blur', () => this.hide(false));
+    win.on('blur', () => {
+      if (!this.holding) this.hide(false);
+    });
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (event, url) => {
       if (url !== win.webContents.getURL()) event.preventDefault();

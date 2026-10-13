@@ -7,7 +7,7 @@ import { quickApi } from '@/lib/desktop';
 import { parseQuickSearch } from '@/lib/quick-search';
 import { navigate as goTo, routeHref, type Route } from '@/lib/router';
 import type { SearchInput } from '@/lib/types';
-import type { QuickClipboard } from '../../../ipc/contract';
+import type { FrontTab, QuickClipboard } from '../../../ipc/contract';
 import { setThemePreference, useTheme } from '@/lib/theme';
 import { StatusDot } from '@/components/indicators';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -52,12 +52,21 @@ export function Commands({
   onStart,
   notice,
   clipboard,
+  frontTab,
+  onReadFrontTab,
+  onFrontTabDenied,
 }: {
   onDone: () => void;
   onStart?: (input: SearchInput) => void;
   notice?: string | null;
   /** What the clipboard named when the quick window opened. Offered as the first row. */
   clipboard?: QuickClipboard;
+  /** The site in the browser tab that was in front when the quick window opened. Offered above the clipboard. */
+  frontTab?: FrontTab | null;
+  /** macOS: asks for the Automation permission, then reads the tab and looks it up. */
+  onReadFrontTab?: () => void;
+  /** macOS: the user refused that permission; explain where to allow it. */
+  onFrontTabDenied?: (browser: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -173,6 +182,32 @@ export function Commands({
     };
   }, [clipboard, onStart]);
 
+  const site = useMemo<Command | null>(() => {
+    if (!frontTab || !onStart) return null;
+    const base = { id: 'front-tab', group: 'Start' as const, label: 'Who runs this site', icon: <Globe className="size-4 text-primary" />, keepOpen: true };
+    if (frontTab.status === 'read') {
+      const { domain, browser } = frontTab;
+      return {
+        ...base,
+        hint: `In ${browser}`,
+        trailing: <code className="max-w-56 truncate font-mono text-xs text-muted-foreground">{domain}</code>,
+        run: () => onStart({ kind: 'domains', params: { items: [domain] }, limit: 1 }),
+      };
+    }
+    if (frontTab.status === 'ask') {
+      return {
+        ...base,
+        hint: `macOS asks once to let nvoke read ${frontTab.browser}’s address bar`,
+        run: () => onReadFrontTab?.(),
+      };
+    }
+    return {
+      ...base,
+      hint: `Allow nvoke to read ${frontTab.browser} in System Settings`,
+      run: () => onFrontTabDenied?.(frontTab.browser),
+    };
+  }, [frontTab, onStart, onReadFrontTab, onFrontTabDenied]);
+
   const start = useMemo<Command | null>(() => {
     const input = onStart ? parseQuickSearch(query) : null;
     if (!input || !onStart) return null;
@@ -194,9 +229,12 @@ export function Commands({
       : commands;
     // Without a query, show the five newest searches above the actions.
     const searchesShown = matches.filter((c) => c.group === 'Searches').slice(0, q ? 8 : 5);
-    const first = start ?? (q ? null : lookup);
-    return [...(first ? [first] : []), ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
-  }, [commands, query, start, lookup]);
+    // Typed text starts its own search. Without it, the front tab then the
+    // clipboard, once when both name the same site.
+    const sameSite = site && lookup && frontTab?.status === 'read' && frontTab.domain === clipboard?.domain;
+    const first = start ? [start] : q ? [] : [site, sameSite ? null : lookup].filter((c): c is Command => !!c);
+    return [...first, ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
+  }, [commands, query, start, lookup, site, frontTab, clipboard]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });

@@ -158,6 +158,12 @@ function main(): void {
     quick = new QuickWindow({
       openInMain: (hash) => sendCommand({ name: 'route', hash }),
       disabled: !!captureDir,
+      automationAsked: (browser) => desktop.automationAsked?.includes(browser) ?? false,
+      markAutomationAsked: (browser) => {
+        if (!desktop.automationAsked?.includes(browser)) {
+          saveDesktop({ ...desktop, automationAsked: [...(desktop.automationAsked ?? []), browser] });
+        }
+      },
     });
     inbox = new InboxWatcher({
       send: (file) => sendToMain(IpcChannel.inboxFile, file),

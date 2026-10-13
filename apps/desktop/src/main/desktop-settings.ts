@@ -17,6 +17,8 @@ export interface SavedDesktop {
   /** The watched inbox folder. Off until turned on; a missing folder means the default. */
   inboxEnabled?: boolean;
   inboxFolder?: string;
+  /** macOS: browsers (by label) the Automation prompt has been shown for, so the quick window reads them without asking. */
+  automationAsked?: string[];
 }
 
 export function parseSavedDesktop(raw: string): SavedDesktop {
@@ -28,6 +30,9 @@ export function parseSavedDesktop(raw: string): SavedDesktop {
       ...(isAccelerator(data['hotkey']) ? { hotkey: data['hotkey'] } : {}),
       ...(data['inboxEnabled'] === true ? { inboxEnabled: true } : {}),
       ...(typeof data['inboxFolder'] === 'string' && isAbsolute(data['inboxFolder']) ? { inboxFolder: data['inboxFolder'] } : {}),
+      ...(Array.isArray(data['automationAsked'])
+        ? { automationAsked: data['automationAsked'].filter((b): b is string => typeof b === 'string' && b.length <= 40).slice(0, 10) }
+        : {}),
     };
   } catch {
     return {};

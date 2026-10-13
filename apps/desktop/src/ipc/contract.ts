@@ -40,6 +40,10 @@ export const IpcChannel = {
   quickSetHeight: 'quick:set-height',
   /** Main to quick window push, every time the window is shown. */
   quickShown: 'quick:shown',
+  /** Main to quick window push after each show, payload FrontTab or null. */
+  quickFrontTab: 'quick:front-tab',
+  /** Quick window to main, no payload: reads the front tab after asking macOS for permission. */
+  quickReadFrontTab: 'quick:read-front-tab',
   /** Main to renderer push, payload DesktopCommand. */
   desktopCommand: 'desktop:command',
   localSearches: 'local:searches',
@@ -246,6 +250,18 @@ export interface DesktopApi {
 /** What the clipboard held when the quick window opened: one domain, URL or email address, else null. */
 export type QuickClipboard = { domain: string; from: 'domain' | 'url' | 'email' } | null;
 
+/**
+ * The site in the browser tab that was in front when the shortcut was pressed.
+ * - `read`: the address bar named `domain`.
+ * - `ask`: macOS only. Reading needs the user's Automation permission, which
+ *   has not been asked for this browser yet; `readFrontTab()` asks.
+ * - `denied`: macOS only. The user refused that permission.
+ */
+export type FrontTab =
+  | { status: 'read'; browser: string; domain: string }
+  | { status: 'ask'; browser: string }
+  | { status: 'denied'; browser: string };
+
 /** The small command window that opens over any app from the global shortcut. */
 export interface QuickApi {
   /** Hides the window and gives focus back to the app that was in front. */
@@ -260,6 +276,17 @@ export interface QuickApi {
    * an unsubscribe function.
    */
   onShown(listener: (clipboard: QuickClipboard) => void): () => void;
+  /**
+   * Fires shortly after each show with the site in the front browser tab, or
+   * null (no browser in front, Linux, or nothing readable). The tab is read
+   * only when the shortcut opens the window. Returns an unsubscribe function.
+   */
+  onFrontTab(listener: (tab: FrontTab | null) => void): () => void;
+  /**
+   * macOS, after an `ask` tab: asks for the Automation permission (macOS shows
+   * its prompt the first time) and reads the tab. Null when nothing was read.
+   */
+  readFrontTab(): Promise<FrontTab | null>;
 }
 
 export type SaveEnrichedResult =
