@@ -620,6 +620,11 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       }
       return { saved: true, filePath: `Downloads/${defaultFileName}` };
     },
+    startDragCsv(fileName, csv) {
+      // Inside Electron with VITE_MOCK the preload is still there, so the drag works on demo data.
+      const real = typeof window === 'undefined' ? undefined : (window as { nvoke?: { startDragCsv?: (f: string, c: string) => void } }).nvoke;
+      real?.startDragCsv?.(fileName, csv);
+    },
     async openExternal(url) {
       if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener');
     },

@@ -20,6 +20,7 @@ const api: NvokeApi = {
   request: (method, path, body) => ipcRenderer.invoke(IpcChannel.apiRequest, method, path, body) as Promise<BridgeResponse>,
   exportCsv: (searchId, defaultFileName) =>
     ipcRenderer.invoke(IpcChannel.exportCsv, searchId, defaultFileName) as Promise<ExportResult>,
+  startDragCsv: (fileName, csv) => ipcRenderer.send(IpcChannel.startDragCsv, { fileName, csv }),
   auth: {
     getState: () => ipcRenderer.invoke(IpcChannel.authGetState) as Promise<AuthState>,
     signIn: () => ipcRenderer.invoke(IpcChannel.authSignIn) as Promise<void>,

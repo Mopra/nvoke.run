@@ -12,6 +12,8 @@
  *   and fires `auth.onChange`.
  * - `exportCsv(searchId, defaultFileName)` shows a native save dialog and
  *   streams `GET /v1/searches/:id/export.csv` to the chosen file.
+ * - `startDragCsv(fileName, csv)` turns a `dragstart` into a native file drag
+ *   of a temp CSV, so selected leads drop into other apps.
  * - `auth.signIn()` opens the browser sign-in and moves auth to `pending`;
  *   `auth.cancelSignIn()` abandons it. Completion arrives through `auth.onChange`.
  *
@@ -25,4 +27,4 @@ export type { BridgeResponse, HttpMethod } from '../../../ipc/contract';
 export type NvokeAuthBridge = NvokeApi['auth'];
 
 /** The part of `window.nvoke` the data layer uses. The mock transport implements the same. */
-export type NvokeBridge = Pick<NvokeApi, 'request' | 'exportCsv' | 'openExternal' | 'auth'>;
+export type NvokeBridge = Pick<NvokeApi, 'request' | 'exportCsv' | 'startDragCsv' | 'openExternal' | 'auth'>;

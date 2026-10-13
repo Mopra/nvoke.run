@@ -8,6 +8,7 @@ import { PROTOCOL, findProtocolUrl } from './auth/flow';
 import { AuthSession } from './auth/session';
 import { safeTokenStore } from './auth/token-store';
 import { captureDirFromArgs, runCapture } from './capture';
+import { registerDragIpc } from './drag';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
 
 const env = {
@@ -69,6 +70,7 @@ function main(): void {
     });
     registerIpc(session);
     registerWindowIpc();
+    registerDragIpc();
     loadWindowPreferences();
     createWindow();
     await session.init();

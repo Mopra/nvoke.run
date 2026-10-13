@@ -130,6 +130,17 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
         await go(links.done, 1600);
         await shot('08-results-done', theme);
 
+        // Select a range of rows, as a click and a shift click would.
+        await js(`(() => {
+          const rows = document.querySelectorAll('[data-company-row]');
+          rows[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          rows[3]?.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+        })()`);
+        await sleep(600);
+        await shot('08b-results-selected', theme);
+        await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+        await sleep(300);
+
         await js(`document.querySelector('[data-copy-email]')?.click()`);
         await sleep(600);
         await shot('09-toast', theme);

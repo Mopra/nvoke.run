@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Ban,
@@ -43,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { api, ApiError } from '@/lib/api';
 import { BILLING_URL } from '@/lib/env';
 import { shouldShowExportNotice } from '@/lib/export-notice';
+import { companiesToCsv, companiesToTsv } from '@/lib/csv';
 import {
   csvFileName,
   duration,
@@ -54,9 +55,10 @@ import {
   searchTitle,
   VERIFICATION_LABEL,
 } from '@/lib/format';
-import { modKey, useModHotkey } from '@/lib/hotkeys';
+import { isMac, modKey, useModHotkey } from '@/lib/hotkeys';
 import { useCancelSearch, useCompanies, useCreateSearch, useRefreshWhenFinished, useSearch } from '@/lib/queries';
 import { navigate } from '@/lib/router';
+import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
 import type { Company, Email, EmailKind, Search, SearchInput, Verification } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -202,10 +204,47 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
   );
 }
 
-function CompanyRow({ company, live }: { company: Company; live: boolean }) {
+function CompanyRow({
+  company,
+  live,
+  selected,
+  joinAbove,
+  joinBelow,
+  onSelect,
+  onDragOut,
+}: {
+  company: Company;
+  live: boolean;
+  selected: boolean;
+  /** The row above or below is selected too, so the run reads as one block. */
+  joinAbove: boolean;
+  joinBelow: boolean;
+  onSelect: (id: string, event: ReactMouseEvent) => void;
+  onDragOut: (id: string, event: ReactDragEvent) => void;
+}) {
   const source = SOURCE_LABEL[company.source] ?? company.source;
   return (
-    <div data-selectable className={cn(COLUMNS, 'group items-start rounded-[20px] px-6 py-4 transition-colors duration-150 hover:bg-foreground/[0.035]')}>
+    <div
+      data-company-row
+      aria-selected={selected}
+      draggable
+      onMouseDown={(e) => {
+        // Shift click extends the selection, not a text range.
+        if (e.shiftKey) e.preventDefault();
+      }}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button, a, input')) return;
+        onSelect(company.id, e);
+      }}
+      onDragStart={(e) => onDragOut(company.id, e)}
+      className={cn(
+        COLUMNS,
+        'group items-start rounded-[20px] px-6 py-4 transition-colors duration-150',
+        selected ? 'bg-primary/[0.09] dark:bg-primary/[0.16]' : 'hover:bg-foreground/[0.035]',
+        selected && joinAbove && 'rounded-t-none',
+        selected && joinBelow && 'rounded-b-none',
+      )}
+    >
         <div className="min-w-0 leading-5">
           <div className="truncate text-[14px] font-medium">{company.name}</div>
           <button
@@ -349,6 +388,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [listTop, setListTop] = useState(0);
+  const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
 
   const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
@@ -385,7 +425,64 @@ export function SearchResultsScreen({ id }: { id: string }) {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
+    // Other filters show other rows, so start the selection over.
+    setSelection(EMPTY_SELECTION);
   }, [q, verification, kind]);
+
+  const selected = pickSelected(rows, selection);
+
+  function selectRow(rowId: string, event: ReactMouseEvent): void {
+    const toggle = isMac ? event.metaKey : event.ctrlKey;
+    setSelection((current) =>
+      clickSelect(
+        current,
+        rows.map((r) => r.id),
+        rowId,
+        { toggle, range: event.shiftKey },
+      ),
+    );
+  }
+
+  /** Dragging a selected row takes the whole selection; any other row goes alone. */
+  function dragOut(rowId: string, event: ReactDragEvent): void {
+    event.preventDefault();
+    const inSelection = selection.ids.has(rowId);
+    const leads = inSelection ? selected : rows.filter((r) => r.id === rowId);
+    if (!inSelection) setSelection({ ids: new Set([rowId]), anchor: rowId });
+    if (leads.length === 0 || !search) return;
+    const name =
+      leads.length === 1 ? `${leads[0]!.domain}.csv` : csvFileName(search).replace(/\.csv$/, `-${leads.length}.csv`);
+    api.startDragCsv(name, companiesToCsv(leads, { includeEmpty: true, bom: true }));
+  }
+
+  function copySelected(): void {
+    if (selected.length === 0) return;
+    const what = selected.length === 1 ? selected[0]!.name : `${formatNumber(selected.length)} companies`;
+    void copy(companiesToTsv(selected), what);
+  }
+
+  // Cmd/Ctrl+C copies the selected rows, Cmd/Ctrl+A selects every loaded row,
+  // Escape clears. Fields, dialogs and selected text keep their own behaviour.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+      const mod = isMac ? event.metaKey : event.ctrlKey;
+      const key = event.key.toLowerCase();
+      if (mod && !event.altKey && !event.shiftKey && key === 'c') {
+        if (selection.ids.size === 0 || (window.getSelection()?.toString() ?? '') !== '') return;
+        event.preventDefault();
+        copySelected();
+      } else if (mod && !event.altKey && !event.shiftKey && key === 'a' && rows.length > 0) {
+        event.preventDefault();
+        setSelection({ ids: new Set(rows.map((r) => r.id)), anchor: rows[0]!.id });
+      } else if (event.key === 'Escape' && selection.ids.size > 0 && !document.querySelector('[role="dialog"], [role="menu"]')) {
+        setSelection(EMPTY_SELECTION);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   useModHotkey('f', () => {
     filterRef.current?.focus();
@@ -537,7 +634,12 @@ export function SearchResultsScreen({ id }: { id: string }) {
         }
       />
 
-      <div ref={scrollRef} className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
+      <div
+        ref={scrollRef}
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest('[data-company-row], button, a, input')) setSelection(EMPTY_SELECTION);
+        }}
+        className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-[1120px]">
           <Overview search={search} timing={timing} onRunAgain={runAgain} starting={create.isPending} />
 
@@ -613,7 +715,15 @@ export function SearchResultsScreen({ id }: { id: string }) {
                     className="absolute top-0 left-0 w-full"
                     style={{ transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)` }}
                   >
-                    <CompanyRow company={rows[item.index]!} live={live} />
+                    <CompanyRow
+                      company={rows[item.index]!}
+                      live={live}
+                      selected={selection.ids.has(rows[item.index]!.id)}
+                      joinAbove={item.index > 0 && selection.ids.has(rows[item.index - 1]!.id)}
+                      joinBelow={selection.ids.has(rows[item.index + 1]?.id ?? '')}
+                      onSelect={selectRow}
+                      onDragOut={dragOut}
+                    />
                   </div>
                 ))}
               </div>
@@ -623,7 +733,28 @@ export function SearchResultsScreen({ id }: { id: string }) {
       </div>
 
       {/* The dock: filters and export float over the list, in glass. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-8">
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex flex-col items-center gap-2 px-8">
+        {selected.length > 0 && (
+          <div
+            data-selection-bar
+            className="glass pointer-events-auto flex h-9 items-center gap-3 rounded-full pr-1.5 pl-4 text-xs motion-safe:animate-rise"
+          >
+            <span className="font-medium tabular-nums">
+              {selected.length === 1 ? '1 company' : `${formatNumber(selected.length)} companies`} selected
+            </span>
+            <span className="text-muted-foreground">
+              Drag into Excel, Outlook or a folder, or <Kbd className="bg-transparent">{modKey} C</Kbd> to copy
+            </span>
+            <button
+              type="button"
+              aria-label="Clear selection"
+              onClick={() => setSelection(EMPTY_SELECTION)}
+              className="flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
         <div className="glass pointer-events-auto flex h-12 items-center gap-1 rounded-full pr-1.5 pl-1.5 motion-safe:animate-rise">
           <div className="relative w-72">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />

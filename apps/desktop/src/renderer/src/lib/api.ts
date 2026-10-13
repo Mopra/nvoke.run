@@ -103,6 +103,8 @@ export function createApi(transport: Transport) {
       call('GET', `/v1/searches/${enc(id)}/companies${buildQuery({ ...query })}`),
     exportCsv: (id: string, defaultFileName: string): Promise<ExportResult> =>
       transport.exportCsv(id, defaultFileName),
+    /** From a `dragstart` handler, after `preventDefault()`: drags `csv` out as a file named `fileName`. */
+    startDragCsv: (fileName: string, csv: string): void => transport.startDragCsv(fileName, csv),
     /** `sync` asks the server to re-read the plan from Clerk Billing first. */
     getMe: (sync = false): Promise<Me> => call('GET', sync ? '/v1/me?sync=1' : '/v1/me'),
     listApiKeys: async (): Promise<ApiKey[]> => (await call<ApiKeyListResponse>('GET', '/v1/api-keys')).apiKeys,

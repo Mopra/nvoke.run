@@ -12,6 +12,8 @@ export const IpcChannel = {
   getHealth: 'api:get-health',
   apiRequest: 'api:request',
   exportCsv: 'api:export-csv',
+  /** Renderer to main, fire and forget, payload DragCsv. */
+  startDragCsv: 'leads:start-drag-csv',
   authGetState: 'auth:get-state',
   authSignIn: 'auth:sign-in',
   authCancel: 'auth:cancel',
@@ -132,6 +134,12 @@ export interface NvokeApi {
    * to the chosen file. Never rejects.
    */
   exportCsv(searchId: string, defaultFileName: string): Promise<ExportResult>;
+  /**
+   * Call from a `dragstart` handler after `preventDefault()`. Main writes
+   * `csv` to a temp file named `fileName` and starts a native file drag, so
+   * the rows drop into Excel, Outlook, a CRM or a folder.
+   */
+  startDragCsv(fileName: string, csv: string): void;
   auth: AuthApi;
   window: WindowApi;
 }
