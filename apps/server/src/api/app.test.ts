@@ -22,8 +22,10 @@ function memoryAccounts(): Accounts & { created: Set<string> } {
       plan: 'free',
       usage: { period: '2026-10', emailsVerified: 3, emailsLimit: 50 },
       maxSearchLimit: 1000,
+      account: { createdBy: 'human', agentName: null, claimedAt: '2026-10-01T00:00:00.000Z' },
     }),
     syncPlan: async () => undefined,
+    humanSignedIn: async () => undefined,
   };
 }
 
@@ -104,6 +106,8 @@ describe('api', () => {
       plan: 'free',
       usage: { period: '2026-10', emailsVerified: 3, emailsLimit: 50 },
       maxSearchLimit: 1000,
+      account: { createdBy: 'human', agentName: null, claimedAt: '2026-10-01T00:00:00.000Z' },
+      billingUrl: 'https://nvoke.run/desktop/billing',
     });
     // The first authenticated request created the account.
     expect(accounts.created.has(USER_ID)).toBe(true);

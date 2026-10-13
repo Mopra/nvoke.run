@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AccountOrigin } from './agents.ts';
 import { Plan } from './plans.ts';
 
 /**
@@ -182,6 +183,7 @@ export const AccountSummary = z.object({
   usage: Usage,
   /** Highest `limit` a single search may ask for. The same on every plan. */
   maxSearchLimit: z.number().int().positive(),
+  account: AccountOrigin,
 });
 export type AccountSummary = z.infer<typeof AccountSummary>;
 

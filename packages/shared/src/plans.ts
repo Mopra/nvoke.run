@@ -75,3 +75,15 @@ export function nextPlanUp(plan: Plan): Plan | null {
 export function planFor(emails: number): Plan {
   return PLAN_ORDER.find((p) => PLANS[p].emailsPerMonth >= emails) ?? TOP_PLAN;
 }
+
+/** `GET /v1/plans` (public): the ladder, cheapest first. */
+export const PlansResponse = z.object({
+  plans: z.array(
+    z.object({
+      key: Plan,
+      emailsPerMonth: z.number().int().positive(),
+      priceUsd: z.number().nonnegative(),
+    }),
+  ),
+});
+export type PlansResponse = z.infer<typeof PlansResponse>;

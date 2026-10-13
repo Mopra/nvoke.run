@@ -5,6 +5,7 @@
 
 import type { Sql } from 'postgres';
 import { FREE_PLAN, type AccountSummary } from '@nvoke/shared';
+import { revokeAgentKeys } from '../auth/api-keys.js';
 import type { PlanSource } from '../billing/clerk.js';
 import { accountSummary, ensureAccount } from './quota.js';
 
@@ -23,6 +24,26 @@ export interface Accounts {
   summary(userId: string, opts?: { sync?: boolean }): Promise<AccountSummary>;
   /** Re-reads the plan from Clerk now. Does nothing for users without an account. */
   syncPlan(userId: string): Promise<void>;
+  /**
+   * A person signed in (site or desktop), which proves they own the email.
+   * Claims an account an agent created and revokes the agent's sign-up key,
+   * so an agent that signed up with someone else's address loses access the
+   * moment the real owner shows up. The claim page claims explicitly instead.
+   */
+  humanSignedIn(userId: string): Promise<void>;
+}
+
+/** Claims an agent-created account. Returns how many agent keys were revoked, or null when it was already claimed. */
+export async function claimAccount(sql: Sql, userId: string, opts: { keepAgentKeys: boolean }): Promise<number | null> {
+  return sql.begin(async (tx) => {
+    const rows = await tx`
+      update accounts set claimed_at = now()
+      where clerk_user_id = ${userId} and claimed_at is null
+      returning clerk_user_id
+    `;
+    if (rows.length === 0) return null;
+    return opts.keepAgentKeys ? 0 : revokeAgentKeys(tx, userId);
+  });
 }
 
 /**
@@ -31,6 +52,7 @@ export interface Accounts {
  */
 export function postgresAccounts(getSql: () => Sql, plans: PlanSource | null = null, log?: Log): Accounts {
   const known = new Set<string>();
+  const claimed = new Set<string>();
 
   async function sync(userId: string, force: boolean): Promise<void> {
     if (!plans) return;
@@ -72,5 +94,12 @@ export function postgresAccounts(getSql: () => Sql, plans: PlanSource | null = n
       return accountSummary(getSql(), userId);
     },
     syncPlan: (userId) => sync(userId, true),
+    async humanSignedIn(userId) {
+      if (claimed.has(userId)) return;
+      const revoked = await claimAccount(getSql(), userId, { keepAgentKeys: false });
+      if (revoked !== null) log?.warn({ userId, revoked }, 'agent account claimed by signing in; agent keys revoked');
+      if (claimed.size > 50_000) claimed.clear();
+      claimed.add(userId);
+    },
   };
 }

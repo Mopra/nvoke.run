@@ -7,6 +7,8 @@
 import { loadEnv } from '../env.js';
 import { closeSql, getSql } from '../db/client.js';
 import { logger } from '../logger.js';
+import { createClerkClient } from '@clerk/backend';
+import { purgeAgentSignups } from '../agents/purge.js';
 import { purge, RETENTION } from '../leads/retention.js';
 import { VERSION } from '../version.js';
 import { createPipelineDeps } from './deps.js';
@@ -26,10 +28,12 @@ runner.start();
 
 // Retention purge: once at start, then hourly. Idempotent, so several
 // workers running it at once is harmless.
+const clerk = env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: env.CLERK_SECRET_KEY }) : null;
 async function runPurge(): Promise<void> {
   try {
     const deleted = await purge(sql);
-    log.info({ deleted }, 'retention purge done');
+    const agents = await purgeAgentSignups(sql, clerk ? async (id) => void (await clerk.users.deleteUser(id)) : null);
+    log.info({ deleted, agents }, 'retention purge done');
   } catch (err) {
     log.error({ err }, 'retention purge failed');
   }

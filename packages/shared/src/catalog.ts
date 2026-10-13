@@ -1,0 +1,430 @@
+import { z } from 'zod';
+import {
+  AgentSignupRequest,
+  AgentSignupResponse,
+  ApiKeyIdParams,
+  ApiKeyListResponse,
+  ClaimRequest,
+  ClaimResponse,
+  CreateApiKeyRequest,
+  CreateApiKeyResponse,
+} from './agents.ts';
+import { HealthResponse, MeResponse } from './api.ts';
+import {
+  CompaniesPage,
+  CompaniesQuery,
+  CreateSearchRequest,
+  LeadFilters,
+  Search,
+  SearchIdParams,
+  SearchListResponse,
+} from './leads.ts';
+import { PlansResponse } from './plans.ts';
+import { OptOutRequest, OptOutResponse } from './privacy.ts';
+
+/**
+ * Every public endpoint and MCP tool, described once. The server builds
+ * `GET /v1/openapi.json` from the endpoints and registers the MCP tools from
+ * the tools; the site renders both into /docs. Add a route here when you add
+ * it to the server, or it is undocumented.
+ */
+
+/** `key`: an API key, desktop token, Clerk session or OAuth token. `session`: a Clerk session from the site. */
+export type EndpointAuth = 'public' | 'key' | 'session';
+
+export interface Endpoint {
+  id: string;
+  method: 'GET' | 'POST' | 'DELETE';
+  /** Fastify style, `:id` for path parameters. */
+  path: string;
+  group: 'Account' | 'Searches' | 'Leads' | 'API keys' | 'Agents' | 'Privacy' | 'Meta';
+  summary: string;
+  description: string;
+  auth: EndpointAuth;
+  params?: z.ZodType;
+  query?: z.ZodType;
+  body?: z.ZodType;
+  /** Success status and body. `csv` for text/csv, null for an empty body. */
+  status: number;
+  response: z.ZodType | 'csv' | null;
+  /** Error codes this endpoint may answer with, besides 401 and 5xx. */
+  errors: string[];
+  /** A request body or query to show in the docs. */
+  example?: unknown;
+}
+
+export const ENDPOINTS: Endpoint[] = [
+  {
+    id: 'getMe',
+    method: 'GET',
+    path: '/v1/me',
+    group: 'Account',
+    summary: 'Who you are, your plan and this month’s usage',
+    description:
+      'Returns the account behind the token: profile, plan, verified emails used this month and the allowance. `?sync=1` re-reads the plan from billing first. `billingUrl` is where a human upgrades.',
+    auth: 'key',
+    status: 200,
+    response: MeResponse,
+    errors: [],
+  },
+  {
+    id: 'listPlans',
+    method: 'GET',
+    path: '/v1/plans',
+    group: 'Account',
+    summary: 'The plan ladder',
+    description: 'Every plan with its monthly allowance of verified emails and its price in USD. One product, every feature on every plan.',
+    auth: 'public',
+    status: 200,
+    response: PlansResponse,
+    errors: [],
+  },
+  {
+    id: 'createSearch',
+    method: 'POST',
+    path: '/v1/searches',
+    group: 'Searches',
+    summary: 'Start a search',
+    description:
+      'Queues a search and returns it at once with status `queued`. Our servers find the companies, read their websites and check every address. Poll `GET /v1/searches/{id}` until the status is `done`, `failed` or `canceled`. `limit` caps the companies looked at (default 100, at most 1,000).',
+    auth: 'key',
+    body: CreateSearchRequest,
+    status: 201,
+    response: Search,
+    errors: ['invalid_request', 'quota_exceeded', 'source_unavailable'],
+    example: { kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 50 },
+  },
+  {
+    id: 'listSearches',
+    method: 'GET',
+    path: '/v1/searches',
+    group: 'Searches',
+    summary: 'List your searches',
+    description: 'All your searches, newest first, with their counters.',
+    auth: 'key',
+    status: 200,
+    response: SearchListResponse,
+    errors: [],
+  },
+  {
+    id: 'getSearch',
+    method: 'GET',
+    path: '/v1/searches/:id',
+    group: 'Searches',
+    summary: 'Get a search',
+    description:
+      'One search with its status and counters: companies found and crawled, emails found and emails verified valid. `error` says why a search failed, for example `quota_exceeded`.',
+    auth: 'key',
+    params: SearchIdParams,
+    status: 200,
+    response: Search,
+    errors: ['not_found'],
+  },
+  {
+    id: 'cancelSearch',
+    method: 'POST',
+    path: '/v1/searches/:id/cancel',
+    group: 'Searches',
+    summary: 'Cancel a running search',
+    description: 'Stops a queued or running search. What it found so far stays.',
+    auth: 'key',
+    params: SearchIdParams,
+    status: 200,
+    response: Search,
+    errors: ['not_found', 'not_cancelable'],
+  },
+  {
+    id: 'deleteSearch',
+    method: 'DELETE',
+    path: '/v1/searches/:id',
+    group: 'Searches',
+    summary: 'Delete a search',
+    description: 'Deletes the search with its companies and emails. Cannot be undone.',
+    auth: 'key',
+    params: SearchIdParams,
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
+    id: 'listCompanies',
+    method: 'GET',
+    path: '/v1/searches/:id/companies',
+    group: 'Leads',
+    summary: 'List companies with their emails',
+    description:
+      'The companies a search found, each with its checked email addresses, 50 to a page. Filter by `verification` (`valid` is what you usually want), by `kind` (`generic` like info@, or `personal`) and by `q` (name, domain or address). Pass `nextCursor` back as `cursor` for the next page. Addresses appear once their check has run.',
+    auth: 'key',
+    params: SearchIdParams,
+    query: CompaniesQuery,
+    status: 200,
+    response: CompaniesPage,
+    errors: ['not_found', 'invalid_request'],
+    example: { verification: 'valid', limit: 50 },
+  },
+  {
+    id: 'exportCsv',
+    method: 'GET',
+    path: '/v1/searches/:id/export.csv',
+    group: 'Leads',
+    summary: 'Export as CSV',
+    description:
+      'One row per email: company, domain, website, email, kind, verification, source_url, location, phone. Takes the same filters as the company list.',
+    auth: 'key',
+    params: SearchIdParams,
+    query: LeadFilters,
+    status: 200,
+    response: 'csv',
+    errors: ['not_found', 'invalid_request'],
+    example: { verification: 'valid' },
+  },
+  {
+    id: 'listApiKeys',
+    method: 'GET',
+    path: '/v1/api-keys',
+    group: 'API keys',
+    summary: 'List API keys',
+    description: 'Your live API keys. Only the prefix of each key is shown.',
+    auth: 'key',
+    status: 200,
+    response: ApiKeyListResponse,
+    errors: [],
+  },
+  {
+    id: 'createApiKey',
+    method: 'POST',
+    path: '/v1/api-keys',
+    group: 'API keys',
+    summary: 'Create an API key',
+    description: 'Makes a new key. The response holds the full key, and it is never shown again. At most 20 live keys.',
+    auth: 'key',
+    body: CreateApiKeyRequest,
+    status: 201,
+    response: CreateApiKeyResponse,
+    errors: ['invalid_request', 'api_key_limit'],
+    example: { name: 'CRM sync' },
+  },
+  {
+    id: 'revokeApiKey',
+    method: 'DELETE',
+    path: '/v1/api-keys/:id',
+    group: 'API keys',
+    summary: 'Revoke an API key',
+    description: 'The key stops working at once. A key may revoke itself.',
+    auth: 'key',
+    params: ApiKeyIdParams,
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
+    id: 'agentSignup',
+    method: 'POST',
+    path: '/v1/agents/signup',
+    group: 'Agents',
+    summary: 'Sign up as an agent',
+    description:
+      'Creates an nvoke account for the person you work for and returns an API key at once. No browser, no human needed. The free plan applies: 50 verified emails a month. We send that person one email with a link to claim the account. Unclaimed accounts work for 7 days, then answer 403 `claim_required` until claimed, and are deleted after 30 days. Rate limited per IP, per email domain and per day.',
+    auth: 'public',
+    body: AgentSignupRequest,
+    status: 201,
+    response: AgentSignupResponse,
+    errors: ['invalid_request', 'account_exists', 'email_not_accepted', 'rate_limited', 'signup_unavailable'],
+    example: { email: 'ada@example.com', agentName: 'Claude' },
+  },
+  {
+    id: 'claimAccount',
+    method: 'POST',
+    path: '/v1/agents/claim',
+    group: 'Agents',
+    summary: 'Claim an account an agent created',
+    description: 'Called by the claim page on nvoke.run after the human signs in from the emailed link. Accepts the terms and keeps or revokes the agent’s key.',
+    auth: 'session',
+    body: ClaimRequest,
+    status: 200,
+    response: ClaimResponse,
+    errors: ['invalid_request'],
+  },
+  {
+    id: 'optOut',
+    method: 'POST',
+    path: '/v1/privacy/opt-out',
+    group: 'Privacy',
+    summary: 'Opt an address or domain out',
+    description: 'Stops collection of an address or a whole domain and deletes what we hold. Always answers `{ ok: true }`.',
+    auth: 'public',
+    body: OptOutRequest,
+    status: 200,
+    response: OptOutResponse,
+    errors: ['invalid_request'],
+  },
+  {
+    id: 'openapi',
+    method: 'GET',
+    path: '/v1/openapi.json',
+    group: 'Meta',
+    summary: 'This API as OpenAPI 3.1',
+    description: 'Machine readable description of every endpoint above.',
+    auth: 'public',
+    status: 200,
+    response: z.object({ openapi: z.string() }).loose(),
+    errors: [],
+  },
+  {
+    id: 'health',
+    method: 'GET',
+    path: '/health',
+    group: 'Meta',
+    summary: 'Health check',
+    description: 'Answers 200 when the API is up.',
+    auth: 'public',
+    status: 200,
+    response: HealthResponse,
+    errors: [],
+  },
+];
+
+/** What every error code means. Shown in the docs and the OpenAPI document. */
+export const ERROR_CODES: Record<string, string> = {
+  unauthorized: 'No valid token. Send `Authorization: Bearer <key>`.',
+  claim_required: 'An agent created this account more than 7 days ago and nobody claimed it. The human claims it from the emailed link.',
+  invalid_request: 'The body or query failed validation. `details` lists the problems.',
+  not_found: 'No such search or key on this account.',
+  quota_exceeded: 'This month’s verified emails are used up. A human upgrades at `billingUrl` from `GET /v1/me`.',
+  source_unavailable: 'Web search is paused on our side. Local and launch searches still work.',
+  not_cancelable: 'The search already finished.',
+  api_key_limit: 'The account holds 20 live keys. Revoke one first.',
+  account_exists: 'An account with this email exists. Ask the human for an API key.',
+  email_not_accepted: 'Disposable inbox, an opted-out address, or a domain that receives no mail.',
+  rate_limited: 'Too many sign-ups. Try again later.',
+  signup_unavailable: 'Agent sign-up is switched off right now.',
+  database_unavailable: 'Our database is unreachable. Retry with backoff.',
+};
+
+const searchId = z.uuid().describe('The search id from start_search or list_searches.');
+const verification = z
+  .enum(['valid', 'invalid', 'risky', 'catch_all', 'unknown'])
+  .optional()
+  .describe('Only emails with this check result. `valid` is what you usually want.');
+
+export interface McpTool {
+  name: string;
+  title: string;
+  description: string;
+  /** Object schema of the arguments. */
+  input: z.ZodObject;
+  readOnly: boolean;
+  destructive: boolean;
+}
+
+/** The tools of the MCP server at `/mcp`. Each one calls the REST endpoint named in its description. */
+export const MCP_TOOLS: McpTool[] = [
+  {
+    name: 'get_account',
+    title: 'Account, plan and usage',
+    description:
+      'Who you are signed in as, the plan, verified emails used this month and the allowance, and the billing link a human uses to upgrade. Call this first.',
+    input: z.object({}),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'start_search',
+    title: 'Start a lead search',
+    description:
+      'Starts finding companies and their verified emails. kind `local`: a trade in a place, from OpenStreetMap (needs niche and location). kind `web`: a keyword, optionally in a country, from web search (needs keyword). kind `launches`: products launched recently on Product Hunt and Show HN (keyword optional). Returns the search at once; it runs for a few minutes on our servers. Then call wait_for_search.',
+    input: z.object({
+      kind: z.enum(['local', 'web', 'launches']),
+      niche: z.string().optional().describe('local: the trade, e.g. "dentists".'),
+      location: z.string().optional().describe('local: a city, region or country, e.g. "Aarhus".'),
+      keyword: z.string().optional().describe('web: required. launches: optional filter.'),
+      country: z.string().optional().describe('web: ISO 3166-1 alpha-2 country code, e.g. "dk".'),
+      days: z.number().int().min(1).max(30).optional().describe('launches: how many days back, default 7.'),
+      limit: z.number().int().min(1).max(1000).optional().describe('Companies to look at, default 100.'),
+    }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'wait_for_search',
+    title: 'Wait for a search',
+    description:
+      'Waits until the search finishes or the timeout passes, then returns it. Call again while status is `queued` or `running`. Counters grow as it runs.',
+    input: z.object({
+      searchId,
+      timeoutSeconds: z.number().int().min(1).max(50).optional().describe('Default 45.'),
+    }),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'get_search',
+    title: 'Get a search',
+    description: 'One search with status and counters.',
+    input: z.object({ searchId }),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'list_searches',
+    title: 'List searches',
+    description: 'Your searches, newest first.',
+    input: z.object({}),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'get_leads',
+    title: 'Get leads',
+    description:
+      'Companies a search found with their checked emails, 50 to a page. Use verification `valid` for addresses that accept mail. Pass nextCursor back as cursor for more.',
+    input: z.object({
+      searchId,
+      verification,
+      kind: z.enum(['generic', 'personal']).optional().describe('`generic` is info@ and the like; `personal` is a person’s mailbox.'),
+      q: z.string().optional().describe('Match on company name, domain or address.'),
+      cursor: z.string().optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    }),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'export_csv',
+    title: 'Export as CSV',
+    description: 'The search as CSV text, one row per email. Same filters as get_leads.',
+    input: z.object({
+      searchId,
+      verification,
+      kind: z.enum(['generic', 'personal']).optional(),
+      q: z.string().optional(),
+    }),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'cancel_search',
+    title: 'Cancel a search',
+    description: 'Stops a running search. What it found so far stays.',
+    input: z.object({ searchId }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'delete_search',
+    title: 'Delete a search',
+    description: 'Deletes a search with its companies and emails. Cannot be undone.',
+    input: z.object({ searchId }),
+    readOnly: false,
+    destructive: true,
+  },
+];
+
+/** Instructions the MCP server sends at `initialize`. */
+export const MCP_INSTRUCTIONS = `nvoke finds companies and the email addresses published on their own websites, and checks each address with its mail server.
+
+Typical run: get_account, then start_search, then wait_for_search until status is done, then get_leads with verification "valid" or export_csv.
+
+Searches run on nvoke's servers and take a few minutes. Only addresses whose check comes back valid count against the plan (free: 50 a month). When the allowance is used up, searches fail with quota_exceeded; a human upgrades at the billingUrl from get_account.
+
+nvoke is a research tool. In the EU, marketing email to these addresses usually needs prior consent. Do not send bulk email to them on the user's behalf.`;

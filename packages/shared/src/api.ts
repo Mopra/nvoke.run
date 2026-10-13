@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AccountOrigin } from './agents.ts';
 import { Usage } from './leads.ts';
 import { Plan } from './plans.ts';
 
@@ -31,12 +32,18 @@ export type User = z.infer<typeof User>;
  */
 export const MeResponse = z.object({
   user: User,
-  /** How the request was authenticated: a desktop device token or a Clerk session. */
-  via: z.enum(['device', 'clerk']),
+  /**
+   * How the request was authenticated: a desktop device token, a Clerk
+   * session (the site), an API key, or a Clerk OAuth token (MCP clients).
+   */
+  via: z.enum(['device', 'clerk', 'api_key', 'oauth']),
   plan: Plan,
   usage: Usage,
   /** Highest `limit` a single search may ask for on this plan. */
   maxSearchLimit: z.number().int().positive(),
+  account: AccountOrigin,
+  /** Where a human changes the plan. Checkout needs a browser. */
+  billingUrl: z.string(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

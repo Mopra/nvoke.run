@@ -11,7 +11,7 @@ function wantsSync(query: unknown): boolean {
 
 export async function meRoutes(
   app: FastifyInstance,
-  opts: { users: UserDirectory | null; accounts: Accounts },
+  opts: { users: UserDirectory | null; accounts: Accounts; siteUrl: string },
 ): Promise<void> {
   app.get('/me', { preHandler: app.requireAuth }, async (req): Promise<MeResponse> => {
     // requireAuth has either set req.auth or already replied.
@@ -34,6 +34,8 @@ export async function meRoutes(
       plan: account.plan,
       usage: account.usage,
       maxSearchLimit: account.maxSearchLimit,
+      account: account.account,
+      billingUrl: new URL('/desktop/billing', opts.siteUrl).toString(),
     };
   });
 }

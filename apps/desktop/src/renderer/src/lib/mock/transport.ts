@@ -280,6 +280,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         plan: MOCK_PLAN,
         usage: { period, emailsVerified: used + 412, emailsLimit: PLANS[MOCK_PLAN].emailsPerMonth },
         maxSearchLimit: MAX_LIMIT,
+        account: { createdBy: 'human', agentName: null, claimedAt: new Date(now()).toISOString() },
+        billingUrl: 'https://nvoke.run/desktop/billing',
       };
       return json(200, me);
     }

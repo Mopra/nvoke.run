@@ -25,6 +25,16 @@ const EnvSchema = z.object({
   CLERK_AUTHORIZED_PARTIES: list,
   // Signs Clerk's billing webhooks (POST /webhooks/clerk).
   CLERK_WEBHOOK_SIGNING_SECRET: optional,
+  // Public URLs, for links we hand out: billing, claim emails, MCP metadata.
+  SITE_URL: z.url().default('https://nvoke.run'),
+  PUBLIC_API_URL: z.url().default('https://api.nvoke.run'),
+  // POST /v1/agents/signup. Off answers 503 signup_unavailable.
+  AGENT_SIGNUP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Sender of the claim email to the human behind an agent sign-up, through Day3.
+  CLAIM_EMAIL_FROM: z.string().min(3).default('nvoke <hello@nvoke.run>'),
   // The site calls /v1/desktop/authorize from the browser, so its origins need CORS.
   CORS_ORIGINS: z
     .string()

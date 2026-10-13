@@ -42,11 +42,19 @@ export async function emailsVerified(sql: Db, userId: string, period: string = p
 export async function accountSummary(sql: Db, userId: string, now: Date = new Date()): Promise<AccountSummary> {
   const plan = await ensureAccount(sql, userId);
   const period = periodOf(now);
+  const [origin] = await sql<{ created_by: 'human' | 'agent'; agent_name: string | null; claimed_at: Date | null }[]>`
+    select created_by, agent_name, claimed_at from accounts where clerk_user_id = ${userId}
+  `;
   return {
     userId,
     plan,
     usage: { period, emailsVerified: await emailsVerified(sql, userId, period), emailsLimit: emailsPerMonth(plan) },
     maxSearchLimit: MAX_SEARCH_LIMIT,
+    account: {
+      createdBy: origin?.created_by ?? 'human',
+      agentName: origin?.agent_name ?? null,
+      claimedAt: origin?.claimed_at?.toISOString() ?? null,
+    },
   };
 }
 

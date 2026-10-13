@@ -5,11 +5,19 @@ import type { Env } from '../env.js';
 import { getSql as defaultGetSql } from '../db/client.js';
 import { postgresStore, type DesktopAuthStore } from '../auth/store.js';
 import { clerkUserDirectory, type UserDirectory } from '../auth/users.js';
-import { clerkVerifier, registerAuth, type ClerkVerifier } from './auth.js';
+import { clerkOAuthVerifier, clerkVerifier, registerAuth, type ClerkVerifier, type OAuthVerifier } from './auth.js';
+import { clerkAgentDirectory, day3ClaimMailer } from '../agents/providers.js';
+import type { AgentDirectory, ClaimMailer } from '../agents/signup.js';
+import { agentRoutes } from './routes/agents.js';
+import { apiKeyRoutes } from './routes/api-keys.js';
+import { clerkIssuerFromPublishableKey, mcpRoutes } from './routes/mcp.js';
+import { metaRoutes } from './routes/meta.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
 import { desktopRoutes } from './routes/desktop.js';
 import { leadsRoutes } from './routes/leads.js';
+import { dropsRoutes } from './routes/drops.js';
+import { createCollectors, sourceAvailability } from '../feed/collectors.js';
 import { postgresAccounts, type Accounts } from '../leads/accounts.js';
 import { clerkPlanSource } from '../billing/clerk.js';
 import { webhookRoutes } from './routes/webhooks.js';
@@ -23,12 +31,18 @@ export interface AppDeps {
   verifyClerk: ClerkVerifier | null;
   users: UserDirectory | null;
   accounts: Accounts;
+  verifyOAuth: OAuthVerifier | null;
+  /** Creates Clerk users for agent sign-up. Null switches sign-up off. */
+  agentDirectory: AgentDirectory | null;
+  claimMailer: ClaimMailer | null;
+  /** True when the domain takes mail. Tests stub DNS out. */
+  receivesMail?: (domain: string) => Promise<boolean>;
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: Omit<AppDeps, 'accounts'> = {
+  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail'> = {
     getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
@@ -37,6 +51,13 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
         ? overrides.users
         : env.CLERK_SECRET_KEY
           ? clerkUserDirectory(env.CLERK_SECRET_KEY)
+          : null,
+    verifyOAuth: overrides.verifyOAuth !== undefined ? overrides.verifyOAuth : clerkOAuthVerifier(env),
+    agentDirectory:
+      overrides.agentDirectory !== undefined
+        ? overrides.agentDirectory
+        : env.CLERK_SECRET_KEY
+          ? clerkAgentDirectory(env.CLERK_SECRET_KEY)
           : null,
   };
 
@@ -58,14 +79,44 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     credentials: false,
   });
 
+  const claimMailer =
+    overrides.claimMailer !== undefined
+      ? overrides.claimMailer
+      : env.DAY3_API_KEY
+        ? day3ClaimMailer({ apiKey: env.DAY3_API_KEY, from: env.CLAIM_EMAIL_FROM, log: app.log })
+        : null;
+
   registerAuth(app, { ...deps, accounts });
 
   await app.register(healthRoutes);
-  await app.register(meRoutes, { prefix: '/v1', users: deps.users, accounts });
+  await app.register(meRoutes, { prefix: '/v1', users: deps.users, accounts, siteUrl: env.SITE_URL });
+  await app.register(metaRoutes, { prefix: '/v1', apiUrl: env.PUBLIC_API_URL });
+  await app.register(apiKeyRoutes, { prefix: '/v1/api-keys', getSql });
+  await app.register(agentRoutes, {
+    prefix: '/v1/agents',
+    getSql,
+    directory: deps.agentDirectory,
+    mailer: claimMailer,
+    enabled: env.AGENT_SIGNUP_ENABLED,
+    siteUrl: env.SITE_URL,
+    apiUrl: env.PUBLIC_API_URL,
+    receivesMail: overrides.receivesMail,
+  });
+  await app.register(mcpRoutes, {
+    apiUrl: env.PUBLIC_API_URL,
+    siteUrl: env.SITE_URL,
+    clerkIssuer: clerkIssuerFromPublishableKey(env.CLERK_PUBLISHABLE_KEY),
+  });
   await app.register(webhookRoutes, { prefix: '/webhooks', signingSecret: env.CLERK_WEBHOOK_SIGNING_SECRET ?? null, accounts });
   await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
   // requireAuth sets request.userId; the plugin's requireUser guard reads it.
   await app.register(leadsRoutes, { prefix: '/v1', getSql, authenticate: app.requireAuth });
+  await app.register(dropsRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    sourcesAvailable: sourceAvailability(createCollectors({ productHuntToken: env.PRODUCT_HUNT_TOKEN })),
+  });
   // Public, no auth: the site's opt-out page calls it from the browser.
   await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });
 
