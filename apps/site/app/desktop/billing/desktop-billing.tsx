@@ -228,7 +228,14 @@ function PlanAction({
     );
   }
   return (
-    <CheckoutButton planId={planId} planPeriod="month" for="user" onSubscriptionComplete={onChanged}>
+    <CheckoutButton
+      planId={planId}
+      planPeriod="month"
+      for="user"
+      onSubscriptionComplete={onChanged}
+      // Without it, "Continue" after paying lands on the home page.
+      newSubscriptionRedirectUrl="/desktop/billing"
+    >
       <Button size="lg" className={wide}>
         {label}
       </Button>
