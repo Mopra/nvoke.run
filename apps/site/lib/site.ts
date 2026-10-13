@@ -1,8 +1,8 @@
 export const site = {
   name: 'nvoke',
-  tagline: 'A lead finder that lives on your desktop.',
+  tagline: 'Find companies. Get emails that actually work.',
   description:
-    'nvoke is a prospecting research app for Windows, macOS and Linux. It finds companies and the contact details they publish on their own websites, and verifies each address with its mail server.',
+    'nvoke finds companies, reads their own websites and checks every email with the mail server. A desktop app for Windows, macOS and Linux.',
   url: process.env['NEXT_PUBLIC_SITE_URL'] ?? 'https://nvoke.run',
   botUserAgent: 'nvokebot/1.0 (+https://nvoke.run/bot)',
   email: {

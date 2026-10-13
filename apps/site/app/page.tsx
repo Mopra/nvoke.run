@@ -27,33 +27,33 @@ const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCou
 
 const STEPS = [
   {
-    title: 'Describe the companies you are looking for',
-    body: 'Pick a search kind and fill in two fields, for example "dentists" and "Copenhagen". Choose how many companies to look at.',
+    title: 'Say what you want',
+    body: '"Dentists" and "Copenhagen". Two fields. Pick how many companies to look at. Done.',
   },
   {
     title: 'nvoke reads their websites',
-    body: 'Our servers find the companies, open up to eight pages on each site (home, contact, about, team, imprint) and collect the email addresses published there.',
+    body: 'Our servers find the companies and open up to eight pages per site: home, contact, about, team, imprint. Every published email gets collected.',
   },
   {
-    title: 'Keep the addresses that work',
-    body: 'Every address is checked with its mail server. Filter to the valid ones, copy them, or save a CSV for your CRM.',
+    title: 'Keep what works',
+    body: 'Every address gets checked with its mail server. Filter to valid, copy, or export a CSV for your CRM.',
   },
 ];
 
 const KINDS = [
   {
     title: 'Local businesses',
-    body: 'A trade and a place. nvoke looks them up on OpenStreetMap and keeps the businesses that list a website. Good for clinics, workshops, restaurants and shops in one city or region.',
+    body: 'A trade and a place. We pull them from OpenStreetMap and keep the ones with a website. Clinics, workshops, restaurants, shops.',
     source: 'Source: OpenStreetMap',
   },
   {
     title: 'Web search',
-    body: 'A keyword and an optional country. nvoke runs a web search, keeps the company domains and drops social networks, marketplaces, Wikipedia and news sites.',
+    body: 'A keyword, optionally a country. We keep company domains and throw out social networks, marketplaces, Wikipedia and news.',
     source: 'Source: Brave Search',
   },
   {
     title: 'New launches',
-    body: 'Products launched in the last days or weeks, with an optional keyword. Useful when you work with startups and want to find them early.',
+    body: 'Products shipped in the last days or weeks. Find the startups before everyone else does.',
     source: 'Sources: Product Hunt and Show HN',
   },
 ];
@@ -61,19 +61,19 @@ const KINDS = [
 const DESKTOP_POINTS = [
   {
     title: 'Its own window',
-    body: 'nvoke sits in your taskbar or Dock like any other program. It does not get lost between thirty browser tabs.',
+    body: 'In your taskbar or Dock, like a real program. Not tab number 31.',
   },
   {
-    title: 'Keeps working when you close it',
-    body: 'Searches run on our servers. Quit the app, open it tomorrow, and the finished results are there.',
+    title: 'Runs while it is closed',
+    body: 'Searches run on our servers. Quit, come back tomorrow, the results are waiting.',
   },
   {
-    title: 'Nothing in your browser',
-    body: 'No extension that can read the pages you visit. nvoke only knows about the searches you start in it.',
+    title: 'No browser extension',
+    body: 'Nothing reading the pages you visit. nvoke only sees the searches you start.',
   },
   {
-    title: 'Files where you want them',
-    body: 'Export opens the normal save dialog of your system, so the CSV lands in the folder you pick.',
+    title: 'Your files, your folder',
+    body: 'Export opens your system’s save dialog. The CSV goes where you put it.',
   },
 ];
 
@@ -82,42 +82,42 @@ const STATUSES: Verification[] = ['valid', 'catch_all', 'risky', 'invalid', 'unk
 const FAQ: FaqItem[] = [
   {
     q: 'Where do the email addresses come from?',
-    a: 'From the companies’ own websites. nvoke opens a handful of pages per site (home, contact, about, team, imprint, privacy) and reads the addresses published there, including ones written as "name [at] domain [dot] com". It does not buy lists or guess addresses.',
+    a: 'The company’s own website. nvoke reads a handful of pages per site (home, contact, about, team, imprint, privacy), including addresses written as "name [at] domain [dot] com". No bought lists. No guessed addresses.',
   },
   {
     q: 'May I send marketing email to these addresses?',
-    a: 'Not without checking the rules in the recipient’s country first. In Denmark, section 10 of the Marketing Practices Act requires prior consent for marketing email, also to businesses, info@ addresses and employees, and much of the EU is similar. nvoke is a research tool: it tells you who a company is and how it publishes its contact details. It does not give you permission to email anyone, and you are responsible for how you use the results.',
+    a: 'Check the rules in the recipient’s country first. In Denmark, section 10 of the Marketing Practices Act requires prior consent for marketing email, including to businesses, info@ addresses and employees. Most of the EU is similar. nvoke is a research tool. It tells you who a company is and how they publish contact details. It does not give you permission to email anyone. What you do with the results is on you.',
   },
   {
     q: 'What counts toward my monthly limit?',
-    a: `Only addresses whose mailbox check comes back valid, and each address counts once in any 12 months. Invalid, risky, catch-all and unknown results are free. The Free plan includes ${freeEmails} a month. When you reach your limit, a running search stops with no overage charge, and you can upgrade or wait for the next month.`,
+    a: `Only addresses that verify as valid, and each one counts once per 12 months. Invalid, risky, catch-all and unknown are free. The Free plan includes ${freeEmails} a month. Hit the limit and running searches stop. No overage charges. Upgrade, or wait for next month.`,
   },
   {
     q: 'Does nvoke send any email?',
-    a: 'No. The mailbox check talks to the mail server and stops before a message would be sent. nvoke has no sending feature.',
+    a: 'No. The check talks to the mail server and hangs up before a message would be sent. There is no send button.',
   },
   {
     q: 'Do I need to keep my computer on while a search runs?',
-    a: 'No. The search runs on our servers. You need an internet connection to start a search and to see the results.',
+    a: 'No. Searches run on our servers. You need internet to start one and to see the results.',
   },
   {
     q: 'Why does Windows or macOS warn me when I install it?',
-    a: 'The installers are not code signed yet. The download page explains the one extra click it takes on each system.',
+    a: 'The installers are not code signed yet. It costs you one extra click. The download page shows where.',
   },
   {
     q: 'I run a website. How do I keep nvoke off it?',
     a: (
       <>
         Block <code className="font-mono text-sm text-foreground">nvokebot</code> in your robots.txt, or opt out your
-        domain or your own address on the{' '}
+        domain or address on the{' '}
         <Link href="/opt-out" className="text-foreground underline underline-offset-4">
           opt-out page
         </Link>
-        . It works at once. The{' '}
+        . It takes effect immediately. The{' '}
         <Link href="/bot" className="text-foreground underline underline-offset-4">
           nvokebot page
         </Link>{' '}
-        explains what the crawler does.
+        explains exactly what the crawler does.
       </>
     ),
   },
@@ -193,9 +193,8 @@ export default function HomePage() {
         <Container className="relative flex flex-col items-center text-center">
           <h1 className="max-w-5xl text-display font-semibold text-balance">{site.tagline}</h1>
           <p className="mt-8 max-w-2xl text-lede text-pretty text-muted-foreground">
-            Search for dentists in Copenhagen, a keyword on the web, or products launched this week. nvoke finds the
-            companies, reads their websites and gives you the contact details they publish, with every email address
-            verified by its mail server.
+            Bought lead lists are stale the day you get them. nvoke reads each company’s own website today and asks the
+            mail server if the address exists. You pay for the ones that do.
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="xl">
@@ -206,7 +205,7 @@ export default function HomePage() {
             </Button>
           </div>
           <p className="mt-6 text-sm text-muted-foreground">
-            Windows, macOS and Linux. Free plan with {freeEmails} verified emails a month.
+            Windows, macOS and Linux. {freeEmails} verified emails a month, free.
           </p>
         </Container>
         <div className="relative mx-auto mt-24 w-full max-w-[1240px] px-4 pb-24 sm:mt-36 sm:px-6 sm:pb-36">
@@ -225,7 +224,7 @@ export default function HomePage() {
       <Section
         id="how-it-works"
         title="How it works"
-        intro="Three steps from a rough idea of the companies you want to work with to a list of their public contact details."
+        intro="From a vague idea to a list of working emails. Three steps."
       >
         <ol className="flex flex-col gap-28 sm:gap-44">
           {STEPS.map((step, i) => (
@@ -249,7 +248,7 @@ export default function HomePage() {
       <Section
         id="searches"
         title="Three ways to find companies"
-        intro="Each search kind starts from a different place. All three end the same way: a list of companies with checked email addresses."
+        intro="Three starting points. Same result: companies with checked emails."
       >
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-16 md:grid-cols-3 md:gap-14">
@@ -272,11 +271,11 @@ export default function HomePage() {
         <Container>
           <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
             <h2 id="desktop-title" className="text-headline font-semibold text-balance">
-              A desktop app, not another browser tab
+              A desktop app. Not another browser tab.
             </h2>
             <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
-              Most lead tools live in a web page or a Chrome extension. nvoke is a program you install on Windows,
-              macOS or Linux.
+              Most lead tools are a web page, or a Chrome extension that reads everything you browse. nvoke is a
+              program. Install it, use it, close it.
             </p>
           </div>
         </Container>
@@ -305,11 +304,11 @@ export default function HomePage() {
         <Container className="grid items-start gap-16 lg:grid-cols-[1fr_1.05fr] lg:gap-24">
           <div className="flex flex-col gap-6">
             <h2 id="verification-title" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">
-              Every address is checked with its mail server
+              Every address, checked with the mail server
             </h2>
             <p className="text-lede text-pretty text-muted-foreground">
-              A published address is not always a working one. nvoke asks each address’s mail server whether the
-              mailbox exists, without sending anything, so you know which details are current.
+              Published is not the same as working. nvoke asks the mail server if the mailbox exists. Nothing gets
+              sent.
             </p>
             <dl className="mt-6 flex flex-col">
               {STATUSES.map((s) => (
@@ -322,7 +321,7 @@ export default function HomePage() {
               ))}
             </dl>
             <p className="text-sm text-muted-foreground">
-              Results are kept for 30 days, so the same address is not checked again and again.
+              Results are cached for 30 days. No hammering the same server twice.
             </p>
           </div>
           <div className="reveal relative lg:sticky lg:top-28">
@@ -335,7 +334,7 @@ export default function HomePage() {
       <Section
         id="pricing"
         title="Pay for emails that work"
-        intro={`One plan for everyone, with every feature. You pay only for verified emails: ${freeEmails} free every month, then from ${cheapest}.`}
+        intro={`One plan. Every feature. You pay for verified emails and nothing else: ${freeEmails} free a month, then from ${cheapest}.`}
       >
         <PricingSlider />
         <p className="mt-8 text-center text-sm text-muted-foreground">
@@ -362,11 +361,10 @@ export default function HomePage() {
         <Container className="relative flex flex-col items-center text-center">
           <LogoMark className="size-16 sm:size-20" />
           <h2 className="mt-12 max-w-4xl text-headline font-semibold text-balance">
-            Run your first search in the next ten minutes.
+            Your first search is ten minutes away.
           </h2>
           <p className="mt-5 max-w-xl text-lede text-pretty text-muted-foreground">
-            Download nvoke, sign in, and search for the companies you want to work with. The Free plan includes{' '}
-            {freeEmails} verified emails a month.
+            Download. Sign in. Search. {freeEmails} verified emails a month are on the house.
           </p>
           <div className="mt-12 flex flex-wrap justify-center gap-3">
             <Button asChild size="xl">
