@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { api } from './api';
-import { filesApi } from './desktop';
+import { filesApi, inboxApi } from './desktop';
 import { isActive } from './format';
 import { useSearches } from './queries';
 import { enrichCsv, enrichSummary, type Table } from './table';
@@ -20,6 +20,8 @@ export interface EnrichJob {
   sourcePath: string;
   table: Table;
   rowItems: (string | null)[];
+  /** Set for a file from the watched inbox: main writes the copy to the done folder and notifies, so there is no toast. */
+  inboxId?: string;
 }
 
 /** Every company of a search, page by page. */
@@ -54,11 +56,19 @@ async function finish(job: EnrichJob): Promise<void> {
   try {
     companies = await allCompanies(job.searchId);
   } catch {
+    if (job.inboxId) {
+      void inboxApi()?.failed({ id: job.inboxId, reason: 'error' });
+      return;
+    }
     toast.error(`Couldn’t read the results for ${job.fileName}`, { description: 'Open the search and export it instead.' });
     return;
   }
   const csv = enrichCsv(job.table, job.rowItems, companies);
   const { withEmail, valid } = enrichSummary(companies);
+  if (job.inboxId) {
+    void inboxApi()?.done({ id: job.inboxId, csv, valid, total: companies.length });
+    return;
+  }
   const description = `${valid} of ${companies.length} companies with a valid address, ${withEmail} with any.`;
   const files = filesApi();
   if (!files) {
@@ -107,7 +117,9 @@ export function useEnrichJobs(): { track: (job: EnrichJob) => void } {
       if (isActive(search.status)) continue;
       jobs.current.delete(id);
       if (search.status === 'done') void finish(job);
-      else if (search.status === 'failed') toast.error(`${job.fileName} wasn’t enriched`, { description: failure(search.error) });
+      else if (search.status === 'failed' && job.inboxId) {
+        void inboxApi()?.failed({ id: job.inboxId, reason: search.error === 'quota_exceeded' ? 'quota' : 'error' });
+      } else if (search.status === 'failed') toast.error(`${job.fileName} wasn’t enriched`, { description: failure(search.error) });
     }
   }, [searches]);
 

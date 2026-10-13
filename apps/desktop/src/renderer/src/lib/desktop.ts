@@ -4,7 +4,7 @@
  * there is no tray and the setting is hidden.
  */
 import { useEffect, useRef } from 'react';
-import type { DesktopApi, DesktopCommand, FilesApi, McpApi, QuickApi } from '../../../ipc/contract';
+import type { DesktopApi, DesktopCommand, FilesApi, InboxApi, McpApi, QuickApi } from '../../../ipc/contract';
 
 export function desktopApi(): DesktopApi | null {
   const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
@@ -46,4 +46,10 @@ export function filesApi(): FilesApi | null {
 export function mcpApi(): McpApi | null {
   const api = (window as unknown as { nvoke?: { mcp?: McpApi } }).nvoke?.mcp;
   return api && typeof api.getSetup === 'function' ? api : null;
+}
+
+/** The watched inbox's half of the bridge. Null outside the desktop app. */
+export function inboxApi(): InboxApi | null {
+  const api = (window as unknown as { nvoke?: { inbox?: InboxApi } }).nvoke?.inbox;
+  return api && typeof api.onFile === 'function' ? api : null;
 }

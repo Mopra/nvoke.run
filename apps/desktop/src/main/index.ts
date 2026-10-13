@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
-import { join, resolve } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { dirname, join, resolve } from 'node:path';
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron';
 import { HealthResponse } from '@nvoke/shared';
 import { DEFAULT_HOTKEY, isAccelerator } from '../ipc/accelerator';
 import {
@@ -23,6 +23,7 @@ import { readSavedDesktop, writeSavedDesktop, type SavedDesktop } from './deskto
 import { registerLocalIpc } from './local/ipc';
 import { LocalStore } from './local/store';
 import { LeadSync } from './local/sync';
+import { defaultInboxFolder, InboxWatcher } from './inbox';
 import { applyOpenAtLogin, startedHidden } from './login-item';
 import { QuickWindow } from './quick-window';
 import { registerMcp } from './mcp';
@@ -55,6 +56,7 @@ let mainWindow: BrowserWindow | null = null;
 let quick: QuickWindow | null = null;
 let mcp: LocalMcpServer | null = null;
 let desktop: SavedDesktop = {};
+let inbox: InboxWatcher | null = null;
 
 function desktopFile(): string {
   return join(app.getPath('userData'), 'desktop-settings.json');
@@ -66,7 +68,28 @@ function desktopSettings(): DesktopSettings {
     openAtLogin: desktop.openAtLogin ?? true,
     hotkey: quick?.accelerator ?? desktop.hotkey ?? DEFAULT_HOTKEY,
     hotkeyError: quick?.error ?? null,
+    inboxEnabled: desktop.inboxEnabled === true,
+    inboxFolder: inboxFolder(),
+    inboxError: inbox?.error ?? null,
   };
+}
+
+function inboxFolder(): string {
+  return desktop.inboxFolder ?? defaultInboxFolder(app.getPath('documents'));
+}
+
+/** Starts or stops the watched inbox to match the saved settings. Never in a capture run. */
+function applyInbox(): void {
+  if (captureDir || !inbox) return;
+  if (desktop.inboxEnabled === true) inbox.start(inboxFolder());
+  else inbox.stop();
+}
+
+function sendToMain(channel: string, payload: unknown): boolean {
+  const win = mainWindow;
+  if (!win || win.isDestroyed() || win.webContents.isLoading()) return false;
+  win.webContents.send(channel, payload);
+  return true;
 }
 
 function saveDesktop(next: SavedDesktop): void {
@@ -130,6 +153,19 @@ function main(): void {
       openInMain: (hash) => sendCommand({ name: 'route', hash }),
       disabled: !!captureDir,
     });
+    inbox = new InboxWatcher({
+      send: (file) => sendToMain(IpcChannel.inboxFile, file),
+      notify: ({ title, body, onClick }) => {
+        if (!Notification.isSupported()) return;
+        const note = new Notification({ title, body });
+        if (onClick) note.on('click', onClick);
+        note.show();
+      },
+      signedIn: () => session?.getState().status === 'signed-in',
+      reveal: (filePath) => shell.showItemInFolder(filePath),
+      focus: focusWindow,
+    });
+    applyInbox();
     quick.init(desktop.hotkey);
     quick.registerIpc();
     sync = new LeadSync({ client: session, store, onChange: broadcastLocalChange });
@@ -174,6 +210,8 @@ function main(): void {
     quick = null;
     mcp?.close();
     mcp = null;
+    inbox?.stop();
+    inbox = null;
   });
 
   // The window only closes for real on quit, and then the app is on its way out.
@@ -186,6 +224,7 @@ function onAuthChange(state: AuthState): void {
   broadcastAuthState(state);
   const signedIn = state.status === 'signed-in';
   tray?.setSignedIn(signedIn);
+  if (signedIn) inbox?.retry();
   // The first sign-in turns start at login on. After that it is the user's call.
   if (signedIn && desktop.openAtLogin === undefined) {
     saveDesktop({ ...desktop, openAtLogin: true });
@@ -348,6 +387,37 @@ function registerIpc(session: AuthSession, sync: LeadSync): void {
     if (quick?.setHotkey(accelerator) !== false) saveDesktop({ ...desktop, hotkey: accelerator });
     return desktopSettings();
   });
+
+  ipcMain.handle(IpcChannel.desktopSetInboxEnabled, (_event, enabled: unknown): DesktopSettings => {
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
+    saveDesktop({ ...desktop, inboxEnabled: enabled });
+    applyInbox();
+    return desktopSettings();
+  });
+
+  ipcMain.handle(IpcChannel.desktopChooseInboxFolder, async (event): Promise<DesktopSettings> => {
+    const options = {
+      title: 'Choose the inbox folder',
+      defaultPath: inboxFolder(),
+      properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[],
+    };
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    const folder = picked.filePaths[0];
+    // A drive or filesystem root is no inbox: its subfolders would be scanned and written to.
+    if (picked.canceled || !folder || dirname(folder) === folder) return desktopSettings();
+    saveDesktop({ ...desktop, inboxEnabled: true, inboxFolder: folder });
+    applyInbox();
+    return desktopSettings();
+  });
+
+  ipcMain.handle(IpcChannel.desktopOpenInboxFolder, async (): Promise<void> => {
+    await shell.openPath(inboxFolder());
+  });
+
+  ipcMain.on(IpcChannel.inboxReady, () => inbox?.rendererIsReady());
+  ipcMain.handle(IpcChannel.inboxDone, (_event, payload: unknown) => inbox?.done(payload) ?? { saved: false, error: 'The inbox is off.' });
+  ipcMain.handle(IpcChannel.inboxFailed, (_event, payload: unknown): void => inbox?.failed(payload));
 
   ipcMain.handle(IpcChannel.authGetState, () => session.getState());
   ipcMain.handle(IpcChannel.authSignIn, () => session.signIn());

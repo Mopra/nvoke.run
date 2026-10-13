@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { filesApi } from '@/lib/desktop';
 import { enrichedName, useEnrichJobs } from '@/lib/enrich';
 import { formatNumber } from '@/lib/format';
+import { useInbox } from '@/lib/inbox';
 import { useCreateSearch, useMe } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import { columnItems, guessColumn, MAX_TABLE_BYTES, parseTable, type Table } from '@/lib/table';
@@ -38,6 +39,7 @@ export function FileDrop() {
   const [dropped, setDropped] = useState<Dropped | null>(null);
   const depth = useRef(0);
   const { track } = useEnrichJobs();
+  useInbox(track);
 
   async function read(file: File): Promise<void> {
     if (/\.xlsx?$/i.test(file.name)) {

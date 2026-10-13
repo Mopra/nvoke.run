@@ -9,6 +9,8 @@ import {
   type DesktopCommand,
   type DesktopSettings,
   type ExportResult,
+  type InboxFile,
+  type InboxResult,
   type SaveEnrichedResult,
   type LocalChange,
   type LocalCompaniesPage,
@@ -66,6 +68,16 @@ const api: NvokeApi = {
       return () => ipcRenderer.removeListener(IpcChannel.localChanged, handler);
     },
   },
+  inbox: {
+    onFile: (listener) => {
+      const handler = (_event: IpcRendererEvent, file: InboxFile) => listener(file);
+      ipcRenderer.on(IpcChannel.inboxFile, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.inboxFile, handler);
+    },
+    ready: () => ipcRenderer.send(IpcChannel.inboxReady),
+    done: (result) => ipcRenderer.invoke(IpcChannel.inboxDone, result) as Promise<InboxResult>,
+    failed: (failure) => ipcRenderer.invoke(IpcChannel.inboxFailed, failure) as Promise<void>,
+  },
   window: {
     getChrome: () => ipcRenderer.invoke(IpcChannel.windowGetChrome) as Promise<WindowChrome>,
     setTheme: (theme) => ipcRenderer.invoke(IpcChannel.windowSetTheme, theme) as Promise<void>,
@@ -80,6 +92,9 @@ const api: NvokeApi = {
     getSettings: () => ipcRenderer.invoke(IpcChannel.desktopGetSettings) as Promise<DesktopSettings>,
     setOpenAtLogin: (enabled) => ipcRenderer.invoke(IpcChannel.desktopSetOpenAtLogin, enabled) as Promise<DesktopSettings>,
     setHotkey: (accelerator) => ipcRenderer.invoke(IpcChannel.desktopSetHotkey, accelerator) as Promise<DesktopSettings>,
+    setInboxEnabled: (enabled) => ipcRenderer.invoke(IpcChannel.desktopSetInboxEnabled, enabled) as Promise<DesktopSettings>,
+    chooseInboxFolder: () => ipcRenderer.invoke(IpcChannel.desktopChooseInboxFolder) as Promise<DesktopSettings>,
+    openInboxFolder: () => ipcRenderer.invoke(IpcChannel.desktopOpenInboxFolder) as Promise<void>,
     onCommand: (listener) => {
       const handler = (_event: IpcRendererEvent, command: DesktopCommand) => listener(command);
       ipcRenderer.on(IpcChannel.desktopCommand, handler);
