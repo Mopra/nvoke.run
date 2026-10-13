@@ -8,6 +8,8 @@
 
 ## Lately
 
+- 2026-10-14 Local lead search quest stopped again, still only waiting on its queued tests; no new message sent.
+- 2026-10-14 Local lead search quest stopped only to wait for tests queued behind the capture check's heavy job; gave it sonnet and told it to finish when they report.
 - 2026-10-14 Second notifications merge fix conflicted too (contract, main, preload, Account, SPEC). Third fix-up already running: gave it sonnet, told it to keep both sides and merge newest main last.
 - 2026-10-14 Front-tab hotkey merge fix conflicted again (preload, SPEC). Second fix-up already running: gave it sonnet, told it to keep both sides and merge newest main last.
 - 2026-10-14 Watched inbox quest finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides and merge newest main last.
@@ -46,3 +48,4 @@
 - Check the second front-tab hotkey merge fix lands. Never verified: macOS AppleScript path, Firefox and Brave, the real hotkey over a live window.
 - Check the watched inbox merge fix lands. Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
+- Check the local lead search quest finishes after its queued test run.
