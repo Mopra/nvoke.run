@@ -6,8 +6,7 @@ import { site } from '@/lib/site';
 // DRAFT. This privacy policy is a working draft for Pradsgaard Labs, Denmark,
 // under GDPR and the Danish Data Protection Act. It has not been reviewed by a
 // lawyer. Check the company details in lib/site.ts, confirm the processor
-// list and retention periods, and get it reviewed before launch. Keep it in
-// step with the Danish version in app/da/privacy/page.tsx.
+// list and retention periods, and get it reviewed before launch.
 // TODO(owner): write the legitimate interest assessment (LIA) this page
 // offers a summary of, and keep it on file.
 
@@ -15,7 +14,7 @@ export const metadata: Metadata = {
   title: 'Privacy policy',
   description:
     'How nvoke handles personal data about its customers and about people whose business contact details it finds on public websites.',
-  alternates: { canonical: '/privacy', languages: { en: '/privacy', da: '/da/privacy' } },
+  alternates: { canonical: '/privacy' },
 };
 
 const mail = <a href={`mailto:${site.email.privacy}`}>{site.email.privacy}</a>;
@@ -25,13 +24,12 @@ export default function PrivacyPage() {
     <LegalPage
       title="Privacy policy"
       updated="13 October 2026"
-      alternate={{ href: '/da/privacy', lang: 'da', label: 'Dansk' }}
     >
       <section>
         <h2>Who we are</h2>
         <p>
-          nvoke is made by <CompanyLine /> (“we”), the data controller for the personal data described here. Questions about this policy or your data: write to
-          {mail}.
+          nvoke is made by <CompanyLine /> (“we”), the data controller for the personal data described here.
+          Questions about this policy or your data: write to {mail}.
         </p>
         <p>nvoke is a prospecting research tool. It handles personal data about two groups of people:</p>
         <ul>

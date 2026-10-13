@@ -7,9 +7,7 @@ const ROUTES: { path: string; priority: number }[] = [
   { path: '/download', priority: 0.8 },
   { path: '/bot', priority: 0.5 },
   { path: '/opt-out', priority: 0.5 },
-  { path: '/da/opt-out', priority: 0.5 },
   { path: '/privacy', priority: 0.3 },
-  { path: '/da/privacy', priority: 0.3 },
   { path: '/terms', priority: 0.3 },
 ];
 

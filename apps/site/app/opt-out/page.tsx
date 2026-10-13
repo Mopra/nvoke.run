@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LanguageLink } from '@/components/site/legal';
 import { OptOutForm } from '@/components/site/opt-out-form';
 import { Container, PageHeader } from '@/components/site/section';
 import { site } from '@/lib/site';
@@ -9,7 +8,7 @@ export const metadata: Metadata = {
   title: 'Opt out',
   description:
     'Remove your email address or your whole domain from nvoke. Immediate, no confirmation, never collected again.',
-  alternates: { canonical: '/opt-out', languages: { en: '/opt-out', da: '/da/opt-out' } },
+  alternates: { canonical: '/opt-out' },
 };
 
 export default function OptOutPage() {
@@ -18,12 +17,10 @@ export default function OptOutPage() {
       <PageHeader
         title="Opt out of nvoke"
         intro="Enter your email address or your company’s domain. We delete what we hold, right now, and never collect it again. No account. No confirmation email."
-      >
-        <LanguageLink alternate={{ href: '/da/opt-out', lang: 'da', label: 'Dansk' }} />
-      </PageHeader>
+      />
       <Container className="pb-24 sm:pb-36">
         <div className="mx-auto flex max-w-xl flex-col gap-12">
-          <OptOutForm lang="en" />
+          <OptOutForm />
           <div className="flex flex-col gap-4 text-[17px] leading-relaxed text-pretty text-muted-foreground [&_a]:text-foreground [&_a]:underline [&_a]:decoration-foreground/30 [&_a]:underline-offset-4 [&_a:hover]:decoration-foreground [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-[-0.02em] [&_h2]:text-foreground">
             <h2>What happens</h2>
             <p>

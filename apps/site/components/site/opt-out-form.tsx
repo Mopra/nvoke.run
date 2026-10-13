@@ -7,7 +7,6 @@ import { apiUrl } from '@/lib/api';
 import { site } from '@/lib/site';
 
 type Kind = 'email' | 'domain';
-type Lang = 'en' | 'da';
 
 type Phase =
   | { kind: 'idle' }
@@ -16,7 +15,6 @@ type Phase =
   | { kind: 'error'; message: string };
 
 const COPY = {
-  en: {
     legend: 'What do you want to opt out?',
     email: 'An email address',
     domain: 'A whole domain',
@@ -35,30 +33,9 @@ const COPY = {
     doneBody: (target: string) =>
       `If nvoke held anything about ${target}, it is gone now, and we will not collect it again. Customers who had it in a search no longer see it in nvoke.`,
     again: 'Opt out something else',
-  },
-  da: {
-    legend: 'Hvad vil du fravælge?',
-    email: 'En e-mailadresse',
-    domain: 'Et helt domæne',
-    emailLabel: 'E-mailadresse',
-    domainLabel: 'Domæne',
-    emailHint: 'Vi sletter adressen og indsamler den aldrig igen.',
-    domainHint: 'Vi sletter alle adresser på domænet og dets underdomæner, og nvokebot holder op med at besøge sitet.',
-    submit: 'Fravælg',
-    sending: 'Fravælger...',
-    badEmail: 'Skriv en hel e-mailadresse, fx navn@eksempel.dk.',
-    badDomain: 'Skriv et domæne, fx eksempel.dk, uden navn eller @ foran.',
-    rateLimited: 'For mange forespørgsler fra dit netværk. Giv det et par minutter.',
-    failed: (status: number) => `Det fejlede (${status}). Prøv igen, eller skriv til ${site.email.privacy}.`,
-    offline: `Kunne ikke nå vores server. Prøv igen, eller skriv til ${site.email.privacy}.`,
-    doneTitle: 'Færdig. Du er fravalgt.',
-    doneBody: (target: string) =>
-      `Hvis nvoke havde oplysninger om ${target}, er de væk nu, og vi indsamler dem ikke igen. Kunder, der havde dem i en søgning, kan ikke længere se dem i nvoke.`,
-    again: 'Fravælg noget andet',
-  },
 } as const;
 
-/** Turns "https://www.example.dk/kontakt" or "@example.dk" into "www.example.dk". */
+/** Turns "https://www.example.com/contact" or "@example.com" into "www.example.com". */
 function cleanDomain(input: string): string {
   return input
     .trim()
@@ -77,8 +54,8 @@ const DOMAIN = /^[\p{L}\p{N}-]+(\.[\p{L}\p{N}-]+)+$/u;
  * `POST /v1/privacy/opt-out`, which answers the same way whether or not nvoke
  * held the data, so the confirmation is worded to reveal nothing either.
  */
-export function OptOutForm({ lang = 'en', defaultKind = 'email' }: { lang?: Lang; defaultKind?: Kind }) {
-  const t = COPY[lang];
+export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
+  const t = COPY;
   const id = useId();
   const [kind, setKind] = useState<Kind>(defaultKind);
   const [value, setValue] = useState('');
@@ -178,7 +155,7 @@ export function OptOutForm({ lang = 'en', defaultKind = 'email' }: { lang?: Lang
           autoComplete={kind === 'email' ? 'email' : 'off'}
           autoCapitalize="none"
           spellCheck={false}
-          placeholder={kind === 'email' ? (lang === 'da' ? 'navn@eksempel.dk' : 'name@example.com') : lang === 'da' ? 'eksempel.dk' : 'example.com'}
+          placeholder={kind === 'email' ? 'name@example.com' : 'example.com'}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           aria-describedby={error ? `${hintId} ${errorId}` : hintId}
