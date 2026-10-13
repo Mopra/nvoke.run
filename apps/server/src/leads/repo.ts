@@ -17,6 +17,7 @@ import type {
 } from '@nvoke/shared';
 import { cancelSearchJobs, enqueue } from '../worker/queue.js';
 import type { CsvRow } from './csv.js';
+import { domainSuppressedSql, suppressedSql } from './suppression.js';
 
 interface SearchRow {
   id: string;
@@ -163,11 +164,13 @@ function likePattern(q: string): string {
 /**
  * Email-level filter, as a SQL fragment over alias `e`. An address is only
  * handed over once its check has run: a valid one is charged first, and one
- * that never got checked (the quota ran out) stays hidden.
+ * that never got checked (the quota ran out) stays hidden, and so does one
+ * suppressed after it was found.
  */
 function emailFilter(sql: Sql, f: LeadFilters) {
   return sql`
     and e.verification is not null
+    and not ${suppressedSql(sql, 'e.address')}
     ${f.verification ? sql`and e.verification = ${f.verification}` : sql``}
     ${f.kind ? sql`and e.kind = ${f.kind}` : sql``}
   `;
@@ -197,11 +200,13 @@ export async function listCompanies(
     from companies c
     left join emails e on e.company_id = c.id ${emailFilter(sql, query)}
     where c.search_id = ${searchId} and c.clerk_user_id = ${userId}
+      and not ${domainSuppressedSql(sql, 'c.domain')}
       ${cursor ? sql`and (c.created_at, c.id) > (${cursor.createdAt}::text::timestamptz, ${cursor.id}::uuid)` : sql``}
       ${
         like
           ? sql`and (c.name ilike ${like} or c.domain ilike ${like}
-                 or exists (select 1 from emails e2 where e2.company_id = c.id and e2.verification is not null and e2.address ilike ${like}))`
+                 or exists (select 1 from emails e2 where e2.company_id = c.id and e2.verification is not null
+                   and e2.address ilike ${like} and not ${suppressedSql(sql, 'e2.address')}))`
           : sql``
       }
     group by c.id
@@ -217,10 +222,12 @@ export async function listCompanies(
       from companies c
       left join emails e on e.company_id = c.id ${emailFilter(sql, query)}
       where c.search_id = ${searchId} and c.clerk_user_id = ${userId}
+      and not ${domainSuppressedSql(sql, 'c.domain')}
         ${
           like
             ? sql`and (c.name ilike ${like} or c.domain ilike ${like}
-                   or exists (select 1 from emails e2 where e2.company_id = c.id and e2.verification is not null and e2.address ilike ${like}))`
+                   or exists (select 1 from emails e2 where e2.company_id = c.id and e2.verification is not null
+                   and e2.address ilike ${like} and not ${suppressedSql(sql, 'e2.address')}))`
             : sql``
         }
       group by c.id
@@ -278,6 +285,7 @@ export async function exportRows(sql: Sql, userId: string, searchId: string, f: 
     from emails e
     join companies c on c.id = e.company_id
     where e.search_id = ${searchId} and e.clerk_user_id = ${userId}
+      and not ${domainSuppressedSql(sql, 'c.domain')}
       ${emailFilter(sql, f)}
       ${like ? sql`and (c.name ilike ${like} or c.domain ilike ${like} or e.address ilike ${like})` : sql``}
     order by c.created_at, c.id, e.kind, e.address

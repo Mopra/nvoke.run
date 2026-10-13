@@ -2,7 +2,7 @@
   "name": "nvoke",
   "private": true,
   "version": "0.1.0",
-  "description": "nvoke, a lead finder. Desktop app plus a Node backend.",
+  "description": "nvoke, a prospecting research tool. Desktop app plus a Node backend.",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=24"

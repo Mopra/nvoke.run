@@ -13,6 +13,7 @@ import { leadsRoutes } from './routes/leads.js';
 import { postgresAccounts, type Accounts } from '../leads/accounts.js';
 import { clerkPlanSource } from '../billing/clerk.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { privacyRoutes } from './routes/privacy.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
@@ -41,6 +42,11 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
 
   const app = Fastify({
     logger: env.NODE_ENV === 'test' ? false : { level: env.LOG_LEVEL },
+    // Production sits behind Coolify's Traefik on the docker bridge
+    // (deploy/README.md), so request.ip comes from X-Forwarded-For only when
+    // the socket peer is a private or loopback address. A direct caller from
+    // the internet cannot set its own IP with the header.
+    trustProxy: ['loopback', 'uniquelocal'],
   });
 
   const accounts =
@@ -60,6 +66,8 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
   await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
   // requireAuth sets request.userId; the plugin's requireUser guard reads it.
   await app.register(leadsRoutes, { prefix: '/v1', getSql, authenticate: app.requireAuth });
+  // Public, no auth: the site's opt-out page calls it from the browser.
+  await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });
 
   return app;
 }

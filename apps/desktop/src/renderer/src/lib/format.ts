@@ -25,7 +25,7 @@ export const VERIFICATION_LABEL: Record<Verification, string> = {
 export const VERIFICATION_HINT: Record<Verification, string> = {
   valid: 'The mail server accepts this address.',
   catch_all: 'The domain accepts every address, so this one cannot be confirmed.',
-  risky: 'The address exists but may bounce or land in a role inbox.',
+  risky: 'The address exists but may bounce or belong to a shared role.',
   invalid: 'The mail server rejects this address.',
   unknown: 'The mail server could not be checked.',
 };

@@ -83,6 +83,33 @@ export function sameSite(a: string, b: string): boolean {
 }
 
 /**
+ * Shared webmail and freemail providers. An address on one belongs to a
+ * person, whatever its local part says (info.acme@gmail.com is somebody's
+ * own mailbox), so it is classified personal and never cached. The public
+ * opt-out also refuses these as whole domains (privacy/target.ts).
+ * WEBMAIL_BRANDS match the first label of the registrable domain, which
+ * covers every country variant (yahoo.dk, hotmail.co.uk, outlook.de).
+ */
+const WEBMAIL_BRANDS = new Set([
+  'gmail', 'googlemail', 'hotmail', 'outlook', 'live', 'msn', 'windowslive', 'yahoo', 'ymail', 'rocketmail',
+  'icloud', 'protonmail', 'aol', 'gmx', 'yandex', 'zoho', 'fastmail', 'tutanota', 'mailbox',
+]);
+const WEBMAIL_DOMAINS = new Set([
+  'me.com', 'mac.com', 'proton.me', 'pm.me', 'tuta.io', 'tuta.com', 'hey.com', 'mail.com', 'email.com',
+  'web.de', 't-online.de', 'freenet.de', 'mail.ru', 'inbox.ru', 'qq.com', '163.com', 'laposte.net',
+  'orange.fr', 'free.fr', 'libero.it', 'online.no',
+  // Danish
+  'mail.dk', 'jubii.dk', 'ofir.dk', 'sol.dk', 'email.dk', 'get2net.dk', 'webspeed.dk', 'stofanet.dk',
+  'youmail.dk', 'privat.dk', 'tdcadsl.dk', 'tele.dk', 'tele2adsl.dk', 'city.dk', 'worldonline.dk',
+]);
+
+export function isWebmailDomain(domain: string): boolean {
+  const host = domain.toLowerCase();
+  const site = registrableDomain(host);
+  return WEBMAIL_DOMAINS.has(host) || WEBMAIL_DOMAINS.has(site) || WEBMAIL_BRANDS.has(site.split('.')[0] ?? '');
+}
+
+/**
  * Platforms that are never "the company's website": social networks,
  * marketplaces, directories, encyclopedias, news, link-in-bio and app stores.
  * A lead source that points at one of these has not found a company domain.

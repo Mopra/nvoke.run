@@ -5,6 +5,10 @@
  *   pnpm --filter @nvoke/server cli search web "design studio" --country dk --limit 10
  *   pnpm --filter @nvoke/server cli search launches "email" --days 3 --limit 10
  *   pnpm --filter @nvoke/server cli db
+ *   pnpm --filter @nvoke/server cli privacy export someone@example.dk
+ *   pnpm --filter @nvoke/server cli privacy erase someone@example.dk
+ *   pnpm --filter @nvoke/server cli privacy erase example.dk
+ *   pnpm --filter @nvoke/server cli privacy suppress-domain example.dk
  *
  * `db` starts the embedded Postgres, applies the migrations, prints its URL
  * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
@@ -20,8 +24,23 @@
  *   --verbose            worker logs at debug level
  *
  * Without --database-url (or CLI_DATABASE_URL) the CLI starts an embedded
- * Postgres with its data in apps/server/.pgdata. It never touches
- * DATABASE_URL, which points at the shared Supabase database.
+ * Postgres with its data in apps/server/.pgdata. `search` and `db` never
+ * touch DATABASE_URL, which points at the shared Supabase database.
+ *
+ * `privacy` is the exception. It is the operator's tool for data subject
+ * requests (deploy/PRIVACY-RUNBOOK.md). It uses --database-url, then
+ * DATABASE_URL only when --prod is given, then CLI_DATABASE_URL or the
+ * embedded Postgres. --prod is required because apps/server/.env sets
+ * DATABASE_URL on development machines too. It prints the database it uses
+ * before doing anything.
+ *
+ *   privacy export <address>          JSON of everything held about the address
+ *   privacy erase <address|domain>    suppress, then delete every stored copy
+ *   privacy suppress-domain <domain>  suppress the domain and delete its addresses,
+ *                                     keeping the company rows in existing searches
+ *   --source S                        erase and suppress-domain: where the request
+ *                                     came from (email, opt_out_page, bot_page, admin;
+ *                                     default email)
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -35,6 +54,10 @@ import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
 import { ensureAccount } from './leads/quota.js';
 import { createSearch, exportRows, getSearch, listCompanies } from './leads/repo.js';
+import { suppress, type SuppressionSource } from './leads/suppression.js';
+import { erase } from './privacy/erase.js';
+import { exportSubject } from './privacy/export.js';
+import { parseDomain, parseTarget } from './privacy/target.js';
 import { createPipelineDeps } from './worker/deps.js';
 import { Runner } from './worker/runner.js';
 
@@ -54,7 +77,7 @@ function parseArgs(argv: string[]): Args {
     if (a.startsWith('--')) {
       const name = a.slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose'].includes(name)) {
+      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod'].includes(name)) {
         flags.set(name, next);
         i++;
       } else flags.set(name, true);
@@ -71,7 +94,12 @@ function usage(): never {
       '  cli search web <keyword> [--country CC] [--limit N]',
       '  cli search launches [keyword] [--days N] [--limit N]',
       '  cli db',
+      '  cli privacy export <address> [--prod]',
+      '  cli privacy erase <address|domain> [--source S] [--prod]',
+      '  cli privacy suppress-domain <domain> [--source S] [--prod]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
+      'privacy commands act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+      'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
     ].join('\n'),
   );
   process.exit(2);
@@ -163,9 +191,52 @@ Ctrl+C stops it.`);
   await local.stop();
 }
 
+const SOURCES: SuppressionSource[] = ['email', 'opt_out_page', 'bot_page', 'admin'];
+
+/** `cli privacy ...`: data subject requests, against DATABASE_URL with --prod. */
+async function privacy(args: Args): Promise<void> {
+  const [, action, subject] = args.positional;
+  if (!action || !subject || !['export', 'erase', 'suppress-domain'].includes(action)) usage();
+  const sourceFlag = args.flags.get('source');
+  const source = (typeof sourceFlag === 'string' ? sourceFlag : 'email') as SuppressionSource;
+  if (!SOURCES.includes(source)) {
+    console.error(`--source must be one of ${SOURCES.join(', ')}`);
+    process.exit(2);
+  }
+
+  const explicitUrl = args.flags.get('database-url');
+  const url =
+    (typeof explicitUrl === 'string' ? explicitUrl : undefined) ??
+    (args.flags.has('prod') ? process.env.DATABASE_URL : undefined) ??
+    process.env.CLI_DATABASE_URL;
+  const local = url ? null : await startEmbedded();
+  const target = new URL(url ?? local!.url);
+  console.error(`database: ${target.hostname}:${target.port || 5432}${target.pathname}`);
+  const sql = postgres(url ?? local!.url, { max: 4, onnotice: () => {} });
+  try {
+    if (local) await applyMigrations(sql);
+    if (action === 'export') {
+      console.log(JSON.stringify(await exportSubject(sql, subject), null, 2));
+    } else if (action === 'erase') {
+      const parsed = parseTarget(subject);
+      if (!parsed) throw new Error(`not an email address or domain: ${subject}`);
+      console.log(JSON.stringify(await erase(sql, parsed, source), null, 2));
+    } else {
+      const domain = parseDomain(subject);
+      if (!domain) throw new Error(`not a domain: ${subject}`);
+      await suppress(sql, { domain }, source);
+      console.log(JSON.stringify({ suppressed: { domain }, source }, null, 2));
+    }
+  } finally {
+    await sql.end({ timeout: 5 });
+    await local?.stop();
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.positional[0] === 'db') return serveDb();
+  if (args.positional[0] === 'privacy') return privacy(args);
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

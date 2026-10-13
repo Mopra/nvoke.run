@@ -8,7 +8,7 @@ import { z } from 'zod';
  * is only a monthly allowance of verified emails at a price. A verified email
  * is an address whose mailbox check came back `valid`. Invalid, risky,
  * catch-all and unknown results are free, and an address the user was already
- * charged for is never charged again.
+ * charged for in the last 12 months is not charged again.
  *
  * Each paid key IS the Clerk Billing plan slug (user plans, configured in the
  * Clerk dashboard), so the webhook, the plan sync and the checkout all key off

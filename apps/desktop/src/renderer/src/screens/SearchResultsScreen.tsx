@@ -7,6 +7,7 @@ import {
   Download,
   ExternalLink,
   Inbox,
+  Info,
   Loader2,
   MoreHorizontal,
   Radar,
@@ -19,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
+import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { EmptyState, ErrorState } from '@/components/states';
@@ -39,6 +41,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { api, ApiError } from '@/lib/api';
 import { BILLING_URL } from '@/lib/env';
+import { shouldShowExportNotice } from '@/lib/export-notice';
 import {
   csvFileName,
   duration,
@@ -319,6 +322,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const [kind, setKind] = useState<EmailKind | undefined>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
@@ -370,7 +374,14 @@ export function SearchResultsScreen({ id }: { id: string }) {
     filterRef.current?.focus();
     filterRef.current?.select();
   });
-  useModHotkey('e', () => void doExport(), Boolean(search));
+  useModHotkey('e', requestExport, Boolean(search));
+
+  /** Shows the outreach note first, unless the user has turned it off. */
+  function requestExport(): void {
+    if (!search || exporting || search.emailsFound === 0) return;
+    if (shouldShowExportNotice()) setExportNotice(true);
+    else void doExport();
+  }
 
   async function doExport(): Promise<void> {
     if (!search || exporting) return;
@@ -470,7 +481,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => void doExport()} disabled={search.emailsFound === 0}>
+                <DropdownMenuItem onSelect={requestExport} disabled={search.emailsFound === 0}>
                   <Download />
                   Export CSV
                 </DropdownMenuItem>
@@ -492,7 +503,25 @@ export function SearchResultsScreen({ id }: { id: string }) {
           <div>
             <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground')}>
               <span>Company</span>
-              <span>Emails</span>
+              <span className="flex items-center gap-1.5">
+                Emails
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="About these emails"
+                      className="rounded-full text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      <Info className="size-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-72 rounded-2xl px-3 py-2 leading-relaxed">
+                    Public addresses from each company's own website. Email marketing rules differ by country: in
+                    Denmark you need prior consent, even for business addresses. Results are deleted 12 months after
+                    the search.
+                  </TooltipContent>
+                </Tooltip>
+              </span>
               <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
               <span />
             </div>
@@ -603,7 +632,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={() => void doExport()} disabled={exporting || search.emailsFound === 0}>
+              <Button onClick={requestExport} disabled={exporting || search.emailsFound === 0}>
                 {exporting ? <Loader2 className="motion-safe:animate-spin" /> : <Download />}
                 Export CSV
               </Button>
@@ -615,6 +644,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
         </div>
       </div>
 
+      <ExportNoticeDialog open={exportNotice} onOpenChange={setExportNotice} onExport={() => void doExport()} />
 
       <DeleteSearchDialog
         search={search}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPlatformDomain, normalizeDomain, normalizeWebsite, registrableDomain, sameSite } from './domain.js';
+import { isPlatformDomain, isWebmailDomain, normalizeDomain, normalizeWebsite, registrableDomain, sameSite } from './domain.js';
 
 describe('normalizeDomain', () => {
   it.each([
@@ -58,5 +58,15 @@ describe('isPlatformDomain', () => {
 
   it.each(['acme.dk', 'tandtorvet.dk', 'notfacebook.com', 'facebook.com.acme.dk', 'googlefan.dk'])('%s is not a platform', (d) => {
     expect(isPlatformDomain(d)).toBe(false);
+  });
+});
+
+describe('isWebmailDomain', () => {
+  it.each(['gmail.com', 'hotmail.com', 'outlook.dk', 'live.com', 'yahoo.co.uk', 'icloud.com', 'protonmail.com', 'proton.me', 'mail.dk', 'jubii.dk', 'post.tele.dk', 'tele.dk'])(
+    '%s is webmail',
+    (domain) => expect(isWebmailDomain(domain)).toBe(true),
+  );
+  it.each(['acme.dk', 'mailchimp.com', 'gmailtricks.dk', 'acme.mail.dk.example'])('%s is not', (domain) => {
+    expect(isWebmailDomain(domain)).toBe(false);
   });
 });

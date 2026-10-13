@@ -9,7 +9,7 @@
 // collector DSNs and platform addresses never become leads.
 
 import { load, type CheerioAPI } from 'cheerio';
-import { registrableDomain, sameSite } from './domain.js';
+import { isWebmailDomain, registrableDomain, sameSite } from './domain.js';
 
 export type FoundVia = 'mailto' | 'text' | 'obfuscated' | 'cfemail' | 'jsonld' | 'script';
 
@@ -172,7 +172,9 @@ const GENERIC_LOCALS = new Set([
 
 const GENERIC_PREFIX = /^(info|contact|kontakt|support|sales|salg|booking|service|office|admin|post|mail|hello|team)[._-]/;
 
+/** Generic means a role mailbox on the company's own domain. Webmail is always personal. */
 export function classifyAddress(address: string): 'generic' | 'personal' {
+  if (isWebmailDomain(domainOf(address))) return 'personal';
   const local = localPartOf(address).split('+')[0] ?? '';
   if (GENERIC_LOCALS.has(local) || GENERIC_PREFIX.test(local)) return 'generic';
   return 'personal';

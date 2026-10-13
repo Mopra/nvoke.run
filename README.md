@@ -1,7 +1,8 @@
 # nvoke
 
-A lead finder. Users collect leads (email addresses for now) from a native
-desktop app. Collection runs on a Node backend on a VPS.
+A lead finder: a prospecting research tool. Users find companies and the
+contact details they publish on their own websites, from a native desktop app.
+The research runs on a Node backend on a VPS.
 
 ## Layout
 

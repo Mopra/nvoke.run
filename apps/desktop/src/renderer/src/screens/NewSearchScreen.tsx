@@ -228,6 +228,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                 Only verified emails count toward your plan.
                 {remaining !== null && ` ${formatNumber(Math.max(0, remaining))} left this month.`}
                 {me.data && limit > maxLimit && ` A search finds up to ${formatNumber(maxLimit)} companies.`}
+                {' Results are kept for 12 months.'}
               </p>
             )}
           </div>

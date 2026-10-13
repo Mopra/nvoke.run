@@ -2,10 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { CreateSearchRequest, SearchStatus } from '@nvoke/shared';
 import { RateLimiter, sleep } from '../leads/limits.js';
 import { ensureAccount } from '../leads/quota.js';
-import { createSearch, getSearch } from '../leads/repo.js';
+import { createSearch, exportRows, getSearch, listCompanies } from '../leads/repo.js';
 import { RobotsCache } from '../leads/robots.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from '../leads/sources/types.js';
+import { addressHash, domainHash, suppress } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
@@ -21,7 +22,7 @@ afterAll(async () => {
   await db.drop();
 });
 beforeEach(async () => {
-  await db.sql`truncate accounts, jobs, email_checks, crawl_optouts cascade`;
+  await db.sql`truncate accounts, jobs, email_checks, suppressions, domains cascade`;
 });
 
 function adapterOf(companies: FoundCompany[] | (() => AsyncIterable<FoundCompany>)): SourceAdapter<unknown> {
@@ -44,6 +45,8 @@ const sites = fakeFetch({
   'https://blocked.dk/robots.txt': { body: 'User-agent: *\nDisallow: /' },
   'https://blocked.dk/': { body: '<p>info@blocked.dk</p>' },
   'https://optedout.dk/': { body: '<p>info@optedout.dk</p>' },
+  'https://freemail.dk/': { body: '<p>Skriv til info@gmail.com</p>' },
+  'https://agencyonly.dk/': { body: '<p>Site by hello@webagency.dk</p>' },
 });
 
 /** info@ addresses are valid, everything else invalid. */
@@ -93,7 +96,7 @@ async function run(local: SourceAdapter<unknown>, req: CreateSearchRequest = LOC
 
 describe('pipeline', () => {
   it('finds, dedupes, crawls and verifies a search end to end', async () => {
-    await db.sql`insert into crawl_optouts (domain) values ('optedout.dk')`;
+    await suppress(db.sql, { domain: 'optedout.dk' }, 'bot_page');
     const final = await run(
       adapterOf([
         { name: 'Alpha', website: 'https://alpha.dk', source: 'test', phone: '+45 1' },
@@ -103,6 +106,7 @@ describe('pipeline', () => {
         { name: 'No mail', website: 'https://nomail.dk', source: 'test' },
         { name: 'Blocked', website: 'https://blocked.dk', source: 'test' },
         { name: 'Opted out', website: 'https://optedout.dk', source: 'test' },
+        { name: 'Opted out shop', website: 'https://shop.optedout.dk', source: 'test' },
         { name: 'Bad URL', website: 'not a url', source: 'test' },
       ]),
     );
@@ -234,5 +238,186 @@ describe('pipeline', () => {
     expect(s?.status).toBe('canceled');
     const emails = await db.sql`select 1 from emails where search_id = ${search.id}`;
     expect(emails).toHaveLength(0);
+  });
+});
+
+const DAY = 86_400_000;
+
+function fetchedHosts(): Set<string> {
+  return new Set(sites.calls.map((c) => new URL(c.url).hostname));
+}
+
+async function cacheRow(domain: string, row: { status?: string; hasPersonal?: boolean; recheckInDays: number }) {
+  await db.sql`
+    insert into domains (domain, crawl_status, crawled_at, has_personal, recheck_at)
+    values (${domain}, ${row.status ?? 'done'}, now() - interval '10 days', ${row.hasPersonal ?? false},
+            now() + ${row.recheckInDays} * interval '1 day')
+  `;
+}
+
+async function cacheEmail(domain: string, address: string, firstSeen = '2026-01-15T00:00:00Z') {
+  await db.sql`
+    insert into domain_emails (domain, address, source_url, first_seen, last_seen)
+    values (${domain}, ${address}, ${`https://${domain}/kontakt`}, ${firstSeen}, ${firstSeen})
+  `;
+}
+
+describe('crawl cache', () => {
+  it('serves a fresh domain without personal addresses from the cache', async () => {
+    await cacheRow('cached.dk', { recheckInDays: 30 });
+    await cacheEmail('cached.dk', 'info@cached.dk');
+    sites.calls.length = 0;
+    const final = await run(adapterOf([{ name: 'Cached', website: 'https://cached.dk', source: 'test' }]));
+    expect(fetchedHosts().has('cached.dk')).toBe(false);
+    expect(final).toMatchObject({ status: 'done', companiesCrawled: 1, emailsFound: 1, emailsValid: 1 });
+    const emails = await db.sql`select address, kind, source_url, verification from emails where search_id = ${final.id}`;
+    expect(emails).toEqual([
+      { address: 'info@cached.dk', kind: 'generic', source_url: 'https://cached.dk/kontakt', verification: 'valid' },
+    ]);
+    // Cached or not, a valid address is charged.
+    const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
+    expect(usage?.emails_verified).toBe(1);
+  });
+
+  it('serves a fresh blocked domain from the cache without emails', async () => {
+    await cacheRow('alpha.dk', { status: 'blocked', hasPersonal: true, recheckInDays: 3 });
+    sites.calls.length = 0;
+    const final = await run(adapterOf([{ name: 'Alpha', website: 'https://alpha.dk', source: 'test' }]));
+    expect(fetchedHosts().has('alpha.dk')).toBe(false);
+    const [company] = await db.sql`select crawl_status from companies where search_id = ${final.id}`;
+    expect(company).toEqual({ crawl_status: 'blocked' });
+  });
+
+  it('crawls a fresh domain again when it had personal addresses', async () => {
+    await cacheRow('beta.dk', { hasPersonal: true, recheckInDays: 30 });
+    await cacheEmail('beta.dk', 'info@beta.dk');
+    sites.calls.length = 0;
+    const final = await run(adapterOf([{ name: 'Beta', website: 'https://beta.dk', source: 'test' }]));
+    expect(fetchedHosts().has('beta.dk')).toBe(true);
+    const emails = await db.sql`select address from emails where search_id = ${final.id} order by address`;
+    expect(emails).toEqual([{ address: 'info@beta.dk' }, { address: 'mette@beta.dk' }]);
+  });
+
+  it('records a first crawl, caching generic addresses only', async () => {
+    await run(
+      adapterOf([
+        { name: 'Beta', website: 'https://beta.dk', source: 'test' },
+        { name: 'No mail', website: 'https://nomail.dk', source: 'test' },
+        { name: 'Blocked', website: 'https://blocked.dk', source: 'test' },
+      ]),
+    );
+    const domains = await db.sql<{ domain: string; crawl_status: string; has_personal: boolean; days: number }[]>`
+      select domain, crawl_status, has_personal,
+             round(extract(epoch from recheck_at - crawled_at) / 86400)::int as days
+      from domains order by domain`;
+    expect(domains).toEqual([
+      { domain: 'beta.dk', crawl_status: 'done', has_personal: true, days: 90 },
+      { domain: 'blocked.dk', crawl_status: 'blocked', has_personal: false, days: 7 },
+      { domain: 'nomail.dk', crawl_status: 'done', has_personal: false, days: 90 },
+    ]);
+    const cached = await db.sql`select domain, address from domain_emails order by address`;
+    expect(cached).toEqual([{ domain: 'beta.dk', address: 'info@beta.dk' }]);
+  });
+
+  it('recrawls a stale domain, keeps first_seen and drops vanished addresses', async () => {
+    await cacheRow('nomail.dk', { recheckInDays: -1 });
+    await cacheEmail('nomail.dk', 'gone@nomail.dk');
+    await cacheRow('beta.dk', { recheckInDays: -1 });
+    await cacheEmail('beta.dk', 'info@beta.dk');
+    sites.calls.length = 0;
+    await run(
+      adapterOf([
+        { name: 'No mail', website: 'https://nomail.dk', source: 'test' },
+        { name: 'Beta', website: 'https://beta.dk', source: 'test' },
+      ]),
+    );
+    expect(fetchedHosts().has('nomail.dk')).toBe(true);
+    expect(fetchedHosts().has('beta.dk')).toBe(true);
+    const cached = await db.sql<{ address: string; first_seen: Date; last_seen: Date }[]>`
+      select address, first_seen, last_seen from domain_emails order by address`;
+    expect(cached.map((r) => r.address)).toEqual(['info@beta.dk']);
+    expect(cached[0]!.first_seen.toISOString()).toBe('2026-01-15T00:00:00.000Z');
+    expect(cached[0]!.last_seen.getTime()).toBeGreaterThan(Date.now() - 60_000);
+    const [beta] = await db.sql<{ recheck_at: Date; has_personal: boolean }[]>`
+      select recheck_at, has_personal from domains where domain = 'beta.dk'`;
+    expect(beta!.has_personal).toBe(true);
+    expect(beta!.recheck_at.getTime()).toBeGreaterThan(Date.now() + 89 * DAY);
+  });
+
+  it('never stores a suppressed address, in the search or the cache', async () => {
+    await suppress(db.sql, { address: 'info@beta.dk' }, 'opt_out_page');
+    const final = await run(adapterOf([{ name: 'Beta', website: 'https://beta.dk', source: 'test' }]));
+    const emails = await db.sql`select address from emails where search_id = ${final.id}`;
+    expect(emails).toEqual([{ address: 'mette@beta.dk' }]);
+    const cached = await db.sql`select address from domain_emails`;
+    expect(cached).toEqual([]);
+  });
+
+  it('does not serve a suppressed address from the cache', async () => {
+    await cacheRow('cached.dk', { recheckInDays: 30 });
+    await cacheEmail('cached.dk', 'info@cached.dk');
+    await cacheEmail('cached.dk', 'salg@cached.dk');
+    await db.sql`insert into suppressions (hash, kind) values (${addressHash('info@cached.dk')}, 'address')`;
+    const final = await run(adapterOf([{ name: 'Cached', website: 'https://cached.dk', source: 'test' }]));
+    const emails = await db.sql`select address from emails where search_id = ${final.id}`;
+    expect(emails).toEqual([{ address: 'salg@cached.dk' }]);
+  });
+
+  it('hides addresses and domains suppressed after they were found from results and export', async () => {
+    const final = await run(
+      adapterOf([
+        { name: 'Alpha', website: 'https://alpha.dk', source: 'test' },
+        { name: 'Beta', website: 'https://beta.dk', source: 'test' },
+      ]),
+    );
+    const before = await exportRows(db.sql, 'u1', final.id, {});
+    expect(before.map((r) => r.email).sort()).toEqual(['info@alpha.dk', 'info@beta.dk', 'mette@beta.dk', 'ole@alpha.dk']);
+
+    // Inserted directly, so the rows stay and only the read filter hides them.
+    await db.sql`insert into suppressions (hash, kind) values (${addressHash('info@alpha.dk')}, 'address')`;
+    await db.sql`insert into suppressions (hash, kind) values (${domainHash('beta.dk')}, 'domain')`;
+    const after = await exportRows(db.sql, 'u1', final.id, {});
+    expect(after.map((r) => r.email)).toEqual(['ole@alpha.dk']);
+    const page = await listCompanies(db.sql, 'u1', final.id, { limit: 50 });
+    expect(page?.total).toBe(1);
+    expect(page?.companies.map((c) => [c.domain, c.emails.map((e) => e.address)])).toEqual([['alpha.dk', ['ole@alpha.dk']]]);
+    const searched = await listCompanies(db.sql, 'u1', final.id, { limit: 50, q: 'info@alpha' });
+    expect(searched?.total).toBe(0);
+  });
+
+  it('erases stored rows when an address or domain is suppressed', async () => {
+    const final = await run(
+      adapterOf([
+        { name: 'Alpha', website: 'https://alpha.dk', source: 'test' },
+        { name: 'Beta', website: 'https://beta.dk', source: 'test' },
+      ]),
+    );
+    await suppress(db.sql, { address: 'INFO@alpha.dk' }, 'email');
+    await suppress(db.sql, { domain: 'www.beta.dk' }, 'admin');
+    const emails = await db.sql`select address from emails where search_id = ${final.id} order by address`;
+    expect(emails).toEqual([{ address: 'ole@alpha.dk' }]);
+    const cached = await db.sql`select domain from domains order by domain`;
+    expect(cached).toEqual([{ domain: 'alpha.dk' }]);
+    expect(await db.sql`select address from domain_emails`).toEqual([]);
+  });
+
+  it('never caches webmail or addresses on other domains, and crawls such domains again', async () => {
+    const final = await run(
+      adapterOf([
+        { name: 'Freemail', website: 'https://freemail.dk', source: 'test' },
+        { name: 'Agency only', website: 'https://agencyonly.dk', source: 'test' },
+      ]),
+    );
+    const emails = await db.sql`select address, kind from emails where search_id = ${final.id} order by address`;
+    expect(emails).toEqual([
+      { address: 'hello@webagency.dk', kind: 'generic' },
+      { address: 'info@gmail.com', kind: 'personal' },
+    ]);
+    expect(await db.sql`select address from domain_emails`).toEqual([]);
+    const domains = await db.sql`select domain, has_personal from domains order by domain`;
+    expect(domains).toEqual([
+      { domain: 'agencyonly.dk', has_personal: true },
+      { domain: 'freemail.dk', has_personal: true },
+    ]);
   });
 });

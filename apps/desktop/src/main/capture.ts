@@ -140,6 +140,14 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
         await shot('11-delete-dialog', theme);
         await js(`document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
         await sleep(400);
+        await js(`[...document.querySelectorAll('button')].find((e) => /Keep it/.test(e.textContent))?.click()`);
+        await sleep(400);
+        await js(`localStorage.removeItem('nvoke.exportNotice.dismissed')`);
+        await js(`[...document.querySelectorAll('button')].find((e) => /Export CSV/.test(e.textContent))?.click()`);
+        await sleep(500);
+        await shot('11b-export-notice', theme);
+        await js(`document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+        await sleep(400);
       }
 
       await go('#/account');

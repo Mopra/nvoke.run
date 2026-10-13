@@ -1,7 +1,7 @@
 // Accounts, monthly usage and the verified email quota.
 //
 // The meter counts verified emails: addresses whose check came back valid.
-// Each address is charged once per user for all time (billed_emails), and
+// Each address is charged once per user per 12 months (billed_emails, see retention.ts), and
 // the usage row is locked while charging, so concurrent verifications of the
 // same user never overshoot the plan's allowance.
 

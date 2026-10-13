@@ -7,3 +7,6 @@ export const env = {
 
 /** The site page where people pick a plan and pay. Opens in the system browser. */
 export const BILLING_URL = `${env.siteUrl.replace(/\/$/, '')}/desktop/billing`;
+
+/** The terms of use, including the customer's responsibility for lawful outreach. */
+export const TERMS_URL = `${env.siteUrl.replace(/\/$/, '')}/terms`;

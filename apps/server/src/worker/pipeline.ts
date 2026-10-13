@@ -11,10 +11,12 @@ import {
   type Verification,
 } from '@nvoke/shared';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
-import { isPlatformDomain, normalizeDomain, normalizeWebsite, registrableDomain } from '../leads/domain.js';
+import { cachedCrawl, isCacheable, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
+import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
 import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import { PermanentError } from '../leads/sources/types.js';
+import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
 import { cancelSearchJobs, enqueue, type Job } from './queue.js';
 
@@ -130,10 +132,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
     const domain = website ? normalizeDomain(website) : null;
     if (!website || !domain || isPlatformDomain(domain)) continue;
 
-    const optout = await sql`
-      select 1 from crawl_optouts where domain in (${domain}, ${registrableDomain(domain)}) limit 1
-    `;
-    if (optout.length > 0) continue;
+    if (await isDomainSuppressed(sql, domain)) continue;
 
     const inserted = await sql.begin(async (tx) => {
       const rows = await tx<{ id: string }[]>`
@@ -191,27 +190,82 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
     return;
   }
 
+  const now = deps.now?.() ?? new Date();
+  // A domain suppressed after find picked it up is not crawled or stored.
+  if (await isDomainSuppressed(sql, company.domain)) {
+    await finishCrawl(deps, company, 'blocked', []);
+    return;
+  }
+
+  const cached = await cachedCrawl(sql, company.domain, now);
+  if (cached) {
+    const blocked = await suppressedAddresses(sql, cached.emails.map((e) => e.address));
+    const emails = cached.emails
+      .filter((e) => !blocked.has(e.address))
+      .map((e) => ({ address: e.address, kind: 'generic' as const, sourceUrl: e.sourceUrl }));
+    deps.log.debug({ companyId, domain: company.domain, status: cached.crawlStatus, emails: emails.length }, 'crawl: cache hit');
+    await finishCrawl(deps, company, cached.crawlStatus, emails);
+    return;
+  }
+
   const result = await crawlSite(company.website, company.domain, deps.crawl, { signal });
   deps.log.debug(
     { companyId, domain: company.domain, status: result.status, pages: result.pages.length, emails: result.emails.length },
     'crawl: site done',
   );
+  const blocked = await suppressedAddresses(sql, result.emails.map((e) => e.address));
+  const emails = result.emails
+    .filter((e) => !blocked.has(e.address))
+    .map((e) => ({ address: e.address, kind: e.kind, sourceUrl: e.sourceUrl }));
+  await finishCrawl(deps, company, result.status, emails, now);
+}
 
+interface FoundEmail {
+  address: string;
+  kind: 'generic' | 'personal';
+  sourceUrl: string | null;
+}
+
+/**
+ * Stores a crawl outcome for a company and queues a check per new address.
+ * `crawledAt` is set for a real crawl, which also refreshes the shared cache.
+ */
+async function finishCrawl(
+  deps: PipelineDeps,
+  company: CompanyRow,
+  status: CrawlOutcome,
+  emails: FoundEmail[],
+  crawledAt?: Date,
+): Promise<void> {
+  const { sql } = deps;
   const stored = await sql.begin(async (tx) => {
     // Only the first finisher records the crawl (guards against a retried job).
     const claimed = await tx`
-      update companies set crawl_status = ${result.status}, crawled_at = now()
-      where id = ${companyId} and crawl_status = 'pending'
+      update companies set crawl_status = ${status}, crawled_at = now()
+      where id = ${company.id} and crawl_status = 'pending'
       returning id
     `;
     if (claimed.length === 0) return 0;
 
+    if (crawledAt) {
+      await recordCrawl(
+        tx,
+        company.domain,
+        {
+          status,
+          hasPersonal: emails.some((e) => !isCacheable(e, company.domain)),
+          generic: emails.filter((e) => isCacheable(e, company.domain)),
+        },
+        crawledAt,
+      );
+    }
+
     let stored = 0;
-    if (result.emails.length > 0) {
+    if (emails.length > 0) {
       // Storing costs nothing: the user is charged only when a check comes
       // back valid (runVerify), and unchecked addresses are never shown.
-      const rows = result.emails.map((e) => ({
-        company_id: companyId,
+      const rows = emails.map((e) => ({
+        company_id: company.id,
         search_id: company.search_id,
         clerk_user_id: company.clerk_user_id,
         address: e.address,
@@ -236,7 +290,7 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
     `;
     return stored;
   });
-  deps.log.debug({ companyId, stored }, 'crawl: stored');
+  deps.log.debug({ companyId: company.id, stored }, 'crawl: stored');
 }
 
 /** A crawl job that ran out of attempts still counts as crawled, with status failed. */

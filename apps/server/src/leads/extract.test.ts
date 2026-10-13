@@ -92,6 +92,11 @@ describe('classifyAddress', () => {
     ['mette.hansen@acme.dk', 'personal'],
     ['mh@acme.dk', 'personal'],
     ['lars+web@acme.dk', 'personal'],
+    // Webmail is somebody's own mailbox, whatever the local part says.
+    ['info@gmail.com', 'personal'],
+    ['kontakt@mail.dk', 'personal'],
+    ['info@hotmail.co.uk', 'personal'],
+    ['salg@jubii.dk', 'personal'],
   ] as const)('%s is %s', (address, kind) => {
     expect(classifyAddress(address)).toBe(kind);
   });
