@@ -7,8 +7,13 @@ directories:
   buildResources: build
 files:
   - out/**
+  - resources/**
   - package.json
 asar: true
+# The tray icons (resources/) are read by native code, which cannot see into
+# the asar. electron-vite's `?asset&asarUnpack` imports point at the copy here.
+asarUnpack:
+  - resources/**
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 publish: null
 

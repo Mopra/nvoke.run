@@ -119,6 +119,13 @@ to `nativeTheme.themeSource` so the material matches, and the caption button
 colors follow `--background` and `--foreground`. Size, position and theme are
 kept in `userData/window-state.json`.
 
+nvoke lives in the tray (menu bar on macOS, `src/main/tray.ts`): closing the
+window only hides it, and the app quits from the tray menu or Cmd+Q. Start at
+login is a setting on Account (`src/main/login-item.ts`), on after the first
+sign-in, and starts hidden. The tray talks to the renderer through
+`window.nvoke.desktop.onCommand`. Tray icons are rendered by `pnpm icons` into
+`apps/desktop/resources` and unpacked from the asar.
+
 `pnpm --filter @nvoke/desktop capture` runs the app on demo data with a
 throwaway profile, screenshots every screen in light and dark into
 `apps/desktop/screenshots/` (gitignored) and quits. `*.window.png` is the

@@ -5,6 +5,7 @@ import { AppShell } from '@/components/AppShell';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuth } from '@/lib/auth';
+import { useDesktopCommands } from '@/lib/desktop';
 import { useModHotkey } from '@/lib/hotkeys';
 import { navigate, useRoute, type Route } from '@/lib/router';
 import { AccountScreen } from '@/screens/AccountScreen';
@@ -36,6 +37,11 @@ function SignedIn() {
   const route = useRoute();
   useModHotkey('n', () => navigate({ name: 'new', kind: null }));
   useModHotkey(',', () => navigate({ name: 'account' }));
+  useDesktopCommands((command) => {
+    if (command.name === 'new-search') navigate({ name: 'new', kind: null });
+    else if (command.name === 'search') navigate({ name: 'search', id: command.id });
+    else navigate({ name: 'searches' });
+  });
   return (
     <AppShell route={route}>
       <Screen route={route} />

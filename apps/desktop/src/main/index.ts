@@ -2,13 +2,23 @@ import { hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { HealthResponse } from '@nvoke/shared';
-import { IpcChannel, type AppInfo, type AuthState, type ExportResult } from '../ipc/contract';
+import {
+  IpcChannel,
+  type AppInfo,
+  type AuthState,
+  type DesktopCommand,
+  type DesktopSettings,
+  type ExportResult,
+} from '../ipc/contract';
 import { bridgeRequest, exportCsvToFile, safeCsvFileName } from './api-bridge';
 import { PROTOCOL, findProtocolUrl } from './auth/flow';
 import { AuthSession } from './auth/session';
 import { safeTokenStore } from './auth/token-store';
 import { captureDirFromArgs, runCapture } from './capture';
 import { registerDragIpc } from './drag';
+import { readSavedDesktop, writeSavedDesktop, type SavedDesktop } from './desktop-settings';
+import { applyOpenAtLogin, startedHidden } from './login-item';
+import { AppTray } from './tray';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
 
 const env = {
@@ -29,8 +39,29 @@ if (!app.requestSingleInstanceLock()) {
   main();
 }
 
+/** True once the user quits for real. Until then closing the window only hides it. */
+let quitting = false;
+let tray: AppTray | null = null;
+let desktop: SavedDesktop = {};
+
+function desktopFile(): string {
+  return join(app.getPath('userData'), 'desktop-settings.json');
+}
+
+function desktopSettings(): DesktopSettings {
+  // On by default: the first sign-in saves it as on (see onAuthChange).
+  return { openAtLogin: desktop.openAtLogin ?? true };
+}
+
+function saveDesktop(next: SavedDesktop): void {
+  desktop = next;
+  writeSavedDesktop(desktopFile(), desktop);
+}
+
 function main(): void {
   if (!captureDir) registerProtocol();
+  // Windows needs the installer's AppUserModelID for the tray balloon and notifications.
+  if (process.platform === 'win32') app.setAppUserModelId('app.nvoke.desktop');
 
   let session: AuthSession | null = null;
   // Callback URLs that arrive before the app is ready (macOS open-url, or the
@@ -66,24 +97,68 @@ function main(): void {
       deviceName: hostname(),
       tokenStore: safeTokenStore(),
       openExternal: (url) => shell.openExternal(url),
-      onChange: broadcastAuthState,
+      onChange: onAuthChange,
     });
+    const api = session;
+    desktop = readSavedDesktop(desktopFile());
+    // Re-register each launch, so the login item follows the app when it moves.
+    if (desktop.openAtLogin) applyOpenAtLogin(true);
     registerIpc(session);
     registerWindowIpc();
     registerDragIpc();
     loadWindowPreferences();
-    createWindow();
+    if (!captureDir) {
+      tray = new AppTray({
+        open: focusWindow,
+        command: sendCommand,
+        quit: () => app.quit(),
+        fetchSearches: () => (api.getState().status === 'signed-in' ? api.api('/v1/searches') : Promise.resolve(null)),
+      });
+    }
+    createWindow({ hidden: !captureDir && startedHidden(process.argv) });
     await session.init();
+    tray?.setSignedIn(session.getState().status === 'signed-in');
     for (const url of queued.splice(0)) await session.handleCallback(url);
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      if (BrowserWindow.getAllWindows().length === 0) createWindow({ hidden: false });
+      else focusWindow();
     });
   });
 
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+  app.on('before-quit', () => {
+    quitting = true;
   });
+
+  app.on('will-quit', () => {
+    tray?.destroy();
+    tray = null;
+  });
+
+  // The window only closes for real on quit, and then the app is on its way out.
+  app.on('window-all-closed', () => {
+    if (captureDir || process.platform !== 'darwin') app.quit();
+  });
+}
+
+function onAuthChange(state: AuthState): void {
+  broadcastAuthState(state);
+  const signedIn = state.status === 'signed-in';
+  tray?.setSignedIn(signedIn);
+  // The first sign-in turns start at login on. After that it is the user's call.
+  if (signedIn && desktop.openAtLogin === undefined) {
+    saveDesktop({ ...desktop, openAtLogin: true });
+    applyOpenAtLogin(true);
+  }
+}
+
+/** Shows the window and hands the renderer a command, for example from the tray. */
+function sendCommand(command: DesktopCommand): void {
+  focusWindow();
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => win.webContents.send(IpcChannel.desktopCommand, command));
+  else win.webContents.send(IpcChannel.desktopCommand, command);
 }
 
 /**
@@ -120,10 +195,33 @@ function isSafeExternalUrl(raw: string): boolean {
   }
 }
 
-function createWindow(): void {
+function createWindow({ hidden }: { hidden: boolean }): void {
   const win = createMainWindow();
 
-  win.once('ready-to-show', () => win.show());
+  // Started at login: stay in the tray until the user opens the window.
+  if (!hidden) win.once('ready-to-show', () => win.show());
+
+  // Closing keeps nvoke running in the tray, so drops and running searches
+  // can still reach the user. Quit from the tray menu (or Cmd+Q) ends it.
+  // Windows logging off or shutting down must not be held up by a hidden window.
+  win.on('session-end', () => {
+    quitting = true;
+  });
+  win.on('close', (event) => {
+    if (quitting || !tray) return;
+    event.preventDefault();
+    if (win.isFullScreen()) {
+      win.once('leave-full-screen', () => win.hide());
+      win.setFullScreen(false);
+    } else {
+      win.hide();
+    }
+    if (!desktop.closeHintShown) {
+      saveDesktop({ ...desktop, closeHintShown: true });
+      tray.notifyStillRunning();
+    }
+    void tray.refresh();
+  });
 
   // Never open new Electron windows from content. Links go to the system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -185,6 +283,14 @@ function registerIpc(session: AuthSession): void {
     const picked = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
     if (picked.canceled || !picked.filePath) return { saved: false };
     return exportCsvToFile(session, searchId, picked.filePath);
+  });
+
+  ipcMain.handle(IpcChannel.desktopGetSettings, (): DesktopSettings => desktopSettings());
+  ipcMain.handle(IpcChannel.desktopSetOpenAtLogin, (_event, enabled: unknown): DesktopSettings => {
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
+    saveDesktop({ ...desktop, openAtLogin: enabled });
+    applyOpenAtLogin(enabled);
+    return desktopSettings();
   });
 
   ipcMain.handle(IpcChannel.authGetState, () => session.getState());

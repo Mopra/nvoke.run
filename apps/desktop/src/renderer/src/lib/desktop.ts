@@ -1,0 +1,26 @@
+/**
+ * How the app lives on the computer: start at login and the commands the
+ * tray sends. Works without the bridge (VITE_MOCK in a plain browser), where
+ * there is no tray and the setting is hidden.
+ */
+import { useEffect, useRef } from 'react';
+import type { DesktopApi, DesktopCommand } from '../../../ipc/contract';
+
+export function desktopApi(): DesktopApi | null {
+  const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
+  return api && typeof api.getSettings === 'function' ? api : null;
+}
+
+/** Where the icon lives, for copy: the menu bar on macOS, the tray elsewhere. */
+export function trayPlace(): string {
+  return document.documentElement.dataset['platform'] === 'darwin' ? 'menu bar' : 'tray';
+}
+
+/** Runs `handler` for every command the tray sends, for as long as the component is mounted. */
+export function useDesktopCommands(handler: (command: DesktopCommand) => void): void {
+  const ref = useRef(handler);
+  useEffect(() => {
+    ref.current = handler;
+  });
+  useEffect(() => desktopApi()?.onCommand((command) => ref.current(command)), []);
+}

@@ -25,6 +25,10 @@ export const IpcChannel = {
   windowSetTitleBarColors: 'window:set-title-bar-colors',
   /** Main to renderer push, payload WindowState. */
   windowStateChanged: 'window:state-changed',
+  desktopGetSettings: 'desktop:get-settings',
+  desktopSetOpenAtLogin: 'desktop:set-open-at-login',
+  /** Main to renderer push, payload DesktopCommand. */
+  desktopCommand: 'desktop:command',
 } as const;
 
 /** The appearance the user picked. `system` follows the OS. */
@@ -117,6 +121,29 @@ export interface AuthApi {
   onChange(listener: (state: AuthState) => void): () => void;
 }
 
+/** Settings for how the app lives on the computer, kept in userData by the main process. */
+export interface DesktopSettings {
+  /**
+   * Start nvoke at login, hidden in the tray (menu bar on macOS) with no
+   * window. Turned on by the first sign-in; the user can turn it off on Account.
+   */
+  openAtLogin: boolean;
+}
+
+/**
+ * Something the main process asks the renderer to do, for example from the
+ * tray menu: open a new search, the searches list or one search.
+ */
+export type DesktopCommand = { name: 'new-search' } | { name: 'searches' } | { name: 'search'; id: string };
+
+export interface DesktopApi {
+  getSettings(): Promise<DesktopSettings>;
+  /** Registers or removes the login item and returns the saved settings. */
+  setOpenAtLogin(enabled: boolean): Promise<DesktopSettings>;
+  /** Subscribes to commands from the tray. Returns an unsubscribe function. */
+  onCommand(listener: (command: DesktopCommand) => void): () => void;
+}
+
 export interface NvokeApi {
   getAppInfo(): Promise<AppInfo>;
   /** Opens an http(s) URL in the system browser. Other schemes are refused. */
@@ -142,4 +169,5 @@ export interface NvokeApi {
   startDragCsv(fileName: string, csv: string): void;
   auth: AuthApi;
   window: WindowApi;
+  desktop: DesktopApi;
 }

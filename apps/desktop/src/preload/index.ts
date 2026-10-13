@@ -5,6 +5,8 @@ import {
   type AppInfo,
   type AuthState,
   type BridgeResponse,
+  type DesktopCommand,
+  type DesktopSettings,
   type ExportResult,
   type NvokeApi,
   type WindowChrome,
@@ -40,6 +42,15 @@ const api: NvokeApi = {
       const handler = (_event: IpcRendererEvent, state: WindowState) => listener(state);
       ipcRenderer.on(IpcChannel.windowStateChanged, handler);
       return () => ipcRenderer.removeListener(IpcChannel.windowStateChanged, handler);
+    },
+  },
+  desktop: {
+    getSettings: () => ipcRenderer.invoke(IpcChannel.desktopGetSettings) as Promise<DesktopSettings>,
+    setOpenAtLogin: (enabled) => ipcRenderer.invoke(IpcChannel.desktopSetOpenAtLogin, enabled) as Promise<DesktopSettings>,
+    onCommand: (listener) => {
+      const handler = (_event: IpcRendererEvent, command: DesktopCommand) => listener(command);
+      ipcRenderer.on(IpcChannel.desktopCommand, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.desktopCommand, handler);
     },
   },
 };

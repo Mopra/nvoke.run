@@ -17,7 +17,9 @@ const BOTTOM = '#4366f4';
 const GLYPH = '#fafcff';
 
 /** The mark in a 24 unit box, as in Logo.tsx. */
-const glyph = `<path d="M7 15V11a5 5 0 0 1 10 0v4M7 16.3v3.2M17 16.3v3.2" stroke="${GLYPH}" stroke-width="3" fill="none"/><circle cx="12" cy="16.7" r="1.75" fill="${GLYPH}"/>`;
+const mark = (color) =>
+  `<path d="M7 15V11a5 5 0 0 1 10 0v4M7 16.3v3.2M17 16.3v3.2" stroke="${color}" stroke-width="3" fill="none"/><circle cx="12" cy="16.7" r="1.75" fill="${color}"/>`;
+const glyph = mark(GLYPH);
 
 /**
  * A tile of `tile` px inside a `canvas` px square. `radius` is a fraction of
@@ -91,6 +93,17 @@ write(
   'apps/desktop/build/icon.ico',
   ico(await Promise.all([16, 24, 32, 48, 64, 128, 256].map(async (size) => ({ size, data: await png(desk, size) })))),
 );
+// The tray (Windows, Linux): the favicon tile, small. The macOS menu bar
+// takes a template image, the bare mark in black that macOS tints itself.
+// electron-vite bundles these from apps/desktop/resources.
+write(
+  'apps/desktop/resources/tray.ico',
+  ico(await Promise.all([16, 20, 24, 32, 40, 48, 64].map(async (size) => ({ size, data: await png(fav, size) })))),
+);
+write('apps/desktop/resources/tray.png', await png(fav, 64));
+const template = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="3 3 18 18">${mark('#000000')}</svg>`;
+write('apps/desktop/resources/trayTemplate.png', await png(template, 16));
+write('apps/desktop/resources/trayTemplate@2x.png', await png(template, 32));
 write('apps/site/app/icon.svg', fav);
 write('apps/site/app/apple-icon.png', await png(touch, 180));
 write(

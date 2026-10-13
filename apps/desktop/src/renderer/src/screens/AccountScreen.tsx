@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
@@ -9,8 +9,10 @@ import { ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { api } from '@/lib/api';
 import { FREE_PLAN, PLANS, planLabel } from '@nvoke/shared';
+import { desktopApi, trayPlace } from '@/lib/desktop';
 import { BILLING_URL } from '@/lib/env';
 import { formatNumber, percent, periodLabel, resetDate } from '@/lib/format';
 import { useMe, usePlanSync } from '@/lib/queries';
@@ -81,6 +83,41 @@ function ThemePicker() {
         { value: 'dark', label: 'Dark', icon: Moon },
       ]}
     />
+  );
+}
+
+/** Start at login, hidden in the tray. Only in the desktop app, where there is a tray. */
+function OpenAtLogin() {
+  const [desktop] = useState(desktopApi);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    desktop
+      ?.getSettings()
+      .then((s) => setEnabled(s.openAtLogin))
+      .catch(() => undefined);
+  }, [desktop]);
+
+  if (!desktop || enabled === null) return null;
+
+  function change(next: boolean): void {
+    setEnabled(next);
+    desktop
+      ?.setOpenAtLogin(next)
+      .then((s) => setEnabled(s.openAtLogin))
+      .catch((err: unknown) => {
+        setEnabled(!next);
+        toast.error('Couldn’t change start at login', { description: err instanceof Error ? err.message : undefined });
+      });
+  }
+
+  return (
+    <Setting
+      label="Open at login"
+      description={`Starts quietly in the ${trayPlace()}, so drops and searches can reach you. Closing the window keeps it there.`}
+    >
+      <Switch checked={enabled} onCheckedChange={change} aria-label="Open at login" />
+    </Setting>
   );
 }
 
@@ -165,6 +202,7 @@ export function AccountScreen() {
                 <Setting label="Appearance" description="System follows your computer.">
                   <ThemePicker />
                 </Setting>
+                <OpenAtLogin />
                 <Setting label="This computer" description="Sign out anytime. Your searches stay in your account.">
                   <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
                     {signingOut && <Loader2 className="motion-safe:animate-spin" />}
