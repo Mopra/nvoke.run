@@ -79,7 +79,7 @@ describe('lead routes', () => {
     const jobs = await db.sql`select type, payload from jobs where search_id = ${search.id}`;
     expect(jobs).toEqual([{ type: 'find', payload: { searchId: search.id } }]);
     const [account] = await db.sql`select plan from accounts where clerk_user_id = 'alice'`;
-    expect(account).toEqual({ plan: 'free_user' });
+    expect(account).toEqual({ plan: 'free' });
   });
 
   it('uses the default limit of 100', async () => {
@@ -261,7 +261,7 @@ describe('lead routes in the real app', () => {
     expect(list.statusCode).toBe(200);
     expect(SearchListResponse.parse(list.json()).searches).toEqual([]);
     const [account] = await db.sql`select plan from accounts where clerk_user_id = 'carol'`;
-    expect(account).toEqual({ plan: 'free_user' });
+    expect(account).toEqual({ plan: 'free' });
 
     const created = await real.inject({
       method: 'POST',
@@ -276,7 +276,7 @@ describe('lead routes in the real app', () => {
     expect(MeResponse.parse(me.json())).toMatchObject({
       user: { id: 'carol', email: 'carol@example.com', name: 'Carol', imageUrl: null },
       via: 'clerk',
-      plan: 'free_user',
+      plan: 'free',
       usage: { emailsVerified: 0, emailsLimit: 50 },
       maxSearchLimit: 1000,
     });

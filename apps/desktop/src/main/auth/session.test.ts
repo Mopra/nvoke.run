@@ -7,7 +7,7 @@ const USER = { id: 'user_1', email: 'a@example.com', name: 'A', imageUrl: null }
 const ME = {
   user: USER,
   via: 'device' as const,
-  plan: 'free_user' as const,
+  plan: 'free' as const,
   usage: { period: '2026-10', emailsVerified: 0, emailsLimit: 50 },
   maxSearchLimit: 1000,
 };

@@ -32,7 +32,7 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 
 ## Data model (Postgres, public schema, RLS enabled with no policies)
 
-- `accounts`: `clerk_user_id` pk, `plan` (a key from `packages/shared/src/plans.ts`, default `free_user`), `plan_synced_at` (last read from Clerk Billing), `created_at`. Created on first authenticated request.
+- `accounts`: `clerk_user_id` pk, `plan` (a key from `packages/shared/src/plans.ts`, default `free`), `plan_synced_at` (last read from Clerk Billing), `created_at`. Created on first authenticated request.
 - `searches`: `id` uuid, `clerk_user_id`, `kind`, `params` jsonb, `limit` int, `status` (`queued` | `running` | `done` | `failed` | `canceled`), `error`, counters (`companies_found`, `companies_crawled`, `emails_found`, `emails_valid`), `created_at`, `started_at`, `finished_at`.
 - `companies`: `id`, `search_id`, `clerk_user_id`, `name`, `domain`, `website`, `source`, `source_ref`, `location`, `phone`, `category`, `crawl_status` (`pending` | `done` | `failed` | `blocked`), `crawled_at`. Unique `(search_id, domain)`.
 - `emails`: `id`, `company_id`, `search_id`, `clerk_user_id`, `address` (lowercase), `kind` (`generic` like info@/contact@, or `personal`), `source_url`, `verification` (`valid` | `invalid` | `risky` | `catch_all` | `unknown`), `checked_at`. Unique `(company_id, address)`.
@@ -64,7 +64,7 @@ One product for everyone. Every feature is on every plan; a plan is only a month
 
 | Plan key (Clerk slug) | Verified emails a month | USD a month |
 |---|---|---|
-| `free_user` | 50 | 0 |
+| `free` | 50 | 0 |
 | `emails_1000` | 1,000 | 5 |
 | `emails_2500` | 2,500 | 9 |
 | `emails_7500` | 7,500 | 19 |

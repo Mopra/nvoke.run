@@ -49,11 +49,11 @@ describe('plan sync', () => {
     next = new Error('clerk is down');
     expect((await accounts.summary('u2', { sync: true })).plan).toBe('emails_20000');
 
-    next = { plan: 'free_user', unknownSlugs: ['emails_20k'] };
+    next = { plan: 'free', unknownSlugs: ['emails_20k'] };
     expect((await accounts.summary('u2', { sync: true })).plan).toBe('emails_20000');
 
-    next = { plan: 'free_user', unknownSlugs: [] };
-    expect((await accounts.summary('u2', { sync: true })).plan).toBe('free_user');
+    next = { plan: 'free', unknownSlugs: [] };
+    expect((await accounts.summary('u2', { sync: true })).plan).toBe('free');
   });
 
   it('syncPlan ignores users without an account', async () => {

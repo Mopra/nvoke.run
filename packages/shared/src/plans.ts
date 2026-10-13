@@ -12,11 +12,11 @@ import { z } from 'zod';
  *
  * Each paid key IS the Clerk Billing plan slug (user plans, configured in the
  * Clerk dashboard), so the webhook, the plan sync and the checkout all key off
- * the same string. `free_user` is Clerk's default user plan and has no price.
+ * the same string. `free` is Clerk's default user plan and has no price.
  */
 
 export const PLAN_KEYS = [
-  'free_user',
+  'free',
   'emails_1000',
   'emails_2500',
   'emails_7500',
@@ -36,7 +36,7 @@ export interface PlanMeta {
 }
 
 export const PLANS: Record<Plan, PlanMeta> = {
-  free_user: { emailsPerMonth: 50, priceUsd: 0 },
+  free: { emailsPerMonth: 50, priceUsd: 0 },
   emails_1000: { emailsPerMonth: 1_000, priceUsd: 5 },
   emails_2500: { emailsPerMonth: 2_500, priceUsd: 9 },
   emails_7500: { emailsPerMonth: 7_500, priceUsd: 19 },
@@ -45,7 +45,7 @@ export const PLANS: Record<Plan, PlanMeta> = {
   emails_100000: { emailsPerMonth: 100_000, priceUsd: 149 },
 };
 
-export const FREE_PLAN: Plan = 'free_user';
+export const FREE_PLAN: Plan = 'free';
 
 /** Plan keys from the free plan to the top of the ladder. */
 export const PLAN_ORDER: readonly Plan[] = PLAN_KEYS;

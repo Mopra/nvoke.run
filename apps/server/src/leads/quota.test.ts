@@ -20,7 +20,7 @@ const charge = (user: string, address: string, at?: Date) => db.sql.begin((tx) =
 
 describe('plans', () => {
   it('match the ladder: 50 free, then 1,000 to 100,000 verified emails a month', () => {
-    expect(PLANS.free_user).toEqual({ emailsPerMonth: 50, priceUsd: 0 });
+    expect(PLANS.free).toEqual({ emailsPerMonth: 50, priceUsd: 0 });
     expect(PLANS.emails_1000).toEqual({ emailsPerMonth: 1_000, priceUsd: 5 });
     expect(PLANS.emails_100000).toEqual({ emailsPerMonth: 100_000, priceUsd: 149 });
   });
@@ -37,7 +37,7 @@ describe('plans', () => {
 
 describe('quota', () => {
   it('creates the account on first sight with the free plan', async () => {
-    expect(await ensureAccount(db.sql, 'u1')).toBe('free_user');
+    expect(await ensureAccount(db.sql, 'u1')).toBe('free');
     await db.sql`update accounts set plan = 'emails_2500' where clerk_user_id = 'u1'`;
     expect(await ensureAccount(db.sql, 'u1')).toBe('emails_2500');
   });

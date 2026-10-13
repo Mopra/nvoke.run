@@ -9,11 +9,11 @@ alter table accounts drop constraint accounts_plan_check;
 update accounts set plan = case plan
   when 'pro' then 'emails_2500'
   when 'business' then 'emails_20000'
-  else 'free_user'
+  else 'free'
 end;
-alter table accounts alter column plan set default 'free_user';
+alter table accounts alter column plan set default 'free';
 alter table accounts add constraint accounts_plan_check check (plan in (
-  'free_user', 'emails_1000', 'emails_2500', 'emails_7500', 'emails_20000', 'emails_50000', 'emails_100000'
+  'free', 'emails_1000', 'emails_2500', 'emails_7500', 'emails_20000', 'emails_50000', 'emails_100000'
 ));
 -- When the plan was last read from Clerk Billing. Null means never.
 alter table accounts add column plan_synced_at timestamptz;

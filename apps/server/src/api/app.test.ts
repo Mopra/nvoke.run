@@ -19,7 +19,7 @@ function memoryAccounts(): Accounts & { created: Set<string> } {
     ensure: async (userId) => void created.add(userId),
     summary: async (userId) => ({
       userId,
-      plan: 'free_user',
+      plan: 'free',
       usage: { period: '2026-10', emailsVerified: 3, emailsLimit: 50 },
       maxSearchLimit: 1000,
     }),
@@ -101,7 +101,7 @@ describe('api', () => {
     expect(MeResponse.parse(me.json())).toEqual({
       user: { id: USER_ID, email: 'test@example.com', name: 'Test User', imageUrl: null },
       via: 'device',
-      plan: 'free_user',
+      plan: 'free',
       usage: { period: '2026-10', emailsVerified: 3, emailsLimit: 50 },
       maxSearchLimit: 1000,
     });
