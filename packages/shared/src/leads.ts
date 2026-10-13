@@ -143,6 +143,8 @@ export const CompaniesPage = z.object({
   companies: z.array(Company),
   /** Pass back as `cursor` for the next page. Null on the last page. */
   nextCursor: z.string().nullable(),
+  /** Companies matching the filters across all pages. */
+  total: z.number().int().nonnegative(),
 });
 export type CompaniesPage = z.infer<typeof CompaniesPage>;
 

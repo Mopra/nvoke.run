@@ -205,6 +205,24 @@ export async function listCompanies(
     limit ${query.limit + 1}
   `;
 
+  // Same filters without the cursor, so the count covers every page.
+  const [count] = await sql<{ total: number }[]>`
+    select count(*)::int as total from (
+      select c.id
+      from companies c
+      left join emails e on e.company_id = c.id ${emailFilter(sql, query)}
+      where c.search_id = ${searchId} and c.clerk_user_id = ${userId}
+        ${
+          like
+            ? sql`and (c.name ilike ${like} or c.domain ilike ${like}
+                   or exists (select 1 from emails e2 where e2.company_id = c.id and e2.address ilike ${like}))`
+            : sql``
+        }
+      group by c.id
+      ${emailFiltered ? sql`having count(e.id) > 0` : sql``}
+    ) matched
+  `;
+
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
   const companies: Company[] = page.map((r) => ({
@@ -228,7 +246,11 @@ export async function listCompanies(
       checkedAt: iso(e.checked_at),
     })),
   }));
-  return { companies, nextCursor: rows.length > query.limit && last ? encodeCursor(last.created_at_text, last.id) : null };
+  return {
+    companies,
+    nextCursor: rows.length > query.limit && last ? encodeCursor(last.created_at_text, last.id) : null,
+    total: count?.total ?? 0,
+  };
 }
 
 /** One row per email, in the CSV column order. */

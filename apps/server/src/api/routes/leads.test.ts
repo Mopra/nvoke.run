@@ -171,15 +171,18 @@ describe('lead routes', () => {
       ]);
       expect(p.companies[2]?.emails).toEqual([]);
       expect(p.nextCursor).toBeNull();
+      expect(p.total).toBe(4);
     });
 
     it('paginates with a cursor', async () => {
       const first = await page('?limit=3');
       expect(first.companies).toHaveLength(3);
       expect(first.nextCursor).not.toBeNull();
+      expect(first.total).toBe(4);
       const second = await page(`?limit=3&cursor=${first.nextCursor}`);
       expect(second.companies.map((c) => c.name)).toEqual(['Delta']);
       expect(second.nextCursor).toBeNull();
+      expect(second.total).toBe(4);
       const bad = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies?cursor=garbage`, headers: as('alice') });
       expect(bad.statusCode).toBe(400);
     });
@@ -191,7 +194,9 @@ describe('lead routes', () => {
         ['Beta, "the" clinic', ['mette@beta.dk']],
       ]);
       const personalValid = await page('?verification=valid&kind=personal');
+      expect(valid.total).toBe(2);
       expect(personalValid.companies.map((c) => c.name)).toEqual(['Beta, "the" clinic']);
+      expect(personalValid.total).toBe(1);
       expect((await page('?q=gamma')).companies.map((c) => c.name)).toEqual(['Gamma']);
       expect((await page('?q=OLE@')).companies.map((c) => c.name)).toEqual(['Acme Dental']);
       expect((await page('?q=100%25')).companies).toEqual([]);
