@@ -24,7 +24,20 @@ import type {
   Search,
   SearchInput,
 } from './types';
-import type { ApiKey, ApiKeyListResponse, CreateApiKeyResponse, SearchListResponse } from '@nvoke/shared';
+import type {
+  ApiKey,
+  ApiKeyListResponse,
+  CreateApiKeyResponse,
+  CreateWebhookRequest,
+  CreateWebhookResponse,
+  SearchListResponse,
+  UpdateWebhookRequest,
+  Webhook,
+  WebhookDelivery,
+  WebhookDeliveryListResponse,
+  WebhookListResponse,
+  WebhookTestResponse,
+} from '@nvoke/shared';
 
 export type Transport = NvokeBridge;
 
@@ -47,6 +60,8 @@ function describeError(status: number, code: string): string {
   if (status === 401) return 'Session expired. Sign in again.';
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
   if (code === 'too_many_drops') return 'You have 20 drops. Delete one first.';
+  if (code === 'too_many_webhooks') return 'You have 10 webhooks. Delete one first.';
+  if (code === 'webhook_url_not_allowed') return 'Use an https URL on a public address.';
   if (status === 404) return 'That search is gone.';
   if (status >= 500) return 'Our server broke. Try again in a minute.';
   return code || `Request failed with status ${status}`;
@@ -103,6 +118,17 @@ export function createApi(transport: Transport) {
     deleteDrop: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/drops/${enc(id)}`);
     },
+    listWebhooks: async (): Promise<Webhook[]> => (await call<WebhookListResponse>('GET', '/v1/webhooks')).webhooks,
+    createWebhook: (input: CreateWebhookRequest): Promise<CreateWebhookResponse> => call('POST', '/v1/webhooks', input),
+    updateWebhook: (id: string, update: UpdateWebhookRequest): Promise<Webhook> =>
+      call('PATCH', `/v1/webhooks/${enc(id)}`, update),
+    deleteWebhook: async (id: string): Promise<void> => {
+      await call<null>('DELETE', `/v1/webhooks/${enc(id)}`);
+    },
+    /** Sends a signed ping now and says how the receiver answered. */
+    testWebhook: (id: string): Promise<WebhookTestResponse> => call('POST', `/v1/webhooks/${enc(id)}/test`),
+    listWebhookDeliveries: async (id: string): Promise<WebhookDelivery[]> =>
+      (await call<WebhookDeliveryListResponse>('GET', `/v1/webhooks/${enc(id)}/deliveries`)).deliveries,
     openExternal: (url: string): Promise<void> => transport.openExternal(url),
     getAuthState: (): Promise<AuthState> => transport.auth.getState(),
     signIn: (): Promise<void> => transport.auth.signIn(),

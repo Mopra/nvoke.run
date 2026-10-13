@@ -35,7 +35,7 @@ async function copy(text: string, what: string): Promise<boolean> {
 }
 
 /** A value in monospace with a copy button. Wraps instead of clipping. */
-function CopyField({ value, what, className }: { value: string; what: string; className?: string }) {
+export function CopyField({ value, what, className }: { value: string; what: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   async function onCopy(): Promise<void> {
     if (await copy(value, what)) {
@@ -54,7 +54,7 @@ function CopyField({ value, what, className }: { value: string; what: string; cl
 }
 
 /** Opens a docs page on the site in the system browser. */
-function DocsLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+export function DocsLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
     <Button variant="ghost" className={className} onClick={() => void api.openExternal(href)}>
       {children}
@@ -63,7 +63,7 @@ function DocsLink({ href, children, className }: { href: string; children: React
   );
 }
 
-function SectionHeading({ title, description, action }: { title: string; description: ReactNode; action?: ReactNode }) {
+export function SectionHeading({ title, description, action }: { title: string; description: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex items-end gap-6">
       <div className="min-w-0 flex-1">

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
 import { isActive } from './format';
-import type { ApiKey } from '@nvoke/shared';
+import type { ApiKey, CreateWebhookRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
 import type { CompaniesQuery, Drop, DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
@@ -15,6 +15,7 @@ export const keys = {
   me: ['me'] as const,
   apiKeys: ['api-keys'] as const,
   drops: ['drops'] as const,
+  webhooks: ['webhooks'] as const,
 };
 
 export function useSearches() {
@@ -223,4 +224,45 @@ export function useDeleteDrop() {
       client.setQueryData<DropListResponse>(keys.drops, (list) => (list ? { ...list, drops: list.drops.filter((d) => d.id !== id) } : list));
     },
   });
+}
+
+export function useWebhooks() {
+  return useQuery({ queryKey: keys.webhooks, queryFn: api.listWebhooks });
+}
+
+export function useCreateWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateWebhookRequest) => api.createWebhook(input),
+    onSuccess: (created) => {
+      // Never keep the secret in the cache: only the listed shape.
+      const { secret: _secret, ...listed } = created;
+      client.setQueryData<Webhook[]>(keys.webhooks, (list) => (list ? [listed, ...list] : [listed]));
+    },
+  });
+}
+
+export function useUpdateWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, update }: { id: string; update: UpdateWebhookRequest }) => api.updateWebhook(id, update),
+    onSuccess: (webhook) => {
+      client.setQueryData<Webhook[]>(keys.webhooks, (list) => list?.map((w) => (w.id === webhook.id ? webhook : w)));
+    },
+  });
+}
+
+export function useDeleteWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteWebhook(id),
+    onSuccess: (_void, id) => {
+      client.setQueryData<Webhook[]>(keys.webhooks, (list) => list?.filter((w) => w.id !== id));
+    },
+  });
+}
+
+/** Sends a signed ping. The answer is shown, not cached. */
+export function useTestWebhook() {
+  return useMutation({ mutationFn: (id: string) => api.testWebhook(id) });
 }

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
+import { Webhooks } from '@/components/Webhooks';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
 import { ErrorState } from '@/components/states';
@@ -174,6 +175,9 @@ export function AccountScreen() {
 
               <div className="mt-16">
                 <ApiKeys />
+              </div>
+              <div className="mt-16">
+                <Webhooks />
               </div>
               <div className="mt-16">
                 <ConnectAgent />

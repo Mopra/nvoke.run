@@ -29,8 +29,14 @@ import {
   FEED_SOURCES,
   PLANS,
   SEARCH_LIMIT_MAX,
+  CreateWebhookRequest,
   UpdateDropRequest,
+  UpdateWebhookRequest,
+  WEBHOOK_EVENTS,
+  WEBHOOK_SECRET_PREFIX,
+  WEBHOOKS_MAX,
   type ApiKey,
+  type Webhook,
 } from '@nvoke/shared';
 import { generateCompany, sourceYield, type MockCompanySeed } from './data';
 
@@ -93,6 +99,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   const searches = new Map<string, SearchRecord>();
   const apiKeys: ApiKey[] = [];
   const drops: Drop[] = [];
+  const webhooks: Webhook[] = [];
   const seedCache = new Map<string, MockCompanySeed[]>();
   let counter = 0;
 
@@ -305,6 +312,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
 
     if (parts[1] === 'api-keys') return apiKeyRoute(method, parts[2], body);
     if (parts[1] === 'drops') return dropRoute(method, parts[2], parts[3], body);
+    if (parts[1] === 'webhooks') return webhookRoute(method, parts[2], parts[3], body);
 
     if (parts[1] !== 'searches') return fail(404, 'not_found');
 
@@ -491,6 +499,88 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       drops.splice(drops.indexOf(drop), 1);
       return json(204, null);
     }
+    return fail(404, 'not_found');
+  }
+
+  if (options.seed !== false) {
+    const t0 = now();
+    webhooks.push({
+      id: crypto.randomUUID(),
+      url: 'https://hooks.zapier.com/hooks/catch/1874213/3vq9x2k/',
+      events: [...WEBHOOK_EVENTS],
+      scope: 'drops',
+      dropId: null,
+      enabled: true,
+      disabledReason: null,
+      lastSuccessAt: new Date(t0 - 2 * 3_600_000 + 4 * 60_000).toISOString(),
+      lastFailureAt: null,
+      lastError: null,
+      createdAt: new Date(t0 - 8 * 86_400_000).toISOString(),
+    });
+  }
+
+  /** GET, POST /v1/webhooks, PATCH and DELETE /v1/webhooks/:id, POST :id/test and GET :id/deliveries. */
+  function webhookRoute(method: HttpMethod, id: string | undefined, action: string | undefined, body: unknown): BridgeResponse {
+    const publicHttps = (url: string): boolean => {
+      try {
+        const u = new URL(url);
+        return u.protocol === 'https:' && !/^(localhost|127\.|10\.|192\.168\.)/.test(u.hostname);
+      } catch {
+        return false;
+      }
+    };
+    if (id === undefined && method === 'GET') return json(200, { webhooks: [...webhooks] });
+    if (id === undefined && method === 'POST') {
+      const req = CreateWebhookRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      if (!publicHttps(req.data.url)) return fail(422, 'webhook_url_not_allowed');
+      if (webhooks.length >= WEBHOOKS_MAX) return fail(409, 'too_many_webhooks');
+      const webhook: Webhook = {
+        id: crypto.randomUUID(),
+        url: req.data.url,
+        events: req.data.events ?? [...WEBHOOK_EVENTS],
+        scope: req.data.dropId ? 'drops' : (req.data.scope ?? 'all'),
+        dropId: req.data.dropId ?? null,
+        enabled: true,
+        disabledReason: null,
+        lastSuccessAt: null,
+        lastFailureAt: null,
+        lastError: null,
+        createdAt: new Date(now()).toISOString(),
+      };
+      webhooks.unshift(webhook);
+      const secret = `${WEBHOOK_SECRET_PREFIX}${btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24))))}`;
+      return json(201, { ...webhook, secret });
+    }
+    const webhook = webhooks.find((w) => w.id === id);
+    if (!webhook) return fail(404, 'not_found');
+    if (action === undefined && method === 'PATCH') {
+      const req = UpdateWebhookRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      const u = req.data;
+      if (u.url !== undefined) {
+        if (!publicHttps(u.url)) return fail(422, 'webhook_url_not_allowed');
+        webhook.url = u.url;
+      }
+      if (u.events !== undefined) webhook.events = u.events;
+      if (u.scope !== undefined) webhook.scope = u.scope;
+      if (u.dropId !== undefined) webhook.dropId = u.dropId;
+      if (u.dropId) webhook.scope = 'drops';
+      if (u.enabled !== undefined) {
+        webhook.enabled = u.enabled;
+        webhook.disabledReason = null;
+      }
+      return json(200, { ...webhook });
+    }
+    if (action === undefined && method === 'DELETE') {
+      webhooks.splice(webhooks.indexOf(webhook), 1);
+      return json(204, null);
+    }
+    if (action === 'test' && method === 'POST') {
+      webhook.lastSuccessAt = new Date(now()).toISOString();
+      return json(200, { ok: true, status: 200, error: null, durationMs: 140 });
+    }
+    if (action === 'deliveries' && method === 'GET') return json(200, { deliveries: [] });
     return fail(404, 'not_found');
   }
 

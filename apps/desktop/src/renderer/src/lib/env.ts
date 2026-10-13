@@ -14,6 +14,7 @@ export const MCP_URL = `${env.apiUrl.replace(/\/$/, '')}/mcp`;
 export const DOCS_URL = `${env.siteUrl.replace(/\/$/, '')}/docs`;
 export const API_DOCS_URL = `${DOCS_URL}/api`;
 export const MCP_DOCS_URL = `${DOCS_URL}/mcp`;
+export const WEBHOOK_DOCS_URL = `${DOCS_URL}/webhooks`;
 
 /** The site page where people pick a plan and pay. Opens in the system browser. */
 export const BILLING_URL = `${env.siteUrl.replace(/\/$/, '')}/desktop/billing`;
