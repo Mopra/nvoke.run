@@ -29,4 +29,4 @@ export type { BridgeResponse, HttpMethod } from '../../../ipc/contract';
 export type NvokeAuthBridge = NvokeApi['auth'];
 
 /** The part of `window.nvoke` the data layer uses. The mock transport implements the same. */
-export type NvokeBridge = Pick<NvokeApi, 'request' | 'exportCsv' | 'startDragCsv' | 'openExternal' | 'auth' | 'local'>;
+export type NvokeBridge = Pick<NvokeApi, 'request' | 'exportCsv' | 'startDragCsv' | 'openExternal' | 'auth' | 'local' | 'notifications'>;

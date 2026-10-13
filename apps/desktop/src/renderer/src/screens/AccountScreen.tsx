@@ -21,7 +21,7 @@ import { formatNumber, percent, periodLabel, relativeTime, resetDate } from '@/l
 import { isMac } from '@/lib/hotkeys';
 import { useLocalStatus, useMe, usePlanSync } from '@/lib/queries';
 import { setThemePreference, useTheme, type ThemePreference } from '@/lib/theme';
-import type { Me } from '@/lib/types';
+import type { Me, NotificationSettings } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 /** The month's verified emails as one large number over a hairline meter. */
@@ -268,6 +268,47 @@ function InboxFolder() {
   );
 }
 
+/** Native notifications and the unseen badge for finished drops. */
+function NotificationsSwitch() {
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.getNotificationSettings().then((s) => live && setSettings(s), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!settings) return null;
+
+  async function toggle(enabled: boolean): Promise<void> {
+    setSettings((s) => (s ? { ...s, enabled } : s));
+    try {
+      setSettings(await api.setNotificationsEnabled(enabled));
+    } catch {
+      setSettings((s) => (s ? { ...s, enabled: !enabled } : s));
+      toast.error('Couldn’t change that setting');
+    }
+  }
+
+  return (
+    <Setting
+      label="Drop notifications"
+      description={
+        settings.supported
+          ? 'A notification and an unseen count on the dock or taskbar when a drop delivers. Your system’s Focus and Do Not Disturb still apply.'
+          : 'This system can’t show notifications.'
+      }
+    >
+      <Switch
+        checked={settings.enabled}
+        onCheckedChange={(v) => void toggle(v)}
+        disabled={!settings.supported}
+        aria-label="Drop notifications"
+      />
+    </Setting>
+  );
+}
+
 function AccountSkeleton() {
   return (
     <div className="flex flex-col gap-14">
@@ -352,6 +393,7 @@ export function AccountScreen() {
                 <OpenAtLogin />
                 <QuickHotkey />
                 <InboxFolder />
+                <NotificationsSwitch />
                 <Setting label="This computer" description={<LocalCopyDescription />}>
                   <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
                     {signingOut && <Loader2 className="motion-safe:animate-spin" />}

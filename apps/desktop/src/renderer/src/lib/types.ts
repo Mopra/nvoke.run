@@ -41,6 +41,7 @@ export type {
   LocalChange,
   LocalCompaniesPage,
   LocalStatus,
+  NotificationSettings,
 } from '../../../ipc/contract';
 
 /** Filters for `GET /v1/searches/:id/companies`, plus the page cursor. */

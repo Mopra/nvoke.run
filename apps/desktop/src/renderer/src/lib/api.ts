@@ -23,6 +23,7 @@ import type {
   LocalChange,
   LocalStatus,
   Me,
+  NotificationSettings,
   Search,
   SearchInput,
 } from './types';
@@ -182,6 +183,13 @@ export function createApi(transport: Transport) {
     signIn: (): Promise<void> => transport.auth.signIn(),
     cancelSignIn: (): Promise<void> => transport.auth.cancelSignIn(),
     signOut: (): Promise<void> => transport.auth.signOut(),
+    getNotificationSettings: (): Promise<NotificationSettings> => transport.notifications.getSettings(),
+    setNotificationsEnabled: (enabled: boolean): Promise<NotificationSettings> =>
+      transport.notifications.setEnabled(enabled),
+    /** The search was opened: its leads leave the unseen badge. */
+    markSearchSeen: (id: string): void => transport.notifications.markSeen(id),
+    /** A drop notification was clicked. */
+    onOpenSearch: (callback: (searchId: string) => void): (() => void) => transport.notifications.onOpenSearch(callback),
     onAuthChange: (callback: (state: AuthState) => void): (() => void) => transport.auth.onChange(callback),
   };
 }
@@ -191,7 +199,7 @@ export type Api = ReturnType<typeof createApi>;
 /** Returns the preload bridge if it has the full expected shape. */
 export function bridgeFromWindow(): NvokeBridge | null {
   const candidate = (window as unknown as { nvoke?: Partial<NvokeBridge> }).nvoke;
-  if (!candidate || typeof candidate.request !== 'function' || !candidate.auth || !candidate.local) return null;
+  if (!candidate || typeof candidate.request !== 'function' || !candidate.auth || !candidate.local || !candidate.notifications) return null;
   return candidate as NvokeBridge;
 }
 

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDesktopCommands } from '@/lib/desktop';
 import { useModHotkey } from '@/lib/hotkeys';
@@ -45,6 +46,13 @@ function SignedIn() {
     else if (command.name === 'route') window.location.hash = command.hash;
     else navigate({ name: 'searches' });
   });
+  // A clicked drop notification opens its search.
+  useEffect(() => api.onOpenSearch((id) => navigate({ name: 'search', id })), []);
+  // Opening a search clears its leads from the dock or taskbar badge.
+  const openedId = route.name === 'search' ? route.id : null;
+  useEffect(() => {
+    if (openedId) api.markSearchSeen(openedId);
+  }, [openedId]);
   return (
     <AppShell route={route}>
       <Screen route={route} />

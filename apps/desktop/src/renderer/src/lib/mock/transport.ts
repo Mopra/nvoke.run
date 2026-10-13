@@ -701,6 +701,19 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         return () => undefined;
       },
     },
+    notifications: {
+      async getSettings() {
+        return { enabled: storage.getItem('nvoke.mock.notifications') !== 'off', supported: true };
+      },
+      async setEnabled(enabled) {
+        storage.setItem('nvoke.mock.notifications', enabled ? 'on' : 'off');
+        return { enabled, supported: true };
+      },
+      markSeen() {},
+      onOpenSearch() {
+        return () => undefined;
+      },
+    },
     auth: {
       async getState() {
         await sleep(jitter());

@@ -29,6 +29,7 @@ import { QuickWindow } from './quick-window';
 import { registerMcp } from './mcp';
 import type { LocalMcpServer } from './mcp/server';
 import { AppTray } from './tray';
+import { Notifier, registerNotificationIpc } from './notifications/notifier';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
 
 const env = {
@@ -61,6 +62,7 @@ let tray: AppTray | null = null;
 let mainWindow: BrowserWindow | null = null;
 let quick: QuickWindow | null = null;
 let mcp: LocalMcpServer | null = null;
+let notifier: Notifier | null = null;
 let desktop: SavedDesktop = {};
 let inbox: InboxWatcher | null = null;
 
@@ -183,6 +185,8 @@ function main(): void {
     sync = new LeadSync({ client: session, store, onChange: broadcastLocalChange });
     registerIpc(session, sync);
     registerLocalIpc(store, sync);
+    notifier = new Notifier(session, () => mainWindow);
+    if (!captureDir) registerNotificationIpc(notifier);
     registerWindowIpc();
     registerDragIpc();
     registerEnrichedIpc();
@@ -203,6 +207,7 @@ function main(): void {
     // No token: whatever an earlier run left behind goes.
     if (session.getState().status === 'signed-in') sync.start();
     else sync.wipe();
+    if (!captureDir) notifier?.onAuth(session.getState());
     for (const url of queued.splice(0)) await session.handleCallback(url);
 
     app.on('activate', () => {
@@ -234,6 +239,7 @@ function main(): void {
 
 function onAuthChange(state: AuthState): void {
   broadcastAuthState(state);
+  notifier?.onAuth(state);
   const signedIn = state.status === 'signed-in';
   tray?.setSignedIn(signedIn);
   if (signedIn) inbox?.retry();

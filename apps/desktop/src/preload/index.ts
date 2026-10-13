@@ -17,6 +17,7 @@ import {
   type LocalCompaniesPage,
   type LocalStatus,
   type McpSetup,
+  type NotificationSettings,
   type NvokeApi,
   type QuickClipboard,
   type WindowChrome,
@@ -125,6 +126,16 @@ const api: NvokeApi = {
       const handler = (_event: IpcRendererEvent, clients: string[]) => listener(clients);
       ipcRenderer.on(IpcChannel.mcpClientsChanged, handler);
       return () => ipcRenderer.removeListener(IpcChannel.mcpClientsChanged, handler);
+    },
+  },
+  notifications: {
+    getSettings: () => ipcRenderer.invoke(IpcChannel.notificationsGetSettings) as Promise<NotificationSettings>,
+    setEnabled: (enabled) => ipcRenderer.invoke(IpcChannel.notificationsSetEnabled, enabled) as Promise<NotificationSettings>,
+    markSeen: (searchId) => ipcRenderer.send(IpcChannel.notificationsMarkSeen, searchId),
+    onOpenSearch: (listener) => {
+      const handler = (_event: IpcRendererEvent, searchId: string) => listener(searchId);
+      ipcRenderer.on(IpcChannel.notificationsOpenSearch, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.notificationsOpenSearch, handler);
     },
   },
 };
