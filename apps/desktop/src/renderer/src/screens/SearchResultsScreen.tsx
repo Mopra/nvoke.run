@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
-  ArrowLeft,
   Ban,
+  ChevronDown,
+  ChevronLeft,
   Copy,
   Download,
   ExternalLink,
@@ -18,19 +19,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/AppShell';
+import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { EmptyState, ErrorState } from '@/components/states';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -42,8 +34,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { Kbd } from '@/components/ui/kbd';
+import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { api, ApiError } from '@/lib/api';
@@ -59,12 +51,12 @@ import {
   VERIFICATION_LABEL,
 } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
-import { useCancelSearch, useCompanies, useDeleteSearch, useSearch } from '@/lib/queries';
+import { useCancelSearch, useCompanies, useSearch } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import type { Company, Email, EmailKind, Search, Verification } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const COLUMNS = 'grid grid-cols-[minmax(13rem,1fr)_minmax(19rem,1.5fr)_minmax(9rem,0.7fr)_4.5rem] gap-5';
+const COLUMNS = 'grid grid-cols-[minmax(12rem,1fr)_minmax(19rem,1.6fr)_minmax(8rem,0.6fr)_4rem] gap-6';
 
 const SOURCE_LABEL: Record<string, string> = {
   openstreetmap: 'OpenStreetMap',
@@ -93,16 +85,16 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced;
 }
 
-/* Header */
+/* Overview */
 
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-0.5 flex items-baseline gap-1.5">
-        <span className="text-xl font-semibold tabular-nums tracking-tight">{formatNumber(value)}</span>
-        {sub && <span className="truncate text-xs text-muted-foreground">{sub}</span>}
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-xl font-semibold tabular-nums">{formatNumber(value)}</span>
+        {sub && <span className="truncate text-xs tabular-nums text-muted-foreground">{sub}</span>}
       </div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -111,25 +103,23 @@ function Overview({ search }: { search: Search }) {
   const active = isActive(search.status);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
-    <section className="shrink-0 border-b px-6 py-4">
+    <section className="shrink-0 px-6 pt-2 pb-5">
       <div className="grid grid-cols-4 gap-6">
-        <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)} max`} />
+        <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
         <Stat label="Websites crawled" value={search.companiesCrawled} />
         <Stat label="Emails found" value={search.emailsFound} />
         <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
       </div>
       {active && (
-        <div className="mt-4 flex items-center gap-4">
-          <SearchProgress search={search} className="flex-1" />
+        <div className="mt-5 flex items-center gap-4">
+          <SearchProgress search={search} className="h-1.5 flex-1" />
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
         </div>
       )}
       {search.status === 'failed' && (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+        <div className="mt-5 flex items-center gap-3 rounded-lg bg-destructive/8 px-3.5 py-2.5 text-sm">
           <TriangleAlert className="size-4 shrink-0 text-destructive" />
-          <span className="flex-1">
-            {errorMessage(search.error)} The results found until then are kept below.
-          </span>
+          <span className="flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
           {search.error === 'quota_exceeded' && (
             <Button size="sm" variant="outline" onClick={() => navigate({ name: 'account' })}>
               View plan
@@ -148,14 +138,15 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
     <div className="group/email flex min-w-0 items-center gap-2">
       <button
         type="button"
+        data-copy-email
         onClick={() => void copy(email.address, email.address)}
-        className="flex min-w-0 items-center gap-1.5 rounded text-left text-[13px] outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="flex min-w-0 items-center gap-1.5 rounded-sm text-left font-mono text-xs text-foreground/80 outline-none hover:text-primary dark:text-foreground/65 dark:hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         title="Copy email"
       >
         <span className="truncate">{email.address}</span>
-        <Copy className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/email:opacity-100" />
+        <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/email:opacity-60" />
       </button>
-      {email.kind === 'personal' && <span className="shrink-0 text-[11px] text-muted-foreground">person</span>}
+      {email.kind === 'personal' && <span className="shrink-0 text-2xs text-muted-foreground">person</span>}
       <span className="ml-auto" />
       <VerificationBadge value={email.verification} pending={checking && email.checkedAt === null} />
     </div>
@@ -163,21 +154,20 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
 }
 
 function EmailsCell({ company, live }: { company: Company; live: boolean }) {
+  const quiet = 'text-xs leading-5 text-muted-foreground';
   if (company.crawlStatus === 'pending') {
     return (
-      <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
+      <span className={cn(quiet, 'inline-flex items-center gap-2')}>
         <Loader2 className="size-3 motion-safe:animate-spin" />
         Waiting to crawl
       </span>
     );
   }
-  if (company.crawlStatus === 'blocked')
-    return <span className="text-[13px] text-muted-foreground">The site asks crawlers to stay out</span>;
-  if (company.crawlStatus === 'failed')
-    return <span className="text-[13px] text-muted-foreground">The site could not be reached</span>;
-  if (company.emails.length === 0) return <span className="text-[13px] text-muted-foreground">No public email</span>;
+  if (company.crawlStatus === 'blocked') return <span className={quiet}>The site asks crawlers to stay out</span>;
+  if (company.crawlStatus === 'failed') return <span className={quiet}>The site could not be reached</span>;
+  if (company.emails.length === 0) return <span className={quiet}>No public email</span>;
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1">
       {company.emails.map((e) => (
         <EmailLine key={e.id} email={e} checking={live} />
       ))}
@@ -188,55 +178,63 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
 function CompanyRow({ company, live }: { company: Company; live: boolean }) {
   const source = SOURCE_LABEL[company.source] ?? company.source;
   return (
-    <div data-selectable className={`${COLUMNS} items-start border-b px-6 py-2.5 hover:bg-accent/40`}>
-      <div className="min-w-0 leading-5">
-        <div className="truncate text-[13px] font-medium">{company.name}</div>
-        <button
-          type="button"
-          onClick={() => void api.openExternal(company.website)}
-          className="block max-w-full truncate rounded text-left text-xs text-muted-foreground outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          {company.domain}
-        </button>
-      </div>
-      <EmailsCell company={company} live={live} />
-      <div className="min-w-0 text-xs leading-5 text-muted-foreground">
-        <div className="truncate">{company.location ?? source}</div>
-        {company.phone && <div className="truncate tabular-nums">{company.phone}</div>}
-      </div>
-      <div className="-my-1 flex justify-end gap-0.5">
-        {company.emails.length > 1 && (
+    <div className="px-3">
+      <div
+        data-selectable
+        className={cn(
+          COLUMNS,
+          'group items-start rounded-lg px-3 py-2.5 transition-colors duration-100 hover:bg-accent',
+        )}
+      >
+        <div className="min-w-0 leading-5">
+          <div className="truncate text-sm font-medium">{company.name}</div>
+          <button
+            type="button"
+            onClick={() => void api.openExternal(company.website)}
+            className="block max-w-full truncate rounded-sm text-left font-mono text-2xs text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {company.domain}
+          </button>
+        </div>
+        <EmailsCell company={company} live={live} />
+        <div className="min-w-0 text-xs leading-5 text-muted-foreground">
+          <div className="truncate">{company.location ?? source}</div>
+          {company.phone && <div className="truncate tabular-nums">{company.phone}</div>}
+        </div>
+        <div className="-my-0.5 flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
+          {company.emails.length > 1 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6 text-muted-foreground"
+                  aria-label="Copy all emails"
+                  onClick={() =>
+                    void copy(company.emails.map((e) => e.address).join(', '), `${company.emails.length} emails`)
+                  }
+                >
+                  <Copy className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy all emails</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                aria-label="Copy all emails"
-                onClick={() =>
-                  void copy(company.emails.map((e) => e.address).join(', '), `${company.emails.length} emails`)
-                }
+                size="icon-sm"
+                className="size-6 text-muted-foreground"
+                aria-label="Open website"
+                onClick={() => void api.openExternal(company.website)}
               >
-                <Copy className="size-3.5" />
+                <ExternalLink className="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Copy all emails</TooltipContent>
+            <TooltipContent>Open website</TooltipContent>
           </Tooltip>
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground"
-              aria-label="Open website"
-              onClick={() => void api.openExternal(company.website)}
-            >
-              <ExternalLink className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Open website</TooltipContent>
-        </Tooltip>
+        </div>
       </div>
     </div>
   );
@@ -244,16 +242,16 @@ function CompanyRow({ company, live }: { company: Company; live: boolean }) {
 
 function TableSkeleton() {
   return (
-    <div>
-      {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className={`${COLUMNS} border-b px-6 py-3.5`}>
-          <div className="flex flex-col gap-1.5">
+    <div className="px-3">
+      {Array.from({ length: 9 }, (_, i) => (
+        <div key={i} className={cn(COLUMNS, 'px-3 py-3.5')}>
+          <div className="flex flex-col gap-2">
             <Skeleton className="h-3.5 w-40" />
-            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-2.5 w-24" />
           </div>
           <div className="flex items-center justify-between">
-            <Skeleton className="h-3.5 w-48" />
-            <Skeleton className="h-5 w-14 rounded-full" />
+            <Skeleton className="h-3 w-48" />
+            <Skeleton className="h-[18px] w-14 rounded-full" />
           </div>
           <Skeleton className="h-3 w-24" />
           <span />
@@ -275,10 +273,19 @@ function VerificationFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className={cn(value && 'border-ring/60')}>
-          {value ? <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[value])} /> : null}
+        <button
+          type="button"
+          className={cn(
+            'inline-flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
+            value
+              ? 'bg-primary/10 text-foreground dark:bg-primary/20'
+              : 'bg-foreground/[0.05] text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground',
+          )}
+        >
+          {value && <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[value])} />}
           {value ? VERIFICATION_LABEL[value] : 'Any verification'}
-        </Button>
+          <ChevronDown className="size-3 opacity-60" />
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuLabel>Show emails that are</DropdownMenuLabel>
@@ -300,32 +307,7 @@ function VerificationFilter({
   );
 }
 
-function KindFilter({ value, onChange }: { value: EmailKind | undefined; onChange: (v: EmailKind | undefined) => void }) {
-  const options: [EmailKind | undefined, string][] = [
-    [undefined, 'All'],
-    ['generic', 'Generic'],
-    ['personal', 'Personal'],
-  ];
-  return (
-    <div role="radiogroup" aria-label="Email kind" className="inline-flex h-8 rounded-md bg-muted p-[3px]">
-      {options.map(([v, label]) => (
-        <button
-          key={label}
-          type="button"
-          role="radio"
-          aria-checked={value === v}
-          onClick={() => onChange(v)}
-          className={cn(
-            'rounded px-2.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
-            value === v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
+type KindOption = 'all' | EmailKind;
 
 /* Screen */
 
@@ -337,11 +319,11 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const [kind, setKind] = useState<EmailKind | undefined>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
   const cancel = useCancelSearch();
-  const remove = useDeleteSearch();
   const filterRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -395,30 +377,20 @@ export function SearchResultsScreen({ id }: { id: string }) {
 
   function doCancel(): void {
     cancel.mutate(id, {
-      onSuccess: () => toast('Search canceled', { description: 'Results found so far are kept.' }),
-      onError: (err) => toast.error('Could not cancel', { description: err.message }),
-    });
-  }
-
-  function doDelete(): void {
-    remove.mutate(id, {
-      onSuccess: () => {
-        toast('Search deleted');
-        navigate({ name: 'searches' }, { replace: true });
-      },
-      onError: (err) => toast.error('Could not delete', { description: err.message }),
+      onSuccess: () => toast('Search stopped', { description: 'Results found so far are kept.' }),
+      onError: (err) => toast.error('Could not stop the search', { description: err.message }),
     });
   }
 
   const back = (
     <Button
       variant="ghost"
-      size="icon"
-      className="-ml-2 size-8 text-muted-foreground"
+      size="icon-sm"
+      className="-ml-1.5 text-muted-foreground"
       aria-label="Back to searches"
       onClick={() => navigate({ name: 'searches' })}
     >
-      <ArrowLeft />
+      <ChevronLeft className="size-[18px]" />
     </Button>
   );
 
@@ -431,8 +403,8 @@ export function SearchResultsScreen({ id }: { id: string }) {
           <EmptyState
             icon={SearchX}
             title="This search no longer exists"
-            actions={
-              <Button variant="outline" size="sm" onClick={() => navigate({ name: 'searches' })}>
+            action={
+              <Button variant="outline" onClick={() => navigate({ name: 'searches' })}>
                 Back to searches
               </Button>
             }
@@ -450,11 +422,11 @@ export function SearchResultsScreen({ id }: { id: string }) {
     return (
       <>
         <PageHeader leading={back} title={<Skeleton className="h-4 w-56" />} />
-        <div className="grid grid-cols-4 gap-6 border-b px-6 py-4">
+        <div className="grid grid-cols-4 gap-6 px-6 pt-2 pb-5">
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="flex flex-col gap-2">
-              <Skeleton className="h-3 w-20" />
               <Skeleton className="h-6 w-14" />
+              <Skeleton className="h-2.5 w-20" />
             </div>
           ))}
         </div>
@@ -473,7 +445,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
         leading={back}
         title={searchTitle(search)}
         subtitle={
-          <span className="flex items-center gap-3">
+          <span className="flex items-center gap-2">
             <StatusLabel status={search.status} />
             <span className="truncate">
               {searchSubtitle(search)}, {timing}
@@ -483,7 +455,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
         actions={
           <>
             {live && (
-              <Button variant="outline" size="sm" onClick={doCancel} disabled={cancel.isPending}>
+              <Button variant="ghost" size="sm" onClick={doCancel} disabled={cancel.isPending}>
                 <Ban />
                 Stop
               </Button>
@@ -491,17 +463,17 @@ export function SearchResultsScreen({ id }: { id: string }) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="sm" onClick={() => void doExport()} disabled={exporting || search.emailsFound === 0}>
-                  {exporting ? <Loader2 className="animate-spin" /> : <Download />}
+                  {exporting ? <Loader2 className="motion-safe:animate-spin" /> : <Download />}
                   Export CSV
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                One row per email. <Kbd className="ml-1 border-transparent bg-primary-foreground/15 text-primary-foreground/80">{modKey} E</Kbd>
+                One row per email <Kbd>{modKey} E</Kbd>
               </TooltipContent>
             </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8" aria-label="More actions">
+                <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="More actions">
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
@@ -518,10 +490,16 @@ export function SearchResultsScreen({ id }: { id: string }) {
 
       <Overview search={search} />
 
-      <div className="flex shrink-0 items-center gap-2 border-b px-6 py-2.5">
-        <div className="relative w-72">
+      <div
+        className={cn(
+          'relative z-10 flex shrink-0 items-center gap-2 px-6 pb-3 transition-shadow duration-200',
+          scrolled && 'shadow-[0_1px_0_var(--border)]',
+        )}
+      >
+        {/* Command bar style filter. */}
+        <div className="relative w-80">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <input
             ref={filterRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -533,25 +511,35 @@ export function SearchResultsScreen({ id }: { id: string }) {
             }}
             placeholder="Filter companies and emails"
             aria-label="Filter companies and emails"
-            className="h-8 pr-12 pl-8 text-[13px]"
+            className="h-7 w-full rounded-[8px] bg-foreground/[0.05] pr-12 pl-8 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-card focus-visible:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/25 dark:focus-visible:bg-foreground/10"
           />
           {text ? (
             <button
               type="button"
               aria-label="Clear filter"
               onClick={() => setText('')}
-              className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+              className="absolute top-1/2 right-1.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background hover:bg-muted-foreground/60"
             >
-              <X className="size-3.5" />
+              <X className="size-2.5" strokeWidth={3} />
             </button>
           ) : (
-            <Kbd className="absolute top-1/2 right-2 -translate-y-1/2">{modKey} F</Kbd>
+            <Kbd className="absolute top-1/2 right-1.5 -translate-y-1/2 bg-transparent">{modKey} F</Kbd>
           )}
         </div>
         <VerificationFilter value={verification} onChange={setVerification} />
-        <KindFilter value={kind} onChange={setKind} />
+        <Segmented<KindOption>
+          label="Email kind"
+          size="sm"
+          value={kind ?? 'all'}
+          onChange={(v) => setKind(v === 'all' ? undefined : v)}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'generic', label: 'Generic' },
+            { value: 'personal', label: 'Personal' },
+          ]}
+        />
         <div className="ml-auto flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
-          {companies.isFetching && !companies.isPending && <Loader2 className="size-3 animate-spin" />}
+          {companies.isFetching && !companies.isPending && <Loader2 className="size-3 motion-safe:animate-spin" />}
           {companies.data &&
             (filtered
               ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)} companies`
@@ -559,14 +547,18 @@ export function SearchResultsScreen({ id }: { id: string }) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
-        <div
-          className={`${COLUMNS} sticky top-0 z-10 border-b bg-background/95 px-6 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm`}
-        >
-          <span>Company</span>
-          <span>Emails</span>
-          <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
-          <span />
+      <div
+        ref={scrollRef}
+        onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 2)}
+        className="min-h-0 flex-1 overflow-auto pb-4 [scrollbar-gutter:stable]"
+      >
+        <div className="sticky top-0 z-10 bg-background/85 px-3 backdrop-blur-xl">
+          <div className={cn(COLUMNS, 'px-3 py-1.5 text-xs font-medium text-muted-foreground')}>
+            <span>Company</span>
+            <span>Emails</span>
+            <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
+            <span />
+          </div>
         </div>
         {companies.isPending ? (
           <TableSkeleton />
@@ -577,10 +569,9 @@ export function SearchResultsScreen({ id }: { id: string }) {
             <EmptyState
               icon={SearchX}
               title="Nothing matches these filters"
-              actions={
+              action={
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={() => {
                     setText('');
                     setVerification(undefined);
@@ -617,22 +608,12 @@ export function SearchResultsScreen({ id }: { id: string }) {
         )}
       </div>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this search?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {searchTitle(search)} and its {formatNumber(search.companiesFound)} companies and{' '}
-              {formatNumber(search.emailsFound)} emails are removed for good. Emails already counted toward your plan
-              stay counted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={doDelete}>Delete search</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteSearchDialog
+        search={search}
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        onDeleted={() => navigate({ name: 'searches' }, { replace: true })}
+      />
     </>
   );
 }

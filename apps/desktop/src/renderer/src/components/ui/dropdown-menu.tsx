@@ -13,7 +13,7 @@ function DropdownMenuTrigger(props: React.ComponentProps<typeof DropdownMenuPrim
 
 function DropdownMenuContent({
   className,
-  sideOffset = 4,
+  sideOffset = 6,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
   return (
@@ -22,7 +22,8 @@ function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-40 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
+          'z-50 min-w-44 overflow-hidden rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg backdrop-blur-2xl',
+          'origin-(--radix-dropdown-menu-content-transform-origin) duration-200 ease-spring data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.96] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100',
           className,
         )}
         {...props}
@@ -31,8 +32,9 @@ function DropdownMenuContent({
   );
 }
 
+// Highlighted items take the accent, the way native menus do.
 const itemClass =
-  "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+  "relative flex h-7 cursor-default select-none items-center gap-2 rounded-[7px] px-2 text-sm outline-none data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
 
 function DropdownMenuItem({
   className,
@@ -42,7 +44,12 @@ function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
-      className={cn(itemClass, variant === 'destructive' && 'text-destructive focus:text-destructive', className)}
+      className={cn(
+        itemClass,
+        variant === 'destructive' &&
+          'text-destructive data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground',
+        className,
+      )}
       {...props}
     />
   );
@@ -60,12 +67,12 @@ function DropdownMenuRadioItem({
   return (
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
-      className={cn(itemClass, 'pl-8', className)}
+      className={cn(itemClass, 'pl-7', className)}
       {...props}
     >
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
+          <CheckIcon className="size-3.5 opacity-100" strokeWidth={2.5} />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -77,7 +84,7 @@ function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof 
   return (
     <DropdownMenuPrimitive.Label
       data-slot="dropdown-menu-label"
-      className={cn('px-2 py-1.5 text-xs font-medium text-muted-foreground', className)}
+      className={cn('px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground', className)}
       {...props}
     />
   );
@@ -87,7 +94,7 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
   return (
     <DropdownMenuPrimitive.Separator
       data-slot="dropdown-menu-separator"
-      className={cn('-mx-1 my-1 h-px bg-border', className)}
+      className={cn('mx-2 my-1 h-px bg-border', className)}
       {...props}
     />
   );

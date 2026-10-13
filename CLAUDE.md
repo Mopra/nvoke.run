@@ -15,8 +15,10 @@ pnpm workspaces, TypeScript everywhere, Node 24.
 - `apps/site`: Next.js (App Router) marketing and download site. Deploys to
   Vercel with root directory `apps/site`. Placeholder pages, plus the desktop
   sign-in page under `app/desktop` (Clerk is scoped there by `proxy.ts`).
-- `packages/theme`: `theme.css`, the single source of the shadcn color tokens.
-  Imported by the desktop renderer's `index.css` and the site's `globals.css`.
+- `packages/theme`: `theme.css`, the single source of the shadcn color tokens
+  (plus a few extras: `sidebar-material`, `glow`, `sheen`, `scrim`, layered
+  shadows). Imported by the desktop renderer's `index.css` and the site's
+  `globals.css`.
 - `deploy/`: systemd units (`nvoke-api.service`, `nvoke-worker.service`) and
   the VPS runbook. Server runs as plain Node in `/opt/nvoke` under a dedicated
   `nvoke` user, with secrets in `/opt/nvoke/.env`. No Docker, no Coolify.
@@ -34,6 +36,7 @@ pnpm build            # shared, server, desktop, site
 pnpm dev:api          # tsx watch, reads apps/server/.env
 pnpm dev:worker
 pnpm dev:desktop      # electron-vite dev, reads apps/desktop/.env
+pnpm --filter @nvoke/desktop capture   # screenshots every screen, light and dark
 pnpm dev:site         # next dev on port 3001
 pnpm migrate          # needs DATABASE_URL
 pnpm dist:desktop     # installer for the current OS
@@ -54,6 +57,29 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   `Authorization: Bearer` and `src/api/auth.ts` in the server accepts either.
   Protect a route with `{ preHandler: app.requireAuth }` and read `req.auth`
   (`requireClerkSession` and `requireDeviceSession` narrow it).
+
+## Desktop window
+
+The main window is frameless with native controls (`src/main/window.ts`).
+macOS: `hiddenInset` traffic lights inside the sidebar header, `sidebar`
+vibrancy. Windows: hidden title bar with `titleBarOverlay` caption buttons,
+Mica on Windows 11 (build 22000+), opaque on Windows 10. Linux: the same
+overlay, opaque. The renderer reads `window.nvoke.window.getChrome()` and sets
+`data-platform`, `data-material` and `data-controls` on `<html>`
+(`lib/chrome.ts`); CSS variants `mac:`, `material:`, `blurred:` and
+`fullscreen:` follow them. Drag regions use the `app-drag` utility; buttons,
+links and fields inside opt out automatically. The appearance setting is sent
+to `nativeTheme.themeSource` so the material matches, and the caption button
+colors follow `--background` and `--foreground`. Size, position and theme are
+kept in `userData/window-state.json`.
+
+`pnpm --filter @nvoke/desktop capture` runs the app on demo data with a
+throwaway profile, screenshots every screen in light and dark into
+`apps/desktop/screenshots/` (gitignored) and quits. `*.window.png` is the
+screen cropped to the window, the only capture that shows the material and
+caption buttons, so keep the window uncovered while it runs. The script drops
+`ELECTRON_RUN_AS_NODE`, which makes electron.exe start as plain Node and exit
+when an Electron based tool exported it.
 
 ## Desktop sign-in
 
@@ -88,9 +114,14 @@ it through `protocols` in `electron-builder.yml`.
    `border-border`, `ring-ring`, `bg-sidebar` and so on. ESLint enforces this in
    `apps/desktop/src/renderer` and `apps/site`. All colors live in
    `packages/theme/theme.css`, so a theme swaps in one file for both apps.
-2. **Theme direction.** Warm neutrals at oklch hue about 80 with low chroma,
-   a sage accent ring at hue about 150, and a sidebar darker than the content in
-   both light and dark mode (card, then background, then sidebar in lightness).
+2. **Theme direction.** Modern, frameless, minimal, with an Apple feel and a
+   slightly futuristic edge. Cool near-neutral grays (oklch hue about 265,
+   chroma under 0.01) and one accent, "iris" (oklch about 0.57 0.215 268),
+   spent sparingly: the primary action (with a soft glow), focus, selection,
+   running progress (with a sheen). Hairline translucent borders, layered soft
+   shadows, 10 to 14px radii, system fonts, monospace for domains and emails.
+   The desktop sidebar is a translucent source list over the window material
+   (vibrancy on macOS, Mica on Windows 11), opaque where there is none.
 3. **No em dashes, en dashes or `--` as punctuation** in code comments, docs,
    UI strings or commit messages. Rewrite the sentence with a comma, colon,
    parentheses or a full stop. `scripts/check-punctuation.mjs` catches the

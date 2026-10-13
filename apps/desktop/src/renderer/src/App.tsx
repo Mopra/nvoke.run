@@ -49,7 +49,7 @@ export function App() {
   return (
     <TooltipProvider>
       {auth === undefined ? (
-        <div className="flex h-full items-center justify-center bg-sidebar">
+        <div className="app-drag flex h-full items-center justify-center bg-background">
           <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />
         </div>
       ) : auth.status === 'signed-in' ? (

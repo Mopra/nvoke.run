@@ -1,19 +1,18 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Globe, Loader2, MapPin, Rocket } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ChevronsUpDown, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/AppShell';
+import { LargeTitle, PageHeader } from '@/components/AppShell';
+import { FieldRow, Group, Row } from '@/components/grouped';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Kbd } from '@/components/ui/kbd';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+import { PlainInput } from '@/components/ui/input';
+import { Segmented } from '@/components/ui/segmented';
 import { formatNumber, searchTitle, WINDOW_LABEL } from '@/lib/format';
 import { useCreateSearch, useMe } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import type { LaunchWindow, SearchInput, SearchKind } from '@/lib/types';
+import { useScrolled } from '@/lib/use-scrolled';
 
-const LIMIT_PRESETS = [25, 100, 250, 500];
+const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
 const MAX_LIMIT = 1000;
 
 const COUNTRIES: [string, string][] = [
@@ -44,48 +43,6 @@ function isKind(value: string | null): value is SearchKind {
   return value === 'local' || value === 'web' || value === 'launches';
 }
 
-function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  label,
-}: {
-  value: T;
-  options: [T, string][];
-  onChange: (value: T) => void;
-  label: string;
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="inline-flex w-fit rounded-lg bg-muted p-[3px]">
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          type="button"
-          role="radio"
-          aria-checked={value === v}
-          onClick={() => onChange(v)}
-          className={cn(
-            'h-7 rounded-md px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
-            value === v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function NewSearchScreen({ initialKind }: { initialKind: string | null }) {
   const [kind, setKind] = useState<SearchKind>(isKind(initialKind) ? initialKind : 'local');
   const [niche, setNiche] = useState('');
@@ -97,6 +54,8 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   const [limit, setLimit] = useState(100);
   const [touched, setTouched] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLElement>(null);
+  const scrolled = useScrolled(scrollRef);
   const create = useCreateSearch();
   const me = useMe();
 
@@ -135,69 +94,78 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
 
   const invalid = (value: string): boolean => touched && !value.trim();
   const remaining = me.data ? me.data.usage.limit - me.data.usage.emailsFound : null;
+  const preset = LIMIT_PRESETS.find((p) => Number(p) === limit) ?? null;
 
   return (
     <>
-      <PageHeader title="New search" subtitle="Tell nvoke where to look. Results arrive while it works." />
-      <main className="flex-1 overflow-auto px-6 py-8">
-        <form onSubmit={submit} className="mx-auto flex max-w-xl flex-col gap-6" noValidate>
-          <Tabs value={kind} onValueChange={(v) => isKind(v) && setKind(v)} className="gap-4">
-            <TabsList className="w-full">
-              <TabsTrigger value="local">
-                <MapPin />
-                Local businesses
-              </TabsTrigger>
-              <TabsTrigger value="web">
-                <Globe />
-                Web search
-              </TabsTrigger>
-              <TabsTrigger value="launches">
-                <Rocket />
-                New launches
-              </TabsTrigger>
-            </TabsList>
-            <p className="text-sm text-muted-foreground">{SOURCES[kind]}</p>
+      <PageHeader title="New search" divider={scrolled} titleHidden={!scrolled} />
+      <main ref={scrollRef} className="flex-1 overflow-auto px-6 pb-10">
+        <form
+          onSubmit={submit}
+          className="mx-auto flex max-w-[560px] flex-col gap-7 motion-safe:animate-page-in"
+          noValidate
+        >
+          <LargeTitle className="-mb-2 px-0.5" subtitle="Tell nvoke where to look. Results arrive while it works.">
+            New search
+          </LargeTitle>
+          <div className="flex flex-col gap-2.5">
+            <Segmented
+              label="Where to look"
+              value={kind}
+              onChange={setKind}
+              stretch
+              options={[
+                { value: 'local', label: 'Local businesses', icon: MapPin },
+                { value: 'web', label: 'Web search', icon: Globe },
+                { value: 'launches', label: 'New launches', icon: Rocket },
+              ]}
+            />
+            <p className="px-3.5 text-xs text-muted-foreground">{SOURCES[kind]}</p>
+          </div>
 
-            <div className="rounded-xl border bg-card p-5 shadow-xs">
-              <TabsContent value="local" className="flex flex-col gap-5">
-                <Field id="niche" label="What kind of business" hint="Plural works best, for example dentists or bakeries.">
-                  <Input
-                    id="niche"
-                    ref={kind === 'local' ? firstField : undefined}
-                    value={niche}
-                    onChange={(e) => setNiche(e.target.value)}
-                    placeholder="Dentists"
-                    aria-invalid={invalid(niche)}
-                  />
-                </Field>
-                <Field id="location" label="Where" hint="A city, region or postcode.">
-                  <Input
-                    id="location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Copenhagen"
-                    aria-invalid={invalid(location)}
-                  />
-                </Field>
-              </TabsContent>
+          {kind === 'local' && (
+            <Group footer="Plural works best, for example dentists or bakeries. Where can be a city, region or postcode.">
+              <FieldRow label="Kind of business" htmlFor="niche">
+                <PlainInput
+                  id="niche"
+                  ref={firstField}
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
+                  placeholder="Dentists"
+                  aria-invalid={invalid(niche)}
+                />
+              </FieldRow>
+              <FieldRow label="Where" htmlFor="location">
+                <PlainInput
+                  id="location"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Copenhagen"
+                  aria-invalid={invalid(location)}
+                />
+              </FieldRow>
+            </Group>
+          )}
 
-              <TabsContent value="web" className="flex flex-col gap-5">
-                <Field id="keyword" label="Keyword" hint="What the companies do or sell.">
-                  <Input
-                    id="keyword"
-                    ref={kind === 'web' ? firstField : undefined}
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
-                    placeholder="Headless CMS"
-                    aria-invalid={invalid(keyword)}
-                  />
-                </Field>
-                <Field id="country" label="Country">
+          {kind === 'web' && (
+            <Group footer="Describe what the companies do or sell.">
+              <FieldRow label="Keyword" htmlFor="keyword">
+                <PlainInput
+                  id="keyword"
+                  ref={firstField}
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="Headless CMS"
+                  aria-invalid={invalid(keyword)}
+                />
+              </FieldRow>
+              <FieldRow label="Country" htmlFor="country">
+                <div className="relative">
                   <select
                     id="country"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
-                    className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                    className="h-8 w-full appearance-none rounded-sm bg-transparent pr-8 pl-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25"
                   >
                     {COUNTRIES.map(([code, name]) => (
                       <option key={code} value={code}>
@@ -205,78 +173,76 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
                       </option>
                     ))}
                   </select>
-                </Field>
-              </TabsContent>
-
-              <TabsContent value="launches" className="flex flex-col gap-5">
-                <Field id="launch-keyword" label="Keyword" hint="Optional. Leave empty to see every launch.">
-                  <Input
-                    id="launch-keyword"
-                    ref={kind === 'launches' ? firstField : undefined}
-                    value={launchKeyword}
-                    onChange={(e) => setLaunchKeyword(e.target.value)}
-                    placeholder="AI, analytics, design..."
-                  />
-                </Field>
-                <div className="flex flex-col gap-2">
-                  <Label>Launched in the</Label>
-                  <Segmented
-                    label="Time window"
-                    value={launchWindow}
-                    onChange={setLaunchWindow}
-                    options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => [
-                      w,
-                      WINDOW_LABEL[w].replace('Last ', 'last '),
-                    ])}
-                  />
+                  <ChevronsUpDown className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 </div>
-              </TabsContent>
+              </FieldRow>
+            </Group>
+          )}
 
-              <div className="mt-5 flex flex-col gap-2 border-t pt-5">
-                <Label htmlFor="limit">Companies to find</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="limit"
-                    type="number"
-                    min={1}
-                    max={MAX_LIMIT}
-                    value={Number.isNaN(limit) ? '' : limit}
-                    onChange={(e) => setLimit(e.target.valueAsNumber)}
-                    className="w-24 tabular-nums"
-                  />
-                  <div className="flex gap-1">
-                    {LIMIT_PRESETS.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setLimit(p)}
-                        className={cn(
-                          'h-8 rounded-md px-2.5 text-sm tabular-nums outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                          limit === p ? 'bg-secondary font-medium text-secondary-foreground' : 'text-muted-foreground hover:bg-accent',
-                        )}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Only emails count toward your plan.
-                  {remaining !== null && ` You have ${formatNumber(Math.max(0, remaining))} left this month.`}
-                </p>
-              </div>
-            </div>
-          </Tabs>
+          {kind === 'launches' && (
+            <Group footer="Leave the keyword empty to see every launch.">
+              <FieldRow label="Keyword" htmlFor="launch-keyword">
+                <PlainInput
+                  id="launch-keyword"
+                  ref={firstField}
+                  value={launchKeyword}
+                  onChange={(e) => setLaunchKeyword(e.target.value)}
+                  placeholder="Optional, for example analytics"
+                />
+              </FieldRow>
+              <Row label="Launched in the">
+                <Segmented
+                  label="Time window"
+                  size="sm"
+                  value={launchWindow}
+                  onChange={setLaunchWindow}
+                  options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => ({
+                    value: w,
+                    label: WINDOW_LABEL[w].replace('Last ', 'last '),
+                  }))}
+                />
+              </Row>
+            </Group>
+          )}
 
-          <div className="flex items-center justify-end gap-3">
-            {touched && !input && <span className="text-sm text-destructive">Fill in the highlighted fields.</span>}
+          <Group
+            footer={
+              <>
+                Only emails count toward your plan.
+                {remaining !== null && ` You have ${formatNumber(Math.max(0, remaining))} left this month.`}
+              </>
+            }
+          >
+            <Row label="Companies to find" htmlFor="limit">
+              <Segmented
+                label="Preset limits"
+                size="sm"
+                value={preset ?? ('' as (typeof LIMIT_PRESETS)[number])}
+                onChange={(v) => setLimit(Number(v))}
+                options={LIMIT_PRESETS.map((p) => ({ value: p, label: <span className="tabular-nums">{p}</span> }))}
+              />
+              <PlainInput
+                id="limit"
+                type="number"
+                min={1}
+                max={MAX_LIMIT}
+                value={Number.isNaN(limit) ? '' : limit}
+                onChange={(e) => setLimit(e.target.valueAsNumber)}
+                aria-label="Custom limit"
+                className="h-7 w-16 rounded-[7px] bg-foreground/[0.06] text-center tabular-nums"
+              />
+            </Row>
+          </Group>
+
+          <div className="flex items-center justify-end gap-2">
+            {touched && !input && <span className="mr-auto text-sm text-destructive">Fill in the highlighted fields.</span>}
             <Button type="button" variant="ghost" onClick={() => navigate({ name: 'searches' })}>
               Cancel
             </Button>
-            <Button type="submit" disabled={create.isPending}>
-              {create.isPending && <Loader2 className="animate-spin" />}
+            <Button type="submit" disabled={create.isPending} className="min-w-32">
+              {create.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
               Start search
-              <Kbd className="ml-1 border-transparent bg-primary-foreground/15 text-primary-foreground/80">Enter</Kbd>
+              {!create.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
             </Button>
           </div>
         </form>

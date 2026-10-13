@@ -5,7 +5,8 @@ import type { Search } from '@/lib/types';
 /**
  * The pipeline in one bar. The track is the search limit while companies are
  * still being found, then the number found once the source runs dry. The pale
- * layer is companies found, the sage layer is companies crawled.
+ * layer is companies found, the solid layer is companies crawled. Only running
+ * searches take the accent, with a band of light travelling along it.
  */
 export function SearchProgress({ search, className }: { search: Search; className?: string }) {
   const active = isActive(search.status);
@@ -21,23 +22,31 @@ export function SearchProgress({ search, className }: { search: Search; classNam
       aria-valuemin={0}
       aria-valuemax={scale}
       aria-valuenow={search.companiesCrawled}
-      className={cn('relative h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}
+      className={cn('relative h-1 w-full overflow-hidden rounded-full bg-foreground/[0.07]', className)}
     >
       {queued ? (
-        <div className="absolute inset-y-0 left-0 w-1/4 rounded-full bg-muted-foreground/20 motion-safe:animate-[nvoke-indeterminate_1.4s_ease-in-out_infinite]" />
+        <div className="absolute inset-y-0 left-0 w-1/4 rounded-full bg-primary/40 motion-safe:animate-indeterminate" />
       ) : (
         <>
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-muted-foreground/20 transition-[width] duration-700 ease-out"
+            className={cn(
+              'absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out-soft',
+              active ? 'bg-primary/20' : 'bg-foreground/10',
+            )}
             style={{ width: `${found}%` }}
           />
           <div
             className={cn(
-              'absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out',
-              search.status === 'failed' || search.status === 'canceled' ? 'bg-muted-foreground/50' : 'bg-ring',
+              'absolute inset-y-0 left-0 overflow-hidden rounded-full transition-[width] duration-700 ease-out-soft',
+              active && 'bg-primary',
+              search.status === 'done' && 'bg-foreground/30',
+              search.status === 'failed' && 'bg-destructive/60',
+              search.status === 'canceled' && 'bg-foreground/20',
             )}
             style={{ width: `${crawled}%` }}
-          />
+          >
+            {active && <div className="progress-sheen absolute inset-0 motion-safe:animate-sheen" />}
+          </div>
         </>
       )}
     </div>

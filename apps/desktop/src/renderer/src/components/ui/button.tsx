@@ -4,22 +4,24 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap text-sm font-medium outline-none transition-[background-color,box-shadow,color,transform,filter] duration-150 active:scale-[0.97] focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90',
-        outline: 'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground',
-        secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+        // The one place the accent glows: the primary action on a screen.
+        default: 'bg-primary text-primary-foreground shadow-glow hover:brightness-110',
+        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',
+        outline: 'border bg-card text-foreground shadow-xs hover:bg-accent dark:bg-accent dark:hover:bg-foreground/10',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-foreground/10',
+        ghost: 'text-foreground/80 hover:bg-accent hover:text-foreground',
+        link: 'text-primary underline-offset-4 hover:underline active:scale-100',
       },
       size: {
-        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
-        sm: 'h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5',
-        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'size-9',
+        default: 'h-8 rounded-md px-3.5 has-[>svg]:px-3',
+        sm: 'h-7 rounded-sm px-2.5 text-[12.5px] has-[>svg]:px-2',
+        lg: 'h-10 rounded-lg px-5 text-base has-[>svg]:px-4',
+        icon: 'size-8 rounded-md',
+        'icon-sm': 'size-7 rounded-sm',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },
