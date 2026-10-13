@@ -10,13 +10,12 @@ export const site = {
     privacy: 'privacy@nvoke.run',
     bot: 'bot@nvoke.run',
   },
-  // Operator details for the legal pages. nvoke is not a company, so there is
-  // no registration number. Fields left as null are not shown.
-  // TODO(owner): fill in the postal address before launch. The privacy policy
-  // and terms need a contact address for the data controller.
+  // The company behind nvoke, named only on the legal pages. Marketing copy
+  // says "nvoke" and nothing else. Fields left as null are not shown.
   company: {
-    legalName: 'nvoke',
-    address: null as string | null,
+    legalName: 'Pradsgaard Labs',
+    cvr: 'DK46156153' as string | null,
+    address: 'Bogfinkevej 2, 7400 Herning' as string | null,
     country: 'Denmark',
   },
 };

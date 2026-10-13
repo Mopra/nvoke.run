@@ -26,7 +26,7 @@ export default function PrivacyPageDa() {
       <section>
         <h2>Hvem vi er</h2>
         <p>
-          <CompanyLine lang="da" /> (“vi”) er dataansvarlig for de personoplysninger, der er beskrevet her.
+          nvoke er lavet af <CompanyLine lang="da" /> (“vi”), der er dataansvarlig for de personoplysninger, der er beskrevet her.
           Skriv til {mail}, hvis du har spørgsmål til politikken eller til dine oplysninger.
         </p>
         <p>nvoke er et researchværktøj til at finde virksomheder. Det behandler oplysninger om to grupper af personer:</p>

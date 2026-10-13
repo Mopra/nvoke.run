@@ -30,7 +30,7 @@ export function SiteFooter() {
       </div>
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
         <div className="pb-10 text-xs text-muted-foreground/70">
-          © {new Date().getFullYear()} {site.company.legalName}
+          © {new Date().getFullYear()} {site.name}
         </div>
       </div>
     </footer>

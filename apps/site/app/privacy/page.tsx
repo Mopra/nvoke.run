@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { CompanyLine, LegalPage } from '@/components/site/legal';
 import { site } from '@/lib/site';
 
-// DRAFT. This privacy policy is a working draft for an operator established
-// in Denmark, under GDPR and the Danish Data Protection Act. It has not been
-// reviewed by a lawyer. Fill in the operator details in lib/site.ts, confirm the processor
+// DRAFT. This privacy policy is a working draft for Pradsgaard Labs, Denmark,
+// under GDPR and the Danish Data Protection Act. It has not been reviewed by a
+// lawyer. Check the company details in lib/site.ts, confirm the processor
 // list and retention periods, and get it reviewed before launch. Keep it in
 // step with the Danish version in app/da/privacy/page.tsx.
 // TODO(owner): write the legitimate interest assessment (LIA) this page
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Who we are</h2>
         <p>
-          <CompanyLine /> (“we”) is the data controller for the personal data described here. Questions about this policy or your data: write to
+          nvoke is made by <CompanyLine /> (“we”), the data controller for the personal data described here. Questions about this policy or your data: write to
           {mail}.
         </p>
         <p>nvoke is a prospecting research tool. It handles personal data about two groups of people:</p>

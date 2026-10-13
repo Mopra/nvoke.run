@@ -57,10 +57,11 @@ export function LegalPage({
 
 /** Operator line for the legal pages. Omits details that are not filled in yet. */
 export function CompanyLine({ lang = 'en' }: { lang?: Lang }) {
-  const { legalName, address, country } = site.company;
+  const { legalName, cvr, address, country } = site.company;
   return (
     <>
       <strong>{legalName}</strong>
+      {cvr ? `, CVR ${cvr}` : null}
       {address ? `, ${address}` : null}, {lang === 'da' && country === 'Denmark' ? 'Danmark' : country}
     </>
   );
