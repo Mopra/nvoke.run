@@ -19,6 +19,7 @@ export const REQUIRED_TOKENS = [
   'background',
   'foreground',
   'card',
+  'accent',
   'muted-foreground',
   'border',
   'primary',
@@ -29,6 +30,10 @@ export const REQUIRED_TOKENS = [
   'chart-2',
   'chart-3',
   'destructive',
+  'shadow-strong',
+  'window-close',
+  'window-minimize',
+  'window-zoom',
 ] as const;
 
 export type ThemePalette = {

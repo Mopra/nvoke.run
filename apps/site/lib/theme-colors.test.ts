@@ -13,7 +13,7 @@ describe('parseOklch', () => {
   });
 
   it('rejects other formats', () => {
-    expect(parseOklch('#fff')).toBeNull();
+    expect(parseOklch('rgb(1 2 3)')).toBeNull();
     expect(parseOklch('oklch(0.5 0.1)')).toBeNull();
   });
 });
