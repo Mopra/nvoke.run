@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ArrowUpRight, Ban, MoreHorizontal, Plus, Rows3, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { LargeTitle, PageHeader } from '@/components/AppShell';
+import { DisplayTitle, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { StatusDot } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
@@ -14,18 +14,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Kbd } from '@/components/ui/kbd';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/format';
-import { modKey } from '@/lib/hotkeys';
 import { useCancelSearch, useRefreshWhenFinished, useSearches } from '@/lib/queries';
 import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
-import { useScrolled } from '@/lib/use-scrolled';
-import { cn } from '@/lib/utils';
-
-const GRID = 'grid grid-cols-[minmax(0,1fr)_minmax(10rem,17rem)_4.5rem_5.5rem_1.75rem] items-center gap-6';
 
 function RowMenu({ search }: { search: Search }) {
   const [confirm, setConfirm] = useState(false);
@@ -38,7 +31,7 @@ function RowMenu({ search }: { search: Search }) {
             variant="ghost"
             size="icon-sm"
             aria-label={`Actions for ${searchTitle(search)}`}
-            className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
+            className="pointer-events-auto text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal />
@@ -75,40 +68,43 @@ function RowMenu({ search }: { search: Search }) {
 }
 
 function SearchRow({ search }: { search: Search }) {
+  const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
   return (
-    <div className="group relative rounded-lg transition-colors duration-100 hover:bg-accent has-[a:focus-visible]:bg-accent">
+    <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
       <a
         href={routeHref({ name: 'search', id: search.id })}
+        data-search-status={search.status}
         aria-label={searchTitle(search)}
-        className="absolute inset-0 rounded-lg outline-none"
+        className="absolute inset-0 rounded-[24px] outline-none"
       />
-      <div className={cn(GRID, 'pointer-events-none relative px-3 py-3')}>
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex w-3 justify-center">
-            <StatusDot status={search.status} />
-          </span>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{searchTitle(search)}</div>
-            <div className="truncate text-xs text-muted-foreground">
-              {STATUS_LABEL[search.status]}, {searchSubtitle(search).toLowerCase()}
+      <div className="pointer-events-none relative flex items-center gap-8 px-6 py-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3">
+            {(active || search.status === 'failed') && <StatusDot status={search.status} />}
+            <span className="truncate font-display text-lg font-medium">{searchTitle(search)}</span>
+          </div>
+          <div className="mt-1 truncate text-sm text-muted-foreground">
+            {stopped || active ? `${STATUS_LABEL[search.status]}, ` : ''}
+            {searchSubtitle(search).toLowerCase()}, {relativeTime(search.createdAt)}
+          </div>
+          {active && (
+            <div className="mt-4 flex max-w-md items-center gap-4">
+              <SearchProgress search={search} className="h-[3px] flex-1" />
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
             </div>
-          </div>
+          )}
+          {search.status === 'failed' && (
+            <div className="mt-1 truncate text-xs text-muted-foreground/80">{errorMessage(search.error)}</div>
+          )}
         </div>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <SearchProgress search={search} />
-          <div className="truncate text-xs text-muted-foreground">
-            {search.status === 'failed' ? errorMessage(search.error) : progressCaption(search)}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-sm font-semibold tabular-nums">{formatNumber(search.emailsFound)}</div>
+        <div className="shrink-0 text-right">
+          <div className="font-display text-3xl font-light tabular-nums">{formatNumber(search.emailsFound)}</div>
           <div className="text-xs tabular-nums text-muted-foreground">
-            {stopped && search.emailsFound === 0 ? 'no emails' : `${formatNumber(search.emailsValid)} valid`}
+            {stopped && search.emailsFound === 0 ? 'no emails' : `emails, ${formatNumber(search.emailsValid)} valid`}
           </div>
         </div>
-        <div className="text-right text-xs text-muted-foreground">{relativeTime(search.createdAt)}</div>
-        <div className="pointer-events-auto flex justify-end">
+        <div className="pointer-events-auto -mr-2 flex w-7 justify-end">
           <RowMenu search={search} />
         </div>
       </div>
@@ -118,39 +114,31 @@ function SearchRow({ search }: { search: Search }) {
 
 function ListSkeleton() {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className={cn(GRID, 'px-3 py-3.5')}>
-          <div className="flex items-center gap-3">
-            <Skeleton className="size-2 rounded-full" />
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-3.5 w-44" />
-              <Skeleton className="h-2.5 w-28" />
-            </div>
+        <div key={i} className="flex items-center gap-8 px-6 py-6">
+          <div className="flex flex-1 flex-col gap-2.5">
+            <Skeleton className="h-4 w-56" />
+            <Skeleton className="h-3 w-36" />
           </div>
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-1 w-full rounded-full" />
-            <Skeleton className="h-2.5 w-24" />
+          <div className="flex flex-col items-end gap-2">
+            <Skeleton className="h-7 w-12" />
+            <Skeleton className="h-2.5 w-20" />
           </div>
-          <Skeleton className="ml-auto h-3.5 w-8" />
-          <Skeleton className="ml-auto h-2.5 w-12" />
-          <span />
+          <span className="w-5" />
         </div>
       ))}
     </div>
   );
 }
 
-function Section({ title, searches }: { title: string; searches: Search[] }) {
+function Section({ searches }: { searches: Search[] }) {
   if (searches.length === 0) return null;
   return (
-    <section className="flex flex-col [&+&]:mt-6">
-      <h2 className="px-3 pb-1.5 text-xs font-semibold text-muted-foreground">{title}</h2>
-      <div className="flex flex-col gap-px">
-        {searches.map((s) => (
-          <SearchRow key={s.id} search={s} />
-        ))}
-      </div>
+    <section className="flex flex-col gap-1 [&+&]:mt-10">
+      {searches.map((s) => (
+        <SearchRow key={s.id} search={s} />
+      ))}
     </section>
   );
 }
@@ -158,7 +146,6 @@ function Section({ title, searches }: { title: string; searches: Search[] }) {
 export function SearchesScreen() {
   const { data, error, isPending, refetch } = useSearches();
   const scrollRef = useRef<HTMLElement>(null);
-  const scrolled = useScrolled(scrollRef);
   const active = data?.filter((s) => isActive(s.status)) ?? [];
   const earlier = data?.filter((s) => !isActive(s.status)) ?? [];
 
@@ -173,29 +160,12 @@ export function SearchesScreen() {
 
   return (
     <>
-      <PageHeader
-        title="Searches"
-        divider={scrolled}
-        titleHidden={!scrolled}
-        actions={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={() => navigate({ name: 'new', kind: null })}>
-                <Plus />
-                New search
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Start a search <Kbd>{modKey} N</Kbd>
-            </TooltipContent>
-          </Tooltip>
-        }
-      />
-      <main ref={scrollRef} className="flex-1 overflow-auto px-5 pb-8">
-        <div className="mx-auto max-w-[920px] motion-safe:animate-page-in">
-          <LargeTitle className="px-3" subtitle={subtitle}>
+      <PageHeader />
+      <main ref={scrollRef} className="fade-edges flex-1 overflow-auto px-8 pb-24">
+        <div className="mx-auto max-w-[880px] motion-safe:animate-rise">
+          <DisplayTitle className="px-6" subtitle={subtitle}>
             Searches
-          </LargeTitle>
+          </DisplayTitle>
           {isPending ? (
             <ListSkeleton />
           ) : error ? (
@@ -205,18 +175,18 @@ export function SearchesScreen() {
               icon={Rows3}
               title="No searches yet"
               action={
-                <Button onClick={() => navigate({ name: 'new', kind: null })}>
+                <Button size="lg" onClick={() => navigate({ name: 'new', kind: null })}>
                   <Plus />
                   New search
                 </Button>
               }
             >
-              Start one and the leads arrive here while nvoke works.
+              Start one and companies appear here as nvoke finds them.
             </EmptyState>
           ) : (
             <>
-              <Section title="In progress" searches={active} />
-              <Section title={active.length ? 'Earlier' : 'All searches'} searches={earlier} />
+              <Section searches={active} />
+              <Section searches={earlier} />
             </>
           )}
         </div>

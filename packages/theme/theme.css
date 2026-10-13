@@ -63,23 +63,33 @@
   --window-minimize: oklch(0.83 0.16 82);
   --window-zoom: oklch(0.76 0.19 145);
 
+  /* Liquid glass: floating controls over the canvas. Fill, specular edge, rim. */
+  --glass: oklch(0.995 0.002 265 / 0.66);
+  --glass-strong: oklch(0.995 0.002 265 / 0.84);
+  --glass-highlight: oklch(1 0 0 / 0.95);
+  --glass-edge: oklch(0.25 0.01 265 / 0.09);
+  /* The aura: ambient iris light that rises while nvoke works. */
+  --aura: oklch(0.62 0.2 268 / 0.16);
+  --aura-soft: oklch(0.75 0.13 230 / 0.12);
+
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --radius: 0.75rem;
 }
 
 .dark {
-  --background: oklch(0.205 0.004 265);
+  --background: oklch(0.172 0.004 265);
   --foreground: oklch(0.955 0.003 265);
-  --card: oklch(0.24 0.005 265);
+  --card: oklch(0.21 0.005 265);
   --card-foreground: oklch(0.955 0.003 265);
-  --popover: oklch(0.255 0.006 265 / 0.86);
+  --popover: oklch(0.23 0.006 265 / 0.84);
   --popover-foreground: oklch(0.955 0.003 265);
   --primary: oklch(0.64 0.2 268);
   --primary-foreground: oklch(0.99 0.004 268);
-  --secondary: oklch(0.27 0.005 265);
+  --secondary: oklch(0.245 0.005 265);
   --secondary-foreground: oklch(0.94 0.003 265);
-  --muted: oklch(0.255 0.005 265);
+  --muted: oklch(0.23 0.005 265);
   --muted-foreground: oklch(0.69 0.01 265);
   --accent: oklch(1 0 0 / 0.065);
   --accent-foreground: oklch(0.97 0.003 265);
@@ -93,7 +103,7 @@
   --chart-3: oklch(0.74 0.11 232);
   --chart-4: oklch(0.7 0.17 300);
   --chart-5: oklch(0.72 0.16 350);
-  --sidebar: oklch(0.175 0.004 265);
+  --sidebar: oklch(0.155 0.004 265);
   --sidebar-foreground: oklch(0.9 0.004 265);
   --sidebar-primary: oklch(0.64 0.2 268);
   --sidebar-primary-foreground: oklch(0.99 0.004 268);
@@ -109,6 +119,13 @@
   --shadow-strong: oklch(0 0 0 / 0.5);
   --highlight: oklch(1 0 0 / 0.08);
   --scrim: oklch(0 0 0 / 0.4);
+
+  --glass: oklch(0.25 0.006 265 / 0.58);
+  --glass-strong: oklch(0.25 0.006 265 / 0.82);
+  --glass-highlight: oklch(1 0 0 / 0.14);
+  --glass-edge: oklch(1 0 0 / 0.09);
+  --aura: oklch(0.6 0.21 268 / 0.24);
+  --aura-soft: oklch(0.7 0.13 230 / 0.12);
 
   --window-close: oklch(0.66 0.19 25);
   --window-minimize: oklch(0.8 0.15 82);
@@ -157,6 +174,13 @@
   --color-window-minimize: var(--window-minimize);
   --color-window-zoom: var(--window-zoom);
 
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-highlight: var(--glass-highlight);
+  --color-glass-edge: var(--glass-edge);
+  --color-aura: var(--aura);
+
+  --font-display: var(--font-display);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 
@@ -171,5 +195,7 @@
   --shadow-sm: 0 1px 2px var(--shadow-color), 0 2px 6px -2px var(--shadow-color);
   --shadow-md: 0 1px 2px var(--shadow-color), 0 4px 12px -2px var(--shadow-color), 0 12px 28px -8px var(--shadow-color);
   --shadow-lg: 0 0 0 0.5px var(--shadow-strong), 0 2px 4px var(--shadow-color), 0 12px 32px -4px var(--shadow-strong), 0 32px 64px -16px var(--shadow-strong);
+  /* Floating glass: a hairline rim, a top specular edge and a wide soft drop. */
+  --shadow-float: inset 0 0.5px 0 var(--glass-highlight), 0 0 0 0.5px var(--glass-edge), 0 1px 2px var(--shadow-color), 0 8px 24px -6px var(--shadow-color), 0 24px 56px -16px var(--shadow-strong);
   --shadow-glow: inset 0 1px 0 oklch(1 0 0 / 0.22), 0 1px 2px var(--shadow-color), 0 4px 16px -4px var(--glow);
 }

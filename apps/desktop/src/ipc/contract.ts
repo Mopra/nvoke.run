@@ -51,7 +51,7 @@ export interface WindowState {
   maximized: boolean;
 }
 
-/** Colors for the Windows and Linux caption buttons, as #rrggbb. */
+/** Colors for the Windows and Linux caption buttons, as #rrggbb. The background may be `transparent`. */
 export interface TitleBarColors {
   color: string;
   symbolColor: string;

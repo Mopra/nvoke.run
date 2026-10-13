@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowUpRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { LogoMark, Wordmark } from '@/components/Logo';
+import { LogoMark } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import type { AuthState } from '@/lib/types';
@@ -34,39 +34,40 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-background">
+    <div className="canvas relative isolate flex h-full flex-col overflow-hidden">
       <div className="app-drag absolute inset-x-0 top-0 h-(--titlebar-height)" />
-      {/* A single soft halo of the accent behind the mark. */}
+      {/* The aura: one soft field of the accent light behind the mark. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute top-[42%] left-1/2 size-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,var(--glow),transparent)] opacity-30 dark:opacity-40"
-      />
+        className="pointer-events-none absolute top-[34%] left-1/2 -z-10 h-[620px] w-[820px] -translate-x-1/2 -translate-y-1/2"
+      >
+        <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,var(--aura),transparent)] motion-safe:animate-breathe" />
+      </div>
 
       <div className="relative flex flex-1 items-center justify-center p-8">
-        <div className="flex w-full max-w-[340px] flex-col items-center text-center motion-safe:animate-page-in">
-          <LogoMark className="size-16" />
-          <Wordmark className="mt-5 text-2xl" />
+        <div className="flex w-full max-w-[460px] flex-col items-center text-center motion-safe:animate-rise">
+          <LogoMark className="size-[72px]" />
 
           {waiting ? (
             <>
-              <p className="mt-2 text-base text-muted-foreground">Finish signing in in your browser.</p>
-              <div className="mt-8 flex h-10 items-center gap-2.5 text-sm text-muted-foreground">
+              <h1 className="mt-10 font-display text-4xl font-semibold">Finish in your browser</h1>
+              <div className="mt-10 flex h-11 items-center gap-2.5 text-sm text-muted-foreground">
                 <Loader2 className="size-4 motion-safe:animate-spin" />
                 Waiting for the browser
               </div>
               <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => void signIn()}>
+                <Button variant="glass" onClick={() => void signIn()}>
                   Open the page again
                 </Button>
-                <Button variant="ghost" size="sm" onClick={cancel}>
+                <Button variant="ghost" onClick={cancel}>
                   Cancel
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <p className="mt-2 text-base text-muted-foreground">Find companies and the emails that reach them.</p>
-              <Button size="lg" className="mt-8 w-full" onClick={() => void signIn()}>
+              <h1 className="mt-10 font-display text-4xl font-semibold text-balance">Research companies and their public contact details.</h1>
+              <Button size="lg" className="mt-12 px-8" onClick={() => void signIn()}>
                 Sign in with your browser
                 <ArrowUpRight className="size-4 opacity-75" />
               </Button>
@@ -75,7 +76,7 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
                   {error}
                 </p>
               ) : (
-                <p className="mt-4 text-xs text-muted-foreground">Your password never touches this app.</p>
+                <p className="mt-5 text-xs text-muted-foreground">Your password never touches this app.</p>
               )}
             </>
           )}

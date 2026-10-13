@@ -18,11 +18,11 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center px-6 py-20 text-center motion-safe:animate-page-in', className)}>
-      <Icon className="mb-4 size-7 text-muted-foreground/60" strokeWidth={1.5} />
-      <h2 className="text-base font-semibold">{title}</h2>
-      {children && <p className="mt-1 max-w-sm text-sm text-muted-foreground">{children}</p>}
-      {action && <div className="mt-5">{action}</div>}
+    <div className={cn('flex flex-col items-center justify-center px-6 py-24 text-center motion-safe:animate-rise', className)}>
+      <Icon className="mb-6 size-9 text-muted-foreground/50" strokeWidth={1.25} />
+      <h2 className="font-display text-xl font-semibold">{title}</h2>
+      {children && <p className="mt-2 max-w-sm text-sm text-muted-foreground">{children}</p>}
+      {action && <div className="mt-8">{action}</div>}
     </div>
   );
 }

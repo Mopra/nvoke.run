@@ -96,7 +96,7 @@ function platformOptions(chrome: ReturnType<typeof chromeFor>): BrowserWindowCon
   if (chrome.material === 'mica') {
     return {
       titleBarStyle: 'hidden',
-      titleBarOverlay: overlay,
+      titleBarOverlay: { ...overlay, color: '#00000000' },
       backgroundMaterial: 'mica',
       backgroundColor: '#00000000',
     };
@@ -194,11 +194,13 @@ export function registerWindowIpc(): void {
 
   ipcMain.handle(IpcChannel.windowSetTitleBarColors, (event, colors: unknown) => {
     const c = colors as Partial<TitleBarColors> | null;
-    if (!c || typeof c.color !== 'string' || typeof c.symbolColor !== 'string' || !HEX.test(c.color) || !HEX.test(c.symbolColor)) {
-      throw new Error('title bar colors must be #rrggbb');
+    // `transparent` lets the caption buttons sit clear over Mica.
+    const clear = c?.color === 'transparent';
+    if (!c || typeof c.color !== 'string' || typeof c.symbolColor !== 'string' || !(clear || HEX.test(c.color)) || !HEX.test(c.symbolColor)) {
+      throw new Error('title bar colors must be #rrggbb or transparent');
     }
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || process.platform === 'darwin') return;
-    win.setTitleBarOverlay({ color: c.color, symbolColor: c.symbolColor, height: chromeFor().titleBarHeight });
+    win.setTitleBarOverlay({ color: clear ? '#00000000' : c.color, symbolColor: c.symbolColor, height: chromeFor().titleBarHeight });
   });
 }

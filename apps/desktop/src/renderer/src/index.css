@@ -32,6 +32,16 @@
   --text-2xl: 28px;
   --text-2xl--line-height: 32px;
   --text-2xl--letter-spacing: -0.024em;
+  /* Display sizes, set in the display face. Tight, calm, large. */
+  --text-3xl: 34px;
+  --text-3xl--line-height: 40px;
+  --text-3xl--letter-spacing: -0.03em;
+  --text-4xl: 44px;
+  --text-4xl--line-height: 50px;
+  --text-4xl--letter-spacing: -0.036em;
+  --text-5xl: 56px;
+  --text-5xl--line-height: 62px;
+  --text-5xl--letter-spacing: -0.042em;
 
   /* A gentle spring: quick out, a hair of overshoot, settles. */
   --ease-spring: linear(0, 0.0056, 0.0222 1.6%, 0.0889 3.4%, 0.3436 7.9%, 0.4787 10.4%, 0.6012 13.1%, 0.7041 15.9%, 0.7915 18.9%, 0.8622 22.1%, 0.9176 25.6%, 0.9581 29.4%, 0.9861 33.7%, 1.0021 38.8%, 1.0083 45.2%, 1.0062 55.3%, 1.0013 72.4%, 1);
@@ -41,6 +51,8 @@
   --animate-sheen: sheen 1.8s linear infinite;
   --animate-indeterminate: indeterminate 1.5s var(--ease-out-soft) infinite;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-breathe: breathe 4.8s ease-in-out infinite;
+  --animate-rise: rise 520ms var(--ease-out-soft) both;
 }
 
 @layer base {
@@ -63,6 +75,7 @@
   html {
     @apply bg-background;
     font-feature-settings: "cv11", "ss01";
+    letter-spacing: -0.003em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -129,6 +142,39 @@
   }
 }
 
+/*
+ * The canvas: the window's one surface. Opaque by default; over vibrancy or
+ * Mica it turns translucent so the material shows through the whole window.
+ */
+@utility canvas {
+  background-color: var(--background);
+  :where([data-material="vibrancy"], [data-material="mica"]) & {
+    background-color: color-mix(in oklab, var(--background) 74%, transparent);
+  }
+}
+
+/*
+ * Liquid glass. A floating control: translucent fill, backdrop blur, a
+ * specular top edge and a hairline rim, then a wide soft drop shadow.
+ */
+@utility glass {
+  background-color: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--shadow-float);
+}
+@utility glass-strong {
+  background-color: var(--glass-strong);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  backdrop-filter: blur(36px) saturate(190%);
+  box-shadow: var(--shadow-float);
+}
+
+/* Fades content out under the floating bars instead of a hard edge. */
+@utility fade-edges {
+  mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 96px), transparent 100%);
+}
+
 /* Clear room for the Windows and Linux caption buttons in the toolbar. */
 @utility pr-titlebar {
   padding-right: max(1.25rem, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.75rem));
@@ -172,6 +218,31 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
   }
 }
 

@@ -109,7 +109,8 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       await go('#/new?kind=launches');
       await shot('06-new-launches', theme);
 
-      // A running search and a finished one, read from the sidebar.
+      // A running search and a finished one, read from the searches list.
+      await go('#/');
       const links = await js<{ running: string | null; done: string | null }>(`(() => {
         const rows = [...document.querySelectorAll('[data-search-status]')];
         const pick = (s) => rows.find((r) => r.getAttribute('data-search-status') === s)?.getAttribute('href') ?? null;

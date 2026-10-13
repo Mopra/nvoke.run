@@ -93,10 +93,12 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
 ## Desktop window
 
 The main window is frameless with native controls (`src/main/window.ts`).
-macOS: `hiddenInset` traffic lights inside the sidebar header, `sidebar`
-vibrancy. Windows: hidden title bar with `titleBarOverlay` caption buttons,
-Mica on Windows 11 (build 22000+), opaque on Windows 10. Linux: the same
-overlay, opaque. The renderer reads `window.nvoke.window.getChrome()` and sets
+macOS: `hiddenInset` traffic lights at the top left of the canvas, `sidebar`
+vibrancy. Windows: hidden title bar with `titleBarOverlay` caption buttons (clear
+over Mica), Mica on Windows 11 (build 22000+), opaque on Windows 10. Linux: the same
+overlay, opaque. There is no sidebar: a floating glass island at the top center opens the
+command bar and shows a running search's progress (`components/AppShell.tsx`).
+The renderer reads `window.nvoke.window.getChrome()` and sets
 `data-platform`, `data-material` and `data-controls` on `<html>`
 (`lib/chrome.ts`); CSS variants `mac:`, `material:`, `blurred:` and
 `fullscreen:` follow them. Drag regions use the `app-drag` utility; buttons,
@@ -147,13 +149,16 @@ it through `protocols` in `electron-builder.yml`.
    `border-border`, `ring-ring`, `bg-sidebar` and so on. ESLint enforces this in
    `apps/desktop/src/renderer` and `apps/site`. All colors live in
    `packages/theme/theme.css`, so a theme swaps in one file for both apps.
-2. **Theme direction.** Modern, frameless, minimal, with an Apple feel and a
-   slightly futuristic edge. Cool near-neutral grays (oklch hue about 265,
+2. **Theme direction.** How Apple would design a native app in 2030: calm,
+   extreme whitespace, premium. Cool near-neutral grays (oklch hue about 265,
    chroma under 0.01) and one accent, "iris" (oklch about 0.57 0.215 268),
-   spent sparingly: the primary action (with a soft glow), focus, selection,
-   running progress (with a sheen). Hairline translucent borders, layered soft
-   shadows, 10 to 14px radii, system fonts, monospace for domains and emails.
-   The desktop sidebar is a translucent source list over the window material
+   spent sparingly: the primary action (with a soft glow), focus, running
+   progress, and the aura (ambient iris light that rises only while a search
+   runs). Large display type (`font-display`, `text-3xl` to `text-5xl`), thin
+   numerals for figures, pills and large continuous radii (20 to 28px),
+   floating liquid glass (`glass`, `glass-strong`) for controls, no boxes
+   around content. System fonts, monospace for domains and emails. The desktop
+   window is one translucent canvas (`canvas`) over the window material
    (vibrancy on macOS, Mica on Windows 11), opaque where there is none.
 3. **No em dashes, en dashes or `--` as punctuation** in code comments, docs,
    UI strings or commit messages. Rewrite the sentence with a comma, colon,

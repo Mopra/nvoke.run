@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Ban,
   ChevronDown,
-  ChevronLeft,
   Copy,
   Download,
   ExternalLink,
@@ -18,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
@@ -92,34 +91,41 @@ function useDebounced<T>(value: T, ms: number): T {
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="min-w-0">
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-xl font-semibold tabular-nums">{formatNumber(value)}</span>
-        {sub && <span className="truncate text-xs tabular-nums text-muted-foreground">{sub}</span>}
+      <div className="flex items-baseline gap-2">
+        <span className="font-display text-4xl font-extralight tabular-nums">{formatNumber(value)}</span>
+        {sub && <span className="truncate text-sm tabular-nums text-muted-foreground">{sub}</span>}
       </div>
-      <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
     </div>
   );
 }
 
-function Overview({ search }: { search: Search }) {
+function Overview({ search, timing }: { search: Search; timing: string }) {
   const active = isActive(search.status);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
-    <section className="shrink-0 px-6 pt-2 pb-5">
-      <div className="grid grid-cols-4 gap-6">
+    <section className="px-6 pt-8 pb-10">
+      <h1 className="font-display text-3xl font-semibold text-balance">{searchTitle(search)}</h1>
+      <div className="mt-2 flex items-center gap-2.5 text-sm text-muted-foreground">
+        <StatusLabel status={search.status} />
+        <span className="truncate">
+          {searchSubtitle(search)}, {timing}
+        </span>
+      </div>
+      <div className="mt-10 grid grid-cols-4 gap-8">
         <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
         <Stat label="Websites crawled" value={search.companiesCrawled} />
         <Stat label="Emails found" value={search.emailsFound} />
         <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
       </div>
       {active && (
-        <div className="mt-5 flex items-center gap-4">
-          <SearchProgress search={search} className="h-1.5 flex-1" />
+        <div className="mt-8 flex items-center gap-5">
+          <SearchProgress search={search} className="h-[3px] flex-1" />
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
         </div>
       )}
       {search.status === 'failed' && (
-        <div className="mt-5 flex items-center gap-3 rounded-lg bg-destructive/8 px-3.5 py-2.5 text-sm">
+        <div className="mt-8 flex items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
           <TriangleAlert className="size-4 shrink-0 text-destructive" />
           <span className="flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
           {search.error === 'quota_exceeded' && (
@@ -180,16 +186,9 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
 function CompanyRow({ company, live }: { company: Company; live: boolean }) {
   const source = SOURCE_LABEL[company.source] ?? company.source;
   return (
-    <div className="px-3">
-      <div
-        data-selectable
-        className={cn(
-          COLUMNS,
-          'group items-start rounded-lg px-3 py-2.5 transition-colors duration-100 hover:bg-accent',
-        )}
-      >
+    <div data-selectable className={cn(COLUMNS, 'group items-start rounded-[20px] px-6 py-4 transition-colors duration-150 hover:bg-foreground/[0.035]')}>
         <div className="min-w-0 leading-5">
-          <div className="truncate text-sm font-medium">{company.name}</div>
+          <div className="truncate text-[14px] font-medium">{company.name}</div>
           <button
             type="button"
             onClick={() => void api.openExternal(company.website)}
@@ -237,16 +236,15 @@ function CompanyRow({ company, live }: { company: Company; live: boolean }) {
             <TooltipContent>Open website</TooltipContent>
           </Tooltip>
         </div>
-      </div>
     </div>
   );
 }
 
 function TableSkeleton() {
   return (
-    <div className="px-3">
+    <div>
       {Array.from({ length: 9 }, (_, i) => (
-        <div key={i} className={cn(COLUMNS, 'px-3 py-3.5')}>
+        <div key={i} className={cn(COLUMNS, 'px-6 py-5')}>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3.5 w-40" />
             <Skeleton className="h-2.5 w-24" />
@@ -278,10 +276,10 @@ function VerificationFilter({
         <button
           type="button"
           className={cn(
-            'inline-flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
+            'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
             value
               ? 'bg-primary/10 text-foreground dark:bg-primary/20'
-              : 'bg-foreground/[0.05] text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground',
+              : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
           )}
         >
           {value && <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[value])} />}
@@ -321,7 +319,6 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const [kind, setKind] = useState<EmailKind | undefined>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
@@ -329,6 +326,8 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const cancel = useCancelSearch();
   const filterRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [listTop, setListTop] = useState(0);
 
   const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
@@ -342,6 +341,8 @@ export function SearchResultsScreen({ id }: { id: string }) {
     estimateSize: () => 58,
     overscan: 12,
     getItemKey: (index) => rows[index]?.id ?? index,
+    // The title and numbers scroll with the list, above it.
+    scrollMargin: listTop,
   });
   const items = virtualizer.getVirtualItems();
   const lastIndex = items[items.length - 1]?.index ?? 0;
@@ -350,6 +351,16 @@ export function SearchResultsScreen({ id }: { id: string }) {
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage && lastIndex >= rows.length - 25) void fetchNextPage();
   }, [lastIndex, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const measure = (): void => setListTop(el.offsetTop);
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (el.parentElement) observer.observe(el.parentElement);
+    return () => observer.disconnect();
+  });
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
@@ -387,23 +398,13 @@ export function SearchResultsScreen({ id }: { id: string }) {
     });
   }
 
-  const back = (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      className="-ml-1.5 text-muted-foreground"
-      aria-label="Back to searches"
-      onClick={() => navigate({ name: 'searches' })}
-    >
-      <ChevronLeft className="size-[18px]" />
-    </Button>
-  );
+  const back = <BackButton />;
 
   if (searchQuery.error) {
     const missing = searchQuery.error instanceof ApiError && searchQuery.error.status === 404;
     return (
       <>
-        <PageHeader leading={back} title="Search" />
+        <PageHeader leading={back} />
         {missing ? (
           <EmptyState
             icon={SearchX}
@@ -426,16 +427,22 @@ export function SearchResultsScreen({ id }: { id: string }) {
   if (!search) {
     return (
       <>
-        <PageHeader leading={back} title={<Skeleton className="h-4 w-56" />} />
-        <div className="grid grid-cols-4 gap-6 px-6 pt-2 pb-5">
-          {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="flex flex-col gap-2">
-              <Skeleton className="h-6 w-14" />
-              <Skeleton className="h-2.5 w-20" />
+        <PageHeader leading={back} />
+        <div className="mx-auto w-full max-w-[1120px] px-8">
+          <div className="px-6 pt-8 pb-10">
+            <Skeleton className="h-8 w-80" />
+            <Skeleton className="mt-3 h-3.5 w-56" />
+            <div className="mt-10 grid grid-cols-4 gap-8">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="flex flex-col gap-2.5">
+                  <Skeleton className="h-9 w-16" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+          <TableSkeleton />
         </div>
-        <TableSkeleton />
       </>
     );
   }
@@ -448,41 +455,26 @@ export function SearchResultsScreen({ id }: { id: string }) {
     <>
       <PageHeader
         leading={back}
-        title={searchTitle(search)}
-        subtitle={
-          <span className="flex items-center gap-2">
-            <StatusLabel status={search.status} />
-            <span className="truncate">
-              {searchSubtitle(search)}, {timing}
-            </span>
-          </span>
-        }
         actions={
           <>
             {live && (
-              <Button variant="ghost" size="sm" onClick={doCancel} disabled={cancel.isPending}>
+              <Button variant="glass" size="sm" className="h-9 px-4" onClick={doCancel} disabled={cancel.isPending}>
                 <Ban />
                 Stop
               </Button>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="sm" onClick={() => void doExport()} disabled={exporting || search.emailsFound === 0}>
-                  {exporting ? <Loader2 className="motion-safe:animate-spin" /> : <Download />}
-                  Export CSV
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                One row per email <Kbd>{modKey} E</Kbd>
-              </TooltipContent>
-            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="More actions">
+                <Button variant="glass" size="icon" aria-label="More actions">
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void doExport()} disabled={search.emailsFound === 0}>
+                  <Download />
+                  Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                   <Trash2 />
                   Delete search
@@ -493,125 +485,136 @@ export function SearchResultsScreen({ id }: { id: string }) {
         }
       />
 
-      <Overview search={search} />
+      <div ref={scrollRef} className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
+        <div className="mx-auto w-full max-w-[1120px]">
+          <Overview search={search} timing={timing} />
 
-      <div
-        className={cn(
-          'relative z-10 flex shrink-0 items-center gap-2 px-6 pb-3 transition-shadow duration-200',
-          scrolled && 'shadow-[0_1px_0_var(--border)]',
-        )}
-      >
-        {/* Command bar style filter. */}
-        <div className="relative w-80">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            ref={filterRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setText('');
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder="Filter companies and emails"
-            aria-label="Filter companies and emails"
-            className="h-7 w-full rounded-[8px] bg-foreground/[0.05] pr-12 pl-8 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-card focus-visible:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/25 dark:focus-visible:bg-foreground/10"
-          />
-          {text ? (
-            <button
-              type="button"
-              aria-label="Clear filter"
-              onClick={() => setText('')}
-              className="absolute top-1/2 right-1.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background hover:bg-muted-foreground/60"
-            >
-              <X className="size-2.5" strokeWidth={3} />
-            </button>
-          ) : (
-            <Kbd className="absolute top-1/2 right-1.5 -translate-y-1/2 bg-transparent">{modKey} F</Kbd>
-          )}
-        </div>
-        <VerificationFilter value={verification} onChange={setVerification} />
-        <Segmented<KindOption>
-          label="Email kind"
-          size="sm"
-          value={kind ?? 'all'}
-          onChange={(v) => setKind(v === 'all' ? undefined : v)}
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'generic', label: 'Generic' },
-            { value: 'personal', label: 'Personal' },
-          ]}
-        />
-        <div className="ml-auto flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
-          {companies.isFetching && !companies.isPending && <Loader2 className="size-3 motion-safe:animate-spin" />}
-          {companies.data &&
-            (filtered
-              ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)} companies`
-              : `${formatNumber(total)} companies`)}
-        </div>
-      </div>
-
-      <div
-        ref={scrollRef}
-        onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 2)}
-        className="min-h-0 flex-1 overflow-auto pb-4 [scrollbar-gutter:stable]"
-      >
-        <div className="sticky top-0 z-10 bg-background/85 px-3 backdrop-blur-xl">
-          <div className={cn(COLUMNS, 'px-3 py-1.5 text-xs font-medium text-muted-foreground')}>
-            <span>Company</span>
-            <span>Emails</span>
-            <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
-            <span />
+          <div>
+            <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground')}>
+              <span>Company</span>
+              <span>Emails</span>
+              <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
+              <span />
+            </div>
           </div>
-        </div>
-        {companies.isPending ? (
-          <TableSkeleton />
-        ) : companies.error ? (
-          <ErrorState error={companies.error} onRetry={() => void companies.refetch()} />
-        ) : rows.length === 0 ? (
-          filtered ? (
-            <EmptyState
-              icon={SearchX}
-              title="Nothing matches these filters"
-              action={
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setText('');
-                    setVerification(undefined);
-                    setKind(undefined);
-                  }}
-                >
-                  Clear filters
-                </Button>
-              }
-            />
-          ) : live ? (
-            <EmptyState icon={Radar} title="Looking for companies">
-              They appear here as soon as they are found.
-            </EmptyState>
-          ) : (
-            <EmptyState icon={Inbox} title="No companies found">
-              Try a broader keyword or a larger area.
-            </EmptyState>
-          )
-        ) : (
-          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-            {items.map((item) => (
-              <div
-                key={item.key}
-                data-index={item.index}
-                ref={virtualizer.measureElement}
-                className="absolute top-0 left-0 w-full"
-                style={{ transform: `translateY(${item.start}px)` }}
-              >
-                <CompanyRow company={rows[item.index]!} live={live} />
+
+          <div ref={listRef}>
+            {companies.isPending ? (
+              <TableSkeleton />
+            ) : companies.error ? (
+              <ErrorState error={companies.error} onRetry={() => void companies.refetch()} />
+            ) : rows.length === 0 ? (
+              filtered ? (
+                <EmptyState
+                  icon={SearchX}
+                  title="Nothing matches these filters"
+                  action={
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setText('');
+                        setVerification(undefined);
+                        setKind(undefined);
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  }
+                />
+              ) : live ? (
+                <EmptyState icon={Radar} title="Looking for companies">
+                  They appear here as soon as they are found.
+                </EmptyState>
+              ) : (
+                <EmptyState icon={Inbox} title="No companies found">
+                  Try a broader keyword or a larger area.
+                </EmptyState>
+              )
+            ) : (
+              <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+                {items.map((item) => (
+                  <div
+                    key={item.key}
+                    data-index={item.index}
+                    ref={virtualizer.measureElement}
+                    className="absolute top-0 left-0 w-full"
+                    style={{ transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)` }}
+                  >
+                    <CompanyRow company={rows[item.index]!} live={live} />
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* The dock: filters and export float over the list, in glass. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-8">
+        <div className="glass pointer-events-auto flex h-12 items-center gap-1 rounded-full pr-1.5 pl-1.5 motion-safe:animate-rise">
+          <div className="relative w-72">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              ref={filterRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setText('');
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Filter companies and emails"
+              aria-label="Filter companies and emails"
+              className="h-9 w-full rounded-full bg-foreground/[0.045] pr-12 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
+            />
+            {text ? (
+              <button
+                type="button"
+                aria-label="Clear filter"
+                onClick={() => setText('')}
+                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background hover:bg-muted-foreground/60"
+              >
+                <X className="size-2.5" strokeWidth={3} />
+              </button>
+            ) : (
+              <Kbd className="absolute top-1/2 right-2.5 -translate-y-1/2 bg-transparent">{modKey} F</Kbd>
+            )}
+          </div>
+          <VerificationFilter value={verification} onChange={setVerification} />
+          <Segmented<KindOption>
+            label="Email kind"
+            size="sm"
+            value={kind ?? 'all'}
+            onChange={(v) => setKind(v === 'all' ? undefined : v)}
+            className="bg-transparent"
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'generic', label: 'Generic' },
+              { value: 'personal', label: 'Personal' },
+            ]}
+          />
+          <span className="flex min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground">
+            {companies.isFetching && !companies.isPending && <Loader2 className="size-3 motion-safe:animate-spin" />}
+            {companies.data &&
+              (filtered
+                ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)}`
+                : `${formatNumber(total)} companies`)}
+          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={() => void doExport()} disabled={exporting || search.emailsFound === 0}>
+                {exporting ? <Loader2 className="motion-safe:animate-spin" /> : <Download />}
+                Export CSV
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              One row per email <Kbd>{modKey} E</Kbd>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+
 
       <DeleteSearchDialog
         search={search}

@@ -22,7 +22,7 @@ interface Command {
 
 /**
  * The command bar: one field that jumps to any search or runs an action.
- * Opened with Cmd or Ctrl K, or from the search field in the sidebar.
+ * Opened with Cmd or Ctrl K, or from the island at the top of the window.
  */
 export function CommandBar({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -135,8 +135,8 @@ function Commands({ onDone }: { onDone: () => void }) {
 
   return (
     <>
-      <div className="flex h-14 items-center gap-3 border-b px-4">
-        <SearchIcon className="size-[18px] shrink-0 text-muted-foreground" />
+      <div className="flex h-16 items-center gap-3.5 border-b px-5">
+        <SearchIcon className="size-5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
         <input
           autoFocus
           value={query}
@@ -158,11 +158,11 @@ function Commands({ onDone }: { onDone: () => void }) {
           }}
           placeholder="Search or jump to"
           aria-label="Search or jump to"
-          className="h-full flex-1 bg-transparent text-lg tracking-[-0.01em] outline-none placeholder:text-muted-foreground/60"
+          className="h-full flex-1 bg-transparent font-display text-xl tracking-[-0.02em] caret-primary outline-none placeholder:text-muted-foreground/50"
         />
         <Kbd>esc</Kbd>
       </div>
-      <div ref={listRef} role="listbox" className="max-h-[min(420px,56vh)] overflow-y-auto p-1.5">
+      <div ref={listRef} role="listbox" className="max-h-[min(460px,60vh)] overflow-y-auto p-2">
         {filtered.length === 0 && <div className="px-3 py-8 text-center text-sm text-muted-foreground">No matches</div>}
         {filtered.map((command, index) => {
           const header = command.group !== lastGroup ? command.group : null;
@@ -171,7 +171,7 @@ function Commands({ onDone }: { onDone: () => void }) {
           return (
             <div key={command.id}>
               {header && (
-                <div className="px-2.5 pt-2 pb-1 text-xs font-semibold text-muted-foreground">{header}</div>
+                <div className="px-3 pt-3 pb-1.5 text-xs text-muted-foreground">{header}</div>
               )}
               <div
                 role="option"
@@ -180,8 +180,8 @@ function Commands({ onDone }: { onDone: () => void }) {
                 onMouseMove={() => setActive(index)}
                 onClick={() => run(command)}
                 className={cn(
-                  'flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm',
-                  selected ? 'bg-accent text-foreground' : 'text-foreground/85',
+                  'flex h-10 items-center gap-3 rounded-[16px] px-3 text-sm transition-colors duration-100',
+                  selected ? 'bg-foreground/[0.07] text-foreground' : 'text-foreground/85',
                 )}
               >
                 {command.icon}

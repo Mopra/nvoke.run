@@ -1,11 +1,9 @@
-import { useRef, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
-import { Group, Row } from '@/components/grouped';
 import { ErrorState } from '@/components/states';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,21 +14,18 @@ import { formatNumber, percent, periodLabel, resetDate } from '@/lib/format';
 import { useMe, usePlanSync } from '@/lib/queries';
 import { setThemePreference, useTheme, type ThemePreference } from '@/lib/theme';
 import type { Me } from '@/lib/types';
-import { useScrolled } from '@/lib/use-scrolled';
 import { cn } from '@/lib/utils';
 
-function UsageMeter({ me }: { me: Me }) {
+/** The month's verified emails as one large number over a hairline meter. */
+function Usage({ me }: { me: Me }) {
   const { emailsVerified, emailsLimit: limit, period } = me.usage;
   const share = percent(emailsVerified, limit);
   const left = Math.max(0, limit - emailsVerified);
   return (
-    <div className="flex flex-col gap-3 px-3.5 py-4">
-      <div className="flex items-baseline justify-between gap-4">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl font-semibold tabular-nums">{formatNumber(emailsVerified)}</span>
-          <span className="text-sm text-muted-foreground">of {formatNumber(limit)} verified emails</span>
-        </div>
-        <span className="text-xs tabular-nums text-muted-foreground">{Math.round(share)}%</span>
+    <section>
+      <div className="flex items-baseline gap-3">
+        <span className="font-display text-5xl font-extralight tabular-nums">{formatNumber(emailsVerified)}</span>
+        <span className="text-base text-muted-foreground">of {formatNumber(limit)} verified emails</span>
       </div>
       <div
         role="meter"
@@ -38,21 +33,34 @@ function UsageMeter({ me }: { me: Me }) {
         aria-valuemin={0}
         aria-valuemax={limit}
         aria-valuenow={emailsVerified}
-        className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.07]"
+        className="mt-6 h-[3px] overflow-hidden rounded-full bg-foreground/[0.08]"
       >
         <div
           className={cn(
-            'h-full rounded-full transition-[width] duration-700 ease-out-soft',
+            'h-full rounded-full transition-[width] duration-1000 ease-out-soft',
             share >= 90 ? 'bg-destructive' : 'bg-primary',
           )}
           style={{ width: `${share}%` }}
         />
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         {left === 0
           ? `You have used every verified email for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}, or upgrade to keep going.`
           : `${formatNumber(left)} left in ${periodLabel(period)}. Resets on ${resetDate(period)}.`}
       </p>
+    </section>
+  );
+}
+
+/** A setting: what it is on the left, its control on the right. No box around it. */
+function Setting({ label, description, children }: { label: ReactNode; description?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-8 py-5">
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-medium">{label}</div>
+        {description && <div className="mt-1 text-sm text-muted-foreground">{description}</div>}
+      </div>
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }
@@ -76,15 +84,16 @@ function ThemePicker() {
 
 function AccountSkeleton() {
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col items-center gap-3 pt-2">
+    <div className="flex flex-col gap-14">
+      <div className="flex items-center gap-5">
         <Skeleton className="size-16 rounded-full" />
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-3 w-48" />
+        <div className="flex flex-col gap-2.5">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-3 w-40" />
+        </div>
       </div>
-      {Array.from({ length: 2 }, (_, i) => (
-        <Skeleton key={i} className="h-28 w-full rounded-xl" />
-      ))}
+      <Skeleton className="h-14 w-64" />
+      <Skeleton className="h-24 w-full rounded-[20px]" />
     </div>
   );
 }
@@ -92,8 +101,6 @@ function AccountSkeleton() {
 export function AccountScreen() {
   const { data: me, error, isPending, refetch } = useMe();
   const [signingOut, setSigningOut] = useState(false);
-  const scrollRef = useRef<HTMLElement>(null);
-  const scrolled = useScrolled(scrollRef);
   usePlanSync();
 
   async function signOut(): Promise<void> {
@@ -108,60 +115,54 @@ export function AccountScreen() {
 
   return (
     <>
-      <PageHeader title="Account" divider={scrolled} />
-      <main ref={scrollRef} className="flex-1 overflow-auto px-6 pb-10">
-        <div className="mx-auto flex max-w-[560px] flex-col gap-7 pt-4 motion-safe:animate-page-in">
+      <PageHeader leading={<BackButton />} />
+      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
+        <div className="mx-auto flex max-w-[620px] flex-col pt-14 motion-safe:animate-rise">
           {isPending ? (
             <AccountSkeleton />
           ) : error ? (
             <ErrorState error={error} onRetry={() => void refetch()} />
           ) : (
             <>
-              <div className="flex flex-col items-center gap-1 text-center">
-                <Avatar user={me.user} className="mb-2 size-16 text-lg" />
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold">{me.user.name ?? me.user.email ?? 'Your account'}</h2>
-                  <Badge variant="default">{planLabel(me.plan)}</Badge>
+              <div className="flex items-center gap-5">
+                <Avatar user={me.user} className="size-16 text-lg" />
+                <div className="min-w-0">
+                  <h1 className="truncate font-display text-3xl font-semibold">
+                    {me.user.name ?? me.user.email ?? 'Your account'}
+                  </h1>
+                  {me.user.name && me.user.email && (
+                    <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{me.user.email}</div>
+                  )}
                 </div>
-                {me.user.name && me.user.email && <div className="font-mono text-xs text-muted-foreground">{me.user.email}</div>}
               </div>
 
-              <Group
-                title="Plan"
-                footer="Only valid emails count, and each address only once. Invalid, risky and catch-all results are free. Billing happens on nvoke.run."
-              >
-                <Row
-                  label={me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd}/month`}
-                  description={`${formatNumber(me.usage.emailsLimit)} verified emails a month. Every feature included.`}
+              <div className="mt-16">
+                <Usage me={me} />
+              </div>
+
+              <div className="mt-14 flex flex-col divide-y divide-border">
+                <Setting
+                  label={me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month`}
+                  description="Only valid emails count, each address once. Billing happens on nvoke.run."
                 >
                   <Button
                     variant={me.plan === FREE_PLAN ? 'default' : 'outline'}
-                    size="sm"
                     onClick={() => void api.openExternal(BILLING_URL)}
                   >
                     {me.plan === FREE_PLAN ? 'Upgrade' : 'Manage billing'}
                     <ArrowUpRight className="size-3.5 opacity-60" />
                   </Button>
-                </Row>
-                <div className="relative before:absolute before:top-0 before:right-0 before:left-3.5 before:h-px before:bg-border">
-                  <UsageMeter me={me} />
-                </div>
-              </Group>
-
-              <Group title="Appearance">
-                <Row label="Theme" description="System follows your computer's setting.">
+                </Setting>
+                <Setting label="Appearance" description="System follows your computer.">
                   <ThemePicker />
-                </Row>
-              </Group>
-
-              <Group footer="Signing out removes the session from this computer. Your searches stay in your account.">
-                <Row label="Signed in on this computer">
-                  <Button variant="outline" size="sm" onClick={() => void signOut()} disabled={signingOut}>
+                </Setting>
+                <Setting label="This computer" description="Signing out keeps your searches in your account.">
+                  <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
                     {signingOut && <Loader2 className="motion-safe:animate-spin" />}
                     Sign out
                   </Button>
-                </Row>
-              </Group>
+                </Setting>
+              </div>
             </>
           )}
         </div>

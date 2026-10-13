@@ -22,7 +22,7 @@ function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-44 overflow-hidden rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg backdrop-blur-2xl',
+          'z-50 min-w-48 overflow-hidden rounded-[20px] glass-strong p-1.5 text-popover-foreground',
           'origin-(--radix-dropdown-menu-content-transform-origin) duration-200 ease-spring data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.96] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100',
           className,
         )}
@@ -32,9 +32,9 @@ function DropdownMenuContent({
   );
 }
 
-// Highlighted items take the accent, the way native menus do.
+// Highlighted items lift with a quiet fill; the accent stays for the primary action.
 const itemClass =
-  "relative flex h-7 cursor-default select-none items-center gap-2 rounded-[7px] px-2 text-sm outline-none data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
+  "relative flex h-8 cursor-default select-none items-center gap-2.5 rounded-[14px] px-2.5 text-sm outline-none data-[highlighted]:bg-foreground/[0.07] data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
 
 function DropdownMenuItem({
   className,
@@ -47,7 +47,7 @@ function DropdownMenuItem({
       className={cn(
         itemClass,
         variant === 'destructive' &&
-          'text-destructive data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground',
+          'text-destructive data-[highlighted]:bg-destructive/10',
         className,
       )}
       {...props}
@@ -67,10 +67,10 @@ function DropdownMenuRadioItem({
   return (
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
-      className={cn(itemClass, 'pl-7', className)}
+      className={cn(itemClass, 'pl-8', className)}
       {...props}
     >
-      <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
+      <span className="pointer-events-none absolute left-2.5 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
           <CheckIcon className="size-3.5 opacity-100" strokeWidth={2.5} />
         </DropdownMenuPrimitive.ItemIndicator>

@@ -90,5 +90,7 @@ export function syncTitleBar(): void {
   const base = toHex(background, 'gray');
   const symbol = base && toHex(foreground, base);
   if (!base || !symbol) return;
-  void api.setTitleBarColors({ color: base, symbolColor: symbol }).catch(() => undefined);
+  // Over Mica the canvas is translucent, so the caption buttons stay clear too.
+  const color = root.dataset['material'] === 'mica' ? 'transparent' : base;
+  void api.setTitleBarColors({ color, symbolColor: symbol }).catch(() => undefined);
 }

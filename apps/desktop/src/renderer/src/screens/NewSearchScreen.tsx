@@ -1,22 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ChevronsUpDown, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
+import { useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
+import { ChevronDown, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
-import { LargeTitle, PageHeader } from '@/components/AppShell';
-import { FieldRow, Group, Row } from '@/components/grouped';
+import { BackButton, PageHeader } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
-import { PlainInput } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { formatNumber, searchTitle, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
 import { useCreateSearch, useMe } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import type { SearchInput, SearchKind } from '@/lib/types';
-import { useScrolled } from '@/lib/use-scrolled';
+import { cn } from '@/lib/utils';
 
 const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
 
 const COUNTRIES: [string, string][] = [
-  ['', 'Any country'],
+  ['', 'any country'],
   ['DK', 'Denmark'],
   ['SE', 'Sweden'],
   ['NO', 'Norway'],
@@ -54,8 +52,6 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   const [limit, setLimit] = useState(100);
   const [touched, setTouched] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLElement>(null);
-  const scrolled = useScrolled(scrollRef);
   const create = useCreateSearch();
   const me = useMe();
 
@@ -101,156 +97,198 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
 
   return (
     <>
-      <PageHeader title="New search" divider={scrolled} titleHidden={!scrolled} />
-      <main ref={scrollRef} className="flex-1 overflow-auto px-6 pb-10">
-        <form
-          onSubmit={submit}
-          className="mx-auto flex max-w-[560px] flex-col gap-7 motion-safe:animate-page-in"
-          noValidate
-        >
-          <LargeTitle className="-mb-2 px-0.5" subtitle="Tell nvoke where to look. Results arrive while it works.">
-            New search
-          </LargeTitle>
-          <div className="flex flex-col gap-2.5">
+      <PageHeader leading={<BackButton />} newSearch={false} />
+      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
+        <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-rise" noValidate>
+          <h1 className="sr-only">New search</h1>
+          <div className="flex flex-col items-start gap-3">
             <Segmented
               label="Where to look"
               value={kind}
               onChange={setKind}
-              stretch
               options={[
                 { value: 'local', label: 'Local businesses', icon: MapPin },
                 { value: 'web', label: 'Web search', icon: Globe },
                 { value: 'launches', label: 'New launches', icon: Rocket },
               ]}
             />
-            <p className="px-3.5 text-xs text-muted-foreground">{SOURCES[kind]}</p>
+            <p className="pl-1 text-sm text-muted-foreground">{SOURCES[kind]}</p>
           </div>
 
-          {kind === 'local' && (
-            <Group footer="Plural works best, for example dentists or bakeries. Where can be a city, region or postcode.">
-              <FieldRow label="Kind of business" htmlFor="niche">
-                <PlainInput
-                  id="niche"
-                  ref={firstField}
-                  value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                  placeholder="Dentists"
-                  aria-invalid={invalid(niche)}
-                />
-              </FieldRow>
-              <FieldRow label="Where" htmlFor="location">
-                <PlainInput
-                  id="location"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Copenhagen"
-                  aria-invalid={invalid(location)}
-                />
-              </FieldRow>
-            </Group>
-          )}
-
-          {kind === 'web' && (
-            <Group footer="Describe what the companies do or sell.">
-              <FieldRow label="Keyword" htmlFor="keyword">
-                <PlainInput
-                  id="keyword"
-                  ref={firstField}
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="Headless CMS"
-                  aria-invalid={invalid(keyword)}
-                />
-              </FieldRow>
-              <FieldRow label="Country" htmlFor="country">
-                <div className="relative">
-                  <select
-                    id="country"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="h-8 w-full appearance-none rounded-sm bg-transparent pr-8 pl-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25"
-                  >
-                    {COUNTRIES.map(([code, name]) => (
-                      <option key={code} value={code}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronsUpDown className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                </div>
-              </FieldRow>
-            </Group>
-          )}
-
-          {kind === 'launches' && (
-            <Group footer="Leave the keyword empty to see every launch.">
-              <FieldRow label="Keyword" htmlFor="launch-keyword">
-                <PlainInput
-                  id="launch-keyword"
-                  ref={firstField}
-                  value={launchKeyword}
-                  onChange={(e) => setLaunchKeyword(e.target.value)}
-                  placeholder="Optional, for example analytics"
-                />
-              </FieldRow>
-              <Row label="Launched in the">
-                <Segmented
-                  label="Time window"
-                  size="sm"
-                  value={launchWindow}
-                  onChange={setLaunchWindow}
-                  options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => ({
-                    value: w,
-                    label: WINDOW_LABEL[w].toLowerCase(),
-                  }))}
-                />
-              </Row>
-            </Group>
-          )}
-
-          <Group
-            footer={
+          <div className="mt-14 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3">
+            {kind === 'local' && (
               <>
-                Only verified emails count toward your plan. Invalid, risky and catch-all addresses are free.
-                {remaining !== null && ` You have ${formatNumber(Math.max(0, remaining))} left this month.`}
-                {me.data && limit > maxLimit && ` A search finds up to ${formatNumber(maxLimit)} companies.`}
+                <Line lead="Find" htmlFor="niche">
+                  <SentenceInput
+                    id="niche"
+                    ref={firstField}
+                    value={niche}
+                    onChange={(e) => setNiche(e.target.value)}
+                    placeholder="dentists"
+                    aria-invalid={invalid(niche)}
+                  />
+                </Line>
+                <Line lead="in" htmlFor="location">
+                  <SentenceInput
+                    id="location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="Copenhagen"
+                    aria-invalid={invalid(location)}
+                  />
+                </Line>
               </>
-            }
-          >
-            <Row label="Companies to find" htmlFor="limit">
-              <Segmented
-                label="Preset limits"
-                size="sm"
-                value={preset ?? ('' as (typeof LIMIT_PRESETS)[number])}
-                onChange={(v) => setLimit(Number(v))}
-                options={LIMIT_PRESETS.map((p) => ({ value: p, label: <span className="tabular-nums">{p}</span> }))}
-              />
-              <PlainInput
-                id="limit"
-                type="number"
-                min={1}
-                max={maxLimit}
-                value={Number.isNaN(limit) ? '' : limit}
-                onChange={(e) => setLimit(e.target.valueAsNumber)}
-                aria-label="Custom limit"
-                className="h-7 w-16 rounded-[7px] bg-foreground/[0.06] text-center tabular-nums"
-              />
-            </Row>
-          </Group>
+            )}
 
-          <div className="flex items-center justify-end gap-2">
-            {touched && !input && <span className="mr-auto text-sm text-destructive">Fill in the highlighted fields.</span>}
-            <Button type="button" variant="ghost" onClick={() => navigate({ name: 'searches' })}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={create.isPending} className="min-w-32">
+            {kind === 'web' && (
+              <>
+                <Line lead="Find" htmlFor="keyword">
+                  <SentenceInput
+                    id="keyword"
+                    ref={firstField}
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="headless CMS"
+                    aria-invalid={invalid(keyword)}
+                  />
+                </Line>
+                <Line lead="in" htmlFor="country">
+                  <SentenceSelect id="country" value={country} onChange={setCountry} options={COUNTRIES} />
+                </Line>
+              </>
+            )}
+
+            {kind === 'launches' && (
+              <>
+                <Line lead="Find" htmlFor="launch-keyword">
+                  <SentenceInput
+                    id="launch-keyword"
+                    ref={firstField}
+                    value={launchKeyword}
+                    onChange={(e) => setLaunchKeyword(e.target.value)}
+                    placeholder="any launch"
+                  />
+                </Line>
+                <Line lead="from the" htmlFor="launch-window">
+                  <SentenceSelect
+                    id="launch-window"
+                    value={launchWindow}
+                    onChange={(v) => setLaunchWindow(v as LaunchWindow)}
+                    options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => [w, WINDOW_LABEL[w].toLowerCase()])}
+                  />
+                </Line>
+              </>
+            )}
+
+            <Line lead="up to" htmlFor="limit">
+              <div className="flex items-baseline gap-4">
+                <input
+                  id="limit"
+                  type="number"
+                  min={1}
+                  max={maxLimit}
+                  value={Number.isNaN(limit) ? '' : limit}
+                  onChange={(e) => setLimit(e.target.valueAsNumber)}
+                  style={{ width: `${Math.max(2, String(Number.isNaN(limit) ? '' : limit).length) + 0.4}ch` }}
+                  className={cn(SENTENCE, 'tabular-nums [&::-webkit-inner-spin-button]:appearance-none')}
+                />
+                <span className="font-display text-4xl font-semibold text-muted-foreground/50">companies</span>
+              </div>
+            </Line>
+            <div className="col-start-2 -mt-1 -ml-3 flex gap-1" role="group" aria-label="Preset limits">
+              {LIMIT_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  aria-pressed={preset === p}
+                  onClick={() => setLimit(Number(p))}
+                  className={cn(
+                    'h-7 rounded-full px-3 text-xs tabular-nums outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                    preset === p
+                      ? 'bg-foreground/[0.08] font-medium text-foreground'
+                      : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-16 flex items-center gap-6">
+            <Button type="submit" size="lg" disabled={create.isPending} className="min-w-40">
               {create.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
               Start search
               {!create.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
             </Button>
+            {touched && !input ? (
+              <span className="text-sm text-destructive">Fill in the highlighted words.</span>
+            ) : (
+              <p className="max-w-sm text-xs text-muted-foreground">
+                Only verified emails count toward your plan.
+                {remaining !== null && ` ${formatNumber(Math.max(0, remaining))} left this month.`}
+                {me.data && limit > maxLimit && ` A search finds up to ${formatNumber(maxLimit)} companies.`}
+              </p>
+            )}
           </div>
         </form>
       </main>
     </>
+  );
+}
+
+const SENTENCE =
+  'min-w-0 bg-transparent font-display text-4xl font-semibold caret-primary outline-none placeholder:text-foreground/[0.17] aria-invalid:placeholder:text-destructive/40';
+
+/**
+ * One line of the sentence: a quiet lead word, then the field in display type.
+ * The lead words share one column of the parent grid, so the fields align.
+ */
+function Line({ lead, htmlFor, children }: { lead: string; htmlFor: string; children: ReactNode }) {
+  return (
+    <div className="group/line contents">
+      <label htmlFor={htmlFor} className="self-baseline pb-2 font-display text-4xl font-semibold text-muted-foreground/50">
+        {lead}
+      </label>
+      <div className="relative min-w-0 self-baseline pb-2">
+        {children}
+        {/* A hairline that lights up with the accent while the line has focus. */}
+        <span className="absolute inset-x-0 bottom-0 h-px bg-border transition-colors duration-300 group-focus-within/line:bg-primary/70" />
+      </div>
+    </div>
+  );
+}
+
+function SentenceInput(props: ComponentProps<'input'>) {
+  return <input autoComplete="off" spellCheck={false} {...props} className={cn(SENTENCE, 'w-full')} />;
+}
+
+function SentenceSelect({
+  id,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <div className="relative flex items-center">
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(SENTENCE, 'w-full appearance-none pr-10 [&>option]:bg-popover [&>option]:text-base [&>option]:font-normal')}
+      >
+        {options.map(([code, name]) => (
+          <option key={code} value={code}>
+            {name}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-1 size-6 text-muted-foreground/60" strokeWidth={1.75} />
+    </div>
   );
 }

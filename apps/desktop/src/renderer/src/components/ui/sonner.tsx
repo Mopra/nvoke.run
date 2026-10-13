@@ -2,14 +2,14 @@ import { CircleAlert, CircleCheck, Info, Loader2, TriangleAlert } from 'lucide-r
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 import { useTheme } from '@/lib/theme';
 
-/** Toasts float as small glass capsules at the bottom center, like a HUD. */
+/** Toasts drop in under the island at the top center, as glass capsules. */
 function Toaster(props: ToasterProps) {
   const { resolved } = useTheme();
   return (
     <Sonner
       theme={resolved}
-      position="bottom-center"
-      offset={20}
+      position="top-center"
+      offset={60}
       gap={8}
       icons={{
         success: <CircleCheck className="size-4 text-chart-1" />,
@@ -22,7 +22,7 @@ function Toaster(props: ToasterProps) {
         unstyled: true,
         classNames: {
           toast:
-            'flex w-[360px] items-start gap-2.5 rounded-xl border bg-popover px-3.5 py-3 text-popover-foreground shadow-lg backdrop-blur-2xl',
+            'glass-strong flex w-[380px] items-start gap-3 rounded-[22px] px-4 py-3.5 text-popover-foreground',
           icon: 'mt-px flex size-4 shrink-0 items-center justify-center',
           content: 'flex min-w-0 flex-1 flex-col gap-0.5',
           title: 'text-sm font-medium',
