@@ -266,7 +266,7 @@ function CompanyRow({
         if (e.shiftKey) e.preventDefault();
       }}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button, a, input')) return;
+        if (e.target instanceof Element && e.target.closest('button, a, input')) return;
         onSelect(company.id, e);
       }}
       onDragStart={(e) => onDragOut(company.id, e)}
@@ -499,7 +499,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   // Escape clears. Fields, dialogs and selected text keep their own behaviour.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement | null;
+      const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
       const mod = isMac ? event.metaKey : event.ctrlKey;
       const key = event.key.toLowerCase();
@@ -676,7 +676,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
       <div
         ref={scrollRef}
         onClick={(e) => {
-          if (!(e.target as HTMLElement).closest('[data-company-row], button, a, input')) setSelection(EMPTY_SELECTION);
+          if (!(e.target instanceof Element && e.target.closest('[data-company-row], button, a, input'))) setSelection(EMPTY_SELECTION);
         }}
         className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-[1120px]">
