@@ -7,12 +7,29 @@ import { urls } from '@/lib/docs';
 
 export const metadata: Metadata = {
   title: 'MCP server',
-  description: 'Connect Claude, Cursor or any MCP client to nvoke with one URL. Tools to search, wait, read leads, export and set up webhooks.',
+  description:
+    'Connect Claude, Cursor or any MCP client to nvoke: through the desktop app with no key, or with one URL. Tools to search, wait, read leads, export and set up webhooks.',
   alternates: { canonical: '/docs/mcp' },
 };
 
 const CLAUDE_CODE = `claude mcp add --transport http nvoke ${urls.mcp} --header "Authorization: Bearer nvk_sk_..."`;
 const CLAUDE_CODE_OAUTH = `claude mcp add --transport http nvoke ${urls.mcp}`;
+
+const DESKTOP_CLAUDE_CODE = `claude mcp add nvoke --scope user -e ELECTRON_RUN_AS_NODE=1 -- "<nvoke>" "<launcher>" <pipe>`;
+
+const DESKTOP_CURSOR = JSON.stringify(
+  {
+    mcpServers: {
+      nvoke: {
+        command: '<nvoke>',
+        args: ['<launcher>', '<pipe>'],
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      },
+    },
+  },
+  null,
+  2,
+);
 
 const CURSOR = JSON.stringify(
   {
@@ -41,7 +58,7 @@ export default function McpDocs() {
     <>
       <DocsTitle
         title="MCP server"
-        intro="Give your agent nvoke as tools. One URL, no install. It finds companies, waits for the checks and hands back the addresses that work."
+        intro="Give your agent nvoke as tools. Through the desktop app with no key, or with one URL and no install. It finds companies, waits for the checks and hands back the addresses that work."
       />
 
       <div className="glass flex flex-col gap-3 rounded-3xl p-6 text-sm">
@@ -55,12 +72,16 @@ export default function McpDocs() {
         </div>
         <div className="grid gap-1 sm:grid-cols-[7rem_1fr]">
           <span className="text-muted-foreground">Auth</span>
-          <span>API key header, or OAuth through nvoke sign-in</span>
+          <span>The desktop app’s sign-in, an API key header, or OAuth</span>
         </div>
       </div>
 
-      <DocsSection id="auth" title="Two ways in">
+      <DocsSection id="auth" title="Three ways in">
         <Prose>
+          <p>
+            <strong>The desktop app.</strong> If you run <a href="/download">nvoke on your computer</a>, Claude Desktop,
+            Claude Code and Cursor can use it directly. No key, no URL, no browser. <a href="#desktop">Set it up</a>.
+          </p>
           <p>
             <strong>API key.</strong> Send <code>Authorization: Bearer nvk_sk_...</code> as a header. Get the key in the
             desktop app under Account, or let the agent <a href="/docs/agents">sign up on its own</a>.
@@ -68,6 +89,43 @@ export default function McpDocs() {
           <p>
             <strong>OAuth.</strong> Clients that speak MCP OAuth need only the URL. The first call answers 401 and points
             the client at nvoke’s sign-in. The browser opens, you sign in or sign up, approve, done. No key to paste.
+          </p>
+        </Prose>
+      </DocsSection>
+
+      <DocsSection id="desktop" title="Through the desktop app">
+        <Prose>
+          <p>
+            Open nvoke, go to Account and find <strong>Use nvoke in Claude and Cursor</strong>. Your agent then
+            searches and reads leads as you, on the app’s own sign-in. The token never leaves the app, and nothing
+            goes in a config file but a path.
+          </p>
+          <p>
+            <strong>Claude Desktop.</strong> Press Add to Claude Desktop and confirm. nvoke adds itself to{' '}
+            <code>claude_desktop_config.json</code> and leaves the rest of the file alone. Quit and reopen Claude
+            Desktop to see the tools.
+          </p>
+          <p>
+            <strong>Claude Code.</strong> Copy the line from Account and run it. It adds nvoke for every project.
+            The real line has the paths filled in for your machine:
+          </p>
+        </Prose>
+        <CodeBlock label="shell" code={DESKTOP_CLAUDE_CODE} />
+        <Prose>
+          <p>
+            <strong>Cursor.</strong> Copy the JSON from Account into <code>~/.cursor/mcp.json</code>. Same shape:
+          </p>
+        </Prose>
+        <CodeBlock label="mcp.json" code={DESKTOP_CURSOR} />
+        <Prose>
+          <p>
+            The client starts a small launcher that runs on the nvoke binary and talks to the app over a local pipe
+            only your user can open. If nvoke is closed, the launcher starts it in the background. Signed out, every
+            tool asks you to sign in. Account lists the clients connected right now. The tools are the same as the
+            hosted server’s, below.
+          </p>
+          <p>
+            Use a key or OAuth instead when the agent runs somewhere else: a server, CI, claude.ai in the browser.
           </p>
         </Prose>
       </DocsSection>
