@@ -12,6 +12,9 @@ asar: true
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 publish: null
 
+# Icons come from `pnpm icons` (scripts/icons.mjs). macOS builds its icns
+# from build/icon.png, which follows Apple's grid with padding and a shadow.
+
 # nvoke:// links (the browser sign-in callback) open the app. NSIS and the
 # AppImage register it with the OS, macOS reads it from Info.plist.
 protocols:
@@ -19,6 +22,7 @@ protocols:
     schemes: [nvoke]
 
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -36,6 +40,7 @@ mac:
   identity: null
 
 linux:
+  icon: build/icon-desktop.png
   target:
     - target: AppImage
       arch: [x64]
