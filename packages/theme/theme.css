@@ -1,0 +1,126 @@
+/*
+ * nvoke theme. Warm neutrals tinted at hue 80, sage accent ring at hue 150.
+ * The sidebar sits darker than the content in both modes so the chrome
+ * recedes and content floats: card > background > sidebar in lightness.
+ *
+ * Shared by apps/desktop and apps/site. Components must only use these tokens
+ * (bg-background, text-muted-foreground, border-border, ring-ring...). Swap a
+ * theme by replacing the two blocks below, for example with an export from
+ * tweakcn. Each app keeps its own @import "tailwindcss" and @custom-variant.
+ */
+:root {
+  --background: oklch(0.975 0.006 80);
+  --foreground: oklch(0.24 0.01 80);
+  --card: oklch(0.99 0.004 80);
+  --card-foreground: oklch(0.24 0.01 80);
+  --popover: oklch(0.99 0.004 80);
+  --popover-foreground: oklch(0.24 0.01 80);
+  --primary: oklch(0.3 0.012 80);
+  --primary-foreground: oklch(0.98 0.005 80);
+  --secondary: oklch(0.935 0.008 80);
+  --secondary-foreground: oklch(0.28 0.01 80);
+  --muted: oklch(0.94 0.007 80);
+  --muted-foreground: oklch(0.52 0.012 80);
+  --accent: oklch(0.925 0.01 80);
+  --accent-foreground: oklch(0.24 0.01 80);
+  --destructive: oklch(0.58 0.19 28);
+  --destructive-foreground: oklch(0.98 0.005 80);
+  --border: oklch(0.89 0.008 80);
+  --input: oklch(0.89 0.008 80);
+  --ring: oklch(0.62 0.07 150);
+  --chart-1: oklch(0.62 0.07 150);
+  --chart-2: oklch(0.7 0.08 80);
+  --chart-3: oklch(0.55 0.05 200);
+  --chart-4: oklch(0.75 0.06 120);
+  --chart-5: oklch(0.5 0.06 40);
+  --sidebar: oklch(0.945 0.009 80);
+  --sidebar-foreground: oklch(0.28 0.01 80);
+  --sidebar-primary: oklch(0.3 0.012 80);
+  --sidebar-primary-foreground: oklch(0.98 0.005 80);
+  --sidebar-accent: oklch(0.905 0.011 80);
+  --sidebar-accent-foreground: oklch(0.24 0.01 80);
+  --sidebar-border: oklch(0.88 0.009 80);
+  --sidebar-ring: oklch(0.62 0.07 150);
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: oklch(0.21 0.006 80);
+  --foreground: oklch(0.94 0.006 80);
+  --card: oklch(0.245 0.007 80);
+  --card-foreground: oklch(0.94 0.006 80);
+  --popover: oklch(0.245 0.007 80);
+  --popover-foreground: oklch(0.94 0.006 80);
+  --primary: oklch(0.92 0.008 80);
+  --primary-foreground: oklch(0.22 0.008 80);
+  --secondary: oklch(0.29 0.008 80);
+  --secondary-foreground: oklch(0.94 0.006 80);
+  --muted: oklch(0.27 0.007 80);
+  --muted-foreground: oklch(0.7 0.01 80);
+  --accent: oklch(0.3 0.009 80);
+  --accent-foreground: oklch(0.95 0.006 80);
+  --destructive: oklch(0.65 0.19 25);
+  --destructive-foreground: oklch(0.98 0.005 80);
+  --border: oklch(0.32 0.008 80);
+  --input: oklch(0.34 0.008 80);
+  --ring: oklch(0.72 0.07 150);
+  --chart-1: oklch(0.72 0.07 150);
+  --chart-2: oklch(0.75 0.08 80);
+  --chart-3: oklch(0.65 0.05 200);
+  --chart-4: oklch(0.8 0.06 120);
+  --chart-5: oklch(0.6 0.06 40);
+  --sidebar: oklch(0.175 0.006 80);
+  --sidebar-foreground: oklch(0.9 0.006 80);
+  --sidebar-primary: oklch(0.92 0.008 80);
+  --sidebar-primary-foreground: oklch(0.22 0.008 80);
+  --sidebar-accent: oklch(0.25 0.008 80);
+  --sidebar-accent-foreground: oklch(0.95 0.006 80);
+  --sidebar-border: oklch(0.26 0.007 80);
+  --sidebar-ring: oklch(0.72 0.07 150);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}

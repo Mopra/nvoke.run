@@ -1,0 +1,34 @@
+{
+  "name": "nvoke",
+  "private": true,
+  "version": "0.1.0",
+  "description": "nvoke, a lead finder. Desktop app plus a Node backend.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint . && node scripts/check-punctuation.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:desktop": "pnpm --filter @nvoke/desktop dev",
+    "dev:api": "pnpm --filter @nvoke/server dev:api",
+    "dev:worker": "pnpm --filter @nvoke/server dev:worker",
+    "dev:site": "pnpm --filter @nvoke/site dev",
+    "migrate": "pnpm --filter @nvoke/server migrate",
+    "dist:desktop": "pnpm --filter @nvoke/desktop dist"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.4"
+  }
+}

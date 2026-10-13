@@ -1,0 +1,56 @@
+# nvoke API (Fastify). Serves the desktop app.
+#
+#   sudo cp deploy/nvoke-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nvoke-api
+#   journalctl -u nvoke-api -f
+
+[Unit]
+Description=nvoke API
+Documentation=file:/opt/nvoke/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+
+# Give up after five restarts in two minutes so a crash loop shows up as a
+# failed unit instead of hiding. These belong in [Unit]; modern systemd
+# ignores them in [Service].
+StartLimitBurst=5
+StartLimitIntervalSec=120
+
+[Service]
+Type=simple
+User=nvoke
+Group=nvoke
+WorkingDirectory=/opt/nvoke
+
+# Secrets only. Mode 600, owned by the nvoke user.
+EnvironmentFile=/opt/nvoke/.env
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/node apps/server/dist/api/index.js
+
+Restart=always
+RestartSec=5
+
+# JSON lines on stdout: journalctl -u nvoke-api -o cat | jq
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nvoke-api
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+# V8 needs writable and executable memory for its JIT.
+MemoryDenyWriteExecute=false
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

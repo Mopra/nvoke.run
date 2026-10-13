@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Packages allowed to run install scripts. Electron 44 fetches its binary on
+# first use, so it does not need one.
+onlyBuiltDependencies:
+  - esbuild
+
+# Squirrel installer tooling pulled in by electron-builder. We ship NSIS.
+ignoredBuiltDependencies:
+  - electron-winstaller

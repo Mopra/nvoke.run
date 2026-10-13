@@ -1,0 +1,24 @@
+{
+  "name": "@nvoke/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev:api": "tsx watch --env-file-if-exists=.env --conditions=@nvoke/source src/api/index.ts",
+    "dev:worker": "tsx watch --env-file-if-exists=.env --conditions=@nvoke/source src/worker/index.ts",
+    "start:api": "node --env-file-if-exists=.env dist/api/index.js",
+    "start:worker": "node --env-file-if-exists=.env dist/worker/index.js",
+    "migrate": "tsx --env-file-if-exists=.env --conditions=@nvoke/source src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.23.2",
+    "@fastify/cors": "^11.3.1",
+    "@nvoke/shared": "workspace:*",
+    "fastify": "^5.12.7",
+    "pino": "^10.0.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.7"
+  }
+}

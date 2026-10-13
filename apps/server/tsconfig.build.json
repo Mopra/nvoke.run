@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // Resolve @nvoke/shared to its built dist, not its source, so the server
+    // compiles on its own. `pnpm -r build` builds shared first.
+    "customConditions": []
+  },
+  "exclude": ["src/**/*.test.ts"]
+}
