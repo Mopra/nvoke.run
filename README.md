@@ -27,7 +27,9 @@ Node 24 and pnpm 10 (`corepack enable` picks up the pinned version).
 ```bash
 pnpm install
 cp apps/server/.env.example apps/server/.env      # fill in Clerk keys, DATABASE_URL
-cp apps/desktop/.env.example apps/desktop/.env    # fill in VITE_CLERK_PUBLISHABLE_KEY
+cp apps/desktop/.env.example apps/desktop/.env    # VITE_API_URL, VITE_SITE_URL
+cp apps/site/.env.example apps/site/.env.local     # Clerk keys, NEXT_PUBLIC_API_URL
+pnpm migrate        # creates the auth tables
 pnpm dev:api        # API on http://localhost:3000, GET /health
 pnpm dev:worker     # worker process
 pnpm dev:desktop    # Electron app with hot reload
@@ -36,6 +38,14 @@ pnpm dev:site       # site on http://localhost:3001
 
 The API boots without a database or Clerk keys, so `/health` works on a clean
 checkout. Routes behind auth answer 503 until `CLERK_SECRET_KEY` is set.
+
+## Signing in from the desktop app
+
+Sign in opens the site's `/desktop/sign-in` page in the system browser. After
+Clerk sign-in the page hands a one-time code back to the app through
+`nvoke://auth/callback`, and the app trades it (with a PKCE verifier) for a
+device token that it keeps encrypted on disk. Run the API and the site
+alongside the desktop app to try it locally. Details in `CLAUDE.md`.
 
 ## Commands
 

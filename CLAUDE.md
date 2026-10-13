@@ -13,7 +13,8 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   (separate process, entry `src/worker/index.ts`), `src/db` (postgres.js client
   and migration runner), `migrations/` (numbered `.sql` files, applied in order).
 - `apps/site`: Next.js (App Router) marketing and download site. Deploys to
-  Vercel with root directory `apps/site`. Placeholder pages only.
+  Vercel with root directory `apps/site`. Placeholder pages, plus the desktop
+  sign-in page under `app/desktop` (Clerk is scoped there by `proxy.ts`).
 - `packages/theme`: `theme.css`, the single source of the shadcn color tokens.
   Imported by the desktop renderer's `index.css` and the site's `globals.css`.
 - `deploy/`: systemd units (`nvoke-api.service`, `nvoke-worker.service`) and
@@ -48,13 +49,36 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
 - Desktop bundles every dependency (all are devDependencies), so the packaged
   app ships no `node_modules`. Keep it that way: add renderer and main deps as
   devDependencies.
-- Auth: the desktop app signs in with Clerk (`@clerk/react`) and sends the
-  session token as `Authorization: Bearer`. The server verifies it with
-  `@clerk/backend` in `src/api/auth.ts`. Protect a route with
-  `{ preHandler: app.requireAuth }` and read `req.auth`.
-- Open item: Clerk in a packaged Electron app (renderer loaded from `file://`)
-  needs a decision, for example a custom protocol or an external browser
-  sign-in flow. Dev mode works on the Vite dev server origin.
+- Auth: Clerk is the identity provider. The site sends Clerk session JWTs;
+  the desktop app sends an opaque device token. Both arrive as
+  `Authorization: Bearer` and `src/api/auth.ts` in the server accepts either.
+  Protect a route with `{ preHandler: app.requireAuth }` and read `req.auth`
+  (`requireClerkSession` and `requireDeviceSession` narrow it).
+
+## Desktop sign-in
+
+The desktop app never runs Clerk. It signs in through the system browser with
+a PKCE handoff, like Linear or Slack:
+
+1. Sign in: the main process makes a random `state` and a PKCE verifier, and
+   opens `{VITE_SITE_URL}/desktop/sign-in?state=...&code_challenge=...`.
+2. The site page (`apps/site/app/desktop`, the only place with Clerk) signs
+   the user in, calls `POST /v1/desktop/authorize` with the Clerk session and
+   gets a one-time code (5 minutes, single use, stored hashed, bound to the
+   user and the challenge). It redirects to
+   `nvoke://auth/callback?code=...&state=...`.
+3. The OS hands the URL to the app (`open-url` on macOS, `second-instance`
+   argv on Windows and Linux). Main checks `state` and calls
+   `POST /v1/desktop/token` with the code and verifier.
+4. The server returns an opaque device token (`nvk_dt_...`), stored only as a
+   sha256 hash in `device_sessions`. Main encrypts it with `safeStorage` in
+   userData. The renderer never sees it: it gets `AuthState` and calls the
+   API through `window.nvoke`. Sign out calls `POST /v1/desktop/sign-out`.
+
+Code: `apps/desktop/src/main/auth`, `apps/server/src/auth`,
+`apps/server/src/api/routes/desktop.ts`. In development the app registers
+`nvoke://` for the dev Electron binary (HKCU on Windows); installers register
+it through `protocols` in `electron-builder.yml`.
 
 ## Hard rules
 

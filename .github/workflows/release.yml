@@ -20,10 +20,11 @@ jobs:
     env:
       # No code signing yet.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      # Baked into the renderer at build time. Publishable keys are not secret,
-      # but keep them in repository variables so they are easy to rotate.
-      VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      # Baked into the app at build time. Not secret, but kept in repository
+      # variables so they are easy to change. VITE_SITE_URL defaults to
+      # https://nvoke.run when unset.
       VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
     steps:
       - uses: actions/checkout@v4
 
