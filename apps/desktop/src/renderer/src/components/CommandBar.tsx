@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, Search as SearchIcon, Sparkles, Sun } from 'lucide-react';
+import { CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, ScanText, Search as SearchIcon, Sparkles, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
 import { useSearches } from '@/lib/queries';
@@ -55,6 +55,7 @@ export function Commands({
   frontTab,
   onReadFrontTab,
   onFrontTabDenied,
+  onGrab,
 }: {
   onDone: () => void;
   onStart?: (input: SearchInput) => void;
@@ -67,6 +68,8 @@ export function Commands({
   onReadFrontTab?: () => void;
   /** macOS: the user refused that permission; explain where to allow it. */
   onFrontTabDenied?: (browser: string) => void;
+  /** Grab from screen, offered in the quick window. */
+  onGrab?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -207,6 +210,19 @@ export function Commands({
       run: () => onFrontTabDenied?.(frontTab.browser),
     };
   }, [frontTab, onStart, onReadFrontTab, onFrontTabDenied]);
+  const grab = useMemo<Command | null>(() => {
+    if (!onGrab) return null;
+    return {
+      id: 'grab',
+      group: 'Start',
+      label: 'Grab from screen',
+      hint: 'Read a list of companies off any app',
+      icon: <ScanText className="size-4 text-muted-foreground" />,
+      keywords: 'ocr scan screenshot capture exhibitors directory linkedin pdf',
+      keepOpen: true,
+      run: onGrab,
+    };
+  }, [onGrab]);
 
   const start = useMemo<Command | null>(() => {
     const input = onStart ? parseQuickSearch(query) : null;
@@ -233,8 +249,9 @@ export function Commands({
     // clipboard, once when both name the same site.
     const sameSite = site && lookup && frontTab?.status === 'read' && frontTab.domain === clipboard?.domain;
     const first = start ? [start] : q ? [] : [site, sameSite ? null : lookup].filter((c): c is Command => !!c);
-    return [...first, ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
-  }, [commands, query, start, lookup, site, frontTab, clipboard]);
+    const grabShown = grab && (!q || `${grab.label} ${grab.keywords ?? ''}`.toLowerCase().includes(q)) ? grab : null;
+    return [...first, ...(grabShown ? [grabShown] : []), ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
+  }, [commands, query, start, lookup, site, frontTab, clipboard, grab]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });

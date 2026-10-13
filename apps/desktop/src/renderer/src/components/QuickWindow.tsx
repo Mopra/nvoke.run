@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { Commands } from '@/components/CommandBar';
+import { GrabPanel } from '@/components/GrabPanel';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { useAuth } from '@/lib/auth';
-import { quickApi } from '@/lib/desktop';
+import { grabApi, quickApi } from '@/lib/desktop';
 import { formatNumber, isActive, searchTitle } from '@/lib/format';
 import { useCompanies, useCreateSearch, useSearch } from '@/lib/queries';
 import type { Search, SearchInput } from '@/lib/types';
-import type { FrontTab, QuickClipboard } from '../../../ipc/contract';
+import type { FrontTab, GrabState, QuickClipboard } from '../../../ipc/contract';
 
 /** Window margin that leaves room for the panel's shadow. */
 const MARGIN = 20;
@@ -28,6 +29,8 @@ export function QuickWindow() {
   const [clipboard, setClipboard] = useState<QuickClipboard>(null);
   // The site in the browser tab that was in front, read only on the shortcut. Arrives just after the show.
   const [frontTab, setFrontTab] = useState<FrontTab | null>(null);
+  // A screen grab in progress or its result. A plain opening clears it.
+  const [grab, setGrab] = useState<GrabState | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const quick = quickApi();
 
@@ -36,12 +39,14 @@ export function QuickWindow() {
       quick?.onShown((clip) => {
         setClipboard(clip);
         setFrontTab(null);
+        setGrab(null);
         setOpening((n) => n + 1);
       }),
     [quick],
   );
 
   useEffect(() => quick?.onFrontTab(setFrontTab), [quick]);
+  useEffect(() => grabApi()?.onState(setGrab), []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -63,7 +68,7 @@ export function QuickWindow() {
     observer.observe(el);
     fit();
     return () => observer.disconnect();
-  }, [quick, auth?.status, opening]);
+  }, [quick, auth?.status, opening, grab]);
 
   return (
     <div className="p-2.5">
@@ -73,7 +78,7 @@ export function QuickWindow() {
             <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />
           </div>
         ) : auth.status === 'signed-in' ? (
-          <Session key={opening} clipboard={clipboard} frontTab={frontTab} />
+          <Session key={opening} clipboard={clipboard} frontTab={frontTab} grab={grab} onGrabClose={() => setGrab(null)} />
         ) : (
           <SignedOut />
         )}
@@ -94,8 +99,18 @@ function SignedOut() {
   );
 }
 
-/** The command bar until a search starts, then that search's progress. */
-function Session({ clipboard, frontTab }: { clipboard: QuickClipboard; frontTab: FrontTab | null }) {
+/** The command bar (or a screen grab's list) until a search starts, then that search's progress. */
+function Session({
+  clipboard,
+  frontTab,
+  grab,
+  onGrabClose,
+}: {
+  clipboard: QuickClipboard;
+  frontTab: FrontTab | null;
+  grab: GrabState | null;
+  onGrabClose: () => void;
+}) {
   const create = useCreateSearch();
   const [started, setStarted] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -114,8 +129,22 @@ function Session({ clipboard, frontTab }: { clipboard: QuickClipboard; frontTab:
     else setNotice('Couldn’t read the address of the front tab.');
   }
 
-  if (started) return <Running id={started} onNew={() => setStarted(null)} />;
 
+  if (started) {
+    return (
+      <Running
+        id={started}
+        onNew={() => {
+          setStarted(null);
+          onGrabClose();
+        }}
+      />
+    );
+  }
+
+  if (grab) return <GrabPanel state={grab} onStart={start} onBack={onGrabClose} notice={create.isError ? create.error.message : notice} pending={create.isPending} />;
+
+  const grabber = grabApi();
   return (
     <Commands
       onDone={() => quickApi()?.hide()}
@@ -125,6 +154,7 @@ function Session({ clipboard, frontTab }: { clipboard: QuickClipboard; frontTab:
       frontTab={frontTab}
       onReadFrontTab={() => void readFrontTab()}
       onFrontTabDenied={(browser) => setNotice(automationHelp(browser))}
+      onGrab={grabber ? () => grabber.start() : undefined}
     />
   );
 }

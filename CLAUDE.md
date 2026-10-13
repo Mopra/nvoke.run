@@ -129,7 +129,10 @@ login is a setting on Account (`src/main/login-item.ts`), on after the first
 sign-in, and starts hidden. The tray talks to the renderer through
 `window.nvoke.desktop.onCommand`. A global shortcut (`src/main/quick-window.ts`,
 changeable on Account) opens the quick window, the command bar over any app, on
-`#/quick` of the same renderer. Tray icons are rendered by `pnpm icons` into
+`#/quick` of the same renderer. Its Grab from screen row covers the display with an overlay
+(`src/main/screen-grab.ts`, `#/grab`), reads the dragged box with the OS text
+engine (`src/main/ocr.ts`, no bundled OCR) and lists the companies
+(`src/main/grab-extract.ts` drops people) for a domains search. Tray icons are rendered by `pnpm icons` into
 `apps/desktop/resources` and unpacked from the asar.
 
 nvoke also serves MCP to Claude Desktop, Claude Code and Cursor on the

@@ -1,4 +1,5 @@
 import type { Rectangle } from 'electron';
+import type { GrabRect } from '../ipc/contract';
 
 /** Pure helpers for the quick window, kept apart so they test without Electron. */
 
@@ -28,4 +29,23 @@ export function isRouteHash(value: unknown): value is string {
 
 export function hotkeyClashMessage(accelerator: string): string {
   return `${accelerator} is taken by another app. Pick a different shortcut.`;
+}
+
+/** Smaller grab boxes are a click, not a drag. */
+const MIN_SIDE = 8;
+
+export function isGrabRect(value: unknown): value is GrabRect {
+  if (!value || typeof value !== 'object') return false;
+  const r = value as Record<string, unknown>;
+  return ['x', 'y', 'width', 'height'].every((k) => typeof r[k] === 'number' && Number.isFinite(r[k]));
+}
+
+/** `rect` (CSS px on a display of `size`) in the pixels of a frame `scale` times larger, clamped to the frame. */
+export function cropRect(rect: GrabRect, size: { width: number; height: number }, scale: number): GrabRect | null {
+  const x = Math.max(0, Math.min(size.width, rect.x));
+  const y = Math.max(0, Math.min(size.height, rect.y));
+  const width = Math.min(size.width - x, Math.max(0, rect.width));
+  const height = Math.min(size.height - y, Math.max(0, rect.height));
+  if (width < MIN_SIDE || height < MIN_SIDE) return null;
+  return { x: Math.round(x * scale), y: Math.round(y * scale), width: Math.floor(width * scale), height: Math.floor(height * scale) };
 }

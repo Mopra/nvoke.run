@@ -5,14 +5,18 @@ import { App } from './App';
 import { ApiError } from './lib/api';
 import { refreshAuth } from './lib/auth';
 import { initChrome } from './lib/chrome';
-import { isQuickWindow } from './lib/desktop';
+import { isGrabOverlay, isQuickWindow } from './lib/desktop';
 import { initTheme } from './lib/theme';
+import { GrabOverlay } from './components/GrabOverlay';
 import { QuickWindow } from './components/QuickWindow';
 import './index.css';
 
 // The quick window shares this bundle and shows through to the apps behind it.
 const quick = isQuickWindow();
 if (quick) document.documentElement.dataset['quick'] = '';
+// The screen grab overlay paints a frozen frame of the screen, edge to edge.
+const grab = isGrabOverlay();
+if (grab) document.documentElement.dataset['grab'] = '';
 
 void initChrome();
 initTheme();
@@ -36,7 +40,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      {quick ? <QuickWindow /> : <App />}
+      {grab ? <GrabOverlay /> : quick ? <QuickWindow /> : <App />}
     </QueryClientProvider>
   </StrictMode>,
 );

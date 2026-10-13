@@ -115,6 +115,9 @@ export function loadWindowPreferences(): void {
   if (saved.theme) nativeTheme.themeSource = saved.theme;
 }
 
+/** Windows with caption buttons. The quick window and the grab overlay have none. */
+const captioned = new WeakSet<BrowserWindow>();
+
 export function createMainWindow(): BrowserWindow {
   const chrome = chromeFor();
   const bounds = restorableBounds(
@@ -171,6 +174,7 @@ export function createMainWindow(): BrowserWindow {
   win.on('enter-full-screen', push);
   win.on('leave-full-screen', push);
 
+  captioned.add(win);
   return win;
 }
 
@@ -200,7 +204,7 @@ export function registerWindowIpc(): void {
       throw new Error('title bar colors must be #rrggbb or transparent');
     }
     const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || process.platform === 'darwin') return;
+    if (!win || !captioned.has(win) || process.platform === 'darwin') return;
     win.setTitleBarOverlay({ color: clear ? '#00000000' : c.color, symbolColor: c.symbolColor, height: chromeFor().titleBarHeight });
   });
 }

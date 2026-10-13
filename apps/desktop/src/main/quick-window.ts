@@ -3,7 +3,7 @@ import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, screen, type We
 import { DEFAULT_HOTKEY, isAccelerator } from '../ipc/accelerator';
 import { clipboardLookup } from './clipboard-lookup';
 import { detectFrontTab, readMacTab } from './front-tab';
-import { IpcChannel, type FrontTab } from '../ipc/contract';
+import { IpcChannel, type FrontTab, type GrabState } from '../ipc/contract';
 import { clampQuickHeight, hotkeyClashMessage, isRouteHash, quickBounds, QUICK_MIN_HEIGHT, QUICK_WIDTH } from './quick-geometry';
 
 /**
@@ -78,7 +78,7 @@ export class QuickWindow {
 
   registerIpc(): void {
     // Only the quick window may drive itself.
-    const fromQuick = (sender: WebContents): boolean => !!this.win && !this.win.isDestroyed() && sender === this.win.webContents;
+    const fromQuick = (sender: WebContents): boolean => this.isSender(sender);
 
     ipcMain.on(IpcChannel.quickHide, (event) => {
       if (fromQuick(event.sender)) this.hide();
@@ -138,6 +138,30 @@ export class QuickWindow {
     if (show !== this.shows || win.isDestroyed() || !win.isVisible()) return;
     this.frontTab = tab;
     win.webContents.send(IpcChannel.quickFrontTab, tab);
+  }
+
+  /** Shows the window as it is, without the fresh start `show` gives, for a screen grab's progress. */
+  reveal(): void {
+    const win = this.ensureWindow();
+    this.place();
+    win.show();
+    win.focus();
+  }
+
+  /** Pushes a screen grab's state, once the window has loaded. */
+  sendGrab(state: GrabState): void {
+    const win = this.ensureWindow();
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => win.webContents.send(IpcChannel.grabState, state));
+    else win.webContents.send(IpcChannel.grabState, state);
+  }
+
+  isSender(sender: WebContents): boolean {
+    return !!this.win && !this.win.isDestroyed() && sender === this.win.webContents;
+  }
+
+  /** The window while it exists, for the capture script. */
+  get window(): BrowserWindow | null {
+    return this.win && !this.win.isDestroyed() ? this.win : null;
   }
 
   /** The one place the clipboard is read: when the user opens the window. */

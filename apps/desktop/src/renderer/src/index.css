@@ -87,7 +87,10 @@
   /* The quick window floats over other apps: nothing around its panel is painted. */
   html[data-quick],
   html[data-quick] body,
-  html[data-quick] #root {
+  html[data-quick] #root,
+  html[data-grab],
+  html[data-grab] body,
+  html[data-grab] #root {
     background: transparent;
   }
   /* Nothing behind the panel to blur, so it needs a firmer fill to stay legible. */

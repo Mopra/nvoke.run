@@ -28,6 +28,7 @@ import { applyOpenAtLogin, startedHidden } from './login-item';
 import { QuickWindow } from './quick-window';
 import { registerMcp } from './mcp';
 import type { LocalMcpServer } from './mcp/server';
+import { ScreenGrab } from './screen-grab';
 import { AppTray } from './tray';
 import { Notifier, registerNotificationIpc } from './notifications/notifier';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from './window';
@@ -63,6 +64,7 @@ let mainWindow: BrowserWindow | null = null;
 let quick: QuickWindow | null = null;
 let mcp: LocalMcpServer | null = null;
 let notifier: Notifier | null = null;
+let grab: ScreenGrab | null = null;
 let desktop: SavedDesktop = {};
 let inbox: InboxWatcher | null = null;
 
@@ -187,6 +189,14 @@ function main(): void {
     registerLocalIpc(store, sync);
     notifier = new Notifier(session, () => mainWindow);
     if (!captureDir) registerNotificationIpc(notifier);
+    const quickWindow = quick;
+    grab = new ScreenGrab({
+      hide: () => quickWindow.hide(false),
+      reveal: () => quickWindow.reveal(),
+      send: (state) => quickWindow.sendGrab(state),
+      isSender: (sender) => quickWindow.isSender(sender),
+    });
+    grab.registerIpc();
     registerWindowIpc();
     registerDragIpc();
     registerEnrichedIpc();
@@ -223,6 +233,8 @@ function main(): void {
   app.on('will-quit', () => {
     tray?.destroy();
     tray = null;
+    grab?.destroy();
+    grab = null;
     quick?.destroy();
     quick = null;
     mcp?.close();
@@ -344,7 +356,7 @@ function createWindow({ hidden }: { hidden: boolean }): void {
     void win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  if (captureDir) void runCapture(win, captureDir);
+  if (captureDir) void runCapture(win, captureDir, { quick, grab });
 }
 
 function registerIpc(session: AuthSession, sync: LeadSync): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampQuickHeight, isRouteHash, quickBounds } from './quick-geometry';
+import { clampQuickHeight, cropRect, isGrabRect, isRouteHash, quickBounds } from './quick-geometry';
 
 describe('quickBounds', () => {
   it('centers on the display it is given', () => {
@@ -27,5 +27,23 @@ describe('isRouteHash', () => {
     expect(isRouteHash('https://evil.test')).toBe(false);
     expect(isRouteHash('#/<script>')).toBe(false);
     expect(isRouteHash(7)).toBe(false);
+  });
+});
+
+describe('grab boxes', () => {
+  it('scales a box to the frame and clamps it to the display', () => {
+    const display = { width: 1000, height: 800 };
+    expect(cropRect({ x: 10, y: 20, width: 100, height: 50 }, display, 2)).toEqual({ x: 20, y: 40, width: 200, height: 100 });
+    expect(cropRect({ x: 900, y: -10, width: 300, height: 100 }, display, 1.5)).toEqual({ x: 1350, y: 0, width: 150, height: 150 });
+  });
+
+  it('treats a click as no box', () => {
+    expect(cropRect({ x: 10, y: 10, width: 3, height: 100 }, { width: 1000, height: 800 }, 1)).toBeNull();
+  });
+
+  it('checks the shape the overlay sends', () => {
+    expect(isGrabRect({ x: 1, y: 2, width: 3, height: 4 })).toBe(true);
+    expect(isGrabRect({ x: 1, y: 2, width: Number.NaN, height: 4 })).toBe(false);
+    expect(isGrabRect('box')).toBe(false);
   });
 });

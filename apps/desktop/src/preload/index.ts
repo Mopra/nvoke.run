@@ -18,6 +18,8 @@ import {
   type LocalStatus,
   type McpSetup,
   type NotificationSettings,
+  type GrabFrame,
+  type GrabState,
   type NvokeApi,
   type QuickClipboard,
   type WindowChrome,
@@ -136,6 +138,18 @@ const api: NvokeApi = {
       const handler = (_event: IpcRendererEvent, searchId: string) => listener(searchId);
       ipcRenderer.on(IpcChannel.notificationsOpenSearch, handler);
       return () => ipcRenderer.removeListener(IpcChannel.notificationsOpenSearch, handler);
+    },
+  },
+  grab: {
+    start: () => ipcRenderer.send(IpcChannel.grabStart),
+    openSettings: () => ipcRenderer.send(IpcChannel.grabOpenSettings),
+    getFrame: () => ipcRenderer.invoke(IpcChannel.grabGetFrame) as Promise<GrabFrame | null>,
+    select: (rect) => ipcRenderer.send(IpcChannel.grabSelect, rect),
+    cancel: () => ipcRenderer.send(IpcChannel.grabCancel),
+    onState: (listener) => {
+      const handler = (_event: IpcRendererEvent, state: GrabState) => listener(state);
+      ipcRenderer.on(IpcChannel.grabState, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.grabState, handler);
     },
   },
 };

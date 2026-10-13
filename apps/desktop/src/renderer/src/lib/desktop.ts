@@ -4,7 +4,7 @@
  * there is no tray and the setting is hidden.
  */
 import { useEffect, useRef } from 'react';
-import type { DesktopApi, DesktopCommand, FilesApi, InboxApi, McpApi, QuickApi } from '../../../ipc/contract';
+import type { DesktopApi, DesktopCommand, FilesApi, GrabApi, InboxApi, McpApi, QuickApi } from '../../../ipc/contract';
 
 export function desktopApi(): DesktopApi | null {
   const api = (window as unknown as { nvoke?: { desktop?: DesktopApi } }).nvoke?.desktop;
@@ -52,4 +52,15 @@ export function mcpApi(): McpApi | null {
 export function inboxApi(): InboxApi | null {
   const api = (window as unknown as { nvoke?: { inbox?: InboxApi } }).nvoke?.inbox;
   return api && typeof api.onFile === 'function' ? api : null;
+}
+
+/** Grab from screen. Null outside the desktop app. */
+export function grabApi(): GrabApi | null {
+  const api = (window as unknown as { nvoke?: { grab?: GrabApi } }).nvoke?.grab;
+  return api && typeof api.start === 'function' ? api : null;
+}
+
+/** True in the screen grab overlay, which loads the same renderer on `#/grab`. */
+export function isGrabOverlay(): boolean {
+  return window.location.hash.startsWith('#/grab');
 }

@@ -2,6 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { app, desktopCapturer, nativeTheme, screen, type BrowserWindow } from 'electron';
+import type { QuickWindow } from './quick-window';
+import type { ScreenGrab } from './screen-grab';
 
 /**
  * Development only. `pnpm --filter @nvoke/desktop capture` (or `--capture[=dir]`
@@ -11,7 +13,16 @@ import { app, desktopCapturer, nativeTheme, screen, type BrowserWindow } from 'e
  * - `<name>.<theme>.window.png`: the window as it appears on screen, with
  *   the native caption buttons and the window material. Keep it uncovered.
  * Run it with VITE_MOCK=1 so the screens have data.
+ *
+ * With `extras` it also runs a real Grab from screen over the results screen:
+ * the overlay, then the quick window reading and listing what the OS text
+ * engine found (`16-grab-*`).
  */
+
+export interface CaptureExtras {
+  quick: QuickWindow | null;
+  grab: ScreenGrab | null;
+}
 
 const DEFAULT_DIR = 'screenshots';
 
@@ -50,7 +61,7 @@ async function waitForLoad(win: BrowserWindow): Promise<void> {
   await new Promise<void>((r) => win.webContents.once('did-finish-load', () => r()));
 }
 
-export async function runCapture(win: BrowserWindow, dir: string): Promise<void> {
+export async function runCapture(win: BrowserWindow, dir: string, extras: CaptureExtras = { quick: null, grab: null }): Promise<void> {
   let failed = false;
   mkdirSync(dir, { recursive: true });
   const js = <T = unknown>(code: string): Promise<T> => win.webContents.executeJavaScript(code, true) as Promise<T>;
@@ -77,17 +88,17 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
     await sleep(1400);
   }
 
-  async function shot(name: string, theme: string): Promise<void> {
+  async function shot(name: string, theme: string, target: BrowserWindow = win): Promise<void> {
     // Park the pointer state: nothing hovered.
     await sleep(250);
-    win.webContents.invalidate();
+    target.webContents.invalidate();
     await sleep(100);
-    const page = await capturePage(win);
+    const page = await capturePage(target);
     writeFileSync(join(dir, `${name}.${theme}.png`), page.toPNG());
     try {
       // The screen, cropped to the window: the only capture that includes the
       // window material, since window thumbnails paint clear areas white.
-      const bounds = win.getBounds();
+      const bounds = target.getBounds();
       const display = screen.getDisplayMatching(bounds);
       const scale = display.scaleFactor;
       const sources = await desktopCapturer.getSources({
@@ -115,6 +126,58 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
   win.webContents.on('console-message', (e) => {
     if (e.level === 'error') console.error(`[capture] renderer: ${e.message}`);
   });
+
+  /** A real grab over the finished search's companies, read by the OS text engine. */
+  async function captureGrab(results: string, theme: string, grab: ScreenGrab, quick: QuickWindow): Promise<void> {
+    await go(results, 1600);
+    // The results must be the front window when the screen is captured.
+    if (win.isMinimized()) win.restore();
+    win.setAlwaysOnTop(false);
+    win.setAlwaysOnTop(true);
+    win.show();
+    win.moveTop();
+    win.focus();
+    await sleep(500);
+    // The quick window keeps the theme it loaded with.
+    const existing = quick.window;
+    if (existing) {
+      existing.webContents.reload();
+      await sleep(300);
+      await waitForLoad(existing);
+    }
+    await grab.start();
+    await sleep(1200);
+    const overlay = grab.overlayWindow;
+    if (!overlay) {
+      console.warn('[capture] grab overlay did not open');
+      return;
+    }
+    await waitForLoad(overlay);
+    await sleep(800);
+    await shot('16-grab-overlay', theme, overlay);
+    // A box over the company rows of the results screen.
+    const bounds = win.getBounds();
+    const display = screen.getDisplayMatching(bounds);
+    const reading = grab.select({
+      x: bounds.x - display.bounds.x + 40,
+      y: bounds.y - display.bounds.y + 230,
+      width: bounds.width - 80,
+      height: bounds.height - 260,
+    });
+    await sleep(500);
+    const panel = quick.window;
+    if (panel) await shot('16b-grab-reading', theme, panel);
+    await reading;
+    await sleep(800);
+    if (panel) await shot('16c-grab-list', theme, panel);
+    quick.hide(false);
+    await sleep(300);
+    // Put the main window back in front for the next shots.
+    win.setAlwaysOnTop(false);
+    win.setAlwaysOnTop(true);
+    win.moveTop();
+    win.focus();
+  }
 
   try {
     await waitForLoad(win);
@@ -271,6 +334,8 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
       await shot('15-key-created', theme);
       await js(`[...document.querySelectorAll('button')].find((e) => /^Done$/.test(e.textContent))?.click()`);
       await sleep(400);
+
+      if (links.done && extras.grab && extras.quick) await captureGrab(links.done, theme, extras.grab, extras.quick);
     }
   } catch (err) {
     failed = true;
