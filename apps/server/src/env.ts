@@ -23,6 +23,8 @@ const EnvSchema = z.object({
   CLERK_PUBLISHABLE_KEY: optional,
   CLERK_JWT_KEY: optional,
   CLERK_AUTHORIZED_PARTIES: list,
+  // Signs Clerk's billing webhooks (POST /webhooks/clerk).
+  CLERK_WEBHOOK_SIGNING_SECRET: optional,
   // The site calls /v1/desktop/authorize from the browser, so its origins need CORS.
   CORS_ORIGINS: z
     .string()

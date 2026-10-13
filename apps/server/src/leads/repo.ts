@@ -160,9 +160,14 @@ function likePattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
-/** Email-level filter, as a SQL fragment over alias `e`. */
+/**
+ * Email-level filter, as a SQL fragment over alias `e`. An address is only
+ * handed over once its check has run: a valid one is charged first, and one
+ * that never got checked (the quota ran out) stays hidden.
+ */
 function emailFilter(sql: Sql, f: LeadFilters) {
   return sql`
+    and e.verification is not null
     ${f.verification ? sql`and e.verification = ${f.verification}` : sql``}
     ${f.kind ? sql`and e.kind = ${f.kind}` : sql``}
   `;
@@ -196,7 +201,7 @@ export async function listCompanies(
       ${
         like
           ? sql`and (c.name ilike ${like} or c.domain ilike ${like}
-                 or exists (select 1 from emails e2 where e2.company_id = c.id and e2.address ilike ${like}))`
+                 or exists (select 1 from emails e2 where e2.company_id = c.id and e2.verification is not null and e2.address ilike ${like}))`
           : sql``
       }
     group by c.id
@@ -215,7 +220,7 @@ export async function listCompanies(
         ${
           like
             ? sql`and (c.name ilike ${like} or c.domain ilike ${like}
-                   or exists (select 1 from emails e2 where e2.company_id = c.id and e2.address ilike ${like}))`
+                   or exists (select 1 from emails e2 where e2.company_id = c.id and e2.verification is not null and e2.address ilike ${like}))`
             : sql``
         }
       group by c.id

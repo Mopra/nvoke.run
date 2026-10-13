@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
-import { PLANS, periodOf } from './plans.js';
-import { accountSummary, commitUsage, emailsUsed, ensureAccount, quotaExhausted, reserveEmails } from './quota.js';
+import { PLANS } from '@nvoke/shared';
+import { emailsPerMonth, periodOf } from './plans.js';
+import { accountSummary, chargeVerified, emailsVerified, ensureAccount, quotaExhausted } from './quota.js';
 
 let db: TestDb;
 
@@ -15,11 +16,17 @@ beforeEach(async () => {
   await db.sql`truncate accounts cascade`;
 });
 
+const charge = (user: string, address: string, at?: Date) => db.sql.begin((tx) => chargeVerified(tx, user, address, at));
+
 describe('plans', () => {
-  it('match the spec: 50, 2,000 and 10,000 emails a month', () => {
-    expect(PLANS.free.emailsPerMonth).toBe(50);
-    expect(PLANS.pro.emailsPerMonth).toBe(2_000);
-    expect(PLANS.business.emailsPerMonth).toBe(10_000);
+  it('match the ladder: 50 free, then 1,000 to 100,000 verified emails a month', () => {
+    expect(PLANS.free_user).toEqual({ emailsPerMonth: 50, priceUsd: 0 });
+    expect(PLANS.emails_1000).toEqual({ emailsPerMonth: 1_000, priceUsd: 5 });
+    expect(PLANS.emails_100000).toEqual({ emailsPerMonth: 100_000, priceUsd: 149 });
+  });
+
+  it('give an unknown plan the free allowance', () => {
+    expect(emailsPerMonth('business')).toBe(50);
   });
 
   it('use UTC calendar months as periods', () => {
@@ -30,52 +37,40 @@ describe('plans', () => {
 
 describe('quota', () => {
   it('creates the account on first sight with the free plan', async () => {
-    expect(await ensureAccount(db.sql, 'u1')).toBe('free');
-    await db.sql`update accounts set plan = 'pro' where clerk_user_id = 'u1'`;
-    expect(await ensureAccount(db.sql, 'u1')).toBe('pro');
+    expect(await ensureAccount(db.sql, 'u1')).toBe('free_user');
+    await db.sql`update accounts set plan = 'emails_2500' where clerk_user_id = 'u1'`;
+    expect(await ensureAccount(db.sql, 'u1')).toBe('emails_2500');
   });
 
-  it('grants up to the plan limit and reports when it was exceeded', async () => {
+  it('charges each address once, up to the plan allowance', async () => {
     await ensureAccount(db.sql, 'u1');
-    const first = await db.sql.begin(async (tx) => {
-      const r = await reserveEmails(tx, 'u1', 30);
-      await commitUsage(tx, 'u1', r.granted);
-      return r;
-    });
-    expect(first).toEqual({ granted: 30, exceeded: false });
-    const second = await db.sql.begin(async (tx) => {
-      const r = await reserveEmails(tx, 'u1', 30);
-      await commitUsage(tx, 'u1', r.granted);
-      return r;
-    });
-    expect(second).toEqual({ granted: 20, exceeded: true });
-    expect(await emailsUsed(db.sql, 'u1')).toBe(50);
+    for (let i = 0; i < 50; i++) expect(await charge('u1', `a${i}@x.dk`)).toBe('charged');
+    // Already paid for: free, even with nothing left.
+    expect(await charge('u1', 'a7@x.dk')).toBe('already_billed');
+    expect(await charge('u1', 'new@x.dk')).toBe('over_limit');
+    expect(await emailsVerified(db.sql, 'u1')).toBe(50);
     expect(await quotaExhausted(db.sql, 'u1')).toBe(true);
   });
 
-  it('never overshoots under concurrent reservations', async () => {
+  it('never charges an address twice, across months', async () => {
+    await ensureAccount(db.sql, 'u1');
+    expect(await charge('u1', 'a@x.dk', new Date('2026-09-15T00:00:00Z'))).toBe('charged');
+    expect(await charge('u1', 'a@x.dk', new Date('2026-10-15T00:00:00Z'))).toBe('already_billed');
+    expect(await emailsVerified(db.sql, 'u1', '2026-10')).toBe(0);
+  });
+
+  it('never overshoots under concurrent charges', async () => {
     await ensureAccount(db.sql, 'u2');
-    const results = await Promise.all(
-      Array.from({ length: 12 }, () =>
-        db.sql.begin(async (tx) => {
-          const r = await reserveEmails(tx, 'u2', 7);
-          await commitUsage(tx, 'u2', r.granted);
-          return r.granted;
-        }),
-      ),
-    );
-    expect(results.reduce((a, b) => a + b, 0)).toBe(50);
-    expect(await emailsUsed(db.sql, 'u2')).toBe(50);
+    const results = await Promise.all(Array.from({ length: 80 }, (_, i) => charge('u2', `c${i}@x.dk`)));
+    expect(results.filter((r) => r === 'charged')).toHaveLength(50);
+    expect(await emailsVerified(db.sql, 'u2')).toBe(50);
   });
 
   it('counts per month and per user', async () => {
     await ensureAccount(db.sql, 'u3');
     await ensureAccount(db.sql, 'u4');
     const sept = new Date('2026-09-15T00:00:00Z');
-    await db.sql.begin(async (tx) => {
-      await reserveEmails(tx, 'u3', 50, sept);
-      await commitUsage(tx, 'u3', 50, sept);
-    });
+    for (let i = 0; i < 50; i++) await charge('u3', `m${i}@x.dk`, sept);
     expect(await quotaExhausted(db.sql, 'u3', sept)).toBe(true);
     expect(await quotaExhausted(db.sql, 'u3', new Date('2026-10-01T00:00:00Z'))).toBe(false);
     expect(await quotaExhausted(db.sql, 'u4', sept)).toBe(false);
@@ -84,15 +79,12 @@ describe('quota', () => {
   it('summarizes plan and usage for /v1/me', async () => {
     const now = new Date('2026-10-13T00:00:00Z');
     await ensureAccount(db.sql, 'u5');
-    await db.sql`update accounts set plan = 'business' where clerk_user_id = 'u5'`;
-    await db.sql.begin(async (tx) => {
-      await reserveEmails(tx, 'u5', 12, now);
-      await commitUsage(tx, 'u5', 12, now);
-    });
+    await db.sql`update accounts set plan = 'emails_20000' where clerk_user_id = 'u5'`;
+    for (let i = 0; i < 12; i++) await charge('u5', `s${i}@x.dk`, now);
     expect(await accountSummary(db.sql, 'u5', now)).toEqual({
       userId: 'u5',
-      plan: 'business',
-      usage: { period: '2026-10', emailsFound: 12, emailsLimit: 10_000 },
+      plan: 'emails_20000',
+      usage: { period: '2026-10', emailsVerified: 12, emailsLimit: 20_000 },
       maxSearchLimit: 1_000,
     });
   });

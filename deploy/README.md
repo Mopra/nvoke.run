@@ -45,6 +45,7 @@ units read it. The API needs the first block; the worker reads the second.
 | `DATABASE_URL` | API, worker, migrations | Supabase, port 5432 (see below) |
 | `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | API | Production Clerk instance |
 | `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES` | API | Optional |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | API | Clerk webhook endpoint `https://API_HOST/webhooks/clerk`, events `subscription.*` and `subscriptionItem.*` |
 | `HOST`, `PORT` | API | `10.0.0.1` and `43310` here |
 | `CORS_ORIGINS` | API | Defaults to `https://nvoke.run,http://localhost:3001` |
 | `WORKER_CONCURRENCY` | worker | Jobs at once, default 16 |

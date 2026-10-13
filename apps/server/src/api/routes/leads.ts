@@ -18,7 +18,7 @@ import {
   type SearchListResponse,
 } from '@nvoke/shared';
 import { toCsv } from '../../leads/csv.js';
-import { PLANS } from '../../leads/plans.js';
+import { MAX_SEARCH_LIMIT } from '../../leads/plans.js';
 import { ensureAccount, quotaExhausted } from '../../leads/quota.js';
 import {
   cancelSearch,
@@ -65,9 +65,9 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
     const sql = opts.getSql();
     const userId = req.userId!;
-    const plan = await ensureAccount(sql, userId);
+    await ensureAccount(sql, userId);
     if (await quotaExhausted(sql, userId)) return sendError(reply, 403, 'quota_exceeded');
-    const limit = Math.min(body.data.limit ?? SEARCH_LIMIT_DEFAULT, PLANS[plan].maxSearchLimit);
+    const limit = Math.min(body.data.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT);
     const search = await createSearch(sql, userId, body.data, limit);
     return reply.code(201).send(search);
   });

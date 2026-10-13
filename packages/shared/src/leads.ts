@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Plan } from './plans.ts';
 
 /**
  * Lead pipeline contracts: searches, companies, emails, usage. The server
@@ -11,9 +12,6 @@ export type SearchKind = z.infer<typeof SearchKind>;
 
 export const SearchStatus = z.enum(['queued', 'running', 'done', 'failed', 'canceled']);
 export type SearchStatus = z.infer<typeof SearchStatus>;
-
-export const Plan = z.enum(['free', 'pro', 'business']);
-export type Plan = z.infer<typeof Plan>;
 
 export const Verification = z.enum(['valid', 'invalid', 'risky', 'catch_all', 'unknown']);
 export type Verification = z.infer<typeof Verification>;
@@ -171,7 +169,8 @@ export const CSV_COLUMNS = [
 export const Usage = z.object({
   /** yyyy-mm, UTC. */
   period: z.string().regex(/^\d{4}-\d{2}$/),
-  emailsFound: z.number().int().nonnegative(),
+  /** Verified emails charged this period. */
+  emailsVerified: z.number().int().nonnegative(),
   emailsLimit: z.number().int().positive(),
 });
 export type Usage = z.infer<typeof Usage>;
@@ -181,7 +180,7 @@ export const AccountSummary = z.object({
   userId: z.string(),
   plan: Plan,
   usage: Usage,
-  /** Highest `limit` a single search may ask for on this plan. */
+  /** Highest `limit` a single search may ask for. The same on every plan. */
   maxSearchLimit: z.number().int().positive(),
 });
 export type AccountSummary = z.infer<typeof AccountSummary>;

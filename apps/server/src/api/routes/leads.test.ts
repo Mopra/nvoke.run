@@ -71,19 +71,19 @@ describe('lead routes', () => {
     }
   });
 
-  it('creates a search with a find job, capped by the plan', async () => {
-    const res = await createSearch('alice', { kind: 'web', params: { keyword: 'design studio', country: 'DK' }, limit: 500 });
+  it('creates a search with a find job', async () => {
+    const res = await createSearch('alice', { kind: 'web', params: { keyword: 'design studio', country: 'DK' }, limit: 1000 });
     expect(res.statusCode).toBe(201);
     const search = Search.parse(res.json());
-    expect(search).toMatchObject({ kind: 'web', params: { keyword: 'design studio', country: 'dk' }, status: 'queued', limit: 50 });
+    expect(search).toMatchObject({ kind: 'web', params: { keyword: 'design studio', country: 'dk' }, status: 'queued', limit: 1000 });
     const jobs = await db.sql`select type, payload from jobs where search_id = ${search.id}`;
     expect(jobs).toEqual([{ type: 'find', payload: { searchId: search.id } }]);
     const [account] = await db.sql`select plan from accounts where clerk_user_id = 'alice'`;
-    expect(account).toEqual({ plan: 'free' });
+    expect(account).toEqual({ plan: 'free_user' });
   });
 
-  it('uses the default limit of 100 when the plan allows it', async () => {
-    await db.sql`insert into accounts (clerk_user_id, plan) values ('bob', 'pro')`;
+  it('uses the default limit of 100', async () => {
+    await db.sql`insert into accounts (clerk_user_id, plan) values ('bob', 'emails_2500')`;
     const res = await createSearch('bob', { kind: 'launches', params: { days: 3 } });
     expect(Search.parse(res.json()).limit).toBe(100);
   });
@@ -98,7 +98,7 @@ describe('lead routes', () => {
 
   it('refuses new searches when the monthly quota is used up', async () => {
     await db.sql`insert into accounts (clerk_user_id) values ('carol')`;
-    await db.sql`insert into usage (clerk_user_id, period, emails_found) values ('carol', ${new Date().toISOString().slice(0, 7)}, 50)`;
+    await db.sql`insert into usage (clerk_user_id, period, emails_verified) values ('carol', ${new Date().toISOString().slice(0, 7)}, 50)`;
     const res = await createSearch('carol');
     expect(res.statusCode).toBe(403);
     expect(res.json()).toEqual({ error: 'quota_exceeded' });
@@ -152,8 +152,8 @@ describe('lead routes', () => {
         ['ole@acme.dk', 'personal', 'invalid'],
       ]);
       await seedCompany(searchId, 'alice', 'Beta, "the" clinic', 'beta.dk', [['mette@beta.dk', 'personal', 'valid']]);
-      await seedCompany(searchId, 'alice', 'Gamma', 'gamma.dk', []);
-      await seedCompany(searchId, 'alice', 'Delta', 'delta.dk', [['=cmd@delta.dk', 'personal', null]]);
+      await seedCompany(searchId, 'alice', 'Gamma', 'gamma.dk', [['unchecked@gamma.dk', 'generic', null]]); // never shown
+      await seedCompany(searchId, 'alice', 'Delta', 'delta.dk', [['=cmd@delta.dk', 'personal', 'unknown']]);
     });
 
     const page = async (query: string) => {
@@ -220,7 +220,7 @@ describe('lead routes', () => {
         'Acme Dental,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
         'Acme Dental,acme.dk,https://acme.dk/,ole@acme.dk,personal,invalid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
         '"Beta, ""the"" clinic",beta.dk,https://beta.dk/,mette@beta.dk,personal,valid,https://beta.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
-        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,personal,,https://delta.dk/kontakt,\"Vej 1, København\",+45 12 34 56 78",
+        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,personal,unknown,https://delta.dk/kontakt,\"Vej 1, København\",+45 12 34 56 78",
       ]);
       const filtered = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv?verification=valid&kind=generic`, headers: as('alice') });
       expect(filtered.body.trimEnd().split('\r\n')).toHaveLength(2);
@@ -261,7 +261,7 @@ describe('lead routes in the real app', () => {
     expect(list.statusCode).toBe(200);
     expect(SearchListResponse.parse(list.json()).searches).toEqual([]);
     const [account] = await db.sql`select plan from accounts where clerk_user_id = 'carol'`;
-    expect(account).toEqual({ plan: 'free' });
+    expect(account).toEqual({ plan: 'free_user' });
 
     const created = await real.inject({
       method: 'POST',
@@ -276,9 +276,9 @@ describe('lead routes in the real app', () => {
     expect(MeResponse.parse(me.json())).toMatchObject({
       user: { id: 'carol', email: 'carol@example.com', name: 'Carol', imageUrl: null },
       via: 'clerk',
-      plan: 'free',
-      usage: { emailsFound: 0, emailsLimit: 50 },
-      maxSearchLimit: 50,
+      plan: 'free_user',
+      usage: { emailsVerified: 0, emailsLimit: 50 },
+      maxSearchLimit: 1000,
     });
   });
 });

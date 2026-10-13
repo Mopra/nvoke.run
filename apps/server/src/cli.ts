@@ -192,7 +192,7 @@ async function main(): Promise<void> {
     const applied = await applyMigrations(sql);
     if (applied.length > 0) console.log(`applied migrations: ${applied.join(', ')}`);
     await ensureAccount(sql, CLI_USER);
-    await sql`update accounts set plan = 'business' where clerk_user_id = ${CLI_USER}`;
+    await sql`update accounts set plan = 'emails_100000' where clerk_user_id = ${CLI_USER}`;
 
     const created = await createSearch(sql, CLI_USER, request, limit);
     console.log(`search ${created.id}: ${request.kind} ${JSON.stringify(request.params)} limit ${limit}`);

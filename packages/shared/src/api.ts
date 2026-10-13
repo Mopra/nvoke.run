@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { Plan, Usage } from './leads.ts';
+import { Usage } from './leads.ts';
+import { Plan } from './plans.ts';
 
 /**
  * Wire contracts between apps/desktop, apps/site and apps/server. Every side

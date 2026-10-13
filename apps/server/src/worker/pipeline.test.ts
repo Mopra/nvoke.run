@@ -133,8 +133,11 @@ describe('pipeline', () => {
       { address: 'mette@beta.dk', kind: 'personal', verification: 'invalid' },
       { address: 'ole@alpha.dk', kind: 'personal', verification: 'invalid' },
     ]);
-    const [usage] = await db.sql<{ emails_found: number }[]>`select emails_found from usage where clerk_user_id = 'u1'`;
-    expect(usage?.emails_found).toBe(4);
+    // Only the two valid addresses are charged.
+    const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
+    expect(usage?.emails_verified).toBe(2);
+    const billed = await db.sql`select address from billed_emails where clerk_user_id = 'u1' order by address`;
+    expect(billed).toEqual([{ address: 'info@alpha.dk' }, { address: 'info@beta.dk' }]);
     const open = await db.sql`select 1 from jobs where search_id = ${final.id} and status in ('queued', 'running')`;
     expect(open).toHaveLength(0);
   });
@@ -148,7 +151,7 @@ describe('pipeline', () => {
   it('fails the search with quota_exceeded when the monthly quota runs out', async () => {
     await ensureAccount(db.sql, 'u1');
     const period = new Date().toISOString().slice(0, 7);
-    await db.sql`insert into usage (clerk_user_id, period, emails_found) values ('u1', ${period}, 49)`;
+    await db.sql`insert into usage (clerk_user_id, period, emails_verified) values ('u1', ${period}, 49)`;
     const final = await run(
       adapterOf([
         { name: 'Beta', website: 'https://beta.dk', source: 'test' },
@@ -157,9 +160,12 @@ describe('pipeline', () => {
     );
     expect(final.status).toBe('failed');
     expect(final.error).toBe('quota_exceeded');
-    expect(final.emailsFound).toBe(1);
-    const [usage] = await db.sql<{ emails_found: number }[]>`select emails_found from usage where clerk_user_id = 'u1'`;
-    expect(usage?.emails_found).toBe(50);
+    expect(final.emailsValid).toBe(1);
+    const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
+    expect(usage?.emails_verified).toBe(50);
+    // The valid address that did not fit stays unchecked, so it is never shown.
+    const valid = await db.sql`select 1 from emails where search_id = ${final.id} and verification = 'valid'`;
+    expect(valid).toHaveLength(1);
   });
 
   it('fails the search with the adapter message on a permanent error', async () => {

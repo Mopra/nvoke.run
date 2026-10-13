@@ -15,7 +15,7 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   verifier, quotas, CSV, the queries behind the routes), `src/db` (postgres.js
   client and migration runner), `src/cli.ts` (local searches and `cli db`),
   `migrations/` (numbered `.sql` files, applied in order: `0001_desktop_auth`,
-  `0100_leads`). Behaviour is in `docs/SPEC.md`.
+  `0100_leads`, `0200_pricing`). Behaviour is in `docs/SPEC.md`.
 - `apps/site`: Next.js (App Router) marketing and download site. Deploys to
   Vercel with root directory `apps/site`. Placeholder pages, plus the desktop
   sign-in page under `app/desktop` (Clerk is scoped there by `proxy.ts`).
@@ -70,6 +70,13 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
 - `GET /v1/me` returns `MeResponse`: the Clerk profile (`user`), how the
   request authenticated (`via`), and `plan`, `usage` and `maxSearchLimit`
   from `accountSummary()`.
+- Pricing: one plan for everyone, priced by verified emails a month. The
+  ladder is `packages/shared/src/plans.ts`; each paid key is a Clerk Billing
+  user plan slug. Checkout is on the site (`app/desktop/billing`); the server
+  reads the held plan from Clerk (`src/billing/clerk.ts`) and charges a
+  verified email in the verify job (`chargeVerified` in `src/leads/quota.ts`).
+  Change a price or allowance in `plans.ts` and in the Clerk dashboard
+  together. Details in `docs/SPEC.md`, "Plans".
 - Desktop data flow: the renderer calls `window.nvoke.request(method, path,
   body)` (paths under `/v1/` only) and `window.nvoke.exportCsv(searchId,
   name)`. Main answers both through `AuthSession.api`, which attaches the

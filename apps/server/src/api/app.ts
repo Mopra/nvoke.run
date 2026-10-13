@@ -11,6 +11,8 @@ import { meRoutes } from './routes/me.js';
 import { desktopRoutes } from './routes/desktop.js';
 import { leadsRoutes } from './routes/leads.js';
 import { postgresAccounts, type Accounts } from '../leads/accounts.js';
+import { clerkPlanSource } from '../billing/clerk.js';
+import { webhookRoutes } from './routes/webhooks.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
@@ -25,7 +27,7 @@ export interface AppDeps {
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: AppDeps = {
+  const deps: Omit<AppDeps, 'accounts'> = {
     getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
@@ -35,22 +37,26 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
         : env.CLERK_SECRET_KEY
           ? clerkUserDirectory(env.CLERK_SECRET_KEY)
           : null,
-    accounts: overrides.accounts ?? postgresAccounts(getSql),
   };
 
   const app = Fastify({
     logger: env.NODE_ENV === 'test' ? false : { level: env.LOG_LEVEL },
   });
 
+  const accounts =
+    overrides.accounts ??
+    postgresAccounts(getSql, env.CLERK_SECRET_KEY ? clerkPlanSource(env.CLERK_SECRET_KEY) : null, app.log);
+
   await app.register(cors, {
     origin: env.CORS_ORIGINS.length > 0 ? env.CORS_ORIGINS : false,
     credentials: false,
   });
 
-  registerAuth(app, deps);
+  registerAuth(app, { ...deps, accounts });
 
   await app.register(healthRoutes);
-  await app.register(meRoutes, { prefix: '/v1', users: deps.users, accounts: deps.accounts });
+  await app.register(meRoutes, { prefix: '/v1', users: deps.users, accounts });
+  await app.register(webhookRoutes, { prefix: '/webhooks', signingSecret: env.CLERK_WEBHOOK_SIGNING_SECRET ?? null, accounts });
   await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
   // requireAuth sets request.userId; the plugin's requireUser guard reads it.
   await app.register(leadsRoutes, { prefix: '/v1', getSql, authenticate: app.requireAuth });

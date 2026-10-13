@@ -3,6 +3,12 @@ import type { MeResponse } from '@nvoke/shared';
 import type { UserDirectory, UserProfile } from '../../auth/users.js';
 import type { Accounts } from '../../leads/accounts.js';
 
+/** `?sync=1` re-reads the plan from Clerk Billing, for right after a checkout. */
+function wantsSync(query: unknown): boolean {
+  const sync = (query as { sync?: unknown } | undefined)?.sync;
+  return sync === '1' || sync === 'true';
+}
+
 export async function meRoutes(
   app: FastifyInstance,
   opts: { users: UserDirectory | null; accounts: Accounts },
@@ -21,7 +27,7 @@ export async function meRoutes(
         return none;
       }
     };
-    const [profile, account] = await Promise.all([lookup(), opts.accounts.summary(auth.userId)]);
+    const [profile, account] = await Promise.all([lookup(), opts.accounts.summary(auth.userId, { sync: wantsSync(req.query) })]);
     return {
       user: { id: auth.userId, ...profile },
       via: auth.via,

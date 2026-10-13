@@ -12,7 +12,7 @@ import {
 } from '@nvoke/shared';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
 import { isPlatformDomain, normalizeDomain, normalizeWebsite, registrableDomain } from '../leads/domain.js';
-import { commitUsage, reserveEmails } from '../leads/quota.js';
+import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import { PermanentError } from '../leads/sources/types.js';
 import type { Verifier } from '../leads/verify/index.js';
@@ -186,6 +186,10 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   `;
   if (!company || company.crawl_status !== 'pending') return;
   if ((await searchStatus(sql, company.search_id)) !== 'running') return;
+  if (await quotaExhausted(sql, company.clerk_user_id, deps.now?.())) {
+    await failSearch(sql, company.search_id, QUOTA_EXCEEDED);
+    return;
+  }
 
   const result = await crawlSite(company.website, company.domain, deps.crawl, { signal });
   deps.log.debug(
@@ -193,21 +197,20 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
     'crawl: site done',
   );
 
-  const outcome = await sql.begin(async (tx) => {
+  const stored = await sql.begin(async (tx) => {
     // Only the first finisher records the crawl (guards against a retried job).
     const claimed = await tx`
       update companies set crawl_status = ${result.status}, crawled_at = now()
       where id = ${companyId} and crawl_status = 'pending'
       returning id
     `;
-    if (claimed.length === 0) return { stored: 0, exceeded: false };
+    if (claimed.length === 0) return 0;
 
     let stored = 0;
-    let exceeded = false;
     if (result.emails.length > 0) {
-      const reservation = await reserveEmails(tx, company.clerk_user_id, result.emails.length, deps.now?.());
-      exceeded = reservation.exceeded;
-      const rows = result.emails.slice(0, reservation.granted).map((e) => ({
+      // Storing costs nothing: the user is charged only when a check comes
+      // back valid (runVerify), and unchecked addresses are never shown.
+      const rows = result.emails.map((e) => ({
         company_id: companyId,
         search_id: company.search_id,
         clerk_user_id: company.clerk_user_id,
@@ -215,32 +218,25 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
         kind: e.kind,
         source_url: e.sourceUrl,
       }));
-      if (rows.length > 0) {
-        const inserted = await tx<{ id: string }[]>`
-          insert into emails ${tx(rows, 'company_id', 'search_id', 'clerk_user_id', 'address', 'kind', 'source_url')}
-          on conflict (company_id, address) do nothing
-          returning id
-        `;
-        stored = inserted.length;
-        await commitUsage(tx, company.clerk_user_id, stored, deps.now?.());
-        await enqueue(
-          tx,
-          inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id })),
-        );
-      }
+      const inserted = await tx<{ id: string }[]>`
+        insert into emails ${tx(rows, 'company_id', 'search_id', 'clerk_user_id', 'address', 'kind', 'source_url')}
+        on conflict (company_id, address) do nothing
+        returning id
+      `;
+      stored = inserted.length;
+      await enqueue(
+        tx,
+        inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id })),
+      );
     }
     await tx`
       update searches
       set companies_crawled = companies_crawled + 1, emails_found = emails_found + ${stored}
       where id = ${company.search_id}
     `;
-    return { stored, exceeded };
+    return stored;
   });
-
-  if (outcome.exceeded) {
-    deps.log.info({ searchId: company.search_id }, 'crawl: quota exceeded, failing search');
-    await failSearch(sql, company.search_id, QUOTA_EXCEEDED, true);
-  }
+  deps.log.debug({ companyId, stored }, 'crawl: stored');
 }
 
 /** A crawl job that ran out of attempts still counts as crawled, with status failed. */
@@ -263,35 +259,55 @@ export async function onCrawlGaveUp(deps: PipelineDeps, job: Job): Promise<void>
 export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const emailId = str(job.payload, 'emailId');
-  const [email] = await sql<{ address: string; search_id: string; verification: Verification | null }[]>`
-    select address, search_id, verification from emails where id = ${emailId}
+  const [email] = await sql<{ address: string; search_id: string; clerk_user_id: string; verification: Verification | null }[]>`
+    select address, search_id, clerk_user_id, verification from emails where id = ${emailId}
   `;
   if (!email || email.verification) return;
   const status = await searchStatus(sql, email.search_id);
   if (status === null || status === 'canceled') return;
+  if (await quotaExhausted(sql, email.clerk_user_id, deps.now?.())) {
+    await failSearch(sql, email.search_id, QUOTA_EXCEEDED);
+    return;
+  }
 
   const result = await deps.verifier.verify(email.address, signal);
-  await recordVerification(sql, emailId, result.verification);
+  await recordVerification(deps, emailId, result.verification);
 }
 
-async function recordVerification(sql: Sql, emailId: string, verification: Verification): Promise<void> {
-  await sql.begin(async (tx) => {
-    const rows = await tx<{ search_id: string }[]>`
-      update emails set verification = ${verification}, checked_at = now()
+/**
+ * Records a check. A valid address is charged in the same transaction; when
+ * the allowance ran out meanwhile, it stays unchecked (and hidden) and the
+ * search stops with quota_exceeded.
+ */
+async function recordVerification(deps: PipelineDeps, emailId: string, verification: Verification): Promise<void> {
+  const { sql } = deps;
+  const outcome = await sql.begin(async (tx) => {
+    const [email] = await tx<{ search_id: string; clerk_user_id: string; address: string }[]>`
+      select search_id, clerk_user_id, address from emails
       where id = ${emailId} and verification is null
-      returning search_id
+      for update
     `;
-    const searchId = rows[0]?.search_id;
-    if (searchId && verification === 'valid') {
-      await tx`update searches set emails_valid = emails_valid + 1 where id = ${searchId}`;
+    if (!email) return null;
+    if (verification === 'valid') {
+      const charge = await chargeVerified(tx, email.clerk_user_id, email.address, deps.now?.());
+      if (charge === 'over_limit') return { searchId: email.search_id, overLimit: true };
     }
+    await tx`update emails set verification = ${verification}, checked_at = now() where id = ${emailId}`;
+    if (verification === 'valid') {
+      await tx`update searches set emails_valid = emails_valid + 1 where id = ${email.search_id}`;
+    }
+    return { searchId: email.search_id, overLimit: false };
   });
+  if (outcome?.overLimit) {
+    deps.log.info({ searchId: outcome.searchId }, 'verify: quota exceeded, failing search');
+    await failSearch(sql, outcome.searchId, QUOTA_EXCEEDED);
+  }
 }
 
 /** A verify job that ran out of attempts leaves the address as "unknown". */
 export async function onVerifyGaveUp(deps: PipelineDeps, job: Job): Promise<void> {
   const emailId = job.payload.emailId;
-  if (typeof emailId === 'string') await recordVerification(deps.sql, emailId, 'unknown');
+  if (typeof emailId === 'string') await recordVerification(deps, emailId, 'unknown');
 }
 
 /** A find job that failed for good fails its search. */
