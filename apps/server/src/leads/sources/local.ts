@@ -125,11 +125,14 @@ export function buildOverpassQuery(niche: string, area: ResolvedArea, max: numbe
   const header = area.areaId !== null ? `area(id:${area.areaId})->.a;\n` : '';
   const filters = [...nicheTags(niche), `["name"~"${overpassRegex(nameStem(niche))}",i]`];
   const lines: string[] = [];
+  // The website filter goes first: it is selective, so the name regex only
+  // runs on places that have a website at all. With the regex first, a city
+  // sized query can run past the server's time limit.
   for (const f of filters) {
-    lines.push(`  nwr${f}["website"]${scope};`);
-    lines.push(`  nwr${f}["contact:website"]${scope};`);
+    lines.push(`  nwr["website"]${f}${scope};`);
+    lines.push(`  nwr["contact:website"]${f}${scope};`);
   }
-  return `[out:json][timeout:90];\n${header}(\n${lines.join('\n')}\n);\nout tags ${Math.max(1, max)};`;
+  return `[out:json][timeout:60];\n${header}(\n${lines.join('\n')}\n);\nout tags ${Math.max(1, max)};`;
 }
 
 function addressOf(tags: Record<string, string>): string | undefined {
@@ -205,26 +208,29 @@ export async function resolveArea(
 
 /** Runs a query against the first Overpass instance that is not busy. */
 export async function queryOverpass(opts: LocalAdapterOptions, query: string, signal: AbortSignal): Promise<OverpassResponse> {
-  let lastError: unknown = new Error('no Overpass URL configured');
+  const errors: string[] = [];
   for (const url of opts.overpassUrls) {
     try {
       return await fetchJson<OverpassResponse>(url, {
         fetch: opts.fetch,
         method: 'POST',
-        body: new URLSearchParams({ data: query }),
+        // A plain string body and "Accept: */*" on purpose: overpass-api.de
+        // answers 504 to the same query sent with "Accept: application/json"
+        // or with a "charset" parameter on the form content type.
+        body: new URLSearchParams({ data: query }).toString(),
         signal,
-        timeoutMs: 120_000,
+        timeoutMs: 90_000,
         maxBytes: 20_000_000,
-        headers: { 'user-agent': BOT_USER_AGENT, 'content-type': 'application/x-www-form-urlencoded' },
+        headers: { 'user-agent': BOT_USER_AGENT, 'content-type': 'application/x-www-form-urlencoded', accept: '*/*' },
       });
     } catch (err) {
       if (signal.aborted) throw err;
-      // Busy (429), overloaded (5xx) or unreachable: try the next instance.
+      // Busy (429), overloaded (5xx), slow or unreachable: try the next instance.
       if (err instanceof HttpError && err.status !== 429 && err.status < 500) throw err;
-      lastError = err;
+      errors.push(`${new URL(url).host}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  throw lastError;
+  throw new Error(`overpass unavailable (${errors.join('; ') || 'no OVERPASS_URL configured'})`);
 }
 
 export function localAdapter(opts: LocalAdapterOptions): SourceAdapter<LocalSearchParams> {

@@ -162,7 +162,7 @@ const GENERIC_LOCALS = new Set([
   'invoices', 'finance', 'okonomi', 'jobs', 'job', 'careers', 'career', 'karriere', 'hr', 'recruiting',
   'press', 'presse', 'media', 'marketing', 'pr', 'privacy', 'gdpr', 'dpo', 'datapolitik', 'legal', 'compliance',
   'webmaster', 'web', 'it', 'security', 'abuse', 'events', 'partners', 'partner', 'hq', 'studio', 'clinic',
-  'klinik', 'praksis', 'tandlaege', 'kanzlei', 'buero', 'büro', 'mail.info', 'feedback', 'newsletter',
+  'klinik', 'klinikken', 'praksis', 'tandlaege', 'tandlaegen', 'tandlaegerne', 'kanzlei', 'buero', 'büro', 'mail.info', 'feedback', 'newsletter',
   'nyhedsbrev', 'social', 'community', 'membership', 'medlem', 'members', 'school', 'skole', 'kontoret',
   'secretary', 'sekretariat', 'frontdesk', 'front.desk', 'helpdesk', 'servicedesk', 'operations', 'ops',
   'logistics', 'lager', 'warehouse', 'purchasing', 'indkob', 'procurement', 'export', 'import', 'quote',

@@ -113,7 +113,9 @@ export class Verifier {
     if (cached) return cached;
 
     const result = await this.check(address, signal);
-    await this.opts.cache?.set(result);
+    // Answers that say nothing about the mailbox (probing switched off, a
+    // resolver hiccup) are not worth remembering.
+    if (result.reason !== 'mx_only' && result.reason !== 'dns_error') await this.opts.cache?.set(result);
     return result;
   }
 

@@ -28,7 +28,7 @@ describe('local adapter (Nominatim + Overpass)', () => {
     const area: ResolvedArea = { displayName: 'X', areaId: 3600012345, bbox: [1, 2, 3, 4] };
     const q = buildOverpassQuery('dentists', area, 30);
     expect(q).toContain('area(id:3600012345)->.a;');
-    expect(q).toContain('nwr["amenity"="dentist"]["website"](area.a);');
+    expect(q).toContain('nwr["website"]["amenity"="dentist"](area.a);');
     expect(q).toContain('["name"~"dentist",i]');
     expect(q).toContain('out tags 30;');
     const b = buildOverpassQuery('web "agency"', { ...area, areaId: null }, 5);

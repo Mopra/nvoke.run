@@ -209,6 +209,13 @@ describe('extractEmails on HTML', () => {
     ]);
   });
 
+  it('stays linear on huge runs of letters (inline base64, minified data)', () => {
+    const start = Date.now();
+    const html = `<p>${'a'.repeat(1_500_000)}</p><img src="data:image/png;base64,${'Q'.repeat(400_000)}"><p>info@acme.dk</p>`;
+    expect(addresses(html)).toEqual(['info@acme.dk']);
+    expect(Date.now() - start).toBeLessThan(3_000);
+  });
+
   it('survives broken markup', () => {
     expect(addresses('<div><p>Contact <b>info@acme.dk</p></div></span></html><<<')).toEqual(['info@acme.dk']);
     expect(addresses('')).toEqual([]);
