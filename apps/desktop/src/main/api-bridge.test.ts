@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { AuthState } from '../ipc/contract';
-import { bridgeRequest, exportCsvToFile, isAllowedApiPath, safeCsvFileName } from './api-bridge';
+import { bridgeRequest, deletedSearchId, exportCsvToFile, isAllowedApiPath, safeCsvFileName } from './api-bridge';
 import { AuthSession } from './auth/session';
 
 const SEARCH_ID = '6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b';
@@ -137,5 +137,18 @@ describe('safeCsvFileName', () => {
     expect(safeCsvFileName('a/b:c')).toBe('a-b-c.csv');
     expect(safeCsvFileName('..')).toBe('nvoke-export.csv');
     expect(safeCsvFileName(undefined)).toBe('nvoke-export.csv');
+  });
+});
+
+describe('deletedSearchId', () => {
+  const ok = { ok: true, status: 204, data: null } as const;
+  it('names the search a successful delete removed', () => {
+    expect(deletedSearchId('DELETE', `/v1/searches/${SEARCH_ID}`, ok)).toBe(SEARCH_ID);
+  });
+  it('ignores failed deletes, other methods and other paths', () => {
+    expect(deletedSearchId('DELETE', `/v1/searches/${SEARCH_ID}`, { ok: false, status: 404, error: 'not_found' })).toBeNull();
+    expect(deletedSearchId('GET', `/v1/searches/${SEARCH_ID}`, ok)).toBeNull();
+    expect(deletedSearchId('DELETE', `/v1/api-keys/${SEARCH_ID}`, ok)).toBeNull();
+    expect(deletedSearchId('DELETE', `/v1/searches/${SEARCH_ID}/x`, ok)).toBeNull();
   });
 });

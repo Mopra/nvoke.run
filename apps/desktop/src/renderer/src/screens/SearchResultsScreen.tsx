@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Ban,
   ChevronDown,
+  CloudOff,
   Copy,
   Download,
   ExternalLink,
@@ -50,13 +51,21 @@ import {
   errorMessage,
   formatNumber,
   isActive,
+  offlineCaption,
   relativeTime,
   searchSubtitle,
   searchTitle,
   VERIFICATION_LABEL,
 } from '@/lib/format';
 import { isMac, modKey, useModHotkey } from '@/lib/hotkeys';
-import { useCancelSearch, useCompanies, useCreateSearch, useRefreshWhenFinished, useSearch } from '@/lib/queries';
+import {
+  useCancelSearch,
+  useCompanies,
+  useCreateSearch,
+  useLocalStatus,
+  useRefreshWhenFinished,
+  useSearch,
+} from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
 import type { Company, Email, EmailKind, Search, SearchInput, Verification } from '@/lib/types';
@@ -382,6 +391,7 @@ export function SearchResultsScreen({ id }: { id: string }) {
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
   useRefreshWhenFinished(live, id);
+  const offline = offlineCaption(useLocalStatus().data);
   const cancel = useCancelSearch();
   const create = useCreateSearch();
   const filterRef = useRef<HTMLInputElement>(null);
@@ -483,6 +493,11 @@ export function SearchResultsScreen({ id }: { id: string }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // The local copy answers at once; this checks it against the server behind it.
+  useEffect(() => {
+    if (!live) void api.refreshLocal(id);
+  }, [id, live]);
 
   useModHotkey('f', () => {
     filterRef.current?.focus();
@@ -799,7 +814,20 @@ export function SearchResultsScreen({ id }: { id: string }) {
             ]}
           />
           <span className="flex min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground">
-            {companies.isFetching && !companies.isPending && <Loader2 className="size-3 motion-safe:animate-spin" />}
+            {offline ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span data-offline className="flex items-center" aria-label={offline}>
+                    <CloudOff className="size-3.5" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64 rounded-2xl px-3 py-2 leading-relaxed">
+                  {offline}. Filtering runs on the copy on this computer.
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              companies.isFetching && !companies.isPending && <Loader2 className="size-3 motion-safe:animate-spin" />
+            )}
             {companies.data &&
               (filtered
                 ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)}`

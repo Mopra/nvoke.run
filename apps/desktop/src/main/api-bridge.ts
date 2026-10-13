@@ -86,6 +86,13 @@ export async function bridgeRequest(client: ApiClient, method: unknown, path: un
   return { ok: false, status: res.status, error: errorOf(data, res.status) };
 }
 
+/** The search a successful `DELETE /v1/searches/:id` removed, so the local copy can drop it too. */
+export function deletedSearchId(method: unknown, path: unknown, res: BridgeResponse): string | null {
+  if (method !== 'DELETE' || !res.ok || typeof path !== 'string') return null;
+  const match = /^\/v1\/searches\/([0-9a-f-]{36})$/i.exec(path);
+  return match && UUID.test(match[1]!) ? match[1]!.toLowerCase() : null;
+}
+
 /** A file name safe on every OS, ending in .csv. */
 export function safeCsvFileName(name: unknown): string {
   const raw = typeof name === 'string' ? name : '';

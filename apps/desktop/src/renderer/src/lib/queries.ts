@@ -16,6 +16,7 @@ export const keys = {
   apiKeys: ['api-keys'] as const,
   drops: ['drops'] as const,
   webhooks: ['webhooks'] as const,
+  local: ['local'] as const,
 };
 
 export function useSearches() {
@@ -41,7 +42,7 @@ export function useSearch(id: string) {
 export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>, live: boolean) {
   return useInfiniteQuery({
     queryKey: keys.companies(id, filters),
-    queryFn: ({ pageParam }) => api.listCompanies(id, { ...filters, cursor: pageParam }),
+    queryFn: ({ pageParam }) => api.listCompanies(id, { ...filters, cursor: pageParam }, live),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: live ? POLL_MS : false,
@@ -65,6 +66,30 @@ export function useRefreshWhenFinished(live: boolean, id: string | null): void {
     }
     wasLive.current = live;
   }, [live, id, client]);
+}
+
+/** How the local copy stands: counts, last sync and whether the server answered. */
+export function useLocalStatus() {
+  return useQuery({ queryKey: keys.local, queryFn: api.localStatus, staleTime: Infinity });
+}
+
+/**
+ * Follows the local copy while signed in: keeps `useLocalStatus` current and
+ * re-reads the companies of every search a sync changed, so an open search
+ * switches to the local copy the moment it lands and loses an address the
+ * server dropped.
+ */
+export function useLocalSync(): void {
+  const client = useQueryClient();
+  useEffect(
+    () =>
+      api.onLocalChange((change) => {
+        client.setQueryData(keys.local, change.status);
+        for (const id of change.searchIds) void client.invalidateQueries({ queryKey: [...keys.search(id), 'companies'] });
+        if (change.searchesChanged) void client.invalidateQueries({ queryKey: keys.searches, exact: true });
+      }),
+    [client],
+  );
 }
 
 export function useMe() {

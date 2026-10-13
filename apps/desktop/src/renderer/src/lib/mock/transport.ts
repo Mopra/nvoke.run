@@ -13,6 +13,7 @@ import type {
   DropRunParams,
   FeedSource,
   EmailKind,
+  LocalStatus,
   Me,
   LaunchesParams,
   Plan,
@@ -301,8 +302,39 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     return { companies, nextCursor: next, total: list.length };
   }
 
+  const signedOut = (): boolean => storage.getItem('nvoke.mock.auth') === 'signed-out';
+  /** `nvoke.mock.offline=1` in storage cuts the network, so the app runs on its local copy. */
+  const offline = (): boolean => storage.getItem('nvoke.mock.offline') === '1';
+  /** The local copy holds finished searches, like the one main keeps in SQLite. */
+  const synced = (rec: SearchRecord): boolean => {
+    const status = progress(rec).status;
+    return status !== 'queued' && status !== 'running';
+  };
+  const sortedSearches = (): SearchRecord[] => [...searches.values()].sort((a, b) => b.createdAt - a.createdAt);
+
+  function localStatus(): LocalStatus {
+    if (signedOut()) return { online: null, syncing: false, syncedAt: null, searches: 0, companies: 0, emails: 0 };
+    let companies = 0;
+    let emails = 0;
+    for (const rec of searches.values()) {
+      if (!synced(rec)) continue;
+      const list = companiesOf(rec, progress(rec));
+      companies += list.length;
+      emails += list.reduce((sum, c) => sum + c.emails.length, 0);
+    }
+    return {
+      online: !offline(),
+      syncing: false,
+      syncedAt: new Date(now() - (offline() ? 42 * 60_000 : 20_000)).toISOString(),
+      searches: searches.size,
+      companies,
+      emails,
+    };
+  }
+
   function route(method: HttpMethod, path: string, body: unknown): BridgeResponse {
-    if (storage.getItem('nvoke.mock.auth') === 'signed-out') return fail(401, 'unauthorized');
+    if (signedOut()) return fail(401, 'unauthorized');
+    if (offline()) return fail(0, 'network');
     const url = new URL(path, 'http://mock.local');
     const parts = url.pathname.split('/').filter(Boolean);
     if (parts[0] !== 'v1') return fail(404, 'not_found');
@@ -332,7 +364,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
 
     if (parts.length === 2) {
       if (method === 'GET') {
-        const items = [...searches.values()].sort((a, b) => b.createdAt - a.createdAt).map(toSearch);
+        const items = sortedSearches().map(toSearch);
         return json(200, { searches: items });
       }
       if (method === 'POST') {
@@ -641,6 +673,33 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     },
     async openExternal(url) {
       if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener');
+    },
+    local: {
+      async searches() {
+        return signedOut() ? null : sortedSearches().map(toSearch);
+      },
+      async search(id) {
+        const rec = searches.get(id);
+        return rec && !signedOut() ? toSearch(rec) : null;
+      },
+      async companies(searchId, query) {
+        const rec = searches.get(searchId);
+        if (!rec || signedOut() || !synced(rec)) return null;
+        const params = new URLSearchParams();
+        if (query.verification) params.set('verification', query.verification);
+        if (query.kind) params.set('kind', query.kind);
+        if (query.q) params.set('q', query.q);
+        if (query.offset) params.set('cursor', String(query.offset));
+        const { nextCursor, ...page } = listCompanies(rec, params);
+        return { ...page, nextOffset: nextCursor === null ? null : Number(nextCursor) };
+      },
+      async refresh() {},
+      async status() {
+        return localStatus();
+      },
+      onChange() {
+        return () => undefined;
+      },
     },
     auth: {
       async getState() {

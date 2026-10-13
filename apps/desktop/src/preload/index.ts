@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { HealthResponse } from '@nvoke/shared';
+import type { HealthResponse, Search } from '@nvoke/shared';
 import {
   IpcChannel,
   type AppInfo,
@@ -9,6 +9,9 @@ import {
   type DesktopSettings,
   type ExportResult,
   type SaveEnrichedResult,
+  type LocalChange,
+  type LocalCompaniesPage,
+  type LocalStatus,
   type NvokeApi,
   type QuickClipboard,
   type WindowChrome,
@@ -47,6 +50,19 @@ const api: NvokeApi = {
     saveEnriched: (sourcePath, csv) =>
       ipcRenderer.invoke(IpcChannel.saveEnriched, { sourcePath, csv }) as Promise<SaveEnrichedResult>,
     reveal: (filePath) => ipcRenderer.invoke(IpcChannel.revealFile, filePath) as Promise<void>,
+  },
+  local: {
+    searches: () => ipcRenderer.invoke(IpcChannel.localSearches) as Promise<Search[] | null>,
+    search: (id) => ipcRenderer.invoke(IpcChannel.localSearch, id) as Promise<Search | null>,
+    companies: (searchId, query) =>
+      ipcRenderer.invoke(IpcChannel.localCompanies, searchId, query) as Promise<LocalCompaniesPage | null>,
+    refresh: (searchId) => ipcRenderer.invoke(IpcChannel.localRefresh, searchId) as Promise<void>,
+    status: () => ipcRenderer.invoke(IpcChannel.localStatus) as Promise<LocalStatus>,
+    onChange: (listener) => {
+      const handler = (_event: IpcRendererEvent, change: LocalChange) => listener(change);
+      ipcRenderer.on(IpcChannel.localChanged, handler);
+      return () => ipcRenderer.removeListener(IpcChannel.localChanged, handler);
+    },
   },
   window: {
     getChrome: () => ipcRenderer.invoke(IpcChannel.windowGetChrome) as Promise<WindowChrome>,

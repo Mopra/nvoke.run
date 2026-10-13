@@ -115,6 +115,12 @@ export function percent(part: number, whole: number): number {
   return Math.min(100, Math.max(0, (part / whole) * 100));
 }
 
+/** "Offline, synced 42 min ago" while the server is out of reach, else null. */
+export function offlineCaption(status: { online: boolean | null; syncedAt: string | null } | undefined, now = Date.now()): string | null {
+  if (status?.online !== false) return null;
+  return status.syncedAt ? `Offline, synced ${relativeTime(status.syncedAt, now)}` : 'Offline';
+}
+
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const diff = Math.round((now - new Date(iso).getTime()) / 1000);
   if (diff < 45) return 'just now';

@@ -10,8 +10,9 @@ import {
   type DesktopCommand,
   type DesktopSettings,
   type ExportResult,
+  type LocalChange,
 } from '../ipc/contract';
-import { bridgeRequest, exportCsvToFile, safeCsvFileName } from './api-bridge';
+import { bridgeRequest, deletedSearchId, exportCsvToFile, safeCsvFileName } from './api-bridge';
 import { PROTOCOL, findProtocolUrl } from './auth/flow';
 import { AuthSession } from './auth/session';
 import { safeTokenStore } from './auth/token-store';
@@ -19,6 +20,9 @@ import { captureDirFromArgs, runCapture } from './capture';
 import { registerDragIpc } from './drag';
 import { registerEnrichedIpc } from './enriched-file';
 import { readSavedDesktop, writeSavedDesktop, type SavedDesktop } from './desktop-settings';
+import { registerLocalIpc } from './local/ipc';
+import { LocalStore } from './local/store';
+import { LeadSync } from './local/sync';
 import { applyOpenAtLogin, startedHidden } from './login-item';
 import { QuickWindow } from './quick-window';
 import { AppTray } from './tray';
@@ -100,13 +104,20 @@ function main(): void {
   });
 
   app.whenReady().then(async () => {
+    const store = new LocalStore(join(app.getPath('userData'), 'leads.sqlite'));
+    let sync: LeadSync | null = null;
     session = new AuthSession({
       apiUrl: env.apiUrl,
       siteUrl: env.siteUrl,
       deviceName: hostname(),
       tokenStore: safeTokenStore(),
       openExternal: (url) => shell.openExternal(url),
-      onChange: onAuthChange,
+      onChange: (state) => {
+        onAuthChange(state);
+        // The local copy belongs to the signed-in account: sign out wipes it.
+        if (state.status === 'signed-in') sync?.start();
+        else if (state.status === 'signed-out') sync?.wipe();
+      },
     });
     const api = session;
     desktop = readSavedDesktop(desktopFile());
@@ -118,7 +129,9 @@ function main(): void {
     });
     quick.init(desktop.hotkey);
     quick.registerIpc();
-    registerIpc(session);
+    sync = new LeadSync({ client: session, store, onChange: broadcastLocalChange });
+    registerIpc(session, sync);
+    registerLocalIpc(store, sync);
     registerWindowIpc();
     registerDragIpc();
     registerEnrichedIpc();
@@ -134,6 +147,9 @@ function main(): void {
     createWindow({ hidden: !captureDir && startedHidden(process.argv) });
     await session.init();
     tray?.setSignedIn(session.getState().status === 'signed-in');
+    // No token: whatever an earlier run left behind goes.
+    if (session.getState().status === 'signed-in') sync.start();
+    else sync.wipe();
     for (const url of queued.splice(0)) await session.handleCallback(url);
 
     app.on('activate', () => {
@@ -204,6 +220,10 @@ function broadcastAuthState(state: AuthState): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IpcChannel.authChanged, state);
 }
 
+function broadcastLocalChange(change: LocalChange): void {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IpcChannel.localChanged, change);
+}
+
 function isSafeExternalUrl(raw: string): boolean {
   try {
     const url = new URL(raw);
@@ -263,7 +283,7 @@ function createWindow({ hidden }: { hidden: boolean }): void {
   if (captureDir) void runCapture(win, captureDir);
 }
 
-function registerIpc(session: AuthSession): void {
+function registerIpc(session: AuthSession, sync: LeadSync): void {
   ipcMain.handle(IpcChannel.getAppInfo, (): AppInfo => ({
     name: app.getName(),
     version: app.getVersion(),
@@ -288,9 +308,12 @@ function registerIpc(session: AuthSession): void {
 
   // The renderer's only door to apps/server. Paths are limited to /v1/ and the
   // device token is attached here, never in the renderer.
-  ipcMain.handle(IpcChannel.apiRequest, (_event, method: unknown, path: unknown, body: unknown) =>
-    bridgeRequest(session, method, path, body),
-  );
+  ipcMain.handle(IpcChannel.apiRequest, async (_event, method: unknown, path: unknown, body: unknown) => {
+    const res = await bridgeRequest(session, method, path, body);
+    const deleted = deletedSearchId(method, path, res);
+    if (deleted) sync.deleted(deleted);
+    return res;
+  });
 
   ipcMain.handle(IpcChannel.exportCsv, async (event, searchId: unknown, defaultFileName: unknown): Promise<ExportResult> => {
     const options = {

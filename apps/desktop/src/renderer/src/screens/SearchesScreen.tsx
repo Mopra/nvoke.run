@@ -15,8 +15,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/format';
-import { useCancelSearch, useRefreshWhenFinished, useSearches } from '@/lib/queries';
+import {
+  errorMessage,
+  formatNumber,
+  isActive,
+  offlineCaption,
+  relativeTime,
+  searchSubtitle,
+  searchTitle,
+  STATUS_LABEL,
+} from '@/lib/format';
+import { useCancelSearch, useLocalStatus, useRefreshWhenFinished, useSearches } from '@/lib/queries';
 import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
 
@@ -152,11 +161,18 @@ export function SearchesScreen() {
   // Only the account needs a refresh here; the list itself is still polled.
   useRefreshWhenFinished(active.length > 0, null);
 
+  const offline = offlineCaption(useLocalStatus().data);
   const subtitle = !data
     ? 'Loading'
     : data.length > 0
-      ? `${data.length} ${data.length === 1 ? 'search' : 'searches'}${active.length ? `, ${active.length} running` : ''}`
-      : undefined;
+      ? [
+          `${data.length} ${data.length === 1 ? 'search' : 'searches'}`,
+          active.length ? `${active.length} running` : null,
+          offline?.toLowerCase(),
+        ]
+          .filter(Boolean)
+          .join(', ')
+      : (offline ?? undefined);
 
   return (
     <>

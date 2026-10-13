@@ -20,6 +20,8 @@ import type {
   DropListResponse,
   DropUpdate,
   ExportResult,
+  LocalChange,
+  LocalStatus,
   Me,
   Search,
   SearchInput,
@@ -67,6 +69,11 @@ function describeError(status: number, code: string): string {
   return code || `Request failed with status ${status}`;
 }
 
+/** Cursors of pages read from the local copy carry this prefix and an offset. */
+export const LOCAL_CURSOR = 'local:';
+
+const isNetworkError = (err: unknown): boolean => err instanceof ApiError && err.status === 0;
+
 export function buildQuery(params: Record<string, string | number | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -90,17 +97,56 @@ export function createApi(transport: Transport) {
   }
 
   const enc = encodeURIComponent;
+  const { local } = transport;
+
+  /** Runs `online`; when the network is down, answers from the local copy if it has one. */
+  async function orLocal<T>(online: () => Promise<T>, offline: () => Promise<T | null>): Promise<T> {
+    try {
+      return await online();
+    } catch (err) {
+      if (!isNetworkError(err)) throw err;
+      const copy = await offline().catch(() => null);
+      if (copy === null) throw err;
+      return copy;
+    }
+  }
+
+  /**
+   * A finished search's companies come from the local copy when it has them:
+   * instant, and offline too. Otherwise, and for a running search, the API.
+   */
+  async function listCompanies(id: string, query: CompaniesQuery, live: boolean): Promise<CompaniesPage> {
+    const { cursor, ...filters } = query;
+    if (!live && (!cursor || cursor.startsWith(LOCAL_CURSOR))) {
+      const offset = cursor ? Number(cursor.slice(LOCAL_CURSOR.length)) || 0 : 0;
+      const page = await local.companies(id, { ...filters, offset }).catch(() => null);
+      if (page) {
+        const { nextOffset, ...rest } = page;
+        return { ...rest, nextCursor: nextOffset === null ? null : `${LOCAL_CURSOR}${nextOffset}` };
+      }
+      // The copy went away between pages (a sign out or a refresh): stop here.
+      if (cursor) return { companies: [], nextCursor: null, total: 0 };
+    }
+    return call('GET', `/v1/searches/${enc(id)}/companies${buildQuery({ ...query })}`);
+  }
 
   return {
-    listSearches: async (): Promise<Search[]> => (await call<SearchListResponse>('GET', '/v1/searches')).searches,
-    getSearch: (id: string): Promise<Search> => call('GET', `/v1/searches/${enc(id)}`),
+    listSearches: (): Promise<Search[]> =>
+      orLocal(async () => (await call<SearchListResponse>('GET', '/v1/searches')).searches, () => local.searches()),
+    getSearch: (id: string): Promise<Search> =>
+      orLocal(() => call('GET', `/v1/searches/${enc(id)}`), () => local.search(id)),
     createSearch: (input: SearchInput): Promise<Search> => call('POST', '/v1/searches', input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
     deleteSearch: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/searches/${enc(id)}`);
     },
-    listCompanies: (id: string, query: CompaniesQuery = {}): Promise<CompaniesPage> =>
-      call('GET', `/v1/searches/${enc(id)}/companies${buildQuery({ ...query })}`),
+    /** `live` skips the local copy, which only holds finished searches. */
+    listCompanies: (id: string, query: CompaniesQuery = {}, live = false): Promise<CompaniesPage> =>
+      listCompanies(id, query, live),
+    /** Asks main to fetch this search's companies again in the background. */
+    refreshLocal: (id: string): Promise<void> => local.refresh(id).catch(() => undefined),
+    localStatus: (): Promise<LocalStatus> => local.status(),
+    onLocalChange: (callback: (change: LocalChange) => void): (() => void) => local.onChange(callback),
     exportCsv: (id: string, defaultFileName: string): Promise<ExportResult> =>
       transport.exportCsv(id, defaultFileName),
     /** From a `dragstart` handler, after `preventDefault()`: drags `csv` out as a file named `fileName`. */
@@ -145,7 +191,7 @@ export type Api = ReturnType<typeof createApi>;
 /** Returns the preload bridge if it has the full expected shape. */
 export function bridgeFromWindow(): NvokeBridge | null {
   const candidate = (window as unknown as { nvoke?: Partial<NvokeBridge> }).nvoke;
-  if (!candidate || typeof candidate.request !== 'function' || !candidate.auth) return null;
+  if (!candidate || typeof candidate.request !== 'function' || !candidate.auth || !candidate.local) return null;
   return candidate as NvokeBridge;
 }
 

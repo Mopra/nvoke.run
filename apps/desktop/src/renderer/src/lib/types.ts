@@ -33,7 +33,15 @@ export type {
   WebSearchParams as WebParams,
 } from '@nvoke/shared';
 
-export type { AuthState, BridgeResponse, ExportResult, HttpMethod } from '../../../ipc/contract';
+export type {
+  AuthState,
+  BridgeResponse,
+  ExportResult,
+  HttpMethod,
+  LocalChange,
+  LocalCompaniesPage,
+  LocalStatus,
+} from '../../../ipc/contract';
 
 /** Filters for `GET /v1/searches/:id/companies`, plus the page cursor. */
 export type CompaniesQuery = LeadFilters & { cursor?: string; /** Page size, 200 at most. The server defaults to 50. */ limit?: number };

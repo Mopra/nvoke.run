@@ -60,10 +60,11 @@ describe('mock transport', () => {
     const s = await api.createSearch({ kind: 'web', params: { keyword: 'cms', country: 'DE' }, limit: 400 });
     advance(10 * 60_000);
 
-    const first = await api.listCompanies(s.id);
+    // `live` reads the API, not the local copy.
+    const first = await api.listCompanies(s.id, {}, true);
     expect(first.companies).toHaveLength(100);
     expect(first.nextCursor).toBe('100');
-    const second = await api.listCompanies(s.id, { cursor: first.nextCursor! });
+    const second = await api.listCompanies(s.id, { cursor: first.nextCursor! }, true);
     expect(second.companies[0]!.id).not.toBe(first.companies[0]!.id);
 
     const valid = await api.listCompanies(s.id, { verification: 'valid', kind: 'personal' });
@@ -109,5 +110,33 @@ describe('mock transport', () => {
     await new Promise((r) => setTimeout(r, 5));
     expect(states).toEqual(['signed-out', 'pending', 'signed-in']);
     expect((await api.getMe()).plan).toBe('emails_2500');
+  });
+});
+
+describe('local copy', () => {
+  function offlineSetup() {
+    const clock = Date.UTC(2026, 9, 13, 12, 0, 0);
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    const api = createApi(createMockTransport({ now: () => clock, latency: 0, seed: true, storage }));
+    return { api, goOffline: () => storage.setItem('nvoke.mock.offline', '1') };
+  }
+
+  it('reads a finished search from the local copy, paging with local cursors', async () => {
+    const { api } = offlineSetup();
+    const done = (await api.listSearches()).find((s) => s.status === 'done' && s.companiesFound > 100)!;
+    const first = await api.listCompanies(done.id);
+    expect(first.nextCursor).toMatch(/^local:\d+$/);
+    const second = await api.listCompanies(done.id, { cursor: first.nextCursor! });
+    expect(second.companies[0]!.id).not.toBe(first.companies[0]!.id);
+  });
+
+  it('falls back to the local copy when the network is down', async () => {
+    const { api, goOffline } = offlineSetup();
+    const online = await api.listSearches();
+    goOffline();
+    expect((await api.listSearches()).map((s) => s.id)).toEqual(online.map((s) => s.id));
+    expect((await api.localStatus()).online).toBe(false);
+    await expect(api.getMe()).rejects.toMatchObject({ status: 0 });
   });
 });

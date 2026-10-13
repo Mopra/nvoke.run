@@ -224,6 +224,17 @@ export async function runCapture(win: BrowserWindow, dir: string): Promise<void>
         await sleep(400);
       }
 
+      // Offline: the app runs on the local copy of searches and companies.
+      if (links.done) {
+        await js(`localStorage.setItem('nvoke.mock.offline', '1'); location.hash = '#/'`);
+        await reload();
+        await shot('11c-offline-searches', theme);
+        await go(links.done, 1600);
+        await shot('11d-offline-results', theme);
+        await js(`localStorage.removeItem('nvoke.mock.offline')`);
+        await reload();
+      }
+
       await go('#/account');
       await shot('12-account', theme);
       await js(`document.querySelector('[data-api-keys]')?.scrollIntoView({ block: 'start' })`);

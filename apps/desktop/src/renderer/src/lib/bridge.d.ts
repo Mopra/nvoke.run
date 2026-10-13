@@ -14,6 +14,8 @@
  *   streams `GET /v1/searches/:id/export.csv` to the chosen file.
  * - `startDragCsv(fileName, csv)` turns a `dragstart` into a native file drag
  *   of a temp CSV, so selected leads drop into other apps.
+ * - `local` reads the copy of searches and companies main keeps in SQLite,
+ *   for instant and offline results. See `LocalApi` in the contract.
  * - `auth.signIn()` opens the browser sign-in and moves auth to `pending`;
  *   `auth.cancelSignIn()` abandons it. Completion arrives through `auth.onChange`.
  *
@@ -27,4 +29,4 @@ export type { BridgeResponse, HttpMethod } from '../../../ipc/contract';
 export type NvokeAuthBridge = NvokeApi['auth'];
 
 /** The part of `window.nvoke` the data layer uses. The mock transport implements the same. */
-export type NvokeBridge = Pick<NvokeApi, 'request' | 'exportCsv' | 'startDragCsv' | 'openExternal' | 'auth'>;
+export type NvokeBridge = Pick<NvokeApi, 'request' | 'exportCsv' | 'startDragCsv' | 'openExternal' | 'auth' | 'local'>;

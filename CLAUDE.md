@@ -94,9 +94,13 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   name)`. Main answers both through `AuthSession.api`, which attaches the
   device token and flips to signed out on 401 (`src/main/api-bridge.ts`).
   `request` never rejects: `{ ok, status, data }` or `{ ok: false, status,
-  error }`. The renderer's `lib/types.ts` only re-exports `@nvoke/shared` and
-  the contract, and `VITE_MOCK=1` swaps the bridge for an in-memory mock
-  with the same shapes.
+  error }`. Main also keeps a local copy of searches and companies in SQLite
+  (`src/main/local`: `node:sqlite`, synced in the background, wiped on sign
+  out) that the renderer reads through `window.nvoke.local`; `lib/api.ts`
+  serves finished searches' companies from it and falls back to it offline.
+  The renderer's `lib/types.ts` only re-exports `@nvoke/shared` and the
+  contract, and `VITE_MOCK=1` swaps the bridge for an in-memory mock with
+  the same shapes (`nvoke.mock.offline=1` in localStorage cuts its network).
 - Tests: `pnpm test` starts an embedded Postgres (the `embedded-postgres`
   package, no Docker), builds a template database with every migration and
   gives each database test file its own copy. `TEST_DATABASE_URL` uses an

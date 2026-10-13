@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { useAuth } from '@/lib/auth';
 import { useDesktopCommands } from '@/lib/desktop';
 import { useModHotkey } from '@/lib/hotkeys';
+import { useLocalSync } from '@/lib/queries';
 import { navigate, useRoute, type Route } from '@/lib/router';
 import { AccountScreen } from '@/screens/AccountScreen';
 import { DropEditorScreen } from '@/screens/DropEditorScreen';
@@ -35,6 +36,7 @@ function Screen({ route }: { route: Route }) {
 
 function SignedIn() {
   const route = useRoute();
+  useLocalSync();
   useModHotkey('n', () => navigate({ name: 'new', kind: null }));
   useModHotkey(',', () => navigate({ name: 'account' }));
   useDesktopCommands((command) => {
