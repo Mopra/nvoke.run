@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-13 Round after the local MCP merge fix landed (4876049): its check and /docs/mcp quests started; gave both sonnet. 7 running, nothing blocked.
 - 2026-10-13 Front-tab hotkey quest finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides and merge newest main last.
 - 2026-10-13 Notifications merge fix conflicted too (contract, main, preload, App, Account, SPEC). Second fix-up already running: gave it sonnet, told it to keep both sides and merge main last.
 - 2026-10-13 Local MCP quest finished but conflicted on merge; fix-up already running, gave it sonnet and told it to merge newest main last.
@@ -37,6 +38,6 @@
 - Check the second notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
 - Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
 - Hotkey copied-domain lookup landed (9c23b6d); never seen on screen.
-- Check the local MCP merge fix lands; its Account "Claude and Cursor" section was never seen on screen (capture hit UnknownVizError), and the check quest for it is blocked.
+- Local MCP landed (4876049); its capture check quest and /docs/mcp quest are running. See they land.
 - Check the front-tab hotkey merge fix lands. Never verified: macOS AppleScript path, Firefox and Brave, the real hotkey over a live window.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
