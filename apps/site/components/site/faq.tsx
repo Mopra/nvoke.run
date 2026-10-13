@@ -9,11 +9,13 @@ export function Faq({ items }: { items: FaqItem[] }) {
     <div className="divide-y border-y">
       {items.map((item) => (
         <details key={item.q} className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 rounded-md py-5 text-left font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 rounded-md py-6 text-left text-lg font-medium tracking-[-0.012em] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
             {item.q}
-            <Plus className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-45" />
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground transition-[transform,background-color] duration-200 group-open:rotate-45 group-hover:bg-foreground/10">
+              <Plus className="size-4" />
+            </span>
           </summary>
-          <div className="max-w-2xl pb-6 text-pretty text-muted-foreground">{item.a}</div>
+          <div className="max-w-2xl pb-7 text-pretty text-muted-foreground">{item.a}</div>
         </details>
       ))}
     </div>

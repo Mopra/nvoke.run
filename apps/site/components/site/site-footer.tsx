@@ -4,25 +4,23 @@ import { footerNav, site } from '@/lib/site';
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-12 sm:px-6 md:grid-cols-[1fr_auto]">
-        <div className="flex max-w-sm flex-col gap-3">
-          <Logo />
-          <p className="text-sm text-muted-foreground">
-            A lead finder for Windows, macOS and Linux. Made in {site.company.country}.
-          </p>
+    <footer className="border-t text-[13px] text-muted-foreground">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-12 sm:px-6 md:flex-row md:items-start md:justify-between">
+        <div className="flex max-w-xs flex-col gap-3">
+          <Logo className="text-foreground" />
+          <p>A lead finder for Windows, macOS and Linux. Made in {site.company.country}.</p>
           <a
             href={`mailto:${site.email.hello}`}
-            className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="w-fit font-mono text-xs underline-offset-4 hover:text-foreground hover:underline"
           >
             {site.email.hello}
           </a>
         </div>
         <nav aria-label="Footer">
-          <ul className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm sm:grid-cols-3 md:grid-cols-1">
+          <ul className="flex flex-wrap gap-x-6 gap-y-2">
             {footerNav.map((item) => (
               <li key={item.href}>
-                <Link href={item.href} className="text-muted-foreground hover:text-foreground">
+                <Link href={item.href} className="hover:text-foreground">
                   {item.label}
                 </Link>
               </li>
@@ -30,9 +28,11 @@ export function SiteFooter() {
           </ul>
         </nav>
       </div>
-      <div className="mx-auto max-w-6xl px-5 pb-8 text-xs text-muted-foreground sm:px-6">
-        {site.company.legalName}
-        {site.company.cvr ? `, CVR ${site.company.cvr}` : null}
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <div className="border-t py-5 text-xs">
+          {site.company.legalName}
+          {site.company.cvr ? `, CVR ${site.company.cvr}` : null}
+        </div>
       </div>
     </footer>
   );

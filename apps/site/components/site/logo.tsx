@@ -1,23 +1,35 @@
 import { cn } from '@/lib/utils';
 
-/** The nvoke mark: a window with a search line and three result rows. */
+/** The glyph path of the mark, shared with the Open Graph image. */
+export const LOGO_PATH = 'M7 18.5V11a5 5 0 0 1 10 0v7.5';
+export const LOGO_SPARK = { cx: 18.6, cy: 5.4, r: 1.7 };
+
+/**
+ * The nvoke mark, as in the desktop app: a lowercase n drawn as one stroke,
+ * with a spark at its shoulder (the moment a search is invoked).
+ */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={cn('size-6', className)}>
-      <rect x="2" y="3" width="20" height="18" rx="4.5" className="fill-primary" />
-      <rect x="5.5" y="7" width="13" height="2.2" rx="1.1" className="fill-primary-foreground" />
-      <circle cx="6.6" cy="12.6" r="1.1" className="fill-ring" />
-      <rect x="9" y="11.8" width="9.5" height="1.6" rx="0.8" className="fill-primary-foreground/70" />
-      <circle cx="6.6" cy="16.4" r="1.1" className="fill-ring" />
-      <rect x="9" y="15.6" width="6.5" height="1.6" rx="0.8" className="fill-primary-foreground/70" />
-    </svg>
+    <span
+      aria-hidden="true"
+      className={cn(
+        'relative inline-flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-[28%] bg-primary text-primary-foreground shadow-glow',
+        className,
+      )}
+    >
+      <span className="absolute inset-0 bg-linear-to-b from-highlight/40 to-transparent" />
+      <svg viewBox="0 0 24 24" className="relative size-[62%]" fill="none">
+        <path d={LOGO_PATH} stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+        <circle {...LOGO_SPARK} fill="currentColor" />
+      </svg>
+    </span>
   );
 }
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-2 text-lg font-semibold tracking-tight', className)}>
-      <LogoMark />
+    <span className={cn('inline-flex items-center gap-2 text-[17px] font-semibold tracking-[-0.02em]', className)}>
+      <LogoMark className="size-[22px]" />
       nvoke
     </span>
   );
