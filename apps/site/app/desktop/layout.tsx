@@ -13,6 +13,7 @@ export default function DesktopLayout({ children }: { children: ReactNode }) {
           colorBackground: 'var(--card)',
           colorForeground: 'var(--card-foreground)',
           colorMuted: 'var(--muted)',
+          colorNeutral: 'var(--foreground)',
           colorMutedForeground: 'var(--muted-foreground)',
           colorInput: 'var(--background)',
           colorInputForeground: 'var(--foreground)',
