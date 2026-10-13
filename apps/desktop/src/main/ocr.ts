@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { release, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { splitColumns, type OcrWord } from './grab-extract';
 
@@ -38,7 +38,7 @@ function run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<
       command,
       args,
       { timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true, encoding: 'utf8', env: env ? { ...process.env, ...env } : process.env },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      (error, stdout, stderr) => (error ? reject(Object.assign(error, { stderr: String(stderr ?? '') })) : resolve(stdout)),
     );
   });
 }
@@ -149,7 +149,12 @@ async function visionOcr(file: string): Promise<string[]> {
     out = await run('/usr/bin/osascript', ['-l', 'JavaScript', '-e', VISION_SCRIPT, file]);
   } catch (error) {
     if (isMissing(error)) throw new OcrUnavailable('osascript is missing, so Vision text recognition cannot run.');
-    throw new OcrUnavailable('Text recognition needs macOS 10.15 or later.');
+    // Darwin 19 is macOS 10.15, the first with VNRecognizeTextRequest.
+    if (Number.parseInt(release(), 10) < 19) throw new OcrUnavailable('Text recognition needs macOS 10.15 or later.');
+    const stderr = String((error as { stderr?: unknown }).stderr ?? '').trim();
+    console.error('[ocr] osascript failed:', stderr || error);
+    const first = (stderr || (error as Error).message).split('\n')[0]?.trim();
+    throw new OcrUnavailable(`Text recognition failed: ${first}`);
   }
   const blocks = JSON.parse(out.trim()) as { text: string; x: number; y: number }[];
   // Rows within about a line of each other read left to right.
