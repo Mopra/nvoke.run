@@ -140,7 +140,7 @@ export function ResultsScreen({ platform, rows = 7, animate = false }: { platfor
       <Island platform={platform} />
       <div className="relative min-h-0 flex-1 overflow-hidden px-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-140px),transparent)]">
         <section className="px-6 pt-8 pb-10">
-          <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">Bakeries in Aarhus</div>
+          <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">Bakeries in Lisbon</div>
           <div className="mt-2 flex items-center gap-2.5 text-[13px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium">
               <StatusDot status="running" />
@@ -268,21 +268,21 @@ function Line({
 export function NewSearchForm({ kind = 0, className }: { kind?: number; className?: string }) {
   const sentence = [
     {
-      hint: 'Businesses on OpenStreetMap that list a website, inside the area you name.',
+      hint: 'Businesses on OpenStreetMap with a website, inside the area you name.',
       lines: [
         { lead: 'Find', value: 'dentists' },
-        { lead: 'in', value: 'Copenhagen' },
+        { lead: 'in', value: 'Austin' },
       ],
     },
     {
-      hint: 'Company websites from a web search. Social networks and marketplaces are left out.',
+      hint: 'Company websites from a web search. No social networks, no marketplaces.',
       lines: [
         { lead: 'Find', value: 'headless CMS' },
         { lead: 'in', value: 'Germany', chevron: true },
       ],
     },
     {
-      hint: 'Products launched recently on Product Hunt and Show HN.',
+      hint: 'Fresh launches from Product Hunt and Show HN.',
       lines: [
         { lead: 'Find', value: 'ai' },
         { lead: 'from the', value: 'last 7 days', chevron: true },
@@ -335,7 +335,7 @@ export function CommandBar({ className }: { className?: string }) {
           <span className="flex size-4 items-center justify-center">
             <StatusDot status="done" />
           </span>
-          <span>Dentists in Copenhagen</span>
+          <span>Dentists in Austin</span>
           <span className="text-[11.5px] text-muted-foreground">Local businesses</span>
           <span className="ml-auto flex items-center gap-2 text-[11.5px] text-muted-foreground tabular-nums">
             83 emails
@@ -396,7 +396,7 @@ export function MacSignedOutWindow() {
         <div className="aura absolute top-[40%] left-1/2 h-[520px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full motion-safe:animate-breathe" />
         <LogoMark className="relative size-[64px]" />
         <div className="relative mt-9 max-w-[420px] font-display text-[40px] leading-[46px] font-semibold tracking-[-0.036em] text-balance">
-          Research companies and their public contact details.
+          Find companies. Get emails that actually work.
         </div>
         <MockButton className="relative mt-10 h-11 px-7 text-[15px]">
           Sign in with your browser

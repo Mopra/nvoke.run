@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { CompanyLine, LegalPage } from '@/components/site/legal';
 import { site } from '@/lib/site';
 
-// DRAFT. These terms are a working draft for a Danish company selling a B2B
-// subscription. They have not been reviewed by a lawyer. Fill in the company
+// DRAFT. These terms are a working draft for a B2B subscription operated
+// from Denmark. They have not been reviewed by a lawyer. Fill in the operator
 // details in lib/site.ts, confirm the payment, refund and liability terms, and
 // get them reviewed before launch.
 
@@ -20,12 +20,12 @@ export default function TermsPage() {
       <section>
         <h2>1. About these terms</h2>
         <p>
-          These terms apply between you and <CompanyLine /> (“nvoke”, “we”) when you use the nvoke desktop app and the
-          service behind it. By creating an account you accept them. If you accept on behalf of a company, you confirm
+          These terms apply between you and <CompanyLine /> (“we”) when you use the nvoke desktop app and the
+          service behind it. By creating an account you accept them. If you accept on behalf of a business, you confirm
           that you may bind it.
         </p>
         <p>
-          nvoke is offered to businesses, not to consumers. Danish consumer protection rules, including the right of
+          nvoke is offered to businesses, not to consumers. Consumer protection rules, including the right of
           withdrawal, therefore do not apply.
         </p>
       </section>

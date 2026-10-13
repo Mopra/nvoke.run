@@ -50,7 +50,7 @@ export const VERIFICATION: Record<Verification, { label: string; dot: string; me
   catch_all: {
     label: 'Catch-all',
     dot: 'bg-chart-3',
-    meaning: 'The domain accepts mail for any address, so this one cannot be confirmed on its own.',
+    meaning: 'The domain accepts mail for any address. This one cannot be confirmed on its own.',
   },
   risky: {
     label: 'Risky',
@@ -65,7 +65,7 @@ export const VERIFICATION: Record<Verification, { label: string; dot: string; me
   unknown: {
     label: 'Unknown',
     dot: 'bg-muted-foreground/45',
-    meaning: 'The domain has mail servers, but the mailbox check could not run.',
+    meaning: 'The domain has mail servers. The mailbox check could not run.',
   },
 };
 

@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-5 pt-24 pb-14 sm:px-6 md:flex-row md:items-start md:justify-between">
         <div className="flex max-w-xs flex-col gap-3">
           <Logo className="text-foreground" />
-          <p>Prospecting research for Windows, macOS and Linux. Made in {site.company.country}.</p>
+          <p>Find companies. Get emails that actually work. Windows, macOS and Linux.</p>
           <a
             href={`mailto:${site.email.hello}`}
             className="w-fit font-mono text-xs underline-offset-4 hover:text-foreground hover:underline"
@@ -30,8 +30,7 @@ export function SiteFooter() {
       </div>
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
         <div className="pb-10 text-xs text-muted-foreground/70">
-          {site.company.legalName}
-          {site.company.cvr ? `, CVR ${site.company.cvr}` : null}
+          © {new Date().getFullYear()} {site.company.legalName}
         </div>
       </div>
     </footer>

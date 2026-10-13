@@ -14,9 +14,9 @@ export const metadata: Metadata = {
 };
 
 const STEPS = [
-  'Download and install nvoke for your system.',
-  'Open it and sign in, or create an account. New accounts start on the Free plan.',
-  'Click New search, pick a search kind and fill in the fields.',
+  'Download and install it.',
+  'Open it and sign in. No account yet? You get one, on the Free plan.',
+  'Hit New search, pick a kind, fill in two fields.',
 ];
 
 export default function DownloadPage() {
@@ -36,8 +36,8 @@ export default function DownloadPage() {
           title="Download nvoke"
           intro={
             downloads.available
-              ? 'One app for Windows, macOS and Linux. Install it, sign in and start a search.'
-              : 'The first public build is not out yet. The download links appear here as soon as it is.'
+              ? 'Windows, macOS and Linux. Install, sign in, search.'
+              : 'The first public build is not out yet. Links show up here the moment it ships.'
           }
         />
       </div>
@@ -60,7 +60,7 @@ export default function DownloadPage() {
               ))}
             </ol>
             <p className="text-sm text-muted-foreground">
-              Plans and limits are on the{' '}
+              Plans and limits:{' '}
               <Link href="/pricing" className="text-foreground underline underline-offset-4">
                 pricing page
               </Link>

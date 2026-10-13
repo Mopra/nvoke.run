@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 // The checks nvoke runs on one address, in order, with example output.
 const STEPS = [
   { name: 'Syntax', detail: 'Well formed address' },
-  { name: 'Mail servers', detail: 'MX mx1.example-mail.dk, mx2.example-mail.dk' },
+  { name: 'Mail servers', detail: 'MX mx1.example-mail.com, mx2.example-mail.com' },
   { name: 'Disposable domains', detail: 'Not on the disposable list' },
   { name: 'Mailbox', detail: 'RCPT TO accepted with 250 OK, then QUIT' },
   { name: 'Catch-all', detail: 'A random address on the domain was rejected' },
@@ -17,7 +17,7 @@ export function VerificationTrace({ className }: { className?: string }) {
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="glass-strong overflow-hidden rounded-[28px] text-card-foreground">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-5">
-          <span className="font-mono text-sm">mette@oesterbrotand.dk</span>
+          <span className="font-mono text-sm">emma@eastsidedental.com</span>
           <VerificationBadge value="valid" />
         </div>
         <ol className="flex flex-col py-3">
@@ -38,7 +38,7 @@ export function VerificationTrace({ className }: { className?: string }) {
         </ol>
       </div>
       <p className="px-7 pt-2 text-xs text-muted-foreground">
-        No message is sent. The conversation with the mail server ends before any email would be.
+        Nothing is sent. We hang up before the server would take a message.
       </p>
     </div>
   );

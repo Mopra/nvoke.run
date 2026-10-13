@@ -26,7 +26,7 @@ export default function PrivacyPageDa() {
       <section>
         <h2>Hvem vi er</h2>
         <p>
-          <CompanyLine lang="da" /> (“nvoke”, “vi”) er dataansvarlig for de personoplysninger, der er beskrevet her.
+          <CompanyLine lang="da" /> (“vi”) er dataansvarlig for de personoplysninger, der er beskrevet her.
           Skriv til {mail}, hvis du har spørgsmål til politikken eller til dine oplysninger.
         </p>
         <p>nvoke er et researchværktøj til at finde virksomheder. Det behandler oplysninger om to grupper af personer:</p>
@@ -36,8 +36,8 @@ export default function PrivacyPageDa() {
           </li>
           <li>
             <strong>Personer, hvis erhvervskontaktoplysninger nvoke finder</strong> på offentlige hjemmesider, fx en
-            medarbejder, hvis arbejdsmail står på virksomhedens kontaktside. Se <a href="#kontakter">del B</a>. Har du
-            fundet nvoke, fordi din adresse er dukket op et sted, er det den del, der gælder dig.
+            medarbejder, hvis arbejdsmail står på virksomhedens kontaktside. Se <a href="#kontakter">del B</a>. Fandt du
+            nvoke, fordi din adresse dukkede op et sted? Så er det din del.
           </li>
         </ul>
       </section>
@@ -75,7 +75,7 @@ export default function PrivacyPageDa() {
         <ul>
           <li>Konto- og brugsdata: så længe din konto er åben, og op til 12 måneder efter, at du lukker den.</li>
           <li>Søgeresultater: 12 måneder efter søgningen, eller før, hvis du sletter søgningen eller din konto.</li>
-          <li>Bogføringsmateriale: 5 år fra udgangen af regnskabsåret, som dansk lov kræver.</li>
+          <li>Bogføringsmateriale: 5 år fra udgangen af regnskabsåret, som bogføringsloven kræver.</li>
         </ul>
       </section>
 

@@ -8,7 +8,7 @@ import { site } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Fravælg nvoke',
   description:
-    'Fjern din e-mailadresse eller hele dit domæne fra nvoke. Det sker med det samme, kræver ingen bekræftelse, og vi indsamler det aldrig igen.',
+    'Fjern din e-mailadresse eller hele dit domæne fra nvoke. Med det samme, uden bekræftelse, og vi indsamler det aldrig igen.',
   alternates: { canonical: '/da/opt-out', languages: { en: '/opt-out', da: '/da/opt-out' } },
 };
 
@@ -17,7 +17,7 @@ export default function OptOutPageDa() {
     <div lang="da">
       <PageHeader
         title="Fravælg nvoke"
-        intro="Skriv din e-mailadresse eller din virksomheds domæne. Vi sletter det, vi har om det, med det samme og indsamler det aldrig igen. Du behøver ikke en konto eller en bekræftelsesmail."
+        intro="Skriv din e-mailadresse eller din virksomheds domæne. Vi sletter det, vi har, med det samme og indsamler det aldrig igen. Ingen konto. Ingen bekræftelsesmail."
       >
         <LanguageLink alternate={{ href: '/opt-out', lang: 'en', label: 'English' }} />
       </PageHeader>
@@ -38,8 +38,8 @@ export default function OptOutPageDa() {
               til adressen.
             </p>
             <p>
-              Siden viser den samme besked, uanset om vi havde noget eller ej, så ingen kan bruge den til at finde ud af,
-              hvilke adresser der er i nvoke.
+              Siden viser den samme besked, uanset om vi havde noget eller ej. Ingen kan bruge den til at lure, hvilke
+              adresser der er i nvoke.
             </p>
             <h2 className="mt-4">Andre henvendelser</h2>
             <p>

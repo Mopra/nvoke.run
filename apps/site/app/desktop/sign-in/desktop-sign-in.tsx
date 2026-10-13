@@ -40,7 +40,7 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ state, code_challenge: codeChallenge }),
       });
-      if (!res.ok) throw new Error(`The server refused the request (${res.status}).`);
+      if (!res.ok) throw new Error(`The server said no (${res.status}). Try again.`);
       const { code } = DesktopAuthorizeResponse.parse(await res.json());
       const url = callbackUrl(code, state);
       setPhase({ kind: 'done', callbackUrl: url });
@@ -76,9 +76,9 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
     return (
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>You can return to the nvoke app</CardTitle>
+          <CardTitle>You are in. Back to nvoke.</CardTitle>
           <CardDescription>
-            Signed in as {who}. If the app did not open, use the button below. You can close this tab.
+            Signed in as {who}. App did not open? Use the button. Then close this tab.
           </CardDescription>
         </CardHeader>
         <CardFooter>

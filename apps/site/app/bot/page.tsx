@@ -8,7 +8,7 @@ import { site } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'nvokebot',
   description:
-    'nvokebot is the crawler behind nvoke. What it visits, what it collects, and how to block it with robots.txt or opt out your domain at once.',
+    'nvokebot is the crawler behind nvoke. What it visits, what it keeps, and how to block it with robots.txt or opt out your domain right now.',
   alternates: { canonical: '/bot' },
 };
 
@@ -50,7 +50,7 @@ export default function BotPage() {
     <>
       <PageHeader
         title="nvokebot"
-        intro="nvokebot is the crawler behind nvoke. If you found it in your server logs, this page explains what it did and how to stop it."
+        intro="The crawler behind nvoke. Found it in your logs? Here is exactly what it did, and how to make it stop."
       />
       <Container className="max-w-5xl pb-24 sm:pb-36">
         <dl className="mb-16 grid overflow-hidden rounded-2xl border bg-card shadow-sm sm:grid-cols-2 dark:bg-card/80">
@@ -69,15 +69,14 @@ export default function BotPage() {
 
         <Block title="Why it visited">
           <p>
-            nvoke is a prospecting research tool: it helps businesses find other companies and the contact details those
-            companies publish. When a customer runs a search and your company is in the results, for example because it
-            is listed on OpenStreetMap, shows up in a web search or launched on Product Hunt or Show HN, nvokebot visits
-            your website to find the contact details published there.
+            nvoke is a prospecting research tool. It helps businesses find other companies and the contact details those
+            companies publish. A customer ran a search, and your company came up: listed on OpenStreetMap, in a web
+            search, or launched on Product Hunt or Show HN. So nvokebot read your site for published contact details.
           </p>
           <p>
             It does not crawl the web at large. It only visits sites that came up in a customer search. For 90 days
-            after a visit, other searches that find your company reuse what it found. A search after that visits again
-            and drops addresses that are gone.
+            after a visit, other searches that find your company reuse the result. After that, the next search visits
+            again and drops addresses that are gone.
           </p>
         </Block>
 
@@ -85,6 +84,7 @@ export default function BotPage() {
           <p>
             The home page and up to seven pages that usually hold contact details: contact, about, team, imprint
             (impressum), privacy and legal pages. It stops at eight pages or 2 MB per site, whichever comes first.
+            Your blog is safe.
           </p>
           <p>
             From those pages it keeps <strong>email addresses</strong>, the URL where each one was found and when it was
@@ -104,29 +104,27 @@ export default function BotPage() {
 
         <Block title="Block it with robots.txt">
           <p>
-            nvokebot reads your robots.txt before it fetches anything else and checks every page against it. To keep it
-            off your whole site:
+            nvokebot reads your robots.txt first and checks every page against it. To keep it off your whole site:
           </p>
           <Code>{BLOCK_ALL}</Code>
-          <p>To keep it out of certain folders only:</p>
+          <p>To keep it out of certain folders:</p>
           <Code>{BLOCK_SOME}</Code>
           <p>
             A rule for <strong>User-agent: *</strong> applies to nvokebot too, unless there is a more specific nvokebot
             group. A <strong>Crawl-delay</strong> line slows it down further, up to one request
-            every 10 seconds. If robots.txt cannot be fetched because your server errors or times out, nvokebot fetches
-            nothing else.
+            every 10 seconds. If your robots.txt errors or times out, nvokebot fetches nothing else. Broken means no.
           </p>
         </Block>
 
         <Block title="Opt out your domain">
           <p>
-            Enter your domain below. It works <strong>at once</strong> and needs no confirmation: we delete every address
-            we hold on the domain and its subdomains, remove them from customers’ results, and nvokebot stops visiting
-            the site. We keep only a one-way hash of the domain so we can keep honouring it.
+            Enter your domain below. It works <strong>immediately</strong>, no confirmation: we delete every address we
+            hold on the domain and its subdomains, remove them from customers’ results, and nvokebot stops visiting. We
+            keep only a one-way hash of the domain so we can keep honouring it.
           </p>
           <OptOutForm defaultKind="domain" />
           <p>
-            To remove a single email address instead, use the same form or the{' '}
+            Just one email address? Same form, or the{' '}
             <Link href="/opt-out" className="text-foreground underline underline-offset-4">
               opt-out page
             </Link>
@@ -140,7 +138,7 @@ export default function BotPage() {
 
         <Block title="Contact">
           <p>
-            Questions about the crawler, or a problem with how it behaved on your site: write to{' '}
+            Crawler misbehaved on your site, or you have a question? Write to{' '}
             <a href={`mailto:${site.email.bot}`} className="text-foreground underline underline-offset-4">
               {site.email.bot}
             </a>

@@ -16,9 +16,9 @@ export default function NotFound() {
         <p className="bg-linear-to-b from-foreground/25 to-foreground/5 bg-clip-text text-[clamp(6rem,4rem+12vw,12rem)] leading-none font-semibold tracking-[-0.06em] text-transparent tabular-nums">
           404
         </p>
-        <h1 className="max-w-xl text-title font-semibold text-balance">There is no page at this address.</h1>
+        <h1 className="max-w-xl text-title font-semibold text-balance">Nothing here.</h1>
         <p className="max-w-md text-lede text-pretty text-muted-foreground">
-          The link may be old or mistyped. Try the home page or the download page.
+          Old link or a typo. Either way, this page does not exist.
         </p>
         <div className="mt-3 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg">

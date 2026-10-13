@@ -34,8 +34,8 @@ export default async function DesktopSignInPage({ searchParams }: { searchParams
         ) : (
           <Card className="w-full">
             <CardHeader>
-              <CardTitle>This sign-in link is incomplete</CardTitle>
-              <CardDescription>Start again from the Sign in button in the nvoke app.</CardDescription>
+              <CardTitle>This sign-in link is broken</CardTitle>
+              <CardDescription>Start over from Sign in in the nvoke app.</CardDescription>
             </CardHeader>
           </Card>
         )}

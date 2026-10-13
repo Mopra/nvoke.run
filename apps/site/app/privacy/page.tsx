@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { CompanyLine, LegalPage } from '@/components/site/legal';
 import { site } from '@/lib/site';
 
-// DRAFT. This privacy policy is a working draft written for a Danish company
-// under GDPR and the Danish Data Protection Act. It has not been reviewed by a
-// lawyer. Fill in the company details in lib/site.ts, confirm the processor
+// DRAFT. This privacy policy is a working draft for an operator established
+// in Denmark, under GDPR and the Danish Data Protection Act. It has not been
+// reviewed by a lawyer. Fill in the operator details in lib/site.ts, confirm the processor
 // list and retention periods, and get it reviewed before launch. Keep it in
 // step with the Danish version in app/da/privacy/page.tsx.
 // TODO(owner): write the legitimate interest assessment (LIA) this page
@@ -30,8 +30,8 @@ export default function PrivacyPage() {
       <section>
         <h2>Who we are</h2>
         <p>
-          <CompanyLine /> (“nvoke”, “we”) is the data controller for the personal data described here. Write to {mail}{' '}
-          with any question about this policy or your data.
+          <CompanyLine /> (“we”) is the data controller for the personal data described here. Questions about this policy or your data: write to
+          {mail}.
         </p>
         <p>nvoke is a prospecting research tool. It handles personal data about two groups of people:</p>
         <ul>
@@ -41,8 +41,7 @@ export default function PrivacyPage() {
           <li>
             <strong>People whose business contact details nvoke finds</strong> on public websites, for example an
             employee whose work email address is on their company’s contact page. See{' '}
-            <a href="#contacts">part B</a>. If you found nvoke because your address showed up somewhere, this is the
-            part for you.
+            <a href="#contacts">part B</a>. Found nvoke because your address showed up somewhere? This is your part.
           </li>
         </ul>
       </section>
@@ -79,7 +78,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Account and usage data: while your account is open, and up to 12 months after you close it.</li>
           <li>Search results: 12 months after the search ran, or earlier if you delete the search or your account.</li>
-          <li>Bookkeeping records: 5 years from the end of the financial year, as Danish law requires.</li>
+          <li>Bookkeeping records: 5 years from the end of the financial year, as bookkeeping law requires.</li>
         </ul>
       </section>
 
@@ -96,8 +95,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Email addresses published on the company’s own website</strong>, with the page where each one was
-            found and when we first and last saw it. Most are generic addresses like info@ or kontakt@. Some identify a
-            person, for example firstname@company.dk.
+            found and when we first and last saw it. Most are generic addresses like info@ or contact@. Some identify a
+            person, for example firstname@company.com.
           </li>
           <li>
             <strong>The result of a mailbox check:</strong> whether the address’s mail server says it can receive mail

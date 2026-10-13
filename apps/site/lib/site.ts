@@ -10,13 +10,12 @@ export const site = {
     privacy: 'privacy@nvoke.run',
     bot: 'bot@nvoke.run',
   },
-  // Placeholder company details for the legal pages. Fields left as null are
-  // not shown.
-  // TODO(owner): fill in the registered legal entity name, CVR number and
-  // postal address before launch. The privacy policy and terms need all three.
+  // Operator details for the legal pages. nvoke is not a company, so there is
+  // no registration number. Fields left as null are not shown.
+  // TODO(owner): fill in the postal address before launch. The privacy policy
+  // and terms need a contact address for the data controller.
   company: {
-    legalName: 'nvoke ApS',
-    cvr: null as string | null,
+    legalName: 'nvoke',
     address: null as string | null,
     country: 'Denmark',
   },

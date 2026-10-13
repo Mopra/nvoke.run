@@ -10,11 +10,11 @@ export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 const ROWS = [
-  { company: 'Smile Studio Frederiksberg', email: 'hello@smilestudiofrederiksberg.dk', status: 'Valid', dot: 'chart-1' },
-  { company: 'Nordhavn Tandklinik', email: 'noah.hansen@nordhavntandklinik.dk', status: 'Valid', dot: 'chart-1' },
-  { company: 'Dental Sydhavn', email: 'kontakt@dentalsydhavn.dk', status: 'Catch-all', dot: 'chart-3' },
-  { company: 'Holte Dental', email: 'booking@holtedental.dk', status: 'Risky', dot: 'chart-2' },
-  { company: 'Tandlægerne Gentofte', email: 'mail@tandlaegernegentofte.dk', status: 'Valid', dot: 'chart-1' },
+  { company: 'Smile Studio South Congress', email: 'hello@smilestudiosoco.com', status: 'Valid', dot: 'chart-1' },
+  { company: 'Zilker Dental', email: 'noah.hayes@zilkerdental.com', status: 'Valid', dot: 'chart-1' },
+  { company: 'Mueller Family Dentistry', email: 'contact@muellerfamilydental.com', status: 'Catch-all', dot: 'chart-3' },
+  { company: 'Hyde Park Dental', email: 'booking@hydeparkdental.com', status: 'Risky', dot: 'chart-2' },
+  { company: 'Barton Creek Smiles', email: 'mail@bartoncreeksmiles.com', status: 'Valid', dot: 'chart-1' },
 ];
 
 function font(file: string): Buffer {
@@ -114,7 +114,7 @@ export default function OpengraphImage() {
             <div style={{ width: 13, height: 13, borderRadius: 7, background: t.get('window-minimize') }} />
             <div style={{ width: 13, height: 13, borderRadius: 7, background: t.get('window-zoom') }} />
             <div style={{ marginLeft: 18, fontSize: 19, fontWeight: 600, letterSpacing: -0.3 }}>
-              Dentists in Copenhagen
+              Dentists in Austin
             </div>
           </div>
           <div style={{ display: 'flex', margin: '0 24px 14px', height: 6, borderRadius: 3, background: t.get('border') }}>

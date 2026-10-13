@@ -20,7 +20,7 @@ function tier(plan: Plan): Tier {
 export const pricing = {
   currency: 'USD',
   locale: 'en-US',
-  vatNote: 'Prices are per month in US dollars and exclude VAT.',
+  vatNote: 'Prices are monthly, in US dollars, excluding VAT.',
   tiers: PLAN_ORDER.map(tier),
   paidTiers: PAID_PLANS.map(tier),
   free: tier(FREE_PLAN),

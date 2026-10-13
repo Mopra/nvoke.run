@@ -8,7 +8,7 @@ import { site } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Opt out',
   description:
-    'Remove your email address or your whole domain from nvoke. It takes effect at once, needs no confirmation, and we never collect it again.',
+    'Remove your email address or your whole domain from nvoke. Immediate, no confirmation, never collected again.',
   alternates: { canonical: '/opt-out', languages: { en: '/opt-out', da: '/da/opt-out' } },
 };
 
@@ -17,7 +17,7 @@ export default function OptOutPage() {
     <>
       <PageHeader
         title="Opt out of nvoke"
-        intro="Enter your email address or your company’s domain. We delete what we hold about it at once and never collect it again. No account and no confirmation email needed."
+        intro="Enter your email address or your company’s domain. We delete what we hold, right now, and never collect it again. No account. No confirmation email."
       >
         <LanguageLink alternate={{ href: '/da/opt-out', lang: 'da', label: 'Dansk' }} />
       </PageHeader>
@@ -33,12 +33,11 @@ export default function OptOutPage() {
               because that would hide every business using them. Opt out your own address instead.
             </p>
             <p>
-              It is permanent. To remember your choice we keep only a one-way hash (sha256) of the address or domain. A
-              hash lets us recognise the address if we come across it again, but it cannot be turned back into the
-              address.
+              It is permanent. To remember your choice we keep only a one-way hash (sha256) of the address or domain. We
+              can recognise the address if we see it again. Nobody can turn the hash back into the address.
             </p>
             <p>
-              The page shows the same message whether or not we held anything, so nobody can use it to find out which
+              The page shows the same message whether or not we held anything. Nobody can use it to probe which
               addresses are in nvoke.
             </p>
             <h2 className="mt-4">Other requests</h2>

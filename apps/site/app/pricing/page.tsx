@@ -13,34 +13,34 @@ const top = formatCount(pricing.top.emailsPerMonth);
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: `One plan for everyone, priced by verified emails. ${free} free every month, then from ${cheapest}. You only pay for addresses that pass the mailbox check.`,
+  description: `One plan, priced by verified emails. ${free} free a month, then from ${cheapest}. Addresses that fail the check cost nothing.`,
   alternates: { canonical: '/pricing' },
 };
 
 const FAQ: FaqItem[] = [
   {
     q: 'What counts as a verified email?',
-    a: 'An address whose mailbox check came back valid. Invalid, risky, catch-all and unknown results are free. Generic addresses like info@ count when they are valid, because for most companies they are the address that gets read. An address you were already charged for never counts again, in any later search.',
+    a: 'An address whose mailbox check came back valid. Invalid, risky, catch-all and unknown are free. Generic addresses like info@ count when valid, because at most companies that is the inbox someone actually reads. An address you already paid for never counts again, in any later search.',
   },
   {
     q: 'What happens when I reach my limit?',
-    a: 'The running search stops cleanly and you keep everything found so far. There is no overage charge and no surprise bill. Need more room? Move up a plan in a couple of clicks from the app.',
+    a: 'The running search stops cleanly. You keep everything found so far. No overage charge, no surprise bill. Need more? Move up a plan from the app in two clicks.',
   },
   {
     q: 'Do unused emails roll over?',
-    a: 'No. Your allowance resets at the start of each calendar month (UTC). Pick the plan that fits your month and change it whenever.',
+    a: 'No. Your allowance resets on the first of each calendar month (UTC). Pick the plan that fits your month. Change it whenever.',
   },
   {
     q: 'Is there a free plan?',
-    a: `Yes. ${free} verified emails a month with every feature, all three search kinds, verification and CSV export. No card needed.`,
+    a: `Yes. ${free} verified emails a month. Every feature: all three search kinds, verification, CSV export. No card.`,
   },
   {
     q: 'Can I cancel at any time?',
-    a: 'Yes. Your paid plan runs until the end of the period you paid for, then the account moves to the Free plan. Your searches and results stay.',
+    a: 'Yes. Your paid plan runs to the end of the period you paid for, then drops to Free. Your searches and results stay.',
   },
   {
     q: 'Do you offer invoices with VAT?',
-    a: `Yes. ${pricing.vatNote} Every payment comes with a receipt. Business customers in the EU with a valid VAT number are invoiced with reverse charge. Write to ${site.email.hello} if you need something specific on the invoice.`,
+    a: `Yes. ${pricing.vatNote} Every payment comes with a receipt. EU businesses with a valid VAT number get reverse charge. Need something specific on the invoice? Write to ${site.email.hello}.`,
   },
 ];
 
@@ -49,21 +49,21 @@ export default function PricingPage() {
     <>
       <PageHeader
         title="Pay for emails that work"
-        intro={`One plan for everyone. You pay for verified emails, nothing else. Start with ${free} free every month, then from ${cheapest}.`}
+        intro={`One plan. You pay for verified emails and nothing else. ${free} free a month, then from ${cheapest}.`}
       />
       <Container className="pb-24 sm:pb-36">
         <PricingSlider />
         <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-pretty text-muted-foreground">
-          Every plan includes{' '}
+          Every plan gets{' '}
           <span className="font-medium text-foreground">
-            all three search kinds, mailbox verification, CSV export, and unlimited searches and companies
+            all three search kinds, mailbox verification, CSV export, unlimited searches and companies
           </span>
           . {pricing.vatNote}
         </p>
         <p className="mt-3 text-center text-sm text-muted-foreground">
           Need more than {top} a month?{' '}
           <a href={`mailto:${site.email.hello}`} className="text-foreground underline underline-offset-4">
-            Write to us
+            Talk to us
           </a>
           .
         </p>

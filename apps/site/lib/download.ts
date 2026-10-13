@@ -59,7 +59,7 @@ export function getDownloads(): Downloads {
         requirement: 'Windows 10 or 11, 64-bit',
         files: [file('Installer (.exe)', `nvoke-${version}-win-x64.exe`)],
         firstRun:
-          'The installer is not code signed yet. If Windows SmartScreen stops it, click "More info", then "Run anyway".',
+          'Not code signed yet. If SmartScreen blocks it, click "More info", then "Run anyway".',
       },
       {
         os: 'mac',
@@ -70,14 +70,14 @@ export function getDownloads(): Downloads {
           file('Intel (.dmg)', `nvoke-${version}-mac-x64.dmg`),
         ],
         firstRun:
-          'The app is not notarized yet. The first time, right click nvoke in Applications, choose Open and confirm.',
+          'Not notarized yet. First launch: right click nvoke in Applications, choose Open, confirm.',
       },
       {
         os: 'linux',
         name: 'Linux',
         requirement: 'x86_64, with FUSE for AppImage',
         files: [file('AppImage', `nvoke-${version}-linux-x86_64.AppImage`)],
-        firstRun: 'Make the file executable with chmod +x, then run it.',
+        firstRun: 'chmod +x it, then run it. You know the drill.',
       },
     ],
   };

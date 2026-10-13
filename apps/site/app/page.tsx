@@ -28,7 +28,7 @@ const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCou
 const STEPS = [
   {
     title: 'Say what you want',
-    body: '"Dentists" and "Copenhagen". Two fields. Pick how many companies to look at. Done.',
+    body: '"Dentists" and "Austin". Two fields. Pick how many companies to look at. Done.',
   },
   {
     title: 'nvoke reads their websites',
@@ -86,7 +86,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'May I send marketing email to these addresses?',
-    a: 'Check the rules in the recipient’s country first. In Denmark, section 10 of the Marketing Practices Act requires prior consent for marketing email, including to businesses, info@ addresses and employees. Most of the EU is similar. nvoke is a research tool. It tells you who a company is and how they publish contact details. It does not give you permission to email anyone. What you do with the results is on you.',
+    a: 'Check the rules in the recipient’s country first. Under the EU ePrivacy rules, many countries require prior consent for marketing email, including to businesses, info@ addresses and employees. nvoke is a research tool. It tells you who a company is and how they publish contact details. It does not give you permission to email anyone. What you do with the results is on you.',
   },
   {
     q: 'What counts toward my monthly limit?',
@@ -135,7 +135,7 @@ function Panel({ children }: { children: ReactNode }) {
 function StepShot({ index }: { index: number }) {
   if (index === 0) {
     return (
-      <MockFit width={620} height={470} label="The new search form, set to find dentists in Copenhagen.">
+      <MockFit width={620} height={470} label="The new search form, set to find dentists in Austin.">
         <Panel>
           <NewSearchForm />
         </Panel>
@@ -159,12 +159,12 @@ function StepShot({ index }: { index: number }) {
     );
   }
   return (
-    <MockFit width={620} height={330} label="Dentists in Copenhagen with verified emails, ready to export as CSV.">
+    <MockFit width={620} height={330} label="Dentists in Austin with verified emails, ready to export as CSV.">
       <Panel>
         <div className="flex items-start gap-4 pb-4">
           <div className="min-w-0 flex-1">
             <div className="font-display text-[28px] leading-[34px] font-semibold tracking-[-0.026em]">
-              Dentists in Copenhagen
+              Dentists in Austin
             </div>
             <div className="mt-1 text-[13px] text-muted-foreground">46 valid of 83</div>
           </div>
@@ -214,7 +214,7 @@ export default function HomePage() {
             height={760}
             motion="tilt"
             halo="strong"
-            label="The nvoke app on Windows, showing a running search for bakeries in Aarhus with verified emails arriving."
+            label="The nvoke app on Windows, showing a running search for bakeries in Lisbon with verified emails arriving."
           >
             <WindowsResultsWindow animate />
           </Stage>
@@ -283,7 +283,7 @@ export default function HomePage() {
           <Stage
             width={1200}
             height={680}
-            label="The nvoke app on macOS: the list of searches, with the command bar open to jump to Dentists in Copenhagen."
+            label="The nvoke app on macOS: the list of searches, with the command bar open to jump to Dentists in Austin."
           >
             <MacCommandWindow />
           </Stage>

@@ -71,7 +71,7 @@ async function fetchMe(getToken: () => Promise<string | null>): Promise<Load> {
     const token = await getToken();
     if (!token) throw new Error('Your session expired. Sign in again.');
     const res = await fetch(`${apiUrl}/v1/me?sync=1`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`The server refused the request (${res.status}).`);
+    if (!res.ok) throw new Error(`The server said no (${res.status}). Try again.`);
     return { kind: 'ready', me: MeResponse.parse(await res.json()) };
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) };
@@ -132,7 +132,7 @@ function PlanPicker({ me, who, onChanged }: { me: MeResponse; who: string | null
       >
         <div className="flex flex-col items-center gap-3 border-t pt-7 sm:flex-row sm:justify-between">
           <p className="text-sm text-pretty text-muted-foreground">
-            Every feature on every plan. Changes apply right away.
+            Every feature on every plan. Changes apply immediately.
           </p>
           <PlanAction
             plan={picked}
@@ -145,7 +145,7 @@ function PlanPicker({ me, who, onChanged }: { me: MeResponse; who: string | null
       </PlanSlider>
 
       <p className="text-center text-sm text-pretty text-muted-foreground">
-        {pricing.vatNote} When you are done, go back to the nvoke app. It picks up the new plan by itself.
+        {pricing.vatNote} Done? Go back to nvoke. It picks up the new plan on its own.
       </p>
     </div>
   );
