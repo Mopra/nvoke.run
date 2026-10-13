@@ -126,7 +126,7 @@ const FAQ: FaqItem[] = [
 /** A floating slice of the app, without window chrome. */
 function Panel({ children }: { children: ReactNode }) {
   return (
-    <div className="size-full overflow-hidden rounded-[14px] border bg-background p-6 text-foreground shadow-lg">
+    <div className="glass-strong size-full overflow-hidden rounded-[28px] p-8 text-foreground">
       {children}
     </div>
   );
@@ -135,7 +135,7 @@ function Panel({ children }: { children: ReactNode }) {
 function StepShot({ index }: { index: number }) {
   if (index === 0) {
     return (
-      <MockFit width={560} height={340} label="The new search form, set to find dentists in Copenhagen.">
+      <MockFit width={620} height={470} label="The new search form, set to find dentists in Copenhagen.">
         <Panel>
           <NewSearchForm />
         </Panel>
@@ -144,13 +144,13 @@ function StepShot({ index }: { index: number }) {
   }
   if (index === 1) {
     return (
-      <MockFit width={560} height={208} label="A running search: 27 of 44 websites crawled, 36 emails found so far.">
+      <MockFit width={620} height={330} label="A running search: 27 of 44 websites crawled, 36 emails found so far.">
         <Panel>
-          <div className="flex items-center gap-2 pb-4">
-            <span className="text-[15px] font-semibold tracking-[-0.01em]">Searches</span>
-            <span className="text-[11.5px] text-muted-foreground">5 searches, 1 running</span>
+          <div className="pb-4">
+            <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">Searches</div>
+            <div className="mt-1 text-[13px] text-muted-foreground">5 searches, 1 running</div>
           </div>
-          <div className="-mx-3 flex flex-col gap-px">
+          <div className="-mx-5 flex flex-col gap-1">
             <SearchRow index={0} compact />
             <SearchRow index={1} compact />
           </div>
@@ -159,16 +159,18 @@ function StepShot({ index }: { index: number }) {
     );
   }
   return (
-    <MockFit width={560} height={252} label="Dentists in Copenhagen with verified emails, ready to export as CSV.">
+    <MockFit width={620} height={330} label="Dentists in Copenhagen with verified emails, ready to export as CSV.">
       <Panel>
-        <div className="flex items-center gap-2 pb-3">
-          <span className="text-[15px] font-semibold tracking-[-0.01em]">Dentists in Copenhagen</span>
-          <span className="text-[11.5px] text-muted-foreground">46 valid of 83</span>
-          <MockButton icon={Download} className="ml-auto">
-            Export CSV
-          </MockButton>
+        <div className="flex items-start gap-4 pb-4">
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-[28px] leading-[34px] font-semibold tracking-[-0.026em]">
+              Dentists in Copenhagen
+            </div>
+            <div className="mt-1 text-[13px] text-muted-foreground">46 valid of 83</div>
+          </div>
+          <MockButton icon={Download}>Export CSV</MockButton>
         </div>
-        <div className="-mx-3">
+        <div className="-mx-8">
           {DENTISTS.slice(0, 2).map((c) => (
             <CompanyRow key={c.domain} company={c} location={false} />
           ))}
@@ -181,28 +183,33 @@ function StepShot({ index }: { index: number }) {
 export default function HomePage() {
   return (
     <>
-      <section className="relative overflow-hidden pt-20 sm:pt-28">
-        <Container className="flex flex-col items-center text-center">
-          <LogoMark className="size-14 sm:size-16" />
-          <h1 className="mt-8 max-w-4xl text-display font-semibold text-balance">{site.tagline}</h1>
-          <p className="mt-6 max-w-2xl text-lede text-pretty text-muted-foreground">
+      <section className="relative -mt-20 overflow-hidden pt-44 sm:pt-56">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-0 left-1/2 h-[46rem] w-[78rem] max-w-[180vw] -translate-x-1/2 -translate-y-1/3"
+        >
+          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
+        </div>
+        <Container className="relative flex flex-col items-center text-center">
+          <h1 className="max-w-5xl text-display font-semibold text-balance">{site.tagline}</h1>
+          <p className="mt-8 max-w-2xl text-lede text-pretty text-muted-foreground">
             Search for dentists in Copenhagen, a keyword on the web, or products launched this week. nvoke finds the
             companies, reads their websites and gives you the contact details they publish, with every email address
             verified by its mail server.
           </p>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg">
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
+            <Button asChild size="xl">
               <Link href="/download">Download nvoke</Link>
             </Button>
-            <Button asChild size="lg" variant="secondary">
+            <Button asChild size="xl" variant="glass">
               <Link href="/pricing">See pricing</Link>
             </Button>
           </div>
-          <p className="mt-5 text-sm text-muted-foreground">
+          <p className="mt-6 text-sm text-muted-foreground">
             Windows, macOS and Linux. Free plan with {freeEmails} verified emails a month.
           </p>
         </Container>
-        <div className="mx-auto mt-16 w-full max-w-[1240px] px-4 pb-24 sm:mt-24 sm:px-6 sm:pb-36">
+        <div className="relative mx-auto mt-24 w-full max-w-[1240px] px-4 pb-24 sm:mt-36 sm:px-6 sm:pb-36">
           <Stage
             width={1200}
             height={760}
@@ -217,20 +224,19 @@ export default function HomePage() {
 
       <Section
         id="how-it-works"
-        className="border-t"
         title="How it works"
         intro="Three steps from a rough idea of the companies you want to work with to a list of their public contact details."
       >
-        <ol className="flex flex-col gap-20 sm:gap-28">
+        <ol className="flex flex-col gap-28 sm:gap-44">
           {STEPS.map((step, i) => (
-            <li key={step.title} className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
+            <li key={step.title} className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
               <div className={i % 2 === 1 ? 'lg:order-2' : undefined}>
                 <span className="text-sm font-medium text-muted-foreground tabular-nums">Step {i + 1}</span>
-                <h3 className="mt-3 text-title font-semibold text-balance">{step.title}</h3>
-                <p className="mt-4 max-w-md text-lg text-pretty text-muted-foreground">{step.body}</p>
+                <h3 className="mt-4 text-title font-semibold text-balance">{step.title}</h3>
+                <p className="mt-5 max-w-md text-lg text-pretty text-muted-foreground">{step.body}</p>
               </div>
               <div className="reveal relative">
-                <div aria-hidden="true" className="halo absolute -inset-[12%] opacity-25 dark:opacity-40" />
+                <div aria-hidden="true" className="aura absolute -inset-[14%] rounded-full opacity-70" />
                 <div className="relative">
                   <StepShot index={i} />
                 </div>
@@ -246,17 +252,13 @@ export default function HomePage() {
         intro="Each search kind starts from a different place. All three end the same way: a list of companies with checked email addresses."
       >
         <div className="mx-auto max-w-5xl">
-          <div className="grid gap-12 md:grid-cols-3 md:gap-0">
+          <div className="grid gap-16 md:grid-cols-3 md:gap-14">
             {KINDS.map((k, i) => {
               const Icon = SEARCH_KINDS[i]?.icon;
               return (
-                <article key={k.title} className="flex flex-col gap-4 md:border-l md:px-8 md:first:border-l-0">
-                  {Icon ? (
-                    <span className="flex size-11 items-center justify-center rounded-xl bg-foreground/[0.05] text-foreground/80">
-                      <Icon className="size-5" strokeWidth={1.75} />
-                    </span>
-                  ) : null}
-                  <h3 className="text-xl font-semibold tracking-[-0.02em]">{k.title}</h3>
+                <article key={k.title} className="flex flex-col gap-4">
+                  {Icon ? <Icon className="size-7 text-muted-foreground/70" strokeWidth={1.25} /> : null}
+                  <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.03em]">{k.title}</h3>
                   <p className="text-pretty text-muted-foreground">{k.body}</p>
                   <p className="mt-auto text-sm text-muted-foreground/80">{k.source}</p>
                 </article>
@@ -266,9 +268,9 @@ export default function HomePage() {
         </div>
       </Section>
 
-      <section id="desktop" aria-labelledby="desktop-title" className="overflow-hidden border-y bg-sidebar py-24 sm:py-36">
+      <section id="desktop" aria-labelledby="desktop-title" className="overflow-hidden py-24 sm:py-36">
         <Container>
-          <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center">
+          <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
             <h2 id="desktop-title" className="text-headline font-semibold text-balance">
               A desktop app, not another browser tab
             </h2>
@@ -278,7 +280,7 @@ export default function HomePage() {
             </p>
           </div>
         </Container>
-        <div className="mx-auto mt-14 w-full max-w-[1240px] px-4 sm:mt-20 sm:px-6">
+        <div className="mx-auto mt-16 w-full max-w-[1240px] px-4 sm:mt-28 sm:px-6">
           <Stage
             width={1200}
             height={680}
@@ -288,10 +290,10 @@ export default function HomePage() {
           </Stage>
         </div>
         <Container>
-          <dl className="mt-16 grid gap-x-10 gap-y-10 sm:mt-24 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-20 grid gap-x-12 gap-y-12 sm:mt-32 sm:grid-cols-2 lg:grid-cols-4">
             {DESKTOP_POINTS.map((p) => (
-              <div key={p.title} className="flex flex-col gap-2 border-t pt-5">
-                <dt className="font-semibold tracking-[-0.01em]">{p.title}</dt>
+              <div key={p.title} className="flex flex-col gap-2.5">
+                <dt className="font-display text-lg font-semibold tracking-[-0.015em]">{p.title}</dt>
                 <dd className="text-pretty text-muted-foreground">{p.body}</dd>
               </div>
             ))}
@@ -300,9 +302,9 @@ export default function HomePage() {
       </section>
 
       <section id="verification" aria-labelledby="verification-title" className="py-24 sm:py-36">
-        <Container className="grid items-start gap-14 lg:grid-cols-[1fr_1.05fr] lg:gap-20">
-          <div className="flex flex-col gap-5">
-            <h2 id="verification-title" className="text-headline font-semibold text-balance">
+        <Container className="grid items-start gap-16 lg:grid-cols-[1fr_1.05fr] lg:gap-24">
+          <div className="flex flex-col gap-6">
+            <h2 id="verification-title" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">
               Every address is checked with its mail server
             </h2>
             <p className="text-lede text-pretty text-muted-foreground">
@@ -311,7 +313,7 @@ export default function HomePage() {
             </p>
             <dl className="mt-6 flex flex-col">
               {STATUSES.map((s) => (
-                <div key={s} className="grid grid-cols-[6.5rem_1fr] items-baseline gap-4 border-t py-4">
+                <div key={s} className="grid grid-cols-[6.5rem_1fr] items-baseline gap-4 py-4">
                   <dt>
                     <VerificationBadge value={s} className="h-6 px-2.5 text-xs" />
                   </dt>
@@ -324,7 +326,7 @@ export default function HomePage() {
             </p>
           </div>
           <div className="reveal relative lg:sticky lg:top-28">
-            <div aria-hidden="true" className="halo absolute -inset-[10%] opacity-25 dark:opacity-40" />
+            <div aria-hidden="true" className="aura absolute -inset-[12%] rounded-full opacity-80" />
             <VerificationTrace className="relative" />
           </div>
         </Container>
@@ -332,7 +334,6 @@ export default function HomePage() {
 
       <Section
         id="pricing"
-        className="border-t"
         title="Pay for emails that work"
         intro={`One plan for everyone, with every feature. You pay only for verified emails: ${freeEmails} free every month, then from ${cheapest}.`}
       >
@@ -345,31 +346,33 @@ export default function HomePage() {
         </p>
       </Section>
 
-      <Section id="faq" className="border-t" title="Questions">
+      <Section id="faq" title="Questions">
         <div className="mx-auto max-w-3xl">
           <Faq items={FAQ} />
         </div>
       </Section>
 
-      <section className="relative overflow-hidden border-t py-28 sm:py-40">
+      <section className="relative overflow-hidden py-32 sm:py-52">
         <div
           aria-hidden="true"
-          className="halo pointer-events-none absolute top-1/2 left-1/2 h-[36rem] w-[60rem] max-w-[140vw] -translate-x-1/2 -translate-y-1/2 opacity-50 dark:opacity-70"
-        />
+          className="pointer-events-none absolute top-1/2 left-1/2 h-[40rem] w-[66rem] max-w-[160vw] -translate-x-1/2 -translate-y-1/2"
+        >
+          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
+        </div>
         <Container className="relative flex flex-col items-center text-center">
           <LogoMark className="size-16 sm:size-20" />
-          <h2 className="mt-10 max-w-3xl text-headline font-semibold text-balance">
+          <h2 className="mt-12 max-w-4xl text-headline font-semibold text-balance">
             Run your first search in the next ten minutes.
           </h2>
           <p className="mt-5 max-w-xl text-lede text-pretty text-muted-foreground">
             Download nvoke, sign in, and search for the companies you want to work with. The Free plan includes{' '}
             {freeEmails} verified emails a month.
           </p>
-          <div className="mt-9 flex flex-wrap justify-center gap-3">
-            <Button asChild size="lg">
+          <div className="mt-12 flex flex-wrap justify-center gap-3">
+            <Button asChild size="xl">
               <Link href="/download">Download nvoke</Link>
             </Button>
-            <Button asChild size="lg" variant="secondary">
+            <Button asChild size="xl" variant="glass">
               <Link href="/pricing">See pricing</Link>
             </Button>
           </div>

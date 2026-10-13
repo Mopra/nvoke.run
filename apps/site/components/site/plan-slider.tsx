@@ -30,14 +30,14 @@ export function PlanSlider({
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-2xl flex-col gap-8 rounded-2xl border bg-card p-6 text-card-foreground shadow-sm sm:p-9 dark:bg-card/80',
+        'glass-strong mx-auto flex w-full max-w-2xl flex-col gap-10 rounded-[32px] p-7 text-card-foreground sm:p-12',
         className,
       )}
     >
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex flex-col gap-1.5">
           <p className="text-sm text-muted-foreground">Verified emails a month</p>
-          <p className="text-4xl font-semibold tracking-[-0.04em] tabular-nums sm:text-5xl">
+          <p className="font-display text-5xl font-extralight tracking-[-0.045em] tabular-nums sm:text-7xl">
             {formatCount(t.emailsPerMonth)}
           </p>
         </div>
@@ -47,7 +47,7 @@ export function PlanSlider({
             {t.price === 0 ? 'No card needed' : `${pricePerThousand(t)} per 1,000`}
           </p>
           <p className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-semibold tracking-[-0.04em] tabular-nums sm:text-5xl">
+            <span className="font-display text-5xl font-extralight tracking-[-0.045em] tabular-nums sm:text-7xl">
               {t.price === 0 ? 'Free' : formatPrice(t.price)}
             </span>
             {t.price === 0 ? null : <span className="text-sm text-muted-foreground">per month</span>}

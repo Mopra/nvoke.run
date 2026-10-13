@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { Minus, Plus, Rows3, Search as SearchIcon, Square, X } from 'lucide-react';
-import { SEARCHES } from '@/components/mockups/data';
-import { Kbd, StatusDot } from '@/components/mockups/primitives';
+import { ChevronLeft, Ellipsis, Minus, Plus, Search as SearchIcon, Square, X } from 'lucide-react';
+import { Kbd } from '@/components/mockups/primitives';
 import { LogoMark } from '@/components/site/logo';
 import { cn } from '@/lib/utils';
 
@@ -11,34 +10,39 @@ export type Platform = 'windows' | 'mac';
 export const TITLEBAR: Record<Platform, number> = { windows: 48, mac: 52 };
 
 /**
- * The frameless nvoke window. The page area is opaque; the sidebar is a
- * translucent source list over the window material, so whatever sits behind
- * the window (the site's glow) tints it, the way Mica and vibrancy do.
+ * The frameless nvoke window: one translucent canvas, the way the app sits on
+ * Mica or vibrancy, so whatever is behind the window (the site's aura) tints
+ * it. The aura at the top rises when `live` is set, as while a search runs.
  */
 export function AppWindow({
   platform,
-  sidebar,
+  live = false,
   overlay,
   children,
   className,
 }: {
   platform: Platform;
-  sidebar?: ReactNode;
-  /** Drawn over the whole window, such as a dialog and its scrim. */
+  live?: boolean;
+  /** Drawn over the whole window, such as the command bar and its scrim. */
   overlay?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
+  const radius = platform === 'mac' ? 'rounded-[16px]' : 'rounded-[10px]';
   return (
     <div
       className={cn(
-        'relative flex size-full overflow-hidden text-foreground shadow-lg',
-        platform === 'mac' ? 'rounded-[12px]' : 'rounded-[9px]',
+        'relative isolate flex size-full flex-col overflow-hidden bg-background/80 text-foreground shadow-lg backdrop-blur-3xl backdrop-saturate-150',
+        radius,
         className,
       )}
     >
-      {sidebar}
-      <div className="relative flex min-w-0 flex-1 flex-col bg-background">{children}</div>
+      {live && (
+        <div className="pointer-events-none absolute -top-[340px] left-1/2 -z-10 h-[520px] w-[900px] -translate-x-1/2">
+          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
+        </div>
+      )}
+      {children}
       {/* Native controls stay clear of any scrim, as they do in the app. */}
       {overlay}
       {platform === 'mac' ? <TrafficLights /> : <CaptionButtons />}
@@ -46,7 +50,7 @@ export function AppWindow({
       <div
         className={cn(
           'pointer-events-none absolute inset-0 border border-foreground/10 shadow-[inset_0_1px_0_var(--highlight)] dark:border-foreground/15',
-          platform === 'mac' ? 'rounded-[12px]' : 'rounded-[9px]',
+          radius,
         )}
       />
     </div>
@@ -63,7 +67,7 @@ function TrafficLights() {
   );
 }
 
-/** Windows 11 caption buttons: thin glyphs in 46px wide cells. */
+/** Windows 11 caption buttons: thin glyphs in 46px wide cells, clear over Mica. */
 function CaptionButtons() {
   return (
     <div className="absolute top-0 right-0 flex h-[48px] text-foreground/80">
@@ -76,97 +80,123 @@ function CaptionButtons() {
   );
 }
 
-const item = 'flex h-7 items-center gap-2.5 rounded-[7px] px-2 text-[13px]';
-const idle = 'text-sidebar-foreground/80';
-const active = 'bg-sidebar-accent font-medium text-sidebar-accent-foreground';
-
-/** The app's sidebar: logo, search, navigation, recent searches, usage and account. */
-export function Sidebar({
-  platform,
-  current,
-}: {
-  platform: Platform;
-  /** Which row is selected: the searches list, the new search form, or a recent search by index. */
-  current: 'searches' | 'new' | number;
-}) {
+/** A round glass button, as in the app's top strip. */
+export function GlassIcon({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <aside className="flex w-[236px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar-material px-2.5 pb-2.5 text-sidebar-foreground backdrop-blur-2xl backdrop-saturate-150">
-      <div
-        className={cn('flex shrink-0 items-center gap-2 px-2', platform === 'mac' && 'pl-[78px]')}
-        style={{ height: TITLEBAR[platform] }}
-      >
-        <LogoMark className="size-[18px] shadow-none" />
-        <span className="text-[15px] font-semibold tracking-[-0.02em]">nvoke</span>
-      </div>
-      <div className="mb-3 flex h-7 shrink-0 items-center gap-2 rounded-[8px] bg-sidebar-accent/70 px-2 text-sidebar-foreground/50">
-        <SearchIcon className="size-3.5" />
-        <span className="flex-1">Search</span>
-        <Kbd className="bg-transparent text-sidebar-foreground/40">{platform === 'mac' ? '⌘ K' : 'Ctrl K'}</Kbd>
-      </div>
-      <div className="flex flex-col gap-px">
-        <div className={cn(item, current === 'searches' ? active : idle)}>
-          <Rows3
-            className={cn('size-4', current === 'searches' ? 'text-sidebar-primary' : 'text-sidebar-foreground/55')}
-          />
-          <span className="flex-1">Searches</span>
-          <span className="text-[11.5px] text-sidebar-foreground/50 tabular-nums">1</span>
-        </div>
-        <div className={cn(item, current === 'new' ? active : idle)}>
-          <Plus className={cn('size-4', current === 'new' ? 'text-sidebar-primary' : 'text-sidebar-foreground/55')} />
-          New search
-        </div>
-      </div>
-      <div className="mt-5 px-2 pb-1 text-[11.5px] font-semibold text-sidebar-foreground/45">Recent</div>
-      <div className="flex flex-col gap-px">
-        {SEARCHES.map((s, i) => (
-          <div key={s.title} className={cn(item, current === i ? active : idle)}>
-            <span className="flex w-4 justify-center">
-              <StatusDot status={s.status} />
-            </span>
-            <span className="truncate">{s.title}</span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-auto flex flex-col gap-2.5 pt-3">
-        <div className="flex flex-col gap-1.5 px-2">
-          <div className="flex items-baseline justify-between text-[11.5px]">
-            <span className="text-sidebar-foreground/55">Verified this month</span>
-            <span className="text-sidebar-foreground/75 tabular-nums">2,012 of 2,500</span>
-          </div>
-          <div className="h-1 overflow-hidden rounded-full bg-sidebar-foreground/10">
-            <div className="h-full w-[80%] rounded-full bg-sidebar-foreground/45" />
-          </div>
-        </div>
-        <div className="flex h-11 items-center gap-2.5 px-1.5">
-          <span className="flex size-7 items-center justify-center rounded-full bg-linear-to-b from-foreground/10 to-foreground/20 text-[10.5px] font-semibold text-foreground/80">
-            ML
-          </span>
-          <span className="leading-tight">
-            <span className="block font-medium">Mette Lindqvist</span>
-            <span className="block text-[11.5px] text-sidebar-foreground/55">2,500 plan</span>
-          </span>
-        </div>
-      </div>
-    </aside>
+    <span className={cn('glass flex size-9 items-center justify-center rounded-full text-foreground/85', className)}>
+      {children}
+    </span>
   );
 }
 
-/** The toolbar row at the top of a screen, with room for the caption buttons. */
-export function Toolbar({
+/** The avatar inside its ring: verified emails used this month. */
+function AccountRing({ used = 0.8 }: { used?: number }) {
+  const r = 17;
+  const c = 2 * Math.PI * r;
+  return (
+    <span className="relative inline-flex size-[38px] items-center justify-center">
+      <svg viewBox="0 0 38 38" className="absolute inset-0 -rotate-90">
+        <circle cx="19" cy="19" r={r} fill="none" strokeWidth="1.5" className="stroke-foreground/10" />
+        <circle
+          cx="19"
+          cy="19"
+          r={r}
+          fill="none"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - used)}
+          className="stroke-primary"
+        />
+      </svg>
+      <span className="flex size-7 items-center justify-center rounded-full bg-linear-to-b from-foreground/10 to-foreground/20 text-[10.5px] font-semibold text-foreground/80">
+        ML
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The island at the top center. At rest it is the way to search and jump;
+ * while a search runs it carries that search's progress.
+ */
+export function Island({ platform, live }: { platform: Platform; live?: { title: string; emails: number; done: number } }) {
+  return (
+    <div
+      className="absolute inset-x-0 top-0 z-10 flex items-center justify-center"
+      style={{ height: TITLEBAR[platform] }}
+    >
+      <div className="glass flex h-9 items-center gap-2.5 rounded-full pr-2 pl-3.5">
+        {live ? (
+          <>
+            <span className="relative flex size-2">
+              <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
+              <span className="relative size-2 rounded-full bg-primary" />
+            </span>
+            <span className="font-medium">{live.title}</span>
+            <span className="h-[3px] w-14 overflow-hidden rounded-full bg-foreground/10">
+              <span className="block h-full rounded-full bg-primary" style={{ width: `${live.done}%` }} />
+            </span>
+            <span className="pr-1.5 text-[11.5px] text-muted-foreground tabular-nums">{live.emails} emails</span>
+          </>
+        ) : (
+          <>
+            <SearchIcon className="size-[15px] text-muted-foreground" />
+            <span className="w-44 text-muted-foreground">Search or jump to</span>
+            <Kbd className="bg-transparent">{platform === 'mac' ? '⌘ K' : 'Ctrl K'}</Kbd>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The top strip of a screen: the mark or a back button on the left, actions,
+ * new search and the account on the right, room for the caption buttons.
+ */
+export function TopBar({
   platform,
-  children,
-  className,
+  back = false,
+  actions,
+  newSearch = true,
 }: {
   platform: Platform;
-  children: ReactNode;
-  className?: string;
+  back?: boolean;
+  actions?: ReactNode;
+  newSearch?: boolean;
 }) {
   return (
     <div
-      className={cn('flex shrink-0 items-center gap-2 pl-5', platform === 'windows' ? 'pr-[150px]' : 'pr-5', className)}
+      className={cn(
+        'flex shrink-0 items-center gap-2',
+        platform === 'windows' ? 'pr-[150px] pl-4' : 'pr-4 pl-[84px]',
+      )}
       style={{ height: TITLEBAR[platform] }}
     >
-      {children}
+      {back ? (
+        <GlassIcon>
+          <ChevronLeft className="size-[18px] -translate-x-px" />
+        </GlassIcon>
+      ) : (
+        <LogoMark className="size-[22px] shadow-none" />
+      )}
+      <span className="flex-1" />
+      {actions}
+      {newSearch && (
+        <GlassIcon>
+          <Plus className="size-[18px]" />
+        </GlassIcon>
+      )}
+      <AccountRing />
     </div>
+  );
+}
+
+export function MoreButton() {
+  return (
+    <GlassIcon>
+      <Ellipsis className="size-4" />
+    </GlassIcon>
   );
 }

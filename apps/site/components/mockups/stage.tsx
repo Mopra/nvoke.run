@@ -3,9 +3,9 @@ import { MockFit } from '@/components/mockups/primitives';
 import { cn } from '@/lib/utils';
 
 /**
- * A product shot: an app window scaled to fit, floating over a soft iris
- * halo. The halo is what shows through the translucent sidebar, standing in
- * for the desktop behind Mica or vibrancy.
+ * A product shot: an app window scaled to fit, floating over the iris aura.
+ * The aura is what shows through the translucent window, standing in for the
+ * desktop behind Mica or vibrancy.
  */
 export function Stage({
   width,
@@ -30,8 +30,8 @@ export function Stage({
       <div
         aria-hidden="true"
         className={cn(
-          'halo pointer-events-none absolute -inset-x-[8%] top-[6%] -bottom-[14%]',
-          halo === 'strong' ? 'opacity-80 dark:opacity-90' : 'opacity-45 dark:opacity-60',
+          'aura pointer-events-none absolute -inset-x-[10%] top-[4%] -bottom-[16%] rounded-full',
+          halo === 'strong' ? 'opacity-100' : 'opacity-70',
         )}
       />
       <div className={cn(motion === 'tilt' && 'hero-tilt', motion === 'reveal' && 'reveal')}>

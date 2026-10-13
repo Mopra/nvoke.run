@@ -5,21 +5,27 @@ import { ThemeToggle } from '@/components/site/theme';
 import { nav } from '@/lib/site';
 
 const link =
-  'rounded-full px-3 py-1.5 text-[13px] text-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40';
+  'rounded-full px-3.5 py-1.5 text-[13px] text-foreground/65 outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40';
 
-/** A thin frosted bar, like the toolbar of a translucent window. */
+/**
+ * The island: one floating glass capsule at the top center, like the one in
+ * the desktop app. The page scrolls under it.
+ */
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/72 backdrop-blur-2xl backdrop-saturate-150">
-      <nav aria-label="Main" className="mx-auto grid h-13 max-w-6xl grid-cols-[1fr_auto_1fr] items-center px-5 sm:px-6">
+    <header className="pointer-events-none sticky top-0 z-40 flex justify-center px-4 pt-4">
+      <nav
+        aria-label="Main"
+        className="glass pointer-events-auto flex h-12 w-full max-w-[640px] items-center gap-1 rounded-full pr-1.5 pl-4"
+      >
         <Link
           href="/"
-          className="w-fit rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          className="mr-auto rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
           aria-label="nvoke home"
         >
           <Logo />
         </Link>
-        <ul className="hidden items-center gap-1 md:flex">
+        <ul className="hidden items-center md:flex">
           {nav.map((item) => (
             <li key={item.href}>
               <Link href={item.href} className={link}>
@@ -28,15 +34,13 @@ export function SiteHeader() {
             </li>
           ))}
         </ul>
-        <div className="col-start-3 flex items-center justify-end gap-1 sm:gap-2">
-          <Link href="/pricing" className={`${link} md:hidden`}>
-            Pricing
-          </Link>
-          <ThemeToggle />
-          <Button asChild size="sm">
-            <Link href="/download">Download</Link>
-          </Button>
-        </div>
+        <Link href="/pricing" className={`${link} md:hidden`}>
+          Pricing
+        </Link>
+        <ThemeToggle />
+        <Button asChild size="sm" className="h-9 px-4">
+          <Link href="/download">Download</Link>
+        </Button>
       </nav>
     </header>
   );

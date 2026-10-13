@@ -106,7 +106,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
   return (
     <span
       className={cn(
-        'inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-foreground/[0.06] px-1 text-[10.5px] font-medium text-muted-foreground',
+        'inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] bg-foreground/[0.05] px-1.5 text-[10.5px] font-medium text-muted-foreground',
         className,
       )}
     >
@@ -115,7 +115,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
   );
 }
 
-/** The app's button, at its desktop size. `primary` carries the glow. */
+/** The app's pill button, at its desktop size. `primary` carries the glow. */
 export function MockButton({
   children,
   icon: Icon,
@@ -124,17 +124,17 @@ export function MockButton({
 }: {
   children?: ReactNode;
   icon?: LucideIcon;
-  variant?: 'primary' | 'outline' | 'ghost';
+  variant?: 'primary' | 'glass' | 'ghost';
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] px-3 text-[13px] font-medium whitespace-nowrap',
+        'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium whitespace-nowrap',
         variant === 'primary' && 'bg-primary text-primary-foreground shadow-glow',
-        variant === 'outline' && 'border bg-card shadow-xs dark:bg-accent',
+        variant === 'glass' && 'glass text-foreground/85',
         variant === 'ghost' && 'text-foreground/80',
-        Icon && 'pl-2.5',
+        Icon && 'pl-3.5',
         className,
       )}
     >
@@ -180,14 +180,14 @@ export function Segmented({
   className?: string;
 }) {
   return (
-    <div className={cn('flex h-[26px] items-stretch gap-0.5 rounded-[8px] bg-foreground/[0.06] p-0.5', className)}>
+    <div className={cn('flex h-8 items-stretch gap-0.5 rounded-full bg-foreground/[0.055] p-[3px]', className)}>
       {options.map((o, i) => (
         <span
           key={o.label}
           className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 rounded-[6px] px-2.5 text-[12.5px] font-medium',
+            'flex flex-1 items-center justify-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium whitespace-nowrap',
             i === selected
-              ? 'bg-card text-foreground shadow-sm dark:bg-foreground/15'
+              ? 'bg-card text-foreground shadow-float dark:bg-foreground/15'
               : 'text-muted-foreground',
           )}
         >
@@ -195,55 +195,6 @@ export function Segmented({
           {o.label}
         </span>
       ))}
-    </div>
-  );
-}
-
-/** An inset grouped list, as macOS System Settings lays out a form. */
-export function Group({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cn('overflow-hidden rounded-xl border bg-card shadow-xs dark:bg-card/80', className)}>
-      {children}
-    </div>
-  );
-}
-
-const hairline =
-  '[&+&]:before:absolute [&+&]:before:top-0 [&+&]:before:right-0 [&+&]:before:left-3.5 [&+&]:before:h-px [&+&]:before:bg-border';
-
-export function FieldRow({
-  label,
-  value,
-  placeholder = false,
-  focused = false,
-}: {
-  label: string;
-  value: string;
-  placeholder?: boolean;
-  focused?: boolean;
-}) {
-  return (
-    <div className={cn('relative flex min-h-11 items-center gap-3 py-1.5 pr-1.5 pl-3.5', hairline)}>
-      <span className="w-32 shrink-0">{label}</span>
-      <span
-        className={cn(
-          'flex h-8 min-w-0 flex-1 items-center truncate rounded-[7px] px-2.5',
-          placeholder && 'text-muted-foreground/70',
-          focused && 'bg-card shadow-sm ring-[3px] ring-ring/25 dark:bg-foreground/10',
-        )}
-      >
-        {focused && <span className="mr-px h-4 w-px bg-foreground/80" />}
-        {value}
-      </span>
-    </div>
-  );
-}
-
-export function Row({ label, children, className }: { label: ReactNode; children?: ReactNode; className?: string }) {
-  return (
-    <div className={cn('relative flex min-h-11 items-center gap-4 px-3.5 py-2', hairline, className)}>
-      <div className="min-w-0 flex-1">{label}</div>
-      {children !== undefined && <div className="flex shrink-0 items-center gap-2">{children}</div>}
     </div>
   );
 }

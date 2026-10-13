@@ -4,8 +4,8 @@ import { footerNav, site } from '@/lib/site';
 
 export function SiteFooter() {
   return (
-    <footer className="border-t text-[13px] text-muted-foreground">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-12 sm:px-6 md:flex-row md:items-start md:justify-between">
+    <footer className="text-[13px] text-muted-foreground">
+      <div className="mx-auto flex max-w-6xl flex-col gap-10 px-5 pt-24 pb-14 sm:px-6 md:flex-row md:items-start md:justify-between">
         <div className="flex max-w-xs flex-col gap-3">
           <Logo className="text-foreground" />
           <p>Prospecting research for Windows, macOS and Linux. Made in {site.company.country}.</p>
@@ -17,7 +17,7 @@ export function SiteFooter() {
           </a>
         </div>
         <nav aria-label="Footer">
-          <ul className="flex flex-wrap gap-x-6 gap-y-2">
+          <ul className="flex flex-wrap gap-x-7 gap-y-3">
             {footerNav.map((item) => (
               <li key={item.href}>
                 <Link href={item.href} className="hover:text-foreground">
@@ -29,7 +29,7 @@ export function SiteFooter() {
         </nav>
       </div>
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
-        <div className="border-t py-5 text-xs">
+        <div className="pb-10 text-xs text-muted-foreground/70">
           {site.company.legalName}
           {site.company.cvr ? `, CVR ${site.company.cvr}` : null}
         </div>

@@ -15,16 +15,16 @@ const STEPS = [
 export function VerificationTrace({ className }: { className?: string }) {
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <div className="overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-md dark:bg-card/80">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+      <div className="glass-strong overflow-hidden rounded-[28px] text-card-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-5">
           <span className="font-mono text-sm">mette@oesterbrotand.dk</span>
           <VerificationBadge value="valid" />
         </div>
-        <ol className="flex flex-col py-1">
+        <ol className="flex flex-col py-3">
           {STEPS.map((step, i) => (
-            <li key={step.name} className="relative flex gap-4 px-5 py-3">
+            <li key={step.name} className="relative flex gap-4 px-7 py-3">
               {i < STEPS.length - 1 ? (
-                <span aria-hidden="true" className="absolute top-9 -bottom-3 left-[31px] w-px bg-border" />
+                <span aria-hidden="true" className="absolute top-9 -bottom-3 left-[39px] w-px bg-border" />
               ) : null}
               <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-chart-1">
                 <Check className="size-3.5" strokeWidth={2.5} />
@@ -37,7 +37,7 @@ export function VerificationTrace({ className }: { className?: string }) {
           ))}
         </ol>
       </div>
-      <p className="px-5 text-xs text-muted-foreground">
+      <p className="px-7 pt-2 text-xs text-muted-foreground">
         No message is sent. The conversation with the mail server ends before any email would be.
       </p>
     </div>

@@ -30,7 +30,7 @@ export function Section({
       <Container>
         <div
           className={cn(
-            'flex max-w-3xl flex-col gap-5',
+            'flex max-w-4xl flex-col gap-6',
             align === 'center' ? 'mx-auto items-center text-center' : 'items-start',
           )}
         >
@@ -39,7 +39,7 @@ export function Section({
           </h2>
           {intro ? <p className="max-w-2xl text-lede text-pretty text-muted-foreground">{intro}</p> : null}
         </div>
-        {children ? <div className="mt-14 sm:mt-20">{children}</div> : null}
+        {children ? <div className="mt-16 sm:mt-28">{children}</div> : null}
       </Container>
     </section>
   );
@@ -59,9 +59,9 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <Container className="relative pt-20 pb-14 sm:pt-28 sm:pb-20">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center">
-        {icon ? <div className="mb-5">{icon}</div> : null}
+    <Container className="relative pt-24 pb-16 sm:pt-36 sm:pb-24">
+      <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
+        {icon ? <div className="mb-6">{icon}</div> : null}
         <h1 className="text-display font-semibold text-balance">{title}</h1>
         {intro ? <p className="max-w-2xl text-lede text-pretty text-muted-foreground">{intro}</p> : null}
         {children}

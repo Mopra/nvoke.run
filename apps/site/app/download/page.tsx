@@ -27,8 +27,10 @@ export default function DownloadPage() {
       <div className="relative overflow-hidden">
         <div
           aria-hidden="true"
-          className="halo pointer-events-none absolute top-16 left-1/2 h-80 w-[44rem] max-w-[140vw] -translate-x-1/2 opacity-40 dark:opacity-60"
-        />
+          className="pointer-events-none absolute top-0 left-1/2 h-[34rem] w-[60rem] max-w-[160vw] -translate-x-1/2"
+        >
+          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
+        </div>
         <PageHeader
           icon={<LogoMark className="size-20 sm:size-24" />}
           title="Download nvoke"
@@ -43,15 +45,15 @@ export default function DownloadPage() {
         <DownloadPicker downloads={downloads} />
       </Container>
 
-      <section aria-labelledby="after-install" className="border-t py-24 sm:py-36">
+      <section aria-labelledby="after-install" className="py-24 sm:py-36">
         <Container className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
           <div className="flex flex-col gap-8">
-            <h2 id="after-install" className="text-headline font-semibold text-balance">
+            <h2 id="after-install" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">
               After you install
             </h2>
             <ol className="flex flex-col">
               {STEPS.map((step, i) => (
-                <li key={step} className="grid grid-cols-[4.5rem_1fr] items-baseline border-t py-5">
+                <li key={step} className="grid grid-cols-[4.5rem_1fr] items-baseline py-4">
                   <span className="text-sm font-medium text-muted-foreground tabular-nums">Step {i + 1}</span>
                   <p className="text-lg text-pretty">{step}</p>
                 </li>

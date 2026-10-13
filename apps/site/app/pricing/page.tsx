@@ -69,16 +69,22 @@ export default function PricingPage() {
         </p>
       </Container>
 
-      <Section title="Questions" className="border-t">
+      <Section title="Questions">
         <div className="mx-auto max-w-3xl">
           <Faq items={FAQ} />
         </div>
       </Section>
 
-      <section className="border-t py-24 sm:py-32">
-        <Container className="flex flex-col items-center gap-8 text-center">
+      <section className="relative overflow-hidden py-28 sm:py-44">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-1/2 h-[34rem] w-[60rem] max-w-[160vw] -translate-x-1/2 -translate-y-1/2"
+        >
+          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
+        </div>
+        <Container className="relative flex flex-col items-center gap-12 text-center">
           <h2 className="text-headline font-semibold text-balance">Start free. Pay when it works.</h2>
-          <Button asChild size="lg">
+          <Button asChild size="xl">
             <Link href="/download">Download nvoke</Link>
           </Button>
         </Container>

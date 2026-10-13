@@ -63,12 +63,12 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
             <article
               key={t.os}
               className={cn(
-                'flex flex-col gap-6 rounded-2xl border bg-card p-7 text-card-foreground shadow-sm dark:bg-card/80',
-                isDetected && 'border-primary/40 shadow-[0_0_0_1px_var(--ring),0_24px_64px_-28px_var(--glow)]',
+                'glass-strong flex flex-col gap-7 rounded-[28px] p-8 text-card-foreground',
+                isDetected && 'ring-1 ring-ring/60 shadow-[var(--shadow-float),0_32px_80px_-32px_var(--glow)]',
               )}
             >
               <div className="flex flex-col gap-1">
-                <h2 className="text-xl font-semibold tracking-[-0.02em]">{t.name}</h2>
+                <h2 className="text-2xl font-semibold tracking-[-0.025em]">{t.name}</h2>
                 <p className="text-sm text-muted-foreground">{t.requirement}</p>
               </div>
               <div className="flex flex-col gap-2">
@@ -87,7 +87,7 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-auto border-t pt-4 text-sm text-pretty text-muted-foreground">{t.firstRun}</p>
+              <p className="mt-auto text-sm text-pretty text-muted-foreground">{t.firstRun}</p>
             </article>
           );
         })}

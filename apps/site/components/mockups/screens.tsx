@@ -3,33 +3,20 @@ import {
   ArrowUpRight,
   Ban,
   ChevronDown,
-  ChevronLeft,
   CircleUser,
   CornerDownLeft,
   Download,
-  Ellipsis,
   Globe,
   MapPin,
   Moon,
-  Plus,
   Rocket,
   Rows3,
   Search as SearchIcon,
   Sun,
 } from 'lucide-react';
 import { BAKERIES, SEARCHES, type MockCompany } from '@/components/mockups/data';
-import {
-  FieldRow,
-  Group,
-  Kbd,
-  MockButton,
-  Row,
-  SearchBar,
-  Segmented,
-  StatusDot,
-  VerificationBadge,
-} from '@/components/mockups/primitives';
-import { AppWindow, Sidebar, Toolbar, type Platform } from '@/components/mockups/window';
+import { Kbd, MockButton, SearchBar, Segmented, StatusDot, VerificationBadge } from '@/components/mockups/primitives';
+import { AppWindow, Island, MoreButton, TopBar, type Platform } from '@/components/mockups/window';
 import { LogoMark } from '@/components/site/logo';
 import { cn } from '@/lib/utils';
 
@@ -39,16 +26,19 @@ export const SEARCH_KINDS = [
   { label: 'New launches', icon: Rocket },
 ];
 
-const COLUMNS = 'grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)_11rem] gap-5';
+const COLUMNS = 'grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)_11rem] gap-6';
 
+/** A figure as the app sets it: a large thin numeral over a quiet label. */
 function Stat({ value, sub, label }: { value: string; sub?: string; label: string }) {
   return (
     <div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-[21px] leading-[26px] font-semibold tracking-[-0.018em] tabular-nums">{value}</span>
-        {sub && <span className="text-[11.5px] text-muted-foreground tabular-nums">{sub}</span>}
+      <div className="flex items-baseline gap-2">
+        <span className="font-display text-[44px] leading-[50px] font-extralight tracking-[-0.036em] tabular-nums">
+          {value}
+        </span>
+        {sub && <span className="text-[13px] text-muted-foreground tabular-nums">{sub}</span>}
       </div>
-      <div className="mt-0.5 text-[11.5px] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-[13px] text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -67,14 +57,14 @@ export function CompanyRow({
   return (
     <div
       className={cn(
-        location ? COLUMNS : 'grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-5',
-        'px-3 py-2.5',
+        location ? COLUMNS : 'grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-6',
+        'px-6 py-4',
         animate && 'mock-row-in',
       )}
       style={animate ? ({ '--row-delay': `${300 + index * 140}ms` } as CSSProperties) : undefined}
     >
       <div className="min-w-0 leading-5">
-        <div className="truncate font-medium">{company.name}</div>
+        <div className="truncate text-[14px] font-medium">{company.name}</div>
         <div className="truncate font-mono text-[10.5px] text-muted-foreground">{company.domain}</div>
       </div>
       <div className="flex min-w-0 flex-col gap-1">
@@ -103,57 +93,73 @@ export function CompanyRow({
   );
 }
 
-/** A running search: stats, the pipeline bar, filters and the companies table. */
+/** The dock: filters and export floating over the list, in glass. */
+function Dock({ platform }: { platform: Platform }) {
+  return (
+    <div className="absolute inset-x-0 bottom-6 z-10 flex justify-center">
+      <div className="glass flex h-12 items-center gap-1 rounded-full px-1.5">
+        <div className="flex h-9 w-64 items-center gap-2 rounded-full bg-foreground/[0.045] px-3.5 text-muted-foreground/70">
+          <SearchIcon className="size-3.5" />
+          <span className="flex-1">Filter companies and emails</span>
+          <Kbd className="bg-transparent">{platform === 'mac' ? '⌘ F' : 'Ctrl F'}</Kbd>
+        </div>
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-medium text-muted-foreground">
+          Any verification
+          <ChevronDown className="size-3 opacity-60" />
+        </span>
+        <Segmented
+          options={[{ label: 'All' }, { label: 'Generic' }, { label: 'Personal' }]}
+          selected={0}
+          className="bg-transparent [&>span]:text-[11.5px]"
+        />
+        <span className="px-3 text-[11.5px] text-muted-foreground tabular-nums">70 companies</span>
+        <MockButton icon={Download}>Export CSV</MockButton>
+      </div>
+    </div>
+  );
+}
+
+/** A running search: display title, thin figures, the pipeline line and the companies. */
 export function ResultsScreen({ platform, rows = 7, animate = false }: { platform: Platform; rows?: number; animate?: boolean }) {
   const search = SEARCHES[0];
   if (!search) return null;
   return (
     <>
-      <Toolbar platform={platform}>
-        <ChevronLeft className="-ml-1.5 size-[18px] text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] leading-5 font-semibold tracking-[-0.01em]">Bakeries in Aarhus</div>
-          <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 font-medium">
+      <TopBar
+        platform={platform}
+        back
+        actions={
+          <>
+            <MockButton variant="glass" icon={Ban}>
+              Stop
+            </MockButton>
+            <MoreButton />
+          </>
+        }
+      />
+      <Island platform={platform} />
+      <div className="relative min-h-0 flex-1 overflow-hidden px-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-140px),transparent)]">
+        <section className="px-6 pt-8 pb-10">
+          <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">Bakeries in Aarhus</div>
+          <div className="mt-2 flex items-center gap-2.5 text-[13px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium">
               <StatusDot status="running" />
               Running
             </span>
             Local businesses, just now, running for 17s
           </div>
-        </div>
-        <MockButton variant="ghost" icon={Ban}>
-          Stop
-        </MockButton>
-        <MockButton icon={Download}>Export CSV</MockButton>
-        <Ellipsis className="mx-1 size-4 text-muted-foreground" />
-      </Toolbar>
-      <section className="shrink-0 px-6 pt-2 pb-5">
-        <div className="grid grid-cols-4 gap-6">
-          <Stat value="70" sub="of 80" label="Companies" />
-          <Stat value="69" label="Websites crawled" />
-          <Stat value="91" label="Emails found" />
-          <Stat value="42" sub="46%" label="Valid emails" />
-        </div>
-        <div className="mt-5 flex items-center gap-4">
-          <SearchBar search={{ ...search, found: 92, crawled: 86 }} className="h-1.5 flex-1" />
-          <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">69 of 70 websites crawled</span>
-        </div>
-      </section>
-      <div className="flex shrink-0 items-center gap-2 px-6 pb-3">
-        <div className="relative flex h-7 w-64 items-center gap-2 rounded-[8px] bg-foreground/[0.05] px-2.5 text-muted-foreground/70">
-          <SearchIcon className="size-3.5" />
-          <span className="flex-1">Filter companies and emails</span>
-          <Kbd className="bg-transparent">{platform === 'mac' ? '⌘ F' : 'Ctrl F'}</Kbd>
-        </div>
-        <span className="inline-flex h-7 items-center gap-1.5 rounded-[8px] bg-foreground/[0.05] px-2.5 text-[12.5px] text-foreground/80">
-          Any verification
-          <ChevronDown className="size-3 opacity-60" />
-        </span>
-        <Segmented options={[{ label: 'All' }, { label: 'Generic' }, { label: 'Personal' }]} selected={0} className="w-48" />
-        <span className="ml-auto text-[11.5px] text-muted-foreground tabular-nums">70 companies</span>
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden px-3">
-        <div className={cn(COLUMNS, 'px-3 py-1.5 text-[11.5px] font-medium text-muted-foreground')}>
+          <div className="mt-10 grid grid-cols-4 gap-8">
+            <Stat value="70" sub="of 80" label="Companies" />
+            <Stat value="69" label="Websites crawled" />
+            <Stat value="91" label="Emails found" />
+            <Stat value="42" sub="46%" label="Valid emails" />
+          </div>
+          <div className="mt-8 flex items-center gap-5">
+            <SearchBar search={{ ...search, found: 92, crawled: 86 }} className="h-[3px] flex-1" />
+            <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">69 of 70 websites crawled</span>
+          </div>
+        </section>
+        <div className={cn(COLUMNS, 'px-6 py-2 text-[11.5px] text-muted-foreground')}>
           <span>Company</span>
           <span>Emails</span>
           <span>Location</span>
@@ -162,66 +168,57 @@ export function ResultsScreen({ platform, rows = 7, animate = false }: { platfor
           <CompanyRow key={c.domain} company={c} animate={animate} index={i} />
         ))}
       </div>
+      <Dock platform={platform} />
     </>
   );
 }
-
-const SEARCH_GRID = 'grid grid-cols-[minmax(0,1fr)_minmax(10rem,15rem)_4.5rem_5.5rem] items-center gap-6';
 
 export function SearchRow({ index, compact = false }: { index: number; compact?: boolean }) {
   const s = SEARCHES[index];
   if (!s) return null;
   const label = { running: 'Running', done: 'Done', failed: 'Failed', canceled: 'Canceled' }[s.status];
+  const active = s.status === 'running';
   return (
-    <div
-      className={cn(
-        compact ? 'grid grid-cols-[minmax(0,1fr)_9rem_3.5rem] items-center gap-6' : SEARCH_GRID,
-        'rounded-lg px-3 py-3',
-        index === 1 && !compact && 'bg-accent',
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex w-3 justify-center">
-          <StatusDot status={s.status} />
-        </span>
-        <div className="min-w-0">
-          <div className="truncate font-medium">{s.title}</div>
-          <div className="truncate text-[11.5px] text-muted-foreground">
-            {label}, {s.kind}
-          </div>
+    <div className={cn('flex items-center gap-8 rounded-[24px]', compact ? 'px-5 py-4' : 'px-6 py-5')}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3">
+          {(active || s.status === 'failed') && <StatusDot status={s.status} />}
+          <span className="truncate font-display text-[17px] leading-[22px] font-medium tracking-[-0.012em]">{s.title}</span>
         </div>
+        <div className="mt-1 truncate text-[13px] text-muted-foreground">
+          {s.status === 'done' ? '' : `${label}, `}
+          {s.kind}, {s.when}
+        </div>
+        {active && (
+          <div className="mt-4 flex max-w-md items-center gap-4">
+            <SearchBar search={s} className="h-[3px] flex-1" />
+            <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">{s.caption}</span>
+          </div>
+        )}
       </div>
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <SearchBar search={s} />
-        <div className="truncate text-[11.5px] text-muted-foreground">{s.caption}</div>
+      <div className="shrink-0 text-right">
+        <div className="font-display text-[34px] leading-[40px] font-light tracking-[-0.03em] tabular-nums">
+          {s.emails.toLocaleString('en-US')}
+        </div>
+        <div className="text-[11.5px] text-muted-foreground tabular-nums">emails, {s.valid} valid</div>
       </div>
-      <div className="text-right">
-        <div className="font-semibold tabular-nums">{s.emails.toLocaleString('en-US')}</div>
-        <div className="text-[11.5px] text-muted-foreground tabular-nums">{s.valid} valid</div>
-      </div>
-      {!compact && <div className="text-right text-[11.5px] text-muted-foreground">{s.when}</div>}
     </div>
   );
 }
 
-/** The searches list, with its large title. */
+/** The searches list, with its display title. */
 export function SearchesScreen({ platform }: { platform: Platform }) {
   return (
     <>
-      <Toolbar platform={platform}>
-        <span className="flex-1" />
-        <MockButton icon={Plus}>New search</MockButton>
-      </Toolbar>
-      <div className="flex-1 overflow-hidden px-5">
-        <div className="mx-auto max-w-[920px]">
-          <div className="px-3 pt-1 pb-5">
-            <div className="text-[28px] leading-8 font-bold tracking-[-0.024em]">Searches</div>
-            <div className="mt-1 text-muted-foreground">5 searches, 1 running</div>
+      <TopBar platform={platform} />
+      <div className="flex-1 overflow-hidden px-8">
+        <div className="mx-auto max-w-[880px]">
+          <div className="px-6 pt-10 pb-10">
+            <div className="font-display text-[44px] leading-[50px] font-semibold tracking-[-0.036em]">Searches</div>
+            <div className="mt-2 text-[14px] text-muted-foreground">5 searches, 1 running</div>
           </div>
-          <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-muted-foreground">In progress</div>
           <SearchRow index={0} />
-          <div className="mt-6 px-3 pb-1.5 text-[11.5px] font-semibold text-muted-foreground">Earlier</div>
-          <div className="flex flex-col gap-px">
+          <div className="mt-10 flex flex-col gap-1">
             {SEARCHES.slice(1).map((s, i) => (
               <SearchRow key={s.title} index={i + 1} />
             ))}
@@ -232,65 +229,89 @@ export function SearchesScreen({ platform }: { platform: Platform }) {
   );
 }
 
-/** The new search form, local businesses selected. */
+/** One line of the sentence composer: a quiet lead word, then the value in display type. */
+function Line({
+  lead,
+  value,
+  suffix,
+  focused = false,
+  chevron = false,
+}: {
+  lead: string;
+  value: string;
+  suffix?: string;
+  focused?: boolean;
+  chevron?: boolean;
+}) {
+  return (
+    <>
+      <span className="pb-2 font-display text-[44px] leading-[50px] font-semibold tracking-[-0.036em] text-muted-foreground/50">
+        {lead}
+      </span>
+      <span
+        className={cn(
+          'relative flex items-center pb-2 font-display text-[44px] leading-[50px] font-semibold tracking-[-0.036em]',
+          'after:absolute after:inset-x-0 after:bottom-0 after:h-px',
+          focused ? 'after:bg-primary/70' : 'after:bg-border',
+        )}
+      >
+        {value}
+        {focused && <span className="ml-0.5 inline-block h-10 w-[2px] bg-primary" />}
+        {suffix && <span className="ml-5 text-muted-foreground/50">{suffix}</span>}
+        {chevron && <ChevronDown className="ml-auto size-6 text-muted-foreground/60" strokeWidth={1.75} />}
+      </span>
+    </>
+  );
+}
+
+/** The new search composer: a sentence in display type. */
 export function NewSearchForm({ kind = 0, className }: { kind?: number; className?: string }) {
-  const fields = [
+  const sentence = [
     {
       hint: 'Businesses on OpenStreetMap that list a website, inside the area you name.',
-      rows: [
-        { label: 'Kind of business', value: 'Dentists' },
-        { label: 'Where', value: 'Copenhagen' },
+      lines: [
+        { lead: 'Find', value: 'dentists' },
+        { lead: 'in', value: 'Copenhagen' },
       ],
     },
     {
       hint: 'Company websites from a web search. Social networks and marketplaces are left out.',
-      rows: [
-        { label: 'Keyword', value: 'headless cms' },
-        { label: 'Country', value: 'Germany' },
+      lines: [
+        { lead: 'Find', value: 'headless CMS' },
+        { lead: 'in', value: 'Germany', chevron: true },
       ],
     },
     {
       hint: 'Products launched recently on Product Hunt and Show HN.',
-      rows: [
-        { label: 'Keyword', value: 'ai' },
-        { label: 'Launched within', value: 'Last 7 days' },
+      lines: [
+        { lead: 'Find', value: 'ai' },
+        { lead: 'from the', value: 'last 7 days', chevron: true },
       ],
     },
   ][kind];
-  if (!fields) return null;
+  if (!sentence) return null;
   return (
     <div className={cn('flex flex-col', className)}>
-      <Segmented options={SEARCH_KINDS} selected={kind} className="h-[28px]" />
-      <p className="mt-2 px-3 text-[11.5px] text-muted-foreground">{fields.hint}</p>
-      <Group className="mt-5">
-        {fields.rows.map((r, i) => (
-          <FieldRow key={r.label} label={r.label} value={r.value} focused={i === 0} />
+      <Segmented options={SEARCH_KINDS} selected={kind} className="self-start" />
+      <p className="mt-3 pl-1 text-[13px] text-muted-foreground">{sentence.hint}</p>
+      <div className="mt-10 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3">
+        {sentence.lines.map((l, i) => (
+          <Line key={l.lead} lead={l.lead} value={l.value} focused={i === 0} chevron={l.chevron} />
         ))}
-      </Group>
-      <Group className="mt-5">
-        <Row label="Companies to find">
-          <Segmented
-            options={[{ label: '25' }, { label: '100' }, { label: '250' }, { label: '500' }]}
-            selected={1}
-            className="w-[136px] [&>span]:px-1.5"
-          />
-        </Row>
-      </Group>
-      <p className="mt-1.5 px-3.5 text-[11.5px] text-muted-foreground">
-        Only emails count toward your plan. You have 404 left this month.
-      </p>
-      <div className="mt-6 flex items-center justify-end gap-2">
-        <MockButton variant="ghost">Cancel</MockButton>
-        <MockButton>
+        <Line lead="up to" value="100" suffix="companies" />
+      </div>
+      <div className="mt-12 flex items-center gap-6">
+        <MockButton className="h-11 px-6 text-[15px]">
           Start search
           <CornerDownLeft className="size-3.5 opacity-70" />
         </MockButton>
+        <span className="text-[11.5px] text-muted-foreground">Only verified emails count toward your plan.</span>
       </div>
     </div>
   );
 }
 
-/** The command bar (Ctrl K or Cmd K) over a dimmed window. */
+/** The command bar (Ctrl K or Cmd K): the island, opened. */
 export function CommandBar({ className }: { className?: string }) {
   const actions = [
     { icon: MapPin, label: 'Find local businesses' },
@@ -300,22 +321,17 @@ export function CommandBar({ className }: { className?: string }) {
     { icon: CircleUser, label: 'Account and plan' },
   ];
   return (
-    <div
-      className={cn(
-        'w-[600px] overflow-hidden rounded-2xl border bg-popover text-popover-foreground shadow-lg backdrop-blur-2xl backdrop-saturate-150',
-        className,
-      )}
-    >
-      <div className="flex h-14 items-center gap-3 border-b px-4">
-        <SearchIcon className="size-[18px] text-muted-foreground" />
-        <span className="flex-1 text-[17px] tracking-[-0.01em]">
-          dent<span className="ml-px inline-block h-5 w-px translate-y-1 bg-primary" />
+    <div className={cn('glass-strong w-[640px] overflow-hidden rounded-[28px] text-popover-foreground', className)}>
+      <div className="flex h-16 items-center gap-3.5 border-b px-5">
+        <SearchIcon className="size-5 text-muted-foreground" strokeWidth={1.75} />
+        <span className="flex-1 font-display text-[21px] tracking-[-0.02em]">
+          dent<span className="ml-px inline-block h-6 w-px translate-y-1 bg-primary" />
         </span>
         <Kbd>esc</Kbd>
       </div>
-      <div className="p-1.5">
-        <div className="px-2.5 pt-2 pb-1 text-[11.5px] font-semibold text-muted-foreground">Searches</div>
-        <div className="flex h-[30px] items-center gap-2.5 rounded-lg bg-accent px-2.5">
+      <div className="p-2">
+        <div className="px-3 pt-3 pb-1.5 text-[11.5px] text-muted-foreground">Searches</div>
+        <div className="flex h-10 items-center gap-3 rounded-[16px] bg-foreground/[0.07] px-3">
           <span className="flex size-4 items-center justify-center">
             <StatusDot status="done" />
           </span>
@@ -326,15 +342,15 @@ export function CommandBar({ className }: { className?: string }) {
             <CornerDownLeft className="size-3.5" />
           </span>
         </div>
-        <div className="px-2.5 pt-3 pb-1 text-[11.5px] font-semibold text-muted-foreground">Actions</div>
+        <div className="px-3 pt-3 pb-1.5 text-[11.5px] text-muted-foreground">Actions</div>
         {actions.map((a) => (
-          <div key={a.label} className="flex h-[30px] items-center gap-2.5 px-2.5">
+          <div key={a.label} className="flex h-10 items-center gap-3 px-3 text-foreground/85">
             <a.icon className="size-4 text-muted-foreground" />
             {a.label}
           </div>
         ))}
         {/* The appearance switch offers the other mode, as in the app. */}
-        <div className="flex h-[30px] items-center gap-2.5 px-2.5">
+        <div className="flex h-10 items-center gap-3 px-3 text-foreground/85">
           <Moon className="size-4 text-muted-foreground dark:hidden" />
           <Sun className="hidden size-4 text-muted-foreground dark:block" />
           <span className="dark:hidden">Use dark appearance</span>
@@ -348,22 +364,22 @@ export function CommandBar({ className }: { className?: string }) {
 /** Windows 11 window on the results of a running search. The hero shot. */
 export function WindowsResultsWindow({ animate = false }: { animate?: boolean }) {
   return (
-    <AppWindow platform="windows" sidebar={<Sidebar platform="windows" current={0} />}>
+    <AppWindow platform="windows" live>
       <ResultsScreen platform="windows" animate={animate} />
     </AppWindow>
   );
 }
 
-/** macOS window on the searches list, with the command bar open. */
+/** macOS window on the searches list, with the command bar open from the island. */
 export function MacCommandWindow() {
   return (
     <AppWindow
       platform="mac"
-      sidebar={<Sidebar platform="mac" current="searches" />}
+      live
       overlay={
         <>
-          <div className="absolute inset-0 bg-scrim/80" />
-          <CommandBar className="absolute top-[108px] left-1/2 -translate-x-1/2" />
+          <div className="absolute inset-0 bg-scrim/50 backdrop-blur-[6px]" />
+          <CommandBar className="absolute top-[10px] left-1/2 -translate-x-1/2" />
         </>
       }
     >
@@ -376,18 +392,17 @@ export function MacCommandWindow() {
 export function MacSignedOutWindow() {
   return (
     <AppWindow platform="mac">
-      <div className="relative flex flex-1 flex-col items-center justify-center text-center">
-        <div className="halo absolute top-1/2 left-1/2 size-[560px] -translate-x-1/2 -translate-y-1/2 opacity-30" />
-        <LogoMark className="relative size-[52px]" />
-        <div className="relative mt-4 text-[28px] leading-8 font-semibold tracking-[-0.024em]">nvoke</div>
-        <div className="relative mt-1.5 text-[14px] text-muted-foreground">
-          Find companies and the emails that reach them.
+      <div className="relative flex flex-1 flex-col items-center justify-center px-10 text-center">
+        <div className="aura absolute top-[40%] left-1/2 h-[520px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full motion-safe:animate-breathe" />
+        <LogoMark className="relative size-[64px]" />
+        <div className="relative mt-9 max-w-[420px] font-display text-[40px] leading-[46px] font-semibold tracking-[-0.036em] text-balance">
+          Research companies and their public contact details.
         </div>
-        <MockButton className="relative mt-7 h-8 w-[340px] justify-center text-[14px]">
+        <MockButton className="relative mt-10 h-11 px-7 text-[15px]">
           Sign in with your browser
           <ArrowUpRight className="size-3.5 opacity-80" />
         </MockButton>
-        <div className="relative mt-3.5 text-[11.5px] text-muted-foreground">Your password never touches this app.</div>
+        <div className="relative mt-4 text-[11.5px] text-muted-foreground">Your password never touches this app.</div>
       </div>
     </AppWindow>
   );

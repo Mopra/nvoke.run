@@ -16,7 +16,7 @@ export function PricingSlider({ initial = 'emails_2500' }: { initial?: string })
   const t = pricing.tiers[index] ?? pricing.free;
   return (
     <PlanSlider tiers={pricing.tiers} index={index} onIndexChange={setIndex}>
-      <div className="flex flex-col items-center gap-3 border-t pt-7 sm:flex-row sm:justify-between">
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <p className="text-sm text-pretty text-muted-foreground">
           Every feature on every plan. Change or cancel whenever.
         </p>
