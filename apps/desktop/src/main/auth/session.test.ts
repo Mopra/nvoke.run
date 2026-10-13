@@ -3,7 +3,14 @@ import type { AuthState } from '../../ipc/contract';
 import { codeChallengeS256 } from './flow';
 import { AuthSession, type TokenStore } from './session';
 
-const ME = { userId: 'user_1', email: 'a@example.com', name: 'A', imageUrl: null, via: 'device' as const };
+const USER = { id: 'user_1', email: 'a@example.com', name: 'A', imageUrl: null };
+const ME = {
+  user: USER,
+  via: 'device' as const,
+  plan: 'free' as const,
+  usage: { period: '2026-10', emailsFound: 0, emailsLimit: 50 },
+  maxSearchLimit: 50,
+};
 
 function memoryTokenStore(initial: string | null = null): TokenStore & { value: string | null } {
   const store = {
@@ -71,7 +78,7 @@ describe('AuthSession', () => {
     const ok = await t.session.handleCallback(`nvoke://auth/callback?code=nvk_ac_good&state=${t.getState()}`);
     expect(ok).toBe(true);
     expect(t.tokenStore.value).toBe('nvk_dt_secret');
-    expect(t.session.getState()).toEqual({ status: 'signed-in', user: ME });
+    expect(t.session.getState()).toEqual({ status: 'signed-in', user: USER });
     expect(JSON.stringify(t.states)).not.toContain('nvk_dt_secret');
   });
 
@@ -106,7 +113,7 @@ describe('AuthSession', () => {
   it('restores a stored token and signs out', async () => {
     const t = setup('nvk_dt_secret');
     await t.session.init();
-    expect(t.session.getState()).toEqual({ status: 'signed-in', user: ME });
+    expect(t.session.getState()).toEqual({ status: 'signed-in', user: USER });
 
     await t.session.signOut();
     expect(t.tokenStore.value).toBeNull();

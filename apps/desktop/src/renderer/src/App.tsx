@@ -55,7 +55,7 @@ export function App() {
       ) : auth.status === 'signed-in' ? (
         <SignedIn />
       ) : (
-        <SignedOutScreen />
+        <SignedOutScreen state={auth} />
       )}
       <Toaster />
     </TooltipProvider>

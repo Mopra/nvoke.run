@@ -127,8 +127,8 @@ export class AuthSession {
     try {
       const res = await this.api('/v1/me');
       if (!res.ok) return;
-      const user = MeResponse.parse(await res.json());
-      if (this.token) this.setState({ status: 'signed-in', user });
+      const me = MeResponse.parse(await res.json());
+      if (this.token) this.setState({ status: 'signed-in', user: me.user });
     } catch {
       // Offline or server down: stay signed in, the profile shows up later.
     }

@@ -4,6 +4,8 @@ import {
   IpcChannel,
   type AppInfo,
   type AuthState,
+  type BridgeResponse,
+  type ExportResult,
   type NvokeApi,
   type WindowChrome,
   type WindowState,
@@ -15,6 +17,9 @@ const api: NvokeApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.getAppInfo) as Promise<AppInfo>,
   openExternal: (url) => ipcRenderer.invoke(IpcChannel.openExternal, url) as Promise<void>,
   getHealth: () => ipcRenderer.invoke(IpcChannel.getHealth) as Promise<HealthResponse>,
+  request: (method, path, body) => ipcRenderer.invoke(IpcChannel.apiRequest, method, path, body) as Promise<BridgeResponse>,
+  exportCsv: (searchId, defaultFileName) =>
+    ipcRenderer.invoke(IpcChannel.exportCsv, searchId, defaultFileName) as Promise<ExportResult>,
   auth: {
     getState: () => ipcRenderer.invoke(IpcChannel.authGetState) as Promise<AuthState>,
     signIn: () => ipcRenderer.invoke(IpcChannel.authSignIn) as Promise<void>,

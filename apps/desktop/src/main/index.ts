@@ -1,8 +1,9 @@
 import { hostname } from 'node:os';
 import { join, resolve } from 'node:path';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { HealthResponse } from '@nvoke/shared';
-import { IpcChannel, type AppInfo, type AuthState } from '../ipc/contract';
+import { IpcChannel, type AppInfo, type AuthState, type ExportResult } from '../ipc/contract';
+import { bridgeRequest, exportCsvToFile, safeCsvFileName } from './api-bridge';
 import { PROTOCOL, findProtocolUrl } from './auth/flow';
 import { AuthSession } from './auth/session';
 import { safeTokenStore } from './auth/token-store';
@@ -164,6 +165,24 @@ function registerIpc(session: AuthSession): void {
     const res = await session.api('/health');
     if (!res.ok) throw new Error(`/health responded ${res.status}`);
     return HealthResponse.parse(await res.json());
+  });
+
+  // The renderer's only door to apps/server. Paths are limited to /v1/ and the
+  // device token is attached here, never in the renderer.
+  ipcMain.handle(IpcChannel.apiRequest, (_event, method: unknown, path: unknown, body: unknown) =>
+    bridgeRequest(session, method, path, body),
+  );
+
+  ipcMain.handle(IpcChannel.exportCsv, async (event, searchId: unknown, defaultFileName: unknown): Promise<ExportResult> => {
+    const options = {
+      title: 'Export CSV',
+      defaultPath: join(app.getPath('downloads'), safeCsvFileName(defaultFileName)),
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    };
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const picked = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (picked.canceled || !picked.filePath) return { saved: false };
+    return exportCsvToFile(session, searchId, picked.filePath);
   });
 
   ipcMain.handle(IpcChannel.authGetState, () => session.getState());

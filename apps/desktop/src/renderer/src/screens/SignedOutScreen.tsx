@@ -4,18 +4,33 @@ import { toast } from 'sonner';
 import { LogoMark, Wordmark } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import type { AuthState } from '@/lib/types';
 
-export function SignedOutScreen() {
-  const [waiting, setWaiting] = useState(false);
+/**
+ * Shown while signed out, and while the browser sign-in is `pending`: the main
+ * process owns that state, so it survives a reload and ends when the
+ * nvoke://auth/callback arrives or the user cancels.
+ */
+export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status: 'signed-in' }> }) {
+  // Covers the moment between the click and the main process saying `pending`.
+  const [opening, setOpening] = useState(false);
+  const waiting = state.status === 'pending' || opening;
+  const error = state.status === 'signed-out' ? state.error : undefined;
 
   async function signIn(): Promise<void> {
-    setWaiting(true);
+    setOpening(true);
     try {
       await api.signIn();
     } catch (err) {
-      setWaiting(false);
       toast.error('Could not open your browser', { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setOpening(false);
     }
+  }
+
+  function cancel(): void {
+    setOpening(false);
+    void api.cancelSignIn();
   }
 
   return (
@@ -43,7 +58,7 @@ export function SignedOutScreen() {
                 <Button variant="outline" size="sm" onClick={() => void signIn()}>
                   Open the page again
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setWaiting(false)}>
+                <Button variant="ghost" size="sm" onClick={cancel}>
                   Cancel
                 </Button>
               </div>
@@ -55,7 +70,13 @@ export function SignedOutScreen() {
                 Sign in with your browser
                 <ArrowUpRight className="size-4 opacity-75" />
               </Button>
-              <p className="mt-4 text-xs text-muted-foreground">Your password never touches this app.</p>
+              {error ? (
+                <p role="alert" className="mt-4 text-xs text-destructive">
+                  {error}
+                </p>
+              ) : (
+                <p className="mt-4 text-xs text-muted-foreground">Your password never touches this app.</p>
+              )}
             </>
           )}
         </div>
