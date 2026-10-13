@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
-import { LOGO_PATH, LOGO_SPARK } from '@/components/site/logo';
+import { LOGO } from '@/components/site/logo';
 import { site } from '@/lib/site';
 import { themeColors } from '@/lib/theme-colors';
 
@@ -77,8 +77,8 @@ export default function OpengraphImage() {
               }}
             >
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-                <path d={LOGO_PATH} stroke={t.get('primary-foreground')} strokeWidth="2.6" strokeLinecap="round" />
-                <circle cx={LOGO_SPARK.cx} cy={LOGO_SPARK.cy} r={LOGO_SPARK.r} fill={t.get('primary-foreground')} />
+                <path d={`${LOGO.arch}${LOGO.poles}`} stroke={t.get('primary-foreground')} strokeWidth={LOGO.stroke} />
+                <circle cx={LOGO.lead.cx} cy={LOGO.lead.cy} r={LOGO.lead.r} fill={t.get('primary-foreground')} />
               </svg>
             </div>
             <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: -1 }}>{site.name}</div>

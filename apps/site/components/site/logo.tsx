@@ -1,12 +1,16 @@
 import { cn } from '@/lib/utils';
 
-/** The glyph path of the mark, shared with the Open Graph image. */
-export const LOGO_PATH = 'M7 18.5V11a5 5 0 0 1 10 0v7.5';
-export const LOGO_SPARK = { cx: 18.6, cy: 5.4, r: 1.7 };
+/** The glyph of the mark, shared with the Open Graph image. */
+export const LOGO = {
+  arch: 'M7 15V11a5 5 0 0 1 10 0v4',
+  poles: 'M7 16.3v3.2M17 16.3v3.2',
+  lead: { cx: 12, cy: 16.7, r: 1.75 },
+  stroke: 3,
+};
 
 /**
- * The nvoke mark, as in the desktop app: a lowercase n drawn as one stroke,
- * with a spark at its shoulder (the moment a search is invoked).
+ * The nvoke mark, as in the desktop app: a lowercase n drawn as a horseshoe
+ * magnet, its poles split off, pulling a lead (the dot) in under the arch.
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
@@ -19,8 +23,8 @@ export function LogoMark({ className }: { className?: string }) {
     >
       <span className="absolute inset-0 bg-linear-to-b from-highlight/40 to-transparent" />
       <svg viewBox="0 0 24 24" className="relative size-[62%]" fill="none">
-        <path d={LOGO_PATH} stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-        <circle {...LOGO_SPARK} fill="currentColor" />
+        <path d={`${LOGO.arch}${LOGO.poles}`} stroke="currentColor" strokeWidth={LOGO.stroke} />
+        <circle {...LOGO.lead} fill="currentColor" />
       </svg>
     </span>
   );
