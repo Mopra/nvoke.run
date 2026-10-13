@@ -2,11 +2,14 @@
 
 ## Rules
 
+- A session's blocked --on can glue its reason into the After: title; when the named quest is done, just tell the session to go on.
 - Quests touching native OS APIs (UI Automation, OCR, local MCP pipe, hidden render windows) get opus; plain Electron settings and UI wiring get sonnet.
 - Merge fix-up quests get sonnet.
 
 ## Lately
 
+- 2026-10-13 Round: 6 running, 1 waiting cleanly on the SQLite merge fix, notifications and SQLite fixes still running, nothing to do.
+- 2026-10-13 "Hotkey looks up a copied domain" got a tangled After: line from its own blocked --on; hotkey merge fix had landed, so told it to bring in main and build.
 - 2026-10-13 Local SQLite copy quest finished but conflicted on merge; fix-up already running, gave it sonnet.
 - 2026-10-13 Hotkey quest finished but conflicted on merge; fix-up already running, gave it sonnet.
 - 2026-10-13 Notifications quest finished but conflicted on merge; fix-up already running, gave it sonnet.
@@ -21,5 +24,5 @@
 
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Check the notifications merge fix lands; the Account notifications switch and badge were never seen on screen either.
-- Check the hotkey merge fix lands; the quick command window and the Account shortcut row were never seen on screen.
+- Hotkey merge fix landed; the quick command window and the Account shortcut row were never seen on screen.
 - Check the local SQLite merge fix lands; its screens were only checked offscreen, never with capture.
