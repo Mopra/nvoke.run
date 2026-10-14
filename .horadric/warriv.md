@@ -5,9 +5,12 @@
 - A session's blocked --on can glue its reason into the After: title; when the named quest is done, just tell the session to go on.
 - Quests touching native OS APIs (UI Automation, OCR, local MCP pipe, hidden render windows) get opus; plain Electron settings and UI wiring get sonnet.
 - Merge fix-up quests get sonnet.
+- Desktop quests that touch contract.ts, preload, main/index.ts, AccountScreen, capture.ts or SPEC conflict when run in parallel: chain them with --after until the per-feature split lands.
+- When telling a session to run checks, tell it to wait for its heavy run in the same turn and report completed, never to stop and wait.
 
 ## Lately
 
+- 2026-10-14 Look back: 19 merge conflicts all in the desktop hotspot files (contract, preload, main/index, Account, capture, SPEC); filed 'split the IPC contract, preload, main wiring and Account into one file per feature' (opus, after local search). Local search quest stalled a third time with work uncommitted on f749f19; told it to commit, merge main, check and report in one turn. Two rules added.
 - 2026-10-14 Hourly round: still unchanged (local lead search running, macOS test with the human, no aim open). Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Hourly round: nothing moved since the last one (local lead search still running, macOS test still with the human, no aim open). Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Round after the results screen closest() fix landed (ce13749): local lead search still running, macOS test still with the human, no aim open. Nothing to do; 18 quests since the last ship, left shipping to the human.
@@ -64,6 +67,7 @@
 - Front-tab hotkey landed (be23bea). Never verified: macOS AppleScript path, Firefox and Brave, the real hotkey over a live window.
 - Watched inbox landed (7c41ce0). Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
-- Check the local lead search quest finishes after its queued test run.
+- Local lead search quest told (third time) to commit its uncommitted work, merge main and report in one turn; if it stalls again, file a fresh quest to finish it from its worktree.
+- Per-feature split quest filed; once it lands, drop the --after chaining rule.
 - Results screen closest() fix landed (ce13749); its capture log was not seen clean.
 - Local render crawl landed (42fa77c). Never seen: the hidden render window against a live site, and capture of the Account opt-in.
