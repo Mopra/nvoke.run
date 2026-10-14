@@ -62,6 +62,8 @@ mac:
     NSAppleEventsUsageDescription: nvoke reads the address of the browser tab in front when you press the quick search shortcut, to offer who runs that site. It reads nothing else and never in the background.
 
 linux:
+  # The package name (@nvoke/desktop) is not a valid file name.
+  executableName: nvoke
   icon: build/icon-desktop.png
   target:
     - target: AppImage
