@@ -10,8 +10,7 @@
 
 ## Lately
 
-- 2026-10-14 Hourly round: unchanged (only the macOS test, with the human; no aim open). Nothing to do; 20 quests since the last ship, left shipping to the human.
-- 2026-10-14 Hourly round: unchanged (only the macOS test, with the human; no aim open). Nothing to do; 20 quests since the last ship, left shipping to the human.
+- 2026-10-14 Hourly rounds (three in a row): unchanged (only the macOS test, with the human; no aim open). Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Woke again for the macOS Grab test block; already handed to the human with notes, nothing else open. Nothing to do.
 - 2026-10-14 Hourly round: only the human's direct Linux executable fix (5d27f5d) since the last round; macOS test still with the human, no aim open. Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Hourly rounds (six in a row): unchanged (only the macOS test, with the human; no aim open; no checks stone exists to cast). Nothing to do; 20 quests since the last ship, left shipping to the human.
