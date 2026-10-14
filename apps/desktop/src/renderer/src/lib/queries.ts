@@ -17,6 +17,7 @@ export const keys = {
   drops: ['drops'] as const,
   webhooks: ['webhooks'] as const,
   local: ['local'] as const,
+  findLeads: (q: string) => ['local-find', q] as const,
 };
 
 export function useSearches() {
@@ -87,9 +88,26 @@ export function useLocalSync(): void {
         client.setQueryData(keys.local, change.status);
         for (const id of change.searchIds) void client.invalidateQueries({ queryKey: [...keys.search(id), 'companies'] });
         if (change.searchesChanged) void client.invalidateQueries({ queryKey: keys.searches, exact: true });
+        void client.invalidateQueries({ queryKey: ['local-find'] });
       }),
     [client],
   );
+}
+
+/**
+ * Companies across every search in the local copy whose name, domain or an
+ * address contains `q`. Off below two characters. Keeps the last answer while
+ * the next one comes, so the list does not flicker as you type.
+ */
+export function useFindLeads(q: string, limit = 6) {
+  const text = q.trim();
+  return useQuery({
+    queryKey: keys.findLeads(text),
+    queryFn: () => api.findLeads(text, limit),
+    enabled: text.length >= 2,
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+  });
 }
 
 export function useMe() {

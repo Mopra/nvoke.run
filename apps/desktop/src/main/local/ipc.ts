@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron';
 import { EmailKind, Verification } from '@nvoke/shared';
 import { z } from 'zod';
-import { IpcChannel, type LocalCompaniesQuery } from '../../ipc/contract';
-import { LOCAL_PAGE_MAX } from './store';
+import { IpcChannel, type LocalCompaniesQuery, type LocalFindQuery } from '../../ipc/contract';
+import { LOCAL_FIND_MAX, LOCAL_PAGE_MAX } from './store';
 import type { LocalStore } from './store';
 import type { LeadSync } from './sync';
 
@@ -19,6 +19,17 @@ export const LocalCompaniesQuerySchema = z.strictObject({
 
 export function parseLocalCompaniesQuery(raw: unknown): LocalCompaniesQuery | null {
   const parsed = LocalCompaniesQuerySchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : null;
+}
+
+/** What the renderer may send to `local.find`. */
+export const LocalFindQuerySchema = z.strictObject({
+  q: z.string().max(200),
+  limit: z.number().int().min(1).max(LOCAL_FIND_MAX).optional(),
+});
+
+export function parseLocalFindQuery(raw: unknown): LocalFindQuery | null {
+  const parsed = LocalFindQuerySchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
@@ -39,6 +50,12 @@ export function registerLocalIpc(store: LocalStore, sync: LeadSync): void {
     const parsed = parseLocalCompaniesQuery(query);
     if (!sync.active || !SearchId.safeParse(id).success || !parsed) return null;
     return store.queryCompanies(id as string, parsed);
+  });
+
+  ipcMain.handle(IpcChannel.localFind, (_event, query: unknown) => {
+    const parsed = parseLocalFindQuery(query);
+    if (!sync.active || !parsed) return null;
+    return store.findCompanies(parsed);
   });
 
   ipcMain.handle(IpcChannel.localRefresh, (_event, id: unknown) => {

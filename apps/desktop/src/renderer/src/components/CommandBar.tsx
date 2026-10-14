@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, ScanText, Search as SearchIcon, Sparkles, Sun } from 'lucide-react';
+import { Building2, CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, ScanText, Search as SearchIcon, Sparkles, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
-import { useSearches } from '@/lib/queries';
+import { useFindLeads, useSearches } from '@/lib/queries';
+import { leadHint } from '@/lib/lead-find';
 import { quickApi } from '@/lib/desktop';
 import { parseQuickSearch } from '@/lib/quick-search';
 import { navigate as goTo, routeHref, type Route } from '@/lib/router';
@@ -15,9 +16,11 @@ import { Kbd } from '@/components/ui/kbd';
 
 interface Command {
   id: string;
-  group: 'Start' | 'Searches' | 'Actions';
+  group: 'Start' | 'Searches' | 'Leads' | 'Actions';
   label: string;
   hint?: string;
+  /** Set the hint in monospace, for an address or domain. */
+  hintMono?: boolean;
   icon: ReactNode;
   trailing?: ReactNode;
   keywords?: string;
@@ -27,7 +30,8 @@ interface Command {
 }
 
 /**
- * The command bar: one field that jumps to any search or runs an action.
+ * The command bar: one field that jumps to any search, finds any lead in the
+ * local copy, or runs an action.
  * Opened with Cmd or Ctrl K, or from the island at the top of the window.
  */
 export function CommandBar({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -35,7 +39,7 @@ export function CommandBar({ open, onOpenChange }: { open: boolean; onOpenChange
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined}>
         <DialogTitle className="sr-only">Command bar</DialogTitle>
-        <DialogDescription className="sr-only">Jump to a search or run an action.</DialogDescription>
+        <DialogDescription className="sr-only">Jump to a search, find a lead or run an action.</DialogDescription>
         {/* Mounted only while open, so every opening starts fresh. */}
         <Commands onDone={() => onOpenChange(false)} />
       </DialogContent>
@@ -74,6 +78,7 @@ export function Commands({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const { data: searches } = useSearches();
+  const { data: found } = useFindLeads(query);
   const { resolved } = useTheme();
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -238,6 +243,29 @@ export function Commands({
     };
   }, [query, onStart]);
 
+  /** Companies from every search in the local copy that match the text. */
+  const leads = useMemo<Command[]>(() => {
+    const q = query.trim();
+    if (q.length < 2 || !found) return [];
+    const quick = !!onStart;
+    return found.hits.map(({ search, company }) => ({
+      id: `lead:${search.id}:${company.id}`,
+      group: 'Leads',
+      label: company.name || company.domain,
+      hint: leadHint(company, q),
+      hintMono: true,
+      icon: <Building2 className="size-4 text-muted-foreground" />,
+      trailing: <span className="max-w-40 truncate text-xs text-muted-foreground">{searchTitle(search)}</span>,
+      // Opens the search filtered to this company, so the row is the first one there.
+      run: () => {
+        const route: Route = { name: 'search', id: search.id, q: company.domain || company.name };
+        if (quick) quickApi()?.openInMain(routeHref(route));
+        else goTo(route);
+      },
+    }));
+  }, [found, query, onStart]);
+  const leadsMore = found && query.trim().length >= 2 ? found.total - leads.length : 0;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matches = q
@@ -250,8 +278,8 @@ export function Commands({
     const sameSite = site && lookup && frontTab?.status === 'read' && frontTab.domain === clipboard?.domain;
     const first = start ? [start] : q ? [] : [site, sameSite ? null : lookup].filter((c): c is Command => !!c);
     const grabShown = grab && (!q || `${grab.label} ${grab.keywords ?? ''}`.toLowerCase().includes(q)) ? grab : null;
-    return [...first, ...(grabShown ? [grabShown] : []), ...searchesShown, ...matches.filter((c) => c.group === 'Actions')];
-  }, [commands, query, start, lookup, site, frontTab, clipboard, grab]);
+    return [...first, ...(grabShown ? [grabShown] : []), ...searchesShown, ...leads, ...matches.filter((c) => c.group === 'Actions')];
+  }, [commands, query, start, lookup, site, frontTab, clipboard, grab, leads]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -288,7 +316,7 @@ export function Commands({
               run(filtered[active]);
             }
           }}
-          placeholder={onStart ? 'Find companies, or jump to' : 'Search or jump to'}
+          placeholder={onStart ? 'Find companies, or jump to' : 'Find a lead, or jump to'}
           aria-label="Search or jump to"
           className="h-full flex-1 bg-transparent font-display text-xl tracking-[-0.02em] caret-primary outline-none placeholder:text-muted-foreground/50"
         />
@@ -304,7 +332,12 @@ export function Commands({
           return (
             <div key={command.id}>
               {header && (
-                <div className="px-3 pt-3 pb-1.5 text-xs text-muted-foreground">{header}</div>
+                <div className="flex px-3 pt-3 pb-1.5 text-xs text-muted-foreground">
+                  {header}
+                  {header === 'Leads' && leadsMore > 0 && (
+                    <span className="ml-auto tabular-nums">{formatNumber(leadsMore)} more</span>
+                  )}
+                </div>
               )}
               <div
                 role="option"
@@ -319,7 +352,9 @@ export function Commands({
               >
                 {command.icon}
                 <span className="truncate">{command.label}</span>
-                {command.hint && <span className="truncate text-xs text-muted-foreground">{command.hint}</span>}
+                {command.hint && (
+                  <span className={cn('truncate text-xs text-muted-foreground', command.hintMono && 'font-mono')}>{command.hint}</span>
+                )}
                 <span className="ml-auto flex shrink-0 items-center gap-2">
                   {command.trailing}
                   {selected && <CornerDownLeft className="size-3.5 text-muted-foreground" />}

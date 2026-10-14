@@ -21,6 +21,7 @@ import type {
   DropUpdate,
   ExportResult,
   LocalChange,
+  LocalFindResult,
   LocalStatus,
   Me,
   NotificationSettings,
@@ -144,6 +145,9 @@ export function createApi(transport: Transport) {
     /** `live` skips the local copy, which only holds finished searches. */
     listCompanies: (id: string, query: CompaniesQuery = {}, live = false): Promise<CompaniesPage> =>
       listCompanies(id, query, live),
+    /** Companies across every search in the local copy. Null without one. */
+    findLeads: (q: string, limit?: number): Promise<LocalFindResult | null> =>
+      local.find(limit ? { q, limit } : { q }).catch(() => null),
     /** Asks main to fetch this search's companies again in the background. */
     refreshLocal: (id: string): Promise<void> => local.refresh(id).catch(() => undefined),
     localStatus: (): Promise<LocalStatus> => local.status(),

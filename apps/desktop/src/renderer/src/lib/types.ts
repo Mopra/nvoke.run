@@ -40,6 +40,8 @@ export type {
   HttpMethod,
   LocalChange,
   LocalCompaniesPage,
+  LocalFindResult,
+  LocalLeadHit,
   LocalStatus,
   NotificationSettings,
 } from '../../../ipc/contract';

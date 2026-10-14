@@ -25,7 +25,7 @@ function Screen({ route }: { route: Route }) {
     case 'new':
       return <NewSearchScreen key={route.kind ?? 'default'} initialKind={route.kind} />;
     case 'search':
-      return <SearchResultsScreen key={route.id} id={route.id} />;
+      return <SearchResultsScreen key={`${route.id}?${route.q ?? ''}`} id={route.id} initialFilter={route.q ?? ''} />;
     case 'account':
       return <AccountScreen />;
     case 'drops':

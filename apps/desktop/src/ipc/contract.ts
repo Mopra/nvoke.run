@@ -1,4 +1,4 @@
-import type { CompaniesPage, HealthResponse, LeadFilters, Search, User } from '@nvoke/shared';
+import type { CompaniesPage, Company, HealthResponse, LeadFilters, Search, User } from '@nvoke/shared';
 
 /**
  * The typed bridge between the renderer and the main process. The preload
@@ -50,6 +50,7 @@ export const IpcChannel = {
   localSearches: 'local:searches',
   localSearch: 'local:search',
   localCompanies: 'local:companies',
+  localFind: 'local:find',
   localRefresh: 'local:refresh',
   localStatus: 'local:status',
   /** Main to renderer push, payload LocalChange. */
@@ -381,6 +382,24 @@ export type LocalCompaniesQuery = LeadFilters & { offset?: number; limit?: numbe
 /** Same companies and total as `CompaniesPage`, with an offset instead of a cursor. */
 export type LocalCompaniesPage = Omit<CompaniesPage, 'nextCursor'> & { nextOffset: number | null };
 
+/** A text search over every lead in the local copy. `limit` is 1 to 50, 8 by default. */
+export interface LocalFindQuery {
+  q: string;
+  limit?: number;
+}
+
+/** One company that matched, with the search it came from. */
+export interface LocalLeadHit {
+  search: Search;
+  company: Company;
+}
+
+/** The newest matches first, and how many matched in all. */
+export interface LocalFindResult {
+  hits: LocalLeadHit[];
+  total: number;
+}
+
 /**
  * The copy of searches, companies and checked emails the main process keeps
  * in SQLite in userData. It mirrors what the API returns: a search or address
@@ -396,6 +415,11 @@ export interface LocalApi {
    * or still running.
    */
   companies(searchId: string, query: LocalCompaniesQuery): Promise<LocalCompaniesPage | null>;
+  /**
+   * Finds companies across every synced search whose name, domain or an
+   * address contains `q`, newest search first. Null when there is no local copy.
+   */
+  find(query: LocalFindQuery): Promise<LocalFindResult | null>;
   /** Re-fetches one search's companies in the background. */
   refresh(searchId: string): Promise<void>;
   status(): Promise<LocalStatus>;

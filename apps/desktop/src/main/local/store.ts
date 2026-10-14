@@ -2,10 +2,12 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Company, Search } from '@nvoke/shared';
-import type { LocalCompaniesPage, LocalCompaniesQuery } from '../../ipc/contract';
+import type { LocalCompaniesPage, LocalCompaniesQuery, LocalFindQuery, LocalFindResult } from '../../ipc/contract';
 
 export const LOCAL_PAGE_DEFAULT = 200;
 export const LOCAL_PAGE_MAX = 500;
+export const LOCAL_FIND_DEFAULT = 8;
+export const LOCAL_FIND_MAX = 50;
 
 const SCHEMA = `
   create table if not exists searches (
@@ -241,6 +243,39 @@ export class LocalStore {
       };
     });
     return { companies, total, nextOffset: offset + rows.length < total ? offset + rows.length : null };
+  }
+
+  /**
+   * Companies across every search whose name, domain or an address contains
+   * `q`, newest search first and in API order within a search. Only searches
+   * whose companies were fetched take part. Emails are left whole.
+   */
+  findCompanies(query: LocalFindQuery): LocalFindResult {
+    const q = query.q.trim().toLowerCase();
+    if (!q) return { hits: [], total: 0 };
+    const limit = Math.min(LOCAL_FIND_MAX, Math.max(1, Math.floor(query.limit ?? LOCAL_FIND_DEFAULT)));
+    const db = this.open();
+    const { n: total } = db.prepare('select count(*) as n from companies where instr(haystack, $q) > 0').get({ $q: q }) as {
+      n: number;
+    };
+    if (total === 0) return { hits: [], total: 0 };
+    const rows = db
+      .prepare(
+        `select s.json as search, b.json as company from companies c
+         join searches s on s.id = c.search_id
+         join company_bodies b on b.row = c.row
+         where instr(c.haystack, $q) > 0
+         order by s.created_at desc, s.id desc, c.ord
+         limit $limit`,
+      )
+      .all({ $q: q, $limit: limit }) as { search: string; company: string }[];
+    const searches = new Map<string, Search>();
+    const hits = rows.map((r) => {
+      let search = searches.get(r.search);
+      if (!search) searches.set(r.search, (search = JSON.parse(r.search) as Search));
+      return { search, company: JSON.parse(r.company) as Company };
+    });
+    return { hits, total };
   }
 
   counts(): { searches: number; companies: number; emails: number } {

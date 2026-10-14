@@ -402,10 +402,10 @@ type KindOption = 'all' | EmailKind;
 
 /* Screen */
 
-export function SearchResultsScreen({ id }: { id: string }) {
+export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; initialFilter?: string }) {
   const searchQuery = useSearch(id);
   const search = searchQuery.data;
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialFilter);
   const [verification, setVerification] = useState<Verification | undefined>();
   const [kind, setKind] = useState<EmailKind | undefined>();
   const [confirmDelete, setConfirmDelete] = useState(false);

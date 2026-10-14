@@ -43,6 +43,33 @@ function seeded(): LocalStore {
 }
 
 describe('LocalStore', () => {
+  it('finds companies across every search, newest search first', () => {
+    const store = seeded();
+    store.replaceSearches([search(1), search(2)]);
+    store.replaceCompanies(uuid(2), [company(4, 'Smile Odense', [['hej@smileodense.dk', 'generic', 'valid']])], 'fp', 1);
+
+    const byName = store.findCompanies({ q: '  SMILE ' });
+    expect(byName.total).toBe(2);
+    expect(byName.hits.map((h) => [h.search.id, h.company.name])).toEqual([
+      [uuid(2), 'Smile Odense'],
+      [uuid(1), 'Smile Aarhus'],
+    ]);
+    // Emails stay whole, so the row can show every address.
+    expect(byName.hits[1]?.company.emails).toHaveLength(2);
+
+    expect(store.findCompanies({ q: 'kontakt@oest' }).hits.map((h) => h.company.name)).toEqual(['Tandlæge Østergaard']);
+    expect(store.findCompanies({ q: 'smile', limit: 1 })).toMatchObject({ total: 2, hits: [{ company: { name: 'Smile Odense' } }] });
+    expect(store.findCompanies({ q: 'nothing here' })).toEqual({ hits: [], total: 0 });
+    expect(store.findCompanies({ q: '   ' })).toEqual({ hits: [], total: 0 });
+  });
+
+  it('stops finding a search once it is deleted', () => {
+    const store = seeded();
+    expect(store.findCompanies({ q: 'smile' }).total).toBe(1);
+    store.replaceSearches([]);
+    expect(store.findCompanies({ q: 'smile' }).total).toBe(0);
+  });
+
   it('returns nothing for a search whose companies were never fetched', () => {
     const store = new LocalStore(':memory:');
     store.replaceSearches([search(1)]);

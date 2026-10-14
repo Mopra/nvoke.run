@@ -694,6 +694,20 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         const { nextCursor, ...page } = listCompanies(rec, params);
         return { ...page, nextOffset: nextCursor === null ? null : Number(nextCursor) };
       },
+      async find({ q, limit = 8 }) {
+        if (signedOut()) return null;
+        const needle = q.trim().toLowerCase();
+        if (!needle) return { hits: [], total: 0 };
+        const hits = sortedSearches()
+          .filter(synced)
+          .flatMap((rec) => {
+            const search = toSearch(rec);
+            return companiesOf(rec, progress(rec))
+              .filter((c) => [c.name, c.domain, ...c.emails.map((e) => e.address)].join(' ').toLowerCase().includes(needle))
+              .map((company) => ({ search, company }));
+          });
+        return { hits: hits.slice(0, limit), total: hits.length };
+      },
       async refresh() {},
       async status() {
         return localStatus();
