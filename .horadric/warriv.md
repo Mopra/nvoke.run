@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-14 Local lead search finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, check in one turn and merge newest main last. The split refactor waits on it.
 - 2026-10-14 Look back: 19 merge conflicts all in the desktop hotspot files (contract, preload, main/index, Account, capture, SPEC); filed 'split the IPC contract, preload, main wiring and Account into one file per feature' (opus, after local search). Local search quest stalled a third time with work uncommitted on f749f19; told it to commit, merge main, check and report in one turn. Two rules added.
 - 2026-10-14 Hourly round: still unchanged (local lead search running, macOS test with the human, no aim open). Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Hourly round: nothing moved since the last one (local lead search still running, macOS test still with the human, no aim open). Nothing to do; 18 quests since the last ship, left shipping to the human.
