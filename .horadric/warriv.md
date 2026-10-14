@@ -8,6 +8,7 @@
 
 ## Lately
 
+- 2026-10-14 Hourly round: still unchanged (local lead search running, macOS test with the human, no aim open). Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Hourly round: nothing moved since the last one (local lead search still running, macOS test still with the human, no aim open). Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Round after the results screen closest() fix landed (ce13749): local lead search still running, macOS test still with the human, no aim open. Nothing to do; 18 quests since the last ship, left shipping to the human.
 - 2026-10-14 Round: local lead search still running, macOS test still with the human. Filed 'fix target?.closest is not a function' (sonnet) from the capture check's unfiled finding. 17 quests since the last ship; left shipping to the human.
