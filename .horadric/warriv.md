@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-14 Per-feature split finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep the split layout, fold main's newer additions into the feature files, check in one turn and merge newest main last.
 - 2026-10-14 Round after local lead search landed (6031ccd, 6f6e0ed): split refactor running on opus, macOS test with the human, no aim open. Nothing to do; 19 quests since the last ship, left shipping to the human.
 - 2026-10-14 Local lead search finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, check in one turn and merge newest main last. The split refactor waits on it.
 - 2026-10-14 Look back: 19 merge conflicts all in the desktop hotspot files (contract, preload, main/index, Account, capture, SPEC); filed 'split the IPC contract, preload, main wiring and Account into one file per feature' (opus, after local search). Local search quest stalled a third time with work uncommitted on f749f19; told it to commit, merge main, check and report in one turn. Two rules added.
@@ -70,6 +71,6 @@
 - Watched inbox landed (7c41ce0). Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
 - Local lead search landed (6031ccd); its command bar results never seen on screen beyond capture typing.
-- Per-feature split quest filed; once it lands, drop the --after chaining rule.
+- Per-feature split done, its merge fix-up running; once that lands, drop the --after chaining rule.
 - Results screen closest() fix landed (ce13749); its capture log was not seen clean.
 - Local render crawl landed (42fa77c). Never seen: the hidden render window against a live site, and capture of the Account opt-in.
