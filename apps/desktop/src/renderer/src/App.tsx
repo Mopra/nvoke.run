@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { WhatsNew } from '@/components/WhatsNew';
 import { Toaster } from '@/components/ui/sonner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -80,6 +81,7 @@ export function App() {
       ) : (
         <SignedOutScreen state={auth} />
       )}
+      {auth !== undefined && <WhatsNew />}
       <Toaster />
     </TooltipProvider>
   );

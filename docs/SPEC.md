@@ -177,13 +177,14 @@ Each desktop feature has its own page in `docs/desktop/`. A new feature adds its
 - **CSV drop**: [docs/desktop/csv-drop.md](desktop/csv-drop.md).
 - **Inbox folder**: [docs/desktop/inbox.md](desktop/inbox.md).
 - **Drops**: the user's drops with what each delivered and when it runs next, and the feed's last week per source. Each drop has Edit, Check now, Pause or Resume and Delete. The editor is a sentence like New search: "Watch [keyword] from [sources] up to [N] a day called [name]". The searches a drop makes appear in Searches with the drop's name; their menu has Open drop instead of Run again.
-- **Account**: user, plan, verified email meter, appearance, Open at login, Quick search shortcut, Inbox folder, Drop notifications, Read blocked sites from this computer (off by default, see "Local render crawl"), sign out (with what the local copy holds and when it last synced), Use nvoke in Claude and Cursor (below), Upgrade or Manage billing (opens `/desktop/billing` on the site), and API keys (create, shown once, revoke) with the MCP setup line.
+- **Account**: user, plan, verified email meter, appearance, Open at login, Quick search shortcut, Inbox folder, Drop notifications, Read blocked sites from this computer (off by default, see "Local render crawl"), Updates (version, Check now, Restart or Download), sign out (with what the local copy holds and when it last synced), Use nvoke in Claude and Cursor (below), Upgrade or Manage billing (opens `/desktop/billing` on the site), and API keys (create, shown once, revoke) with the MCP setup line.
 - **Tray and start at login**: [docs/desktop/tray.md](desktop/tray.md).
 - **Quick search**: [docs/desktop/quick-search.md](desktop/quick-search.md).
 - **Local copy**: [docs/desktop/local-copy.md](desktop/local-copy.md).
 - **Local MCP**: [docs/desktop/mcp.md](desktop/mcp.md).
 - **Drop notifications**: [docs/desktop/notifications.md](desktop/notifications.md).
 - **Grab from screen**: [docs/desktop/screen-grab.md](desktop/screen-grab.md).
+- **Updates, What's new and releases**: [docs/desktop/updates.md](desktop/updates.md).
 
 ## Website (nvoke.run)
 

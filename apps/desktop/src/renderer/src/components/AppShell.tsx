@@ -11,6 +11,7 @@ import { Avatar } from '@/components/Avatar';
 import { CommandBar } from '@/components/CommandBar';
 import { FileDrop } from '@/components/FileDrop';
 import { LogoMark } from '@/components/Logo';
+import { UpdateButton } from '@/components/UpdateButton';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -192,6 +193,7 @@ export function PageHeader({
         </a>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <UpdateButton />
         {actions}
         {newSearch && (
           <Tooltip>

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { app, BrowserWindow } from 'electron';
-import { IpcChannel, type AuthState, type DesktopCommand, type DesktopSettings } from '../ipc/contract';
+import { IpcChannel, type AuthState, type DesktopCommand, type DesktopSettings, type UpdateState } from '../ipc/contract';
 import type { AuthSession } from './auth/session';
 import { readSavedDesktop, writeSavedDesktop, type SavedDesktop } from './desktop-settings';
 
@@ -14,6 +14,10 @@ export interface MainEvents {
   'search-deleted': string;
   /** The main window was created and its page is loading. */
   window: BrowserWindow;
+  /** The updater's state changed. */
+  update: UpdateState;
+  /** The tray asked to restart into the downloaded update. */
+  'install-update': null;
 }
 
 type Listener<T> = (payload: T) => void;

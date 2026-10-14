@@ -17,7 +17,14 @@ asarUnpack:
   - resources/**
   - out/main/mcp-launcher.js
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-publish: null
+# Updates come from GitHub Releases (src/main/updater.ts names the same
+# repository). The build writes app-update.yml into the app and latest*.yml
+# next to the installers; the release workflow uploads both, so builds here
+# always run with --publish never. docs/desktop/updates.md.
+publish:
+  provider: github
+  owner: Mopra
+  repo: nvoke.run
 
 # Icons come from `pnpm icons` (scripts/icons.mjs). macOS builds its icns
 # from build/icon.png, which follows Apple's grid with padding and a shadow.
@@ -42,6 +49,10 @@ nsis:
 mac:
   target:
     - target: dmg
+      arch: [x64, arm64]
+    # The zip feeds latest-mac.yml. Unsigned builds cannot install it yet, but
+    # the update check reads it, and signing later needs nothing else.
+    - target: zip
       arch: [x64, arm64]
   category: public.app-category.business
   identity: null

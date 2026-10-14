@@ -20,6 +20,7 @@ import { McpChannel, type McpBridge } from './features/mcp';
 import { NotificationsChannel, type NotificationsBridge } from './features/notifications';
 import { QuickChannel, type QuickBridge, type QuickDesktopApi, type QuickSettings } from './features/quick';
 import { TrayChannel, type TrayDesktopApi, type TraySettings } from './features/tray';
+import { UpdatesChannel, type UpdatesBridge } from './features/updates';
 import { WindowChannel, type WindowBridge } from './features/window';
 
 export * from './features/api';
@@ -36,6 +37,7 @@ export * from './features/mcp';
 export * from './features/notifications';
 export * from './features/quick';
 export * from './features/tray';
+export * from './features/updates';
 export * from './features/window';
 
 export const IpcChannel = {
@@ -53,6 +55,7 @@ export const IpcChannel = {
   ...NotificationsChannel,
   ...QuickChannel,
   ...TrayChannel,
+  ...UpdatesChannel,
   ...WindowChannel,
 } as const;
 
@@ -91,4 +94,5 @@ export interface NvokeApi
     McpBridge,
     NotificationsBridge,
     QuickBridge,
+    UpdatesBridge,
     WindowBridge {}

@@ -18,10 +18,12 @@ export function registerTray(ctx: MainContext): void {
     open: () => ctx.focusWindow(),
     command: (command) => ctx.sendCommand(command),
     quit: () => app.quit(),
+    installUpdate: () => ctx.emit('install-update', null),
     fetchSearches: () => (session.getState().status === 'signed-in' ? session.api('/v1/searches') : Promise.resolve(null)),
   });
   ctx.on('auth', (state) => tray?.setSignedIn(state.status === 'signed-in'));
   ctx.on('started', (state) => tray?.setSignedIn(state.status === 'signed-in'));
+  ctx.on('update', (state) => tray?.setUpdate(state));
   ctx.onQuit(() => {
     tray?.destroy();
     tray = null;

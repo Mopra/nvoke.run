@@ -14,6 +14,7 @@ import { mcpBridge } from './features/mcp';
 import { notificationsBridge } from './features/notifications';
 import { quickBridge, quickDesktop } from './features/quick';
 import { trayDesktop } from './features/tray';
+import { updatesBridge } from './features/updates';
 import { windowBridge } from './features/window';
 
 // The only surface the renderer gets. No raw ipcRenderer, no Node APIs, and
@@ -30,6 +31,7 @@ const api: NvokeApi = {
   ...mcpBridge,
   ...notificationsBridge,
   ...quickBridge,
+  ...updatesBridge,
   ...windowBridge,
   desktop: {
     ...desktopCore,

@@ -1,8 +1,12 @@
 name: Release
 
-# Push a tag like v0.1.0 to build installers on all three platforms and attach
-# them to a GitHub Release. Bump apps/desktop/package.json "version" first:
-# electron-builder names the files after it.
+# Cut a release with `pnpm release 0.2.0` (scripts/release.mjs): it checks the
+# CHANGELOG section, bumps apps/desktop/package.json, commits, tags v0.2.0 and
+# pushes. The tag runs this workflow: build every platform, then publish one
+# GitHub Release with the installers, the update feeds (latest*.yml) and the
+# blockmaps. Installed apps check that release and update themselves
+# (apps/desktop/src/main/updater.ts, docs/desktop/updates.md). Nothing is
+# published unless all three builds pass.
 on:
   push:
     tags: ['v*']
@@ -10,10 +14,39 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Tag matches the app version and has notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          app=$(node -p "require('./apps/desktop/package.json').version")
+          if [ "$version" != "$app" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME but apps/desktop/package.json says $app. Use pnpm release."
+            exit 1
+          fi
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release.mjs --notes "$version" > release-notes.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
   build:
+    needs: verify
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -47,7 +80,10 @@ jobs:
           path: |
             apps/desktop/release/*/*.exe
             apps/desktop/release/*/*.dmg
+            apps/desktop/release/*/*.zip
             apps/desktop/release/*/*.AppImage
+            apps/desktop/release/*/*.blockmap
+            apps/desktop/release/*/latest*.yml
 
   release:
     needs: build
@@ -59,7 +95,21 @@ jobs:
           pattern: installers-*
           merge-multiple: true
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Check every update feed is there
+        run: |
+          for feed in latest.yml latest-mac.yml latest-linux.yml; do
+            test -n "$(find installers -name "$feed")" || { echo "::error::$feed is missing"; exit 1; }
+          done
+
       - uses: softprops/action-gh-release@v2
         with:
+          name: nvoke ${{ github.ref_name }}
+          body_path: release-notes.md
           files: installers/**/*
-          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true

@@ -15,6 +15,7 @@ import { registerMcp } from './features/mcp';
 import { registerNotifications } from './features/notifications';
 import { registerQuick } from './features/quick';
 import { registerTray } from './features/tray';
+import { registerUpdates } from './features/updates';
 import { openMainWindow, registerWindow } from './features/window';
 
 /**
@@ -62,6 +63,7 @@ function main(): void {
     registerMcp(ctx);
     registerTray(ctx);
     registerLocalCrawl(ctx);
+    registerUpdates(ctx);
     registerCapture(ctx, { quick, grab });
     openMainWindow(ctx);
     await auth.start();

@@ -3,6 +3,7 @@ import { app, shell } from 'electron';
 import type { MainContext } from '../context';
 import { isSafeExternalUrl } from '../external-url';
 import { startedHidden } from '../login-item';
+import { relaunchedHidden } from '../updater';
 import { createMainWindow, loadWindowPreferences, registerWindowIpc } from '../window';
 
 /** The main window's IPC and lifecycle. Open it with `openMainWindow` once every feature has registered. */
@@ -24,8 +25,12 @@ export function registerWindow(ctx: MainContext): void {
   });
 }
 
-/** Creates the main window. Started at login, it stays in the tray until the user opens it. */
-export function openMainWindow(ctx: MainContext, { hidden = !ctx.captureDir && startedHidden(process.argv) } = {}): void {
+/**
+ * Creates the main window. Started at login, or back from an update that
+ * installed while the window was hidden, it stays in the tray until the user
+ * opens it.
+ */
+export function openMainWindow(ctx: MainContext, { hidden = !ctx.captureDir && (relaunchedHidden() || startedHidden(process.argv)) } = {}): void {
   const win = createMainWindow();
   ctx.mainWindow = win;
 

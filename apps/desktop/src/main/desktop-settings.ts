@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { isAccelerator } from '../ipc/accelerator';
+import { isVersion } from './changelog';
 
 /**
  * How the app lives on the computer, kept in userData between launches.
@@ -21,6 +22,8 @@ export interface SavedDesktop {
   inboxFolder?: string;
   /** macOS: browsers (by label) the Automation prompt has been shown for, so the quick window reads them without asking. */
   automationAsked?: string[];
+  /** The version whose What's new the user last saw. Set to the running version on a fresh install. */
+  lastSeenVersion?: string;
 }
 
 export function parseSavedDesktop(raw: string): SavedDesktop {
@@ -36,6 +39,7 @@ export function parseSavedDesktop(raw: string): SavedDesktop {
       ...(Array.isArray(data['automationAsked'])
         ? { automationAsked: data['automationAsked'].filter((b): b is string => typeof b === 'string' && b.length <= 40).slice(0, 10) }
         : {}),
+      ...(isVersion(data['lastSeenVersion']) ? { lastSeenVersion: data['lastSeenVersion'] } : {}),
     };
   } catch {
     return {};

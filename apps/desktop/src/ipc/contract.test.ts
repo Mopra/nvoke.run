@@ -13,6 +13,7 @@ import { McpChannel } from './features/mcp';
 import { NotificationsChannel } from './features/notifications';
 import { QuickChannel } from './features/quick';
 import { TrayChannel } from './features/tray';
+import { UpdatesChannel } from './features/updates';
 import { WindowChannel } from './features/window';
 import { IpcChannel } from './contract';
 
@@ -31,6 +32,7 @@ const features = [
   NotificationsChannel,
   QuickChannel,
   TrayChannel,
+  UpdatesChannel,
   WindowChannel,
 ];
 

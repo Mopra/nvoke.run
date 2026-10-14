@@ -14,6 +14,7 @@ import { OpenAtLogin } from './account/OpenAtLogin';
 import { PlanSetting } from './account/PlanSetting';
 import { QuickHotkey } from './account/QuickHotkey';
 import { ThisComputer } from './account/ThisComputer';
+import { Updates } from './account/Updates';
 import { Usage } from './account/Usage';
 
 function AccountSkeleton() {
@@ -79,6 +80,7 @@ export function AccountScreen() {
                 <InboxFolder />
                 <DropNotifications />
                 <LocalCrawl />
+                <Updates />
                 <ThisComputer />
               </div>
 

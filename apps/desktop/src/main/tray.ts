@@ -1,6 +1,6 @@
 import { Menu, Notification, Tray, nativeImage, type MenuItemConstructorOptions, type NativeImage } from 'electron';
 import { SearchListResponse } from '@nvoke/shared';
-import type { DesktopCommand } from '../ipc/contract';
+import type { DesktopCommand, UpdateState } from '../ipc/contract';
 import { dropToday, dropTodayLabel, type DropToday } from './drop-today';
 import trayIco from '../../resources/tray.ico?asset&asarUnpack';
 import trayPng from '../../resources/tray.png?asset&asarUnpack';
@@ -23,6 +23,8 @@ export interface TrayOptions {
   /** Shows the window and hands the renderer a command. */
   command(command: DesktopCommand): void;
   quit(): void;
+  /** Restarts into the downloaded update, or on macOS opens its download. */
+  installUpdate(): void;
   /** GET /v1/searches through the signed-in session, or null when signed out. */
   fetchSearches(): Promise<Response | null>;
 }
@@ -42,6 +44,7 @@ export class AppTray {
   private readonly tray: Tray;
   private today: DropToday | null = null;
   private signedIn = false;
+  private update: UpdateState | null = null;
   private lastRefresh = 0;
   private readonly timer: NodeJS.Timeout;
 
@@ -63,6 +66,12 @@ export class AppTray {
     if (!signedIn) this.today = null;
     this.render();
     if (signedIn) void this.refresh();
+  }
+
+  /** Shows a restart (or download on macOS) item once an update is ready. */
+  setUpdate(update: UpdateState): void {
+    this.update = update;
+    this.render();
   }
 
   /** Reads today's drop searches. Failures keep the last known line. */
@@ -97,7 +106,18 @@ export class AppTray {
   }
 
   private render(): void {
-    const { open, command, quit } = this.options;
+    const { open, command, quit, installUpdate } = this.options;
+    const update = this.update;
+    const updateItems: MenuItemConstructorOptions[] =
+      update?.version && (update.status === 'ready' || update.status === 'available')
+        ? [
+            { type: 'separator' },
+            {
+              label: update.status === 'ready' ? `Restart to update to ${update.version}` : `Download nvoke ${update.version}`,
+              click: installUpdate,
+            },
+          ]
+        : [];
     const today = this.today;
     const drops: MenuItemConstructorOptions[] = this.signedIn
       ? [
@@ -116,6 +136,7 @@ export class AppTray {
       { label: 'Open nvoke', click: open },
       { label: 'New search', enabled: this.signedIn, click: () => command({ name: 'new-search' }) },
       ...drops,
+      ...updateItems,
       { type: 'separator' },
       { label: 'Quit nvoke', click: quit },
     ]);

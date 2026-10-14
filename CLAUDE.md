@@ -61,6 +61,7 @@ pnpm migrate          # needs DATABASE_URL
 pnpm --filter @nvoke/server cli db     # local embedded Postgres for dev:api and dev:worker
 pnpm --filter @nvoke/server cli search local "dentists" "Aarhus" --limit 5
 pnpm dist:desktop     # installer for the current OS
+pnpm release 0.2.0    # desktop release: CHANGELOG section, bump, tag, push (docs/desktop/updates.md)
 ```
 
 Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
@@ -146,6 +147,11 @@ changeable on Account) opens the quick window, the command bar over any app, on
 engine (`src/main/ocr.ts`, no bundled OCR) and lists the companies
 (`src/main/grab-extract.ts` drops people) for a domains search. Tray icons are rendered by `pnpm icons` into
 `apps/desktop/resources` and unpacked from the asar.
+
+The app updates itself from GitHub Releases (`src/main/updater.ts`,
+electron-updater) and shows a What's new card from `apps/desktop/CHANGELOG.md`
+on the first start after an update. Releases are cut with `pnpm release`;
+details in `docs/desktop/updates.md`.
 
 nvoke also serves MCP to Claude Desktop, Claude Code and Cursor on the
 signed-in session (`src/main/mcp`): a local pipe in main, reached through
