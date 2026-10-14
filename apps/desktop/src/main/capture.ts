@@ -205,11 +205,8 @@ export async function runCapture(win: BrowserWindow, dir: string, extras: Captur
       await sleep(500);
       await shot('03-command-bar', theme);
       // Typed text also lists leads from every search in the local copy.
-      await js(`(() => {
-        const input = document.querySelector('[aria-label="Search or jump to"]');
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'info');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      })()`);
+      await js(`document.querySelector('[aria-label="Search or jump to"]')?.focus()`);
+      await win.webContents.insertText('info');
       await sleep(500);
       await shot('03-command-bar-leads', theme);
       await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); document.activeElement && document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
