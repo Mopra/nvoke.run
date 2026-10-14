@@ -5,11 +5,12 @@
 - A session's blocked --on can glue its reason into the After: title; when the named quest is done, just tell the session to go on.
 - Quests touching native OS APIs (UI Automation, OCR, local MCP pipe, hidden render windows) get opus; plain Electron settings and UI wiring get sonnet.
 - Merge fix-up quests get sonnet.
-- Desktop quests that touch contract.ts, preload, main/index.ts, AccountScreen, capture.ts or SPEC conflict when run in parallel: chain them with --after until the per-feature split lands.
+- Desktop features live in one file per feature (ipc/features, preload/features, main/features, screens/account, capture/shots, docs/desktop); new desktop quests should add files there and may run in parallel.
 - When telling a session to run checks, tell it to wait for its heavy run in the same turn and report completed, never to stop and wait.
 
 ## Lately
 
+- 2026-10-14 Round after the per-feature split landed (17661b4): dropped the --after chaining rule. Only the macOS test remains, with the human; no aim open. 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Per-feature split finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep the split layout, fold main's newer additions into the feature files, check in one turn and merge newest main last.
 - 2026-10-14 Round after local lead search landed (6031ccd, 6f6e0ed): split refactor running on opus, macOS test with the human, no aim open. Nothing to do; 19 quests since the last ship, left shipping to the human.
 - 2026-10-14 Local lead search finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, check in one turn and merge newest main last. The split refactor waits on it.
@@ -71,6 +72,6 @@
 - Watched inbox landed (7c41ce0). Never verified: the real folder watch in Electron, OS notifications, capture of the Account inbox row.
 - Local SQLite copy landed (f749f19) after four merge fixes; its screens were only checked offscreen, never with capture.
 - Local lead search landed (6031ccd); its command bar results never seen on screen beyond capture typing.
-- Per-feature split done, its merge fix-up running; once that lands, drop the --after chaining rule.
+- Per-feature split landed (17661b4); watch whether the next desktop quests still conflict on merge.
 - Results screen closest() fix landed (ce13749); its capture log was not seen clean.
 - Local render crawl landed (42fa77c). Never seen: the hidden render window against a live site, and capture of the Account opt-in.
