@@ -1,4 +1,4 @@
-// The desktop's local render crawl (docs/SPEC.md, "Local render crawl").
+// The desktop's local render crawl (docs/desktop/local-crawl.md).
 // The app claims refused and JS-only companies from the user's own searches,
 // reads them on the user's computer and sends back addresses. Nothing it
 // sends is trusted: every address goes through the server's own acceptance,

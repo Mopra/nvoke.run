@@ -1,347 +1,20 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, Loader2, Monitor, Moon, Sun } from 'lucide-react';
-import { toast } from 'sonner';
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
-import type { DesktopSettings } from '../../../ipc/contract';
-import { LocalMcp } from '@/components/LocalMcp';
 import { Webhooks } from '@/components/Webhooks';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
 import { ErrorState } from '@/components/states';
-import { Button } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { acceleratorFromEvent, acceleratorLabel } from '../../../ipc/accelerator';
-import { api } from '@/lib/api';
-import { FREE_PLAN, PLANS, planLabel } from '@nvoke/shared';
-import { desktopApi, desktopSettingsKey, trayPlace, useDesktopSettings } from '@/lib/desktop';
-import { BILLING_URL } from '@/lib/env';
-import { formatNumber, percent, periodLabel, relativeTime, resetDate } from '@/lib/format';
-import { isMac } from '@/lib/hotkeys';
-import { useLocalStatus, useMe, usePlanSync } from '@/lib/queries';
-import { setThemePreference, useTheme, type ThemePreference } from '@/lib/theme';
-import type { Me, NotificationSettings } from '@/lib/types';
-import { cn } from '@/lib/utils';
-
-/** The month's verified emails as one large number over a hairline meter. */
-function Usage({ me }: { me: Me }) {
-  const { emailsVerified, emailsLimit: limit, period } = me.usage;
-  const share = percent(emailsVerified, limit);
-  const left = Math.max(0, limit - emailsVerified);
-  return (
-    <section>
-      <div className="flex items-baseline gap-3">
-        <span className="font-display text-5xl font-extralight tabular-nums">{formatNumber(emailsVerified)}</span>
-        <span className="text-base text-muted-foreground">of {formatNumber(limit)} verified emails</span>
-      </div>
-      <div
-        role="meter"
-        aria-label="Verified emails used this month"
-        aria-valuemin={0}
-        aria-valuemax={limit}
-        aria-valuenow={emailsVerified}
-        className="mt-6 h-[3px] overflow-hidden rounded-full bg-foreground/[0.08]"
-      >
-        <div
-          className={cn(
-            'h-full rounded-full transition-[width] duration-1000 ease-out-soft',
-            share >= 90 ? 'bg-destructive' : 'bg-primary',
-          )}
-          style={{ width: `${share}%` }}
-        />
-      </div>
-      <p className="mt-3 text-sm text-muted-foreground">
-        {left === 0
-          ? `Out of verified emails for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}. Or upgrade.`
-          : `${formatNumber(left)} left in ${periodLabel(period)}. Resets on ${resetDate(period)}.`}
-      </p>
-    </section>
-  );
-}
-
-/** A setting: what it is on the left, its control on the right. No box around it. */
-function Setting({ label, description, children }: { label: ReactNode; description?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-8 py-5">
-      <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-medium">{label}</div>
-        {description && <div className="mt-1 text-sm text-muted-foreground">{description}</div>}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-/** What the local copy holds and when it last heard from the server. */
-function LocalCopyDescription() {
-  const { data: status } = useLocalStatus();
-  if (!status) return <>Searches, companies and checked emails, kept on this computer.</>;
-  const held =
-    status.companies > 0
-      ? `${formatNumber(status.companies)} companies and ${formatNumber(status.emails)} emails`
-      : 'Your searches';
-  const when = status.syncing
-    ? 'syncing now'
-    : status.online === false
-      ? `offline${status.syncedAt ? `, last synced ${relativeTime(status.syncedAt)}` : ''}`
-      : status.syncedAt
-        ? `synced ${relativeTime(status.syncedAt)}`
-        : 'not synced yet';
-  return (
-    <>
-      {held} on this computer, {when}. Results open and filter instantly, even offline. Signing out deletes the copy.
-    </>
-  );
-}
-
-function ThemePicker() {
-  const { preference } = useTheme();
-  return (
-    <Segmented<ThemePreference>
-      label="Appearance"
-      size="sm"
-      value={preference}
-      onChange={setThemePreference}
-      options={[
-        { value: 'system', label: 'System', icon: Monitor },
-        { value: 'light', label: 'Light', icon: Sun },
-        { value: 'dark', label: 'Dark', icon: Moon },
-      ]}
-    />
-  );
-}
-
-/** Start at login, hidden in the tray. Only in the desktop app, where there is a tray. */
-function OpenAtLogin() {
-  const [desktop] = useState(desktopApi);
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    desktop
-      ?.getSettings()
-      .then((s) => setEnabled(s.openAtLogin))
-      .catch(() => undefined);
-  }, [desktop]);
-
-  if (!desktop || enabled === null) return null;
-
-  function change(next: boolean): void {
-    setEnabled(next);
-    desktop
-      ?.setOpenAtLogin(next)
-      .then((s) => setEnabled(s.openAtLogin))
-      .catch((err: unknown) => {
-        setEnabled(!next);
-        toast.error('Couldn’t change start at login', { description: err instanceof Error ? err.message : undefined });
-      });
-  }
-
-  return (
-    <Setting
-      label="Open at login"
-      description={`Starts quietly in the ${trayPlace()}, so drops and searches can reach you. Closing the window keeps it there.`}
-    >
-      <Switch checked={enabled} onCheckedChange={change} aria-label="Open at login" />
-    </Setting>
-  );
-}
-
-/** The global shortcut that opens the quick window over any app. Click Change, then press the new keys. */
-function QuickHotkey() {
-  const [desktop] = useState(desktopApi);
-  const [settings, setSettings] = useState<DesktopSettings | null>(null);
-  const [recording, setRecording] = useState(false);
-
-  useEffect(() => {
-    desktop
-      ?.getSettings()
-      .then(setSettings)
-      .catch(() => undefined);
-  }, [desktop]);
-
-  if (!desktop || !settings) return null;
-
-  function record(event: KeyboardEvent<HTMLButtonElement>): void {
-    event.preventDefault();
-    if (event.key === 'Escape') {
-      setRecording(false);
-      return;
-    }
-    const accelerator = acceleratorFromEvent(event, isMac);
-    if (!accelerator) return;
-    setRecording(false);
-    desktop
-      ?.setHotkey(accelerator)
-      .then(setSettings)
-      .catch((err: unknown) =>
-        toast.error('Couldn’t change the shortcut', { description: err instanceof Error ? err.message : undefined }),
-      );
-  }
-
-  return (
-    <Setting
-      label="Quick search shortcut"
-      description={
-        <>
-          Opens a small search bar over any app, even while nvoke is in the {trayPlace()}.
-          {settings.hotkeyError && <span className="mt-1 block text-destructive">{settings.hotkeyError}</span>}
-        </>
-      }
-    >
-      <Button
-        variant="outline"
-        onClick={() => setRecording(true)}
-        onKeyDown={recording ? record : undefined}
-        onBlur={() => setRecording(false)}
-        aria-label="Change quick search shortcut"
-      >
-        {recording ? 'Press the new keys' : acceleratorLabel(settings.hotkey, isMac)}
-      </Button>
-    </Setting>
-  );
-}
-
-/** The local MCP section with its spacing, or nothing outside the desktop app. */
-function LocalMcpBlock() {
-  return (
-    <div className="mt-16 empty:hidden">
-      <LocalMcp />
-    </div>
-  );
-}
-
-/** The watched inbox: a CSV put in this folder is enriched in the background. Only in the desktop app. */
-function InboxFolder() {
-  const [desktop] = useState(desktopApi);
-  const [settings, setSettings] = useState<DesktopSettings | null>(null);
-
-  useEffect(() => {
-    desktop
-      ?.getSettings()
-      .then(setSettings)
-      .catch(() => undefined);
-  }, [desktop]);
-
-  if (!desktop || !settings) return null;
-
-  function run(change: Promise<DesktopSettings>): void {
-    change
-      .then(setSettings)
-      .catch((err: unknown) =>
-        toast.error('Couldn’t change the inbox', { description: err instanceof Error ? err.message : undefined }),
-      );
-  }
-
-  return (
-    <Setting
-      label="Inbox folder"
-      description={
-        <>
-          Put a CSV of domains or company names in the folder and nvoke enriches it in the background, even while it sits in the{' '}
-          {trayPlace()}. The result and the original move to a done folder next to it, and you get a notification.
-          <span className="mt-1 block truncate font-mono text-xs" title={settings.inboxFolder}>
-            {settings.inboxFolder}
-          </span>
-          {settings.inboxEnabled && settings.inboxError && <span className="mt-1 block text-destructive">{settings.inboxError}</span>}
-        </>
-      }
-    >
-      <div className="flex items-center gap-3">
-        {settings.inboxEnabled && (
-          <>
-            <Button variant="ghost" onClick={() => void desktop.openInboxFolder()}>
-              Open
-            </Button>
-            <Button variant="outline" onClick={() => run(desktop.chooseInboxFolder())}>
-              Change
-            </Button>
-          </>
-        )}
-        <Switch
-          checked={settings.inboxEnabled}
-          onCheckedChange={(on) => run(desktop.setInboxEnabled(on))}
-          aria-label="Watch the inbox folder"
-        />
-      </div>
-    </Setting>
-  );
-}
-
-/** Native notifications and the unseen badge for finished drops. */
-function NotificationsSwitch() {
-  const [settings, setSettings] = useState<NotificationSettings | null>(null);
-  useEffect(() => {
-    let live = true;
-    api.getNotificationSettings().then((s) => live && setSettings(s), () => undefined);
-    return () => {
-      live = false;
-    };
-  }, []);
-  if (!settings) return null;
-
-  async function toggle(enabled: boolean): Promise<void> {
-    setSettings((s) => (s ? { ...s, enabled } : s));
-    try {
-      setSettings(await api.setNotificationsEnabled(enabled));
-    } catch {
-      setSettings((s) => (s ? { ...s, enabled: !enabled } : s));
-      toast.error('Couldn’t change that setting');
-    }
-  }
-
-  return (
-    <Setting
-      label="Drop notifications"
-      description={
-        settings.supported
-          ? 'A notification and an unseen count on the dock or taskbar when a drop delivers. Your system’s Focus and Do Not Disturb still apply.'
-          : 'This system can’t show notifications.'
-      }
-    >
-      <Switch
-        checked={settings.enabled}
-        onCheckedChange={(v) => void toggle(v)}
-        disabled={!settings.supported}
-        aria-label="Drop notifications"
-      />
-    </Setting>
-  );
-}
-
-/**
- * The local render crawl: sites that refuse our servers or need JavaScript,
- * read from this computer while it is idle. Off by default, and the copy says
- * plainly that it uses the user's connection.
- */
-function LocalCrawl() {
-  const client = useQueryClient();
-  const { data: settings } = useDesktopSettings();
-  const desktop = desktopApi();
-  if (!desktop || !settings) return null;
-
-  function change(next: boolean): void {
-    if (!settings) return;
-    client.setQueryData(desktopSettingsKey, { ...settings, localCrawl: next });
-    desktop
-      ?.setLocalCrawl(next)
-      .then((s) => client.setQueryData(desktopSettingsKey, s))
-      .catch((err: unknown) => {
-        client.setQueryData(desktopSettingsKey, settings);
-        toast.error('Couldn’t change reading from this computer', { description: err instanceof Error ? err.message : undefined });
-      });
-  }
-
-  return (
-    <Setting
-      label="Read blocked sites from this computer"
-      description="Some sites refuse our servers or only show an address with JavaScript. When your computer is idle and plugged in, nvoke reads those from here, over your connection, as nvokebot: robots.txt, one page a second, no logins. Only the addresses leave this computer."
-    >
-      <Switch checked={settings.localCrawl} onCheckedChange={change} aria-label="Read blocked sites from this computer" />
-    </Setting>
-  );
-}
+import { useMe, usePlanSync } from '@/lib/queries';
+import { AppearanceSetting } from './account/AppearanceSetting';
+import { DropNotifications } from './account/DropNotifications';
+import { InboxFolder } from './account/InboxFolder';
+import { LocalCrawl } from './account/LocalCrawl';
+import { LocalMcpSection } from './account/LocalMcpSection';
+import { OpenAtLogin } from './account/OpenAtLogin';
+import { PlanSetting } from './account/PlanSetting';
+import { QuickHotkey } from './account/QuickHotkey';
+import { ThisComputer } from './account/ThisComputer';
+import { Usage } from './account/Usage';
 
 function AccountSkeleton() {
   return (
@@ -359,20 +32,10 @@ function AccountSkeleton() {
   );
 }
 
+/** Account. Each feature's setting is its own component in `account/`, listed here one per line. */
 export function AccountScreen() {
   const { data: me, error, isPending, refetch } = useMe();
-  const [signingOut, setSigningOut] = useState(false);
   usePlanSync();
-
-  async function signOut(): Promise<void> {
-    setSigningOut(true);
-    try {
-      await api.signOut();
-    } catch (err) {
-      toast.error('Couldn’t sign out', { description: err instanceof Error ? err.message : undefined });
-      setSigningOut(false);
-    }
-  }
 
   return (
     <>
@@ -409,35 +72,17 @@ export function AccountScreen() {
               </div>
 
               <div className="mt-14 flex flex-col divide-y divide-border">
-                <Setting
-                  label={me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month`}
-                  description="Only valid emails count, each address once. Billing lives on nvoke.run."
-                >
-                  <Button
-                    variant={me.plan === FREE_PLAN ? 'default' : 'outline'}
-                    onClick={() => void api.openExternal(BILLING_URL)}
-                  >
-                    {me.plan === FREE_PLAN ? 'Upgrade' : 'Manage billing'}
-                    <ArrowUpRight className="size-3.5 opacity-60" />
-                  </Button>
-                </Setting>
-                <Setting label="Appearance" description="System follows your computer.">
-                  <ThemePicker />
-                </Setting>
+                <PlanSetting me={me} />
+                <AppearanceSetting />
                 <OpenAtLogin />
                 <QuickHotkey />
                 <InboxFolder />
-                <NotificationsSwitch />
+                <DropNotifications />
                 <LocalCrawl />
-                <Setting label="This computer" description={<LocalCopyDescription />}>
-                  <Button variant="ghost" onClick={() => void signOut()} disabled={signingOut}>
-                    {signingOut && <Loader2 className="motion-safe:animate-spin" />}
-                    Sign out
-                  </Button>
-                </Setting>
+                <ThisComputer />
               </div>
 
-              <LocalMcpBlock />
+              <LocalMcpSection />
               <div className="mt-16">
                 <ApiKeys />
               </div>

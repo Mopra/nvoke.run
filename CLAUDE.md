@@ -9,6 +9,14 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   `src/preload` (bridge), `src/ipc/contract.ts` (typed IPC contract),
   `src/renderer` (React, Tailwind v4, shadcn/ui). Packaging in
   `electron-builder.yml` (nsis, dmg, AppImage, unsigned).
+  One file per desktop feature, so parallel work does not collide: channels
+  and types in `src/ipc/features/<feature>.ts` (merged by `contract.ts`), the
+  bridge in `src/preload/features/<feature>.ts`, main wiring in
+  `src/main/features/<feature>.ts` (each registers itself on the shared
+  `MainContext`, `src/main/index.ts` only calls the register functions), the
+  Account setting in `renderer/src/screens/account/`, capture shots in
+  `src/main/capture/shots/` and the spec in `docs/desktop/<feature>.md`. A new
+  feature adds its files and one line to each list.
 - `apps/server`: `src/api` (Fastify, entry `src/api/index.ts`), `src/worker`
   (separate process, entry `src/worker/index.ts`: Postgres job queue and the
   find, crawl and verify handlers), `src/leads` (source adapters, crawler,
@@ -34,7 +42,7 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   `@nvoke/shared/crawl` holds the crawl rules both crawls share (domains,
   email extraction, page picking, app shell and bot wall detection): the
   server crawl and the desktop's local render crawl
-  (`apps/desktop/src/main/local-crawl`, docs/SPEC.md "Local render crawl").
+  (`apps/desktop/src/main/local-crawl`, docs/desktop/local-crawl.md).
 
 ## Commands
 
@@ -205,7 +213,8 @@ it through `protocols` in `electron-builder.yml`.
 4. **Electron security.** `contextIsolation: true`, `nodeIntegration: false`,
    `sandbox: true`. The renderer talks to the main process only through
    `window.nvoke`, typed by `src/ipc/contract.ts`. Every new channel goes in the
-   contract, the preload and a main handler that validates its input.
+   feature's contract module, its preload bridge and a main handler that
+   validates its input.
 5. **No secrets in the renderer.** Only `VITE_` variables reach it and they are
    baked into the build. Secrets stay in `apps/server/.env`.
 6. **Database is Supabase Postgres** over the direct connection or session

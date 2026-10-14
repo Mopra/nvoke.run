@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * The desktop's local render crawl (docs/SPEC.md, "Local render crawl"): the
+ * The desktop's local render crawl (docs/desktop/local-crawl.md): the
  * app claims refused and JS-only sites from the user's own searches, reads
  * them in a hidden browser window and sends back what it found. The server
  * checks every address again; verification and billing stay there.

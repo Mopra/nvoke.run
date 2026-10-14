@@ -2,7 +2,7 @@ import { LocalCrawlClaimResponse, type LocalCrawlTask } from '@nvoke/shared';
 import { readSite, type PageLoader } from './reader';
 
 /**
- * The local render crawl (docs/SPEC.md): while the computer is idle or
+ * The local render crawl (docs/desktop/local-crawl.md): while the computer is idle or
  * locked, on power, signed in and opted in, claim refused and JS-only
  * companies from the user's own searches one at a time, read them in the
  * hidden window and send back what was found. Verification and billing stay

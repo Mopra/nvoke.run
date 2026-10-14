@@ -141,7 +141,7 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
       .send(toCsv(rows));
   });
 
-  // The desktop's local render crawl (docs/SPEC.md, "Local render crawl").
+  // The desktop's local render crawl (docs/desktop/local-crawl.md).
   app.post('/local-crawl/claim', async (req, reply): Promise<LocalCrawlClaimResponse | void> => {
     const body = parse(LocalCrawlClaimRequest, req.body ?? {});
     if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);

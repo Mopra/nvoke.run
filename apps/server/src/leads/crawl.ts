@@ -53,7 +53,7 @@ export interface CrawlResult {
    * `blocked`: robots.txt keeps us out. `refused`: the site refuses our
    * servers (401, 403, 429 or 503 on the homepage, or a bot challenge).
    * `js_only`: nothing found and the homepage is a JavaScript app shell.
-   * The desktop's local render crawl can read the last two (docs/SPEC.md).
+   * The desktop's local render crawl can read the last two (docs/desktop/local-crawl.md).
    */
   status: 'done' | 'failed' | 'blocked' | 'refused' | 'js_only';
   emails: ExtractedEmail[];

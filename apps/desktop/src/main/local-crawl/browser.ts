@@ -12,7 +12,7 @@ import { RobotsCache } from './robots';
  * local and private hosts are refused, images, media, fonts and frames are
  * not loaded, and each page load (redirects included) must be allowed by
  * robots.txt, resolve to a public address and wait its turn at one page a
- * second per host. See docs/SPEC.md, "Local render crawl".
+ * second per host. See docs/desktop/local-crawl.md.
  */
 
 export const CRAWL_PARTITION = 'nvoke-local-crawl';
