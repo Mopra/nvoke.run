@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-14 Hourly round: only the human's direct Linux executable fix (5d27f5d) since the last round; macOS test still with the human, no aim open. Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Hourly rounds (six in a row): unchanged (only the macOS test, with the human; no aim open; no checks stone exists to cast). Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Hourly round: nothing moved since the per-feature split landed (only the macOS test, with the human; no aim open). Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Round after the per-feature split landed (17661b4): dropped the --after chaining rule. Only the macOS test remains, with the human; no aim open. 20 quests since the last ship, left shipping to the human.
