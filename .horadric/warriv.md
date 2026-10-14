@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-14 Hourly round: nothing moved since the per-feature split landed (only the macOS test, with the human; no aim open). Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Round after the per-feature split landed (17661b4): dropped the --after chaining rule. Only the macOS test remains, with the human; no aim open. 20 quests since the last ship, left shipping to the human.
 - 2026-10-14 Per-feature split finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep the split layout, fold main's newer additions into the feature files, check in one turn and merge newest main last.
 - 2026-10-14 Round after local lead search landed (6031ccd, 6f6e0ed): split refactor running on opus, macOS test with the human, no aim open. Nothing to do; 19 quests since the last ship, left shipping to the human.
