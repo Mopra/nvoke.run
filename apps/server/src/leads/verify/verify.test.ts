@@ -291,11 +291,13 @@ describe('Verifier', () => {
   it('falls back to MX only when port 25 looks blocked, and when probing is disabled', async () => {
     const hosts = ['mx1', 'mx2', 'mx3', 'mx4', 'mx5', 'mx6'];
     const dns = fakeDns(Object.fromEntries(hosts.map((h) => [`${h}.dk`, [`mail.${h}.test`]])));
-    const v = new Verifier({ ...base, dns, connect: connectTo(1, hosts.map((h) => `mail.${h}.test`)) });
+    let alerts = 0;
+    const v = new Verifier({ ...base, dns, connect: connectTo(1, hosts.map((h) => `mail.${h}.test`)), onPort25Blocked: () => void alerts++ });
     for (const h of hosts.slice(0, 5)) {
       expect(await v.verify(`a@${h}.dk`)).toMatchObject({ verification: 'unknown', reason: 'smtp_unreachable' });
     }
     expect(v.smtpBlocked).toBe(true);
+    expect(alerts).toBe(1);
     expect(await v.verify('a@mx6.dk')).toMatchObject({ verification: 'unknown', reason: 'mx_only_port25_blocked', mxHost: 'mail.mx6.test' });
 
     // Nothing about the mailbox, so nothing for the cache.

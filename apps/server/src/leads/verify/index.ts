@@ -49,6 +49,8 @@ export interface VerifierOptions {
    * TCP connect to Gmail's MX.
    */
   port25Works?: () => Promise<boolean>;
+  /** Called each time probing stops because port 25 looks blocked, to tell the operator. */
+  onPort25Blocked?: () => void;
   now?: () => number;
 }
 
@@ -92,18 +94,19 @@ export function isParkedMx(host: string): boolean {
 const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_error']);
 
 const DOMAIN_TTL_MS = 60 * 60_000;
-const PORT25_BLOCK_MS = 60 * 60_000;
+/** How long probing pauses once port 25 looks blocked. The next failure asks the canaries again. */
+const PORT25_BLOCK_MS = 10 * 60_000;
 /** Connection failures at this many distinct MX providers, with no success in between, make us ask whether port 25 is blocked. */
 const PORT25_FAILURE_HOSTS = 5;
-/** Mail exchangers of two providers that take connections on port 25 whenever the network lets us. */
-const PORT25_CANARIES = ['gmail-smtp-in.l.google.com', 'microsoft-com.mail.protection.outlook.com'];
+/** Mail exchangers of three providers that take connections on port 25 whenever the network lets us. */
+const PORT25_CANARIES = ['gmail-smtp-in.l.google.com', 'mx01.mail.icloud.com', 'mta5.am0.yahoodns.net'];
 
 /** The provider behind an MX host, by its last two labels: aspmx.l.google.com and alt1.aspmx.l.google.com are both google.com. */
 export function mxProvider(host: string): string {
   return host.toLowerCase().replace(/\.$/, '').split('.').slice(-2).join('.');
 }
 
-/** True when port 25 of either canary takes a TCP connection within 10 seconds. */
+/** True when port 25 of any canary takes a TCP connection within 10 seconds. */
 export async function port25Works(connect?: SmtpProbeOptions['connect']): Promise<boolean> {
   const results = await Promise.all(PORT25_CANARIES.map((host) => port25Open(connect, host)));
   return results.some(Boolean);
@@ -280,8 +283,8 @@ export class Verifier {
 
   /**
    * Many MX hosts are dead or drop connections, so failures alone do not
-   * prove the VPS's port 25 is blocked. Past the threshold, one canary
-   * connection decides; only when that fails too does probing stop for an hour.
+   * prove the VPS's port 25 is blocked. Past the threshold, the canaries
+   * decide; only when none of them connects does probing pause, for 10 minutes.
    */
   private async noteConnectFailure(host: string): Promise<void> {
     // One provider throttling us (all of Google's aspmx hosts at once) is not a blocked port.
@@ -289,7 +292,10 @@ export class Verifier {
     if (this.connectFailures.size < PORT25_FAILURE_HOSTS) return;
     this.port25Check ??= (async () => {
       const works = await (this.opts.port25Works ?? (() => port25Works(this.opts.connect)))().catch(() => false);
-      if (!works) this.port25BlockedUntil = this.now() + PORT25_BLOCK_MS;
+      if (!works) {
+        this.port25BlockedUntil = this.now() + PORT25_BLOCK_MS;
+        this.opts.onPort25Blocked?.();
+      }
       this.connectFailures.clear();
     })().finally(() => {
       this.port25Check = null;

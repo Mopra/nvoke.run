@@ -413,6 +413,8 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
 
   const result = await deps.verifier.verify(email.address, signal);
   const retry = typeof job.payload.retry === 'number' ? job.payload.retry : 0;
+  // Unknown is the outcome that says the most about our own health (throttling, a blocked port 25).
+  if (result.verification === 'unknown') deps.log.info({ reason: result.reason, mxHost: result.mxHost, retry }, 'verify: unknown');
   if (isTempfail(result) && retry < GREYLIST_RETRIES) {
     // Greylisting: the server wants us to come back later. A queued job keeps the search running.
     const now = deps.now?.() ?? new Date();
