@@ -10,25 +10,43 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { apiUrl } from '@/lib/api';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
 
-const RETURN_URL = '/desktop/billing';
-
 type Load = { kind: 'loading' } | { kind: 'ready'; me: MeResponse } | { kind: 'error'; message: string };
 
-export function DesktopBilling() {
+interface BillingProps {
+  /** Where checkout and sign-in come back to. */
+  returnUrl?: string;
+  /** The line under the plans: what to do once the plan is changed. */
+  doneHint?: string;
+  /** Called after a checkout or cancel, so the page around it can refresh too. */
+  onPlanChange?: () => void;
+}
+
+/**
+ * Plan, usage and Clerk Billing checkout. The desktop app opens it at
+ * /desktop/billing; the web app shows it at /app/billing.
+ */
+export function DesktopBilling({
+  returnUrl = '/desktop/billing',
+  doneHint = 'Done? Go back to nvoke. It picks up the new plan on its own.',
+  onPlanChange,
+}: BillingProps) {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <p className="text-sm text-muted-foreground">Loading...</p>;
   if (!isSignedIn) {
-    return <SignIn routing="hash" withSignUp forceRedirectUrl={RETURN_URL} signUpForceRedirectUrl={RETURN_URL} />;
+    return <SignIn routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
-  return <Billing />;
+  return <Billing returnUrl={returnUrl} doneHint={doneHint} onPlanChange={onPlanChange} />;
 }
 
-function Billing() {
+function Billing({ returnUrl, doneHint, onPlanChange }: Required<Omit<BillingProps, 'onPlanChange'>> & Pick<BillingProps, 'onPlanChange'>) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [version, setVersion] = useState(0);
-  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  const refresh = useCallback(() => {
+    setVersion((v) => v + 1);
+    onPlanChange?.();
+  }, [onPlanChange]);
 
   useEffect(() => {
     let live = true;
@@ -59,7 +77,7 @@ function Billing() {
 
   const who = user?.primaryEmailAddress?.emailAddress ?? user?.fullName ?? null;
   // Keyed by plan so the picker starts on the new plan after a checkout.
-  return <PlanPicker key={load.me.plan} me={load.me} who={who} onChanged={refresh} />;
+  return <PlanPicker key={load.me.plan} me={load.me} who={who} onChanged={refresh} returnUrl={returnUrl} doneHint={doneHint} />;
 }
 
 /**
@@ -82,7 +100,19 @@ async function fetchMe(getToken: () => Promise<string | null>): Promise<Load> {
   }
 }
 
-function PlanPicker({ me, who, onChanged }: { me: MeResponse; who: string | null; onChanged: () => void }) {
+function PlanPicker({
+  me,
+  who,
+  onChanged,
+  returnUrl,
+  doneHint,
+}: {
+  me: MeResponse;
+  who: string | null;
+  onChanged: () => void;
+  returnUrl: string;
+  doneHint: string;
+}) {
   const current = Math.max(0, PLAN_ORDER.indexOf(me.plan));
   const [index, setIndex] = useState(current);
 
@@ -144,12 +174,13 @@ function PlanPicker({ me, who, onChanged }: { me: MeResponse; who: string | null
             direction={index > current ? 'up' : 'down'}
             planId={planIdBySlug.get(picked)}
             onChanged={onChanged}
+            returnUrl={returnUrl}
           />
         </div>
       </PlanSlider>
 
       <p className="text-center text-sm text-pretty text-muted-foreground">
-        {pricing.vatNote} Done? Go back to nvoke. It picks up the new plan on its own.
+        {pricing.vatNote} {doneHint}
       </p>
     </div>
   );
@@ -190,12 +221,14 @@ function PlanAction({
   direction,
   planId,
   onChanged,
+  returnUrl,
 }: {
   plan: Plan;
   current: Plan;
   direction: 'up' | 'down';
   planId: string | undefined;
   onChanged: () => void;
+  returnUrl: string;
 }) {
   const wide = 'w-full sm:w-auto';
   if (plan === current) {
@@ -238,7 +271,7 @@ function PlanAction({
       for="user"
       onSubscriptionComplete={onChanged}
       // Without it, "Continue" after paying lands on the home page.
-      newSubscriptionRedirectUrl="/desktop/billing"
+      newSubscriptionRedirectUrl={returnUrl}
     >
       <Button size="lg" className={wide}>
         {label}

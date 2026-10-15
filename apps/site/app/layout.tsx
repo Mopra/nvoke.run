@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { SiteChrome } from '@/components/site/site-chrome';
 import { SiteFooter } from '@/components/site/site-footer';
 import { SiteHeader } from '@/components/site/site-header';
 import { ThemeScript } from '@/components/site/theme-script';
@@ -22,9 +23,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="alternate" type="text/markdown" href="/agents.md" title="nvoke for agents" />
       </head>
       <body className="flex min-h-dvh flex-col">
-        <SiteHeader />
+        <SiteChrome>
+          <SiteHeader />
+        </SiteChrome>
         <main className="flex-1">{children}</main>
-        <SiteFooter />
+        <SiteChrome>
+          <SiteFooter />
+        </SiteChrome>
       </body>
     </html>
   );

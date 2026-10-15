@@ -2,13 +2,17 @@ import type { ReactNode } from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
 
 /**
- * Clerk for the few pages that need it (/desktop and /claim, see proxy.ts).
- * The rest of the site stays static. The Clerk UI takes its colors from the
- * shared theme tokens.
+ * Clerk for the pages that need it (the web app, sign in and sign up,
+ * /desktop and /claim, see proxy.ts). The marketing pages stay static. The
+ * Clerk UI takes its colors from the shared theme tokens.
  */
 export function SiteClerkProvider({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/app"
+      signUpFallbackRedirectUrl="/app"
       appearance={{
         variables: {
           colorPrimary: 'var(--primary)',

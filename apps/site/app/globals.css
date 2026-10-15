@@ -30,6 +30,69 @@
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-sheen: sheen 1.8s linear infinite;
   --animate-breathe: breathe 6s ease-in-out infinite;
+
+  /* From the desktop app, for the web app's screens and dialogs. */
+  --text-2xs: 10.5px;
+  --text-2xs--line-height: 14px;
+  --ease-spring: linear(0, 0.0056, 0.0222 1.6%, 0.0889 3.4%, 0.3436 7.9%, 0.4787 10.4%, 0.6012 13.1%, 0.7041 15.9%, 0.7915 18.9%, 0.8622 22.1%, 0.9176 25.6%, 0.9581 29.4%, 0.9861 33.7%, 1.0021 38.8%, 1.0083 45.2%, 1.0062 55.3%, 1.0013 72.4%, 1);
+  --animate-rise: rise 520ms var(--ease-out-soft) both;
+  --animate-indeterminate: indeterminate 1.5s var(--ease-out-soft) infinite;
+}
+
+/*
+ * The web app (/app) reads like nvoke Desktop: the same type scale, 13px body
+ * text, tight display sizes. Tailwind's text utilities read these variables,
+ * so redefining them here rescales everything inside the app at once.
+ */
+[data-app] {
+  --text-xs: 11.5px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 17px;
+  --text-lg--line-height: 22px;
+  --text-xl: 21px;
+  --text-xl--line-height: 26px;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 34px;
+  --text-3xl--line-height: 40px;
+  --text-4xl: 44px;
+  --text-4xl--line-height: 50px;
+  --text-5xl: 56px;
+  --text-5xl--line-height: 62px;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.003em;
+}
+
+/* Fades content out under the floating bars instead of a hard edge. */
+@utility fade-edges {
+  mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 96px), transparent 100%);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
 }
 
 @layer base {
