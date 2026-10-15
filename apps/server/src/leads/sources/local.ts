@@ -7,10 +7,15 @@
 // 2. Overpass finds places in that area that match the niche by tag (a small
 //    dictionary of common niches) or by name, and that have a website.
 //    Requests are serialized, one at a time, per the Overpass etiquette.
+//    The public instances are often busy or down (502, 504, timeouts), so a
+//    query tries every instance, then again after a pause, a few rounds.
+// 3. When Overpass stays down, or finds fewer places than the search wants,
+//    a Brave web search for "<niche> in <location>" fills in (when web search
+//    is configured), so a local search does not fail on a public mirror.
 
-import type { LocalSearchParams } from '@nvoke/shared';
+import type { LocalSearchParams, WebSearchParams } from '@nvoke/shared';
 import { BOT_USER_AGENT, HttpError, fetchJson, type FetchLike } from '../http.js';
-import { KeyedMutex, RateLimiter } from '../limits.js';
+import { KeyedMutex, RateLimiter, sleep } from '../limits.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 
 export interface LocalAdapterOptions {
@@ -18,6 +23,14 @@ export interface LocalAdapterOptions {
   /** Tried in order; the next one is used when one is busy or down. */
   overpassUrls: string[];
   fetch?: FetchLike;
+  /** Pauses between rounds over all instances; one round more than pauses. Default 5 s, then 20 s. */
+  overpassRetryDelaysMs?: number[];
+  /** Per request. Default 90 s (the query itself asks the server for 60). */
+  overpassTimeoutMs?: number;
+  /** No new attempt starts after this long. Default 5 minutes. */
+  overpassDeadlineMs?: number;
+  /** A web search used when Overpass is down or finds fewer places than wanted. */
+  webFallback?: SourceAdapter<WebSearchParams>;
 }
 
 export interface ResolvedArea {
@@ -26,6 +39,8 @@ export interface ResolvedArea {
   areaId: number | null;
   /** south, west, north, east */
   bbox: [number, number, number, number];
+  /** ISO 3166-1 alpha-2, lowercase, when Nominatim knows it. */
+  countryCode?: string;
 }
 
 interface NominatimHit {
@@ -33,6 +48,7 @@ interface NominatimHit {
   osm_id?: number;
   display_name?: string;
   boundingbox?: [string, string, string, string];
+  address?: { country_code?: string };
 }
 
 interface OverpassElement {
@@ -181,6 +197,7 @@ export async function resolveArea(
     url.searchParams.set('q', location);
     url.searchParams.set('format', 'jsonv2');
     url.searchParams.set('limit', '1');
+    url.searchParams.set('addressdetails', '1');
     const hits = await fetchJson<NominatimHit[]>(url.toString(), {
       fetch: opts.fetch,
       signal,
@@ -194,7 +211,13 @@ export async function resolveArea(
     let areaId: number | null = null;
     if (top.osm_type === 'relation' && top.osm_id) areaId = 3_600_000_000 + top.osm_id;
     else if (top.osm_type === 'way' && top.osm_id) areaId = 2_400_000_000 + top.osm_id;
-    const area: ResolvedArea = { displayName: top.display_name ?? location, areaId, bbox: [south, west, north, east] };
+    const cc = top.address?.country_code?.toLowerCase();
+    const area: ResolvedArea = {
+      displayName: top.display_name ?? location,
+      areaId,
+      bbox: [south, west, north, east],
+      ...(cc && /^[a-z]{2}$/.test(cc) ? { countryCode: cc } : {}),
+    };
     return area;
   })();
   areaCache.set(key, pending);
@@ -206,51 +229,89 @@ export async function resolveArea(
   return pending;
 }
 
-/** Runs a query against the first Overpass instance that is not busy. */
+/** Overpass answered, but the query did not finish there (its remark says why). */
+function overpassRemarkError(res: OverpassResponse): string | null {
+  return res.remark && /runtime error|timed out|out of memory|too many requests/i.test(res.remark) ? res.remark.slice(0, 200) : null;
+}
+
+/**
+ * Runs a query against the first Overpass instance that answers. Busy (429),
+ * overloaded or broken (5xx, 403), slow or unreachable instances and answers
+ * whose remark says the query did not finish are skipped. When every
+ * instance failed, it waits and goes round again, `overpassRetryDelaysMs`
+ * long. A 400 is our query's fault and fails at once.
+ */
 export async function queryOverpass(opts: LocalAdapterOptions, query: string, signal: AbortSignal): Promise<OverpassResponse> {
+  const delays = opts.overpassRetryDelaysMs ?? [5_000, 20_000];
+  const deadline = Date.now() + (opts.overpassDeadlineMs ?? 5 * 60_000);
   const errors: string[] = [];
-  for (const url of opts.overpassUrls) {
-    try {
-      return await fetchJson<OverpassResponse>(url, {
-        fetch: opts.fetch,
-        method: 'POST',
-        // A plain string body and "Accept: */*" on purpose: overpass-api.de
-        // answers 504 to the same query sent with "Accept: application/json"
-        // or with a "charset" parameter on the form content type.
-        body: new URLSearchParams({ data: query }).toString(),
-        signal,
-        timeoutMs: 90_000,
-        maxBytes: 20_000_000,
-        headers: { 'user-agent': BOT_USER_AGENT, 'content-type': 'application/x-www-form-urlencoded', accept: '*/*' },
-      });
-    } catch (err) {
-      if (signal.aborted) throw err;
-      // Busy (429), overloaded (5xx), slow or unreachable: try the next instance.
-      if (err instanceof HttpError && err.status !== 429 && err.status < 500) throw err;
-      errors.push(`${new URL(url).host}: ${err instanceof Error ? err.message : String(err)}`);
+  for (let round = 0; round <= delays.length && Date.now() < deadline; round++) {
+    if (round > 0) await sleep(delays[round - 1]!, signal);
+    for (const url of opts.overpassUrls) {
+      if (Date.now() >= deadline) break;
+      const host = new URL(url).host;
+      try {
+        const res = await fetchJson<OverpassResponse>(url, {
+          fetch: opts.fetch,
+          method: 'POST',
+          // A plain string body and "Accept: */*" on purpose: overpass-api.de
+          // answers 504 to the same query sent with "Accept: application/json"
+          // or with a "charset" parameter on the form content type.
+          body: new URLSearchParams({ data: query }).toString(),
+          signal,
+          timeoutMs: opts.overpassTimeoutMs ?? 90_000,
+          maxBytes: 20_000_000,
+          headers: { 'user-agent': BOT_USER_AGENT, 'content-type': 'application/x-www-form-urlencoded', accept: '*/*' },
+        });
+        const remark = overpassRemarkError(res);
+        if (!remark) return res;
+        errors.push(`${host}: ${remark}`);
+      } catch (err) {
+        if (signal.aborted) throw err;
+        if (err instanceof HttpError && err.status === 400) throw err;
+        errors.push(`${host}: ${err instanceof HttpError ? err.status : err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
-  throw new Error(`overpass unavailable (${errors.join('; ') || 'no OVERPASS_URL configured'})`);
+  throw new Error(`overpass unavailable (${errors.slice(-opts.overpassUrls.length).join('; ') || 'no OVERPASS_URL configured'})`);
+}
+
+/** The web search a local search falls back to: "dentists in Austin, Texas", scoped to the place's country. */
+export function fallbackWebParams(params: LocalSearchParams, area: ResolvedArea | null): WebSearchParams {
+  return { keyword: `${params.niche.trim()} in ${params.location.trim()}`, ...(area?.countryCode ? { country: area.countryCode } : {}) };
 }
 
 export function localAdapter(opts: LocalAdapterOptions): SourceAdapter<LocalSearchParams> {
   return {
     kind: 'local',
     async *find(params, ctx) {
-      const area = await resolveArea(params.location, opts, ctx.signal);
-      if (!area) throw new PermanentError(`location not found: ${params.location}`, 'location_not_found');
-      ctx.log.info({ area: area.displayName, areaId: area.areaId }, 'local: resolved location');
+      let area: ResolvedArea | null = null;
+      let osmFound = 0;
+      let failed = false;
+      try {
+        area = await resolveArea(params.location, opts, ctx.signal);
+        if (!area) throw new PermanentError(`location not found: ${params.location}`, 'location_not_found');
+        ctx.log.info({ area: area.displayName, areaId: area.areaId }, 'local: resolved location');
 
-      // Ask for more than the limit: some websites are platforms or duplicates and get dropped.
-      const query = buildOverpassQuery(params.niche, area, Math.min(1_000, ctx.limit * 3 + 20));
-      const res = await overpassLock.run('overpass', () => queryOverpass(opts, query, ctx.signal));
-      if (res.remark && /runtime error|timed out|out of memory/i.test(res.remark)) {
-        throw new Error(`overpass: ${res.remark}`);
+        // Ask for more than the limit: some websites are platforms or duplicates and get dropped.
+        const query = buildOverpassQuery(params.niche, area, Math.min(1_000, ctx.limit * 3 + 20));
+        const res = await overpassLock.run('overpass', () => queryOverpass(opts, query, ctx.signal));
+        for (const el of res.elements ?? []) {
+          const company = elementToCompany(el);
+          if (!company) continue;
+          osmFound++;
+          yield company;
+        }
+      } catch (err) {
+        // A place that does not exist or a cancel is not for the web search to paper over.
+        if (err instanceof PermanentError || ctx.signal.aborted || !opts.webFallback) throw err;
+        failed = true;
+        ctx.log.warn({ err: err instanceof Error ? err.message : String(err) }, 'local: OpenStreetMap failed, using web search');
       }
-      for (const el of res.elements ?? []) {
-        const company = elementToCompany(el);
-        if (company) yield company;
-      }
+      // The find job stops reading at the limit, so this only runs when OpenStreetMap fell short.
+      if (!opts.webFallback) return;
+      if (!failed) ctx.log.info({ osmFound }, 'local: topping up from web search');
+      yield* opts.webFallback.find(fallbackWebParams(params, area), ctx);
     },
   };
 }

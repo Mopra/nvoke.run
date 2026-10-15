@@ -56,7 +56,16 @@ const EnvSchema = z.object({
   // Comma separated; later entries are fallbacks when one is busy (429, 5xx).
   OVERPASS_URL: z
     .string()
-    .default('https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter')
+    .default(
+      [
+        'https://overpass-api.de/api/interpreter',
+        'https://z.overpass-api.de/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+        'https://lz4.overpass-api.de/api/interpreter',
+        'https://overpass.private.coffee/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+      ].join(','),
+    )
     .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean))
     .pipe(z.array(z.url()).min(1)),
   SMTP_HELO_NAME: z.string().min(1).default('nvoke.run'),

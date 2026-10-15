@@ -28,9 +28,16 @@ export function createAdapters(
     cache: opts.sql ? dbWebSearchCache(opts.sql) : undefined,
     fetch: fetchImpl,
   });
+  const web = webAdapter(brave);
   return {
-    local: localAdapter({ nominatimUrl: env.NOMINATIM_URL, overpassUrls: env.OVERPASS_URL, fetch: fetchImpl }) as SourceAdapter<unknown>,
-    web: webAdapter(brave) as SourceAdapter<unknown>,
+    local: localAdapter({
+      nominatimUrl: env.NOMINATIM_URL,
+      overpassUrls: env.OVERPASS_URL,
+      fetch: fetchImpl,
+      // Overpass mirrors go down often: a web search fills in, when one is configured.
+      webFallback: brave.configured ? web : undefined,
+    }) as SourceAdapter<unknown>,
+    web: web as SourceAdapter<unknown>,
     domains: domainsAdapter(brave) as SourceAdapter<unknown>,
     launches: launchesAdapter({ productHuntToken: env.PRODUCT_HUNT_TOKEN, fetch: fetchImpl }) as SourceAdapter<unknown>,
     drop: dropAdapter(() => {

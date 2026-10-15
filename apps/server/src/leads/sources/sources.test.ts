@@ -6,6 +6,7 @@ import { braveQuery, braveRetryAfter, nameFromTitle, resultToCompany, webAdapter
 import { ALGOLIA_SEARCH, PRODUCT_HUNT_GRAPHQL, hitToCompany, launchesAdapter, parseShowHnTitle, phMatches } from './launches.js';
 import { PermanentError, SourceUnavailableError } from './types.js';
 import type { CachedWebPage, WebPageKey, WebSearchCache } from '../web-cache.js';
+import type { WebSearchParams } from '@nvoke/shared';
 
 async function collect<P>(adapter: SourceAdapter<P>, params: P, limit = 50): Promise<FoundCompany[]> {
   const out: FoundCompany[] = [];
@@ -100,6 +101,100 @@ describe('local adapter (Nominatim + Overpass)', () => {
     const fetch = fakeFetch({ [`${nominatim}/search`]: { body: '[]' } });
     const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch });
     await expect(collect(adapter, { niche: 'dentists', location: 'Nowhere at all' })).rejects.toBeInstanceOf(PermanentError);
+  });
+
+  /** A web search that records what it was asked and yields one company per call. */
+  function fakeWeb() {
+    const asked: WebSearchParams[] = [];
+    const adapter: SourceAdapter<WebSearchParams> = {
+      kind: 'web',
+      async *find(params) {
+        asked.push(params);
+        yield { name: 'Web Dental', website: 'https://webdental.example', source: 'brave' };
+      },
+    };
+    return { adapter, asked };
+  }
+  const austin = JSON.stringify([
+    { osm_type: 'relation', osm_id: 113314, display_name: 'Austin, Texas', boundingbox: ['30', '30.5', '-98', '-97.5'], address: { country_code: 'US' } },
+  ]);
+
+  it('goes round the instances again after a pause when all of them fail', async () => {
+    const second = 'https://second.test/api/interpreter';
+    let firstCalls = 0;
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: fixture('sources/nominatim-copenhagen.json') },
+      [overpass]: () => (++firstCalls === 1 ? { status: 502, body: 'bad gateway' } : { body: fixture('sources/overpass-dentists-copenhagen.json') }),
+      [second]: { status: 200, body: JSON.stringify({ elements: [], remark: 'runtime error: Query timed out in "query" at line 3 after 61 seconds.' }) },
+    });
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass, second], overpassRetryDelaysMs: [0], fetch });
+    const found = await collect(adapter, { niche: 'dentists', location: 'Copenhagen (second round)' });
+    expect(found.length).toBeGreaterThan(5);
+    expect(fetch.calls.filter((c) => c.url === second)).toHaveLength(1);
+    expect(firstCalls).toBe(2);
+  });
+
+  it('fails at once on a 400, which is our query and not a busy server', async () => {
+    const second = 'https://second.test/api/interpreter';
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: fixture('sources/nominatim-copenhagen.json') },
+      [overpass]: { status: 400, body: 'parse error' },
+      [second]: { body: fixture('sources/overpass-dentists-copenhagen.json') },
+    });
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass, second], overpassRetryDelaysMs: [0], fetch });
+    await expect(collect(adapter, { niche: 'dentists', location: 'Copenhagen (400)' })).rejects.toThrow(/400/);
+    expect(fetch.calls.some((c) => c.url === second)).toBe(false);
+  });
+
+  it('falls back to a web search for "<niche> in <location>" when every instance stays down', async () => {
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: austin },
+      [overpass]: { status: 504, body: 'timeout' },
+    });
+    const web = fakeWeb();
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], overpassRetryDelaysMs: [0, 0], fetch, webFallback: web.adapter });
+    const found = await collect(adapter, { niche: 'dentists', location: 'Austin, Texas' });
+    expect(found.map((c) => c.name)).toEqual(['Web Dental']);
+    expect(web.asked).toEqual([{ keyword: 'dentists in Austin, Texas', country: 'us' }]);
+    expect(fetch.calls.filter((c) => c.url === overpass)).toHaveLength(3);
+  });
+
+  it('throws when every instance stays down and there is no web search', async () => {
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: fixture('sources/nominatim-copenhagen.json') },
+      [overpass]: { status: 502, body: 'bad gateway' },
+    });
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], overpassRetryDelaysMs: [0], fetch });
+    await expect(collect(adapter, { niche: 'dentists', location: 'Copenhagen (down)' })).rejects.toThrow(/overpass unavailable/);
+  });
+
+  it('keeps an unknown location a permanent error even with a web search', async () => {
+    const fetch = fakeFetch({ [`${nominatim}/search`]: { body: '[]' } });
+    const web = fakeWeb();
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, webFallback: web.adapter });
+    await expect(collect(adapter, { niche: 'dentists', location: 'Nowhere at all (web)' })).rejects.toBeInstanceOf(PermanentError);
+    expect(web.asked).toEqual([]);
+  });
+
+  it('tops up from the web search only after OpenStreetMap ran out', async () => {
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: fixture('sources/nominatim-copenhagen.json') },
+      [overpass]: { body: fixture('sources/overpass-dentists-copenhagen.json') },
+    });
+    const web = fakeWeb();
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, webFallback: web.adapter });
+    const all = await collect(adapter, { niche: 'dentists', location: 'Copenhagen (top up)' }, 1_000);
+    expect(all.at(-1)?.name).toBe('Web Dental');
+    expect(all.slice(0, -1).every((c) => c.source === 'osm')).toBe(true);
+    expect(web.asked).toEqual([{ keyword: 'dentists in Copenhagen (top up)' }]);
+
+    // A caller that stops at its limit never reaches the web search.
+    const web2 = fakeWeb();
+    const enough = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, webFallback: web2.adapter });
+    const it = enough.find({ niche: 'dentists', location: 'Copenhagen (enough)' }, { limit: 3, signal: new AbortController().signal, log: silentLog });
+    let n = 0;
+    for await (const _ of it) if (++n >= 3) break;
+    expect(web2.asked).toEqual([]);
   });
 });
 
