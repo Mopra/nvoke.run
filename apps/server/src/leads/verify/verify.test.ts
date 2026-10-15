@@ -346,6 +346,27 @@ describe('Verifier', () => {
     expect(v.smtpBlocked).toBe(false);
   });
 
+  it('opens at most probesPerMinute SMTP connections a minute and says when to come back', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    let t = 1_000_000;
+    const cached: string[] = [];
+    const v = new Verifier({
+      ...base,
+      probesPerMinute: 2,
+      now: () => t,
+      dns: fakeDns({ 'a.dk': ['mx.a.test'], 'b.dk': ['mx.b.test'], 'c.dk': ['mx.c.test'] }),
+      connect: connectTo(smtp.port),
+      cache: { get: async () => null, set: async (r) => void cached.push(r.reason) },
+    });
+    expect(await v.verify('x@a.dk')).toMatchObject({ verification: 'valid' });
+    t += 10_000;
+    expect(await v.verify('x@b.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('x@c.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced', retryAfterMs: 50_000 });
+    expect(cached).not.toContain('smtp_paced');
+    t += 50_000;
+    expect(await v.verify('x@c.dk')).toMatchObject({ verification: 'valid' });
+  });
+
   it('keeps probing when dead MX hosts pile up but port 25 itself works', async () => {
     const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
     const hosts = ['mx1', 'mx2', 'mx3', 'mx4', 'mx5'];

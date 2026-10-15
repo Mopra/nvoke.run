@@ -29,6 +29,7 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
       heloName: env.SMTP_HELO_NAME,
       mailFrom: env.SMTP_PROBE_FROM,
       smtpEnabled: env.SMTP_PROBE_ENABLED,
+      probesPerMinute: env.SMTP_PROBES_PER_MINUTE,
       cache: dbVerifyCache(sql),
       // Without port 25 every check ends unknown and nobody is charged: the operator must know.
       onPort25Blocked: () => {

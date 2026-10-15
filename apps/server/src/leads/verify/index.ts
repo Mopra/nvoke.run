@@ -25,6 +25,8 @@ export interface VerifyResult {
   mxHost: string | null;
   /** Short machine readable reason, for logs and the email_checks row. */
   reason: string;
+  /** With reason `smtp_paced`: when a probe slot frees up. */
+  retryAfterMs?: number;
 }
 
 export interface VerifyCache {
@@ -51,6 +53,12 @@ export interface VerifierOptions {
   port25Works?: () => Promise<boolean>;
   /** Called each time probing stops because port 25 looks blocked, to tell the operator. */
   onPort25Blocked?: () => void;
+  /**
+   * SMTP connections opened per minute, across all hosts. The VPS provider
+   * cuts port 25 off for a long while when a burst goes past its limit
+   * (Hostinger: about 5 a minute). 0 means no limit.
+   */
+  probesPerMinute?: number;
   now?: () => number;
 }
 
@@ -91,7 +99,14 @@ export function isParkedMx(host: string): boolean {
 }
 
 /** Results that say nothing about the mailbox: probing off or blocked, a resolver hiccup. */
-const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_error']);
+const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_error', 'smtp_paced']);
+
+/** No probe slot is free this minute; the check runs later. */
+class PacedError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super('smtp probes paced');
+  }
+}
 
 const DOMAIN_TTL_MS = 60 * 60_000;
 /** How long probing pauses once port 25 looks blocked. The next failure asks the canaries again. */
@@ -226,6 +241,9 @@ export class Verifier {
         this.connectFailures.clear();
         return { ...result, mxHost: host };
       } catch (err) {
+        if (err instanceof PacedError) {
+          return { address, verification: 'unknown', mxHost: host, reason: 'smtp_paced', retryAfterMs: err.retryAfterMs };
+        }
         if (err instanceof SmtpProbeError && err.stage === 'connect') {
           await this.noteConnectFailure(host);
           lastError = 'smtp_unreachable';
@@ -253,6 +271,7 @@ export class Verifier {
     if (known && this.now() - known < DOMAIN_TTL_MS) {
       return { address, verification: 'catch_all', reason: 'domain_catch_all' };
     }
+    this.takeProbeSlot();
     // Two random addresses: a server that accepts either one accepts anything.
     const decoys = [`${randomLocal()}@${domain}`, `${randomLocal()}@${domain}`];
     const res = await smtpProbe({
@@ -277,6 +296,18 @@ export class Verifier {
       }
     }
     return { address, ...verdict };
+  }
+
+  private readonly probeStarts: number[] = [];
+
+  /** Counts a connection against probesPerMinute, or throws PacedError when the minute is full. */
+  private takeProbeSlot(): void {
+    const limit = this.opts.probesPerMinute ?? 0;
+    if (limit <= 0) return;
+    const now = this.now();
+    while (this.probeStarts.length > 0 && this.probeStarts[0]! <= now - 60_000) this.probeStarts.shift();
+    if (this.probeStarts.length >= limit) throw new PacedError(this.probeStarts[0]! + 60_000 - now);
+    this.probeStarts.push(now);
   }
 
   private port25Check: Promise<void> | null = null;

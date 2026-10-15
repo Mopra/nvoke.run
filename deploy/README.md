@@ -61,6 +61,7 @@ units read it. The API needs the first block; the worker reads the second.
 | `NOMINATIM_URL`, `OVERPASS_URL` | worker | OpenStreetMap endpoints for `local` searches; defaults are public |
 | `SMTP_PROBE_ENABLED` | worker | `false` verifies with MX records only |
 | `SMTP_HELO_NAME`, `SMTP_PROBE_FROM` | worker | Name and sender used by the RCPT probe (no mail is sent) |
+| `SMTP_PROBES_PER_MINUTE` | worker | SMTP connections a minute, default 5. Hostinger cuts outbound port 25 off for a long while after bursts above about 5 a minute |
 
 The verifier's SMTP probe needs outbound port 25. If the VPS provider blocks
 it, the worker falls back to MX checks and marks addresses `unknown`; set

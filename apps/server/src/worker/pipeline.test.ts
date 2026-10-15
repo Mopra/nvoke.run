@@ -617,4 +617,20 @@ describe('greylisting', () => {
     expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBe('unknown');
     expect(await db.sql`select 1 from jobs where type = 'verify'`).toHaveLength(1);
   });
+
+  it('puts a paced check back in the queue without counting it as a retry', async () => {
+    const { searchId, emailId } = await seedEmail();
+    await db.sql`delete from jobs`;
+    const now = new Date('2026-10-13T12:00:00Z');
+    const paced = {
+      verify: async (address: string) => ({ address, verification: 'unknown' as const, mxHost: 'mx.test', reason: 'smtp_paced', retryAfterMs: 30_000 }),
+    } as unknown as Verifier;
+    const d = { ...deps(adapterOf([])), verifier: paced, now: () => now };
+    await runVerify(d, verifyJob({ emailId, retry: GREYLIST_RETRIES }, searchId), new AbortController().signal);
+    const [again] = await db.sql<{ payload: { retry: number }; run_after: Date }[]>`select payload, run_after from jobs where type = 'verify'`;
+    expect(again?.payload.retry).toBe(GREYLIST_RETRIES);
+    expect(again!.run_after.getTime() - now.getTime()).toBeGreaterThanOrEqual(30_000);
+    expect(again!.run_after.getTime() - now.getTime()).toBeLessThan(90_000);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBeNull();
+  });
 });

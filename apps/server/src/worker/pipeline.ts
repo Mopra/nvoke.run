@@ -413,6 +413,13 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
 
   const result = await deps.verifier.verify(email.address, signal);
   const retry = typeof job.payload.retry === 'number' ? job.payload.retry : 0;
+  if (result.reason === 'smtp_paced') {
+    // Over the probe budget for this minute: come back when a slot frees up, spread out. Not a retry.
+    const now = deps.now?.() ?? new Date();
+    const wait = Math.max(5_000, result.retryAfterMs ?? 60_000) + Math.floor(Math.random() * 60_000);
+    await enqueue(sql, { type: 'verify', payload: { emailId, retry }, searchId: email.search_id, runAfter: new Date(now.getTime() + wait) });
+    return;
+  }
   // Unknown is the outcome that says the most about our own health (throttling, a blocked port 25).
   if (result.verification === 'unknown') deps.log.info({ reason: result.reason, mxHost: result.mxHost, retry }, 'verify: unknown');
   if (isTempfail(result) && retry < GREYLIST_RETRIES) {

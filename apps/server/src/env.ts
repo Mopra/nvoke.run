@@ -79,6 +79,9 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+  // SMTP connections per minute across the worker. Hostinger cuts port 25 off
+  // after bursts past about 5 a minute. 0 means no limit.
+  SMTP_PROBES_PER_MINUTE: z.coerce.number().int().min(0).default(5),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
