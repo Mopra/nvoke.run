@@ -298,8 +298,40 @@ describe('Verifier', () => {
     expect(v.smtpBlocked).toBe(true);
     expect(await v.verify('a@mx6.dk')).toMatchObject({ verification: 'unknown', reason: 'mx_only_port25_blocked', mxHost: 'mx6.mail.test' });
 
+    // Nothing about the mailbox, so nothing for the cache.
+    const cached: string[] = [];
+    const blocked = new Verifier({
+      ...base,
+      dns,
+      connect: connectTo(1, hosts.map((h) => `${h}.mail.test`)),
+      cache: { get: async () => null, set: async (r) => void cached.push(r.reason) },
+    });
+    for (const h of hosts) await blocked.verify(`b@${h}.dk`);
+    expect(blocked.smtpBlocked).toBe(true);
+    expect(cached).not.toContain('mx_only_port25_blocked');
+
     const off = new Verifier({ ...base, smtpEnabled: false, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }) });
     expect(await off.verify('info@acme.dk')).toMatchObject({ verification: 'unknown', reason: 'mx_only', mxHost: 'mx.acme.dk' });
+  });
+
+  it('keeps probing when dead MX hosts pile up but port 25 itself works', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const hosts = ['mx1', 'mx2', 'mx3', 'mx4', 'mx5'];
+    const dns = fakeDns({ ...Object.fromEntries(hosts.map((h) => [`${h}.dk`, [`${h}.dead.test`]])), 'live.dk': ['mx.live.test'] });
+    let canaryAsked = 0;
+    const v = new Verifier({
+      ...base,
+      dns,
+      connect: connectTo(smtp.port, hosts.map((h) => `${h}.dead.test`)),
+      port25Works: async () => {
+        canaryAsked++;
+        return true;
+      },
+    });
+    for (const h of hosts) await v.verify(`a@${h}.dk`);
+    expect(canaryAsked).toBe(1);
+    expect(v.smtpBlocked).toBe(false);
+    expect(await v.verify('info@live.dk')).toMatchObject({ verification: 'valid', reason: 'rcpt_accepted' });
   });
 
   it('reads from and writes to the cache', async () => {

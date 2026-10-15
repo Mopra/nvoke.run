@@ -10,6 +10,7 @@
 // When port 25 turns out to be unreachable the verifier stops trying for an
 // hour and answers "unknown" from MX data alone.
 
+import * as net from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { isDisposableEmailDomain } from 'disposable-email-domains-js';
 import type { Verification } from '@nvoke/shared';
@@ -42,6 +43,12 @@ export interface VerifierOptions {
   commandTimeoutMs?: number;
   /** Injectable for tests, see SmtpProbeOptions.connect. */
   connect?: SmtpProbeOptions['connect'];
+  /**
+   * Resolves true when outbound port 25 works: asked before concluding it is
+   * blocked, since dead or slow MX hosts also fail to connect. Defaults to a
+   * TCP connect to Gmail's MX.
+   */
+  port25Works?: () => Promise<boolean>;
   now?: () => number;
 }
 
@@ -74,10 +81,30 @@ export function isParkedMx(host: string): boolean {
   return PARKING_MX.test(host.toLowerCase());
 }
 
+/** Results that say nothing about the mailbox: probing off or blocked, a resolver hiccup. */
+const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_error']);
+
 const DOMAIN_TTL_MS = 60 * 60_000;
 const PORT25_BLOCK_MS = 60 * 60_000;
-/** Connection failures on this many distinct MX hosts, with no success in between, means port 25 is blocked. */
+/** Connection failures on this many distinct MX hosts, with no success in between, make us ask whether port 25 is blocked. */
 const PORT25_FAILURE_HOSTS = 5;
+/** A mail exchanger that always takes connections on port 25 when the network lets us. */
+const PORT25_CANARY = 'gmail-smtp-in.l.google.com';
+
+/** True when a TCP connection to port 25 of a big provider opens within 10 seconds. */
+export function port25Open(connect?: SmtpProbeOptions['connect'], host = PORT25_CANARY): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = (connect ?? ((p, h) => net.connect({ port: p, host: h })))(25, host);
+    const done = (ok: boolean) => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => done(false), 10_000);
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
+}
 
 /** Disposable when the domain or any parent domain is on the list. */
 export function isDisposableDomain(domain: string): boolean {
@@ -145,7 +172,7 @@ export class Verifier {
     // Answers that say nothing about the mailbox (probing switched off, a
     // resolver hiccup) are not worth remembering.
     // A greylisted answer is retried by the pipeline, so it is not cached either.
-    if (result.reason !== 'mx_only' && result.reason !== 'dns_error' && !isTempfail(result)) await this.opts.cache?.set(result);
+    if (!UNCACHED_REASONS.has(result.reason) && !isTempfail(result)) await this.opts.cache?.set(result);
     return result;
   }
 
@@ -179,7 +206,7 @@ export class Verifier {
         return { ...result, mxHost: host };
       } catch (err) {
         if (err instanceof SmtpProbeError && err.stage === 'connect') {
-          this.noteConnectFailure(host);
+          await this.noteConnectFailure(host);
           lastError = 'smtp_unreachable';
           continue;
         }
@@ -231,12 +258,24 @@ export class Verifier {
     return { address, ...verdict };
   }
 
-  private noteConnectFailure(host: string): void {
+  private port25Check: Promise<void> | null = null;
+
+  /**
+   * Many MX hosts are dead or drop connections, so failures alone do not
+   * prove the VPS's port 25 is blocked. Past the threshold, one canary
+   * connection decides; only when that fails too does probing stop for an hour.
+   */
+  private async noteConnectFailure(host: string): Promise<void> {
     this.connectFailures.add(host);
-    if (this.connectFailures.size >= PORT25_FAILURE_HOSTS) {
-      this.port25BlockedUntil = this.now() + PORT25_BLOCK_MS;
+    if (this.connectFailures.size < PORT25_FAILURE_HOSTS) return;
+    this.port25Check ??= (async () => {
+      const works = await (this.opts.port25Works ?? (() => port25Open(this.opts.connect)))().catch(() => false);
+      if (!works) this.port25BlockedUntil = this.now() + PORT25_BLOCK_MS;
       this.connectFailures.clear();
-    }
+    })().finally(() => {
+      this.port25Check = null;
+    });
+    await this.port25Check;
   }
 
   private mx(domain: string): Promise<MxLookup> {
