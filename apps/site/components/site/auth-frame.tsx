@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { LogoMark } from '@/components/site/logo';
 import { SiteClerkProvider } from '@/components/site/clerk';
 
-/** Sign in and sign up: the mark, one line, then Clerk's form on the halo. */
+/** Sign in and sign up: the mark, one line, then Clerk's form on the halo, and the way in for agents. */
 export function AuthFrame({ title, lede, children }: { title: string; lede: string; children: ReactNode }) {
   return (
     <section className="relative overflow-hidden">
@@ -17,6 +18,13 @@ export function AuthFrame({ title, lede, children }: { title: string; lede: stri
           <p className="mt-2 text-sm text-muted-foreground">{lede}</p>
         </div>
         <SiteClerkProvider>{children}</SiteClerkProvider>
+        <p className="text-sm text-muted-foreground">
+          An AI agent?{' '}
+          <Link href="/agents" className="text-foreground underline-offset-4 hover:underline">
+            It signs up on its own
+          </Link>
+          .
+        </p>
       </div>
     </section>
   );
