@@ -77,6 +77,21 @@ describe('api', () => {
     expect(res.headers['access-control-allow-origin']).toBe('https://nvoke.run');
   });
 
+  it('lets the web app delete and patch through CORS', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/v1/searches/abc',
+      headers: {
+        origin: 'https://nvoke.run',
+        'access-control-request-method': 'DELETE',
+        'access-control-request-headers': 'authorization',
+      },
+    });
+    expect(res.headers['access-control-allow-origin']).toBe('https://nvoke.run');
+    expect(String(res.headers['access-control-allow-methods'])).toContain('DELETE');
+    expect(String(res.headers['access-control-allow-methods'])).toContain('PATCH');
+  });
+
   it('runs the whole desktop flow: authorize, token, me, sign-out', async () => {
     const verifier = randomBytes(32).toString('base64url');
     const auth = { authorization: `Bearer ${CLERK_JWT}` };

@@ -81,8 +81,11 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     overrides.accounts ??
     postgresAccounts(getSql, env.CLERK_SECRET_KEY ? clerkPlanSource(env.CLERK_SECRET_KEY) : null, app.log);
 
+  // The web app on the site calls every /v1 route from the browser, deleting
+  // searches and revoking keys included, so DELETE and PATCH must pass too.
   await app.register(cors, {
     origin: env.CORS_ORIGINS.length > 0 ? env.CORS_ORIGINS : false,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
     credentials: false,
   });
 
