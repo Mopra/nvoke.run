@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CookieSettingsLink } from '@/components/site/cookie-settings-link';
 import { Logo } from '@/components/site/logo';
 import { footerNav, site } from '@/lib/site';
 
@@ -25,6 +26,7 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
+            <CookieSettingsLink />
           </ul>
         </nav>
       </div>

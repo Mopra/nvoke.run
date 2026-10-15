@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { Analytics } from '@/components/site/analytics';
 import { SiteChrome } from '@/components/site/site-chrome';
 import { SiteFooter } from '@/components/site/site-footer';
 import { SiteHeader } from '@/components/site/site-header';
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SiteChrome>
           <SiteFooter />
         </SiteChrome>
+        <Analytics />
       </body>
     </html>
   );

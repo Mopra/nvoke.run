@@ -23,7 +23,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      updated="13 October 2026"
+      updated="16 October 2026"
     >
       <section>
         <h2>Who we are</h2>
@@ -207,6 +207,7 @@ export default function PrivacyPage() {
           {/* TODO(owner): name the VPS host and the country of the data centre. */}
           <li>Our server host, for the servers that run searches, crawling and mailbox checks.</li>
           <li>Vercel, for hosting this website.</li>
+          <li>Google, for website analytics, only if you accept analytics cookies.</li>
           <li>Brave Search API, which receives the search keywords customers enter.</li>
           <li>
             OpenStreetMap Nominatim and the public Overpass servers (overpass-api.de, with overpass.private.coffee as a
@@ -235,13 +236,20 @@ export default function PrivacyPage() {
         <p>We do not make automated decisions about you that have legal or similar effects.</p>
       </section>
 
-      <section>
+      <section id="website">
         <h2>This website</h2>
         <p>
-          This website does not use tracking or advertising cookies. It stores your light or dark theme choice in your
-          browser. Signing in to the desktop app through this site sets the cookies needed for sign-in. What you enter
+          This website does not use advertising cookies. It stores your light or dark theme choice in your browser. Signing in to the desktop app through this site sets the cookies needed for sign-in. What you enter
           on the opt-out page is sent to our server and kept only as a one-way hash. Our hosting providers keep
           short-lived server logs for security.
+        </p>
+        <h3>Analytics</h3>
+        <p>
+          We use Google Analytics to count visits and see which pages people use. It only runs with your consent: until
+          you click Accept, Google Analytics sets no cookies and Google gets no cookie identifiers. If you accept, it
+          sets cookies that measure your visits to this site, and Google Ireland Limited processes that data for us
+          (GDPR article 6(1)(a), your consent). Ad signals stay off either way. Your choice is stored in your browser.
+          Change it any time with Cookie settings at the bottom of every page.
         </p>
       </section>
 
