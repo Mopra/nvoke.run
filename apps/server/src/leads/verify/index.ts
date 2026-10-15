@@ -56,9 +56,16 @@ export const CACHE_TTL_MS = 30 * 24 * 60 * 60_000;
 export const VALID_TTL_MS = 7 * 24 * 60 * 60_000;
 export const UNKNOWN_TTL_MS = 24 * 60 * 60_000;
 
-/** The RCPT reply was a 4xx, usually greylisting. Worth asking again later. */
+/**
+ * Worth asking again later: a 4xx RCPT reply (greylisting), or a mail server
+ * we could not connect to or that stalled mid session. Big providers (Google,
+ * Microsoft) drop or stall connections for a few minutes when one IP probes
+ * many of their domains in a row, and the same address checks fine a few
+ * minutes later. Also while port 25 looks blocked, which may pass.
+ */
 export function isTempfail(result: Pick<VerifyResult, 'reason'>): boolean {
-  return result.reason.startsWith('rcpt_tempfail_');
+  const r = result.reason;
+  return r.startsWith('rcpt_tempfail_') || r === 'smtp_unreachable' || r === 'mx_only_port25_blocked' || /^smtp_[a-z]+_error$/.test(r);
 }
 
 /** Common misspellings of freemail domains. Nobody owns a mailbox there. */
@@ -86,13 +93,24 @@ const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_erro
 
 const DOMAIN_TTL_MS = 60 * 60_000;
 const PORT25_BLOCK_MS = 60 * 60_000;
-/** Connection failures on this many distinct MX hosts, with no success in between, make us ask whether port 25 is blocked. */
+/** Connection failures at this many distinct MX providers, with no success in between, make us ask whether port 25 is blocked. */
 const PORT25_FAILURE_HOSTS = 5;
-/** A mail exchanger that always takes connections on port 25 when the network lets us. */
-const PORT25_CANARY = 'gmail-smtp-in.l.google.com';
+/** Mail exchangers of two providers that take connections on port 25 whenever the network lets us. */
+const PORT25_CANARIES = ['gmail-smtp-in.l.google.com', 'microsoft-com.mail.protection.outlook.com'];
 
-/** True when a TCP connection to port 25 of a big provider opens within 10 seconds. */
-export function port25Open(connect?: SmtpProbeOptions['connect'], host = PORT25_CANARY): Promise<boolean> {
+/** The provider behind an MX host, by its last two labels: aspmx.l.google.com and alt1.aspmx.l.google.com are both google.com. */
+export function mxProvider(host: string): string {
+  return host.toLowerCase().replace(/\.$/, '').split('.').slice(-2).join('.');
+}
+
+/** True when port 25 of either canary takes a TCP connection within 10 seconds. */
+export async function port25Works(connect?: SmtpProbeOptions['connect']): Promise<boolean> {
+  const results = await Promise.all(PORT25_CANARIES.map((host) => port25Open(connect, host)));
+  return results.some(Boolean);
+}
+
+/** True when a TCP connection to port 25 of `host` opens within 10 seconds. */
+export function port25Open(connect: SmtpProbeOptions['connect'] | undefined, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = (connect ?? ((p, h) => net.connect({ port: p, host: h })))(25, host);
     const done = (ok: boolean) => {
@@ -266,10 +284,11 @@ export class Verifier {
    * connection decides; only when that fails too does probing stop for an hour.
    */
   private async noteConnectFailure(host: string): Promise<void> {
-    this.connectFailures.add(host);
+    // One provider throttling us (all of Google's aspmx hosts at once) is not a blocked port.
+    this.connectFailures.add(mxProvider(host));
     if (this.connectFailures.size < PORT25_FAILURE_HOSTS) return;
     this.port25Check ??= (async () => {
-      const works = await (this.opts.port25Works ?? (() => port25Open(this.opts.connect)))().catch(() => false);
+      const works = await (this.opts.port25Works ?? (() => port25Works(this.opts.connect)))().catch(() => false);
       if (!works) this.port25BlockedUntil = this.now() + PORT25_BLOCK_MS;
       this.connectFailures.clear();
     })().finally(() => {
