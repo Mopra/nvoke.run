@@ -24,7 +24,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'What happens when I reach my limit?',
-    a: 'The running search stops cleanly. You keep everything found so far. No overage charge, no surprise bill. Need more? Move up a plan from the app in two clicks.',
+    a: 'The running search stops cleanly. You keep everything found so far. No overage charge, no surprise bill. Need more? Move up a plan from the app, or on the plan page in your browser.',
   },
   {
     q: 'Do unused emails roll over?',
@@ -32,7 +32,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'Is there a free plan?',
-    a: `Yes. ${free} verified emails a month. Every feature: all three search kinds, verification, CSV export. No card.`,
+    a: `Yes. ${free} verified emails a month. Every feature: every search kind, verification, CSV export. No card.`,
   },
   {
     q: 'Can I cancel at any time?',
@@ -56,7 +56,7 @@ export default function PricingPage() {
         <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-pretty text-muted-foreground">
           Every plan gets{' '}
           <span className="font-medium text-foreground">
-            all three search kinds, mailbox verification, CSV export, unlimited searches and companies
+            every search kind, mailbox verification, CSV export, unlimited searches and companies
           </span>
           . {pricing.vatNote}
         </p>
