@@ -42,6 +42,8 @@ export interface LeadsRoutesOptions {
   getSql: () => Sql;
   /** Upstream auth that sets request.userId. Optional when an outer scope already ran it. */
   authenticate?: preHandlerAsyncHookHandler;
+  /** Where a human upgrades, sent with `quota_exceeded`. */
+  billingUrl?: string;
 }
 
 function sendError(reply: FastifyReply, status: number, error: LeadsErrorCode, details?: unknown) {
@@ -72,7 +74,9 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     const sql = opts.getSql();
     const userId = req.userId!;
     await ensureAccount(sql, userId);
-    if (await quotaExhausted(sql, userId)) return sendError(reply, 403, 'quota_exceeded');
+    if (await quotaExhausted(sql, userId)) {
+      return reply.code(403).send({ error: 'quota_exceeded', ...(opts.billingUrl ? { billingUrl: opts.billingUrl } : {}) });
+    }
     let request = body.data;
     let limit = Math.min(request.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT);
     if (request.kind === 'domains') {

@@ -167,7 +167,9 @@ export async function agentSignup(deps: SignupDeps, input: AgentSignupRequest, i
         `Check the account: GET ${apiBase}/me`,
         `Start a search: POST ${apiBase}/searches with {"kind":"local","params":{"niche":"dentists","location":"Aarhus"}}`,
         `Or connect over MCP: ${mcpUrl} with the same bearer key.`,
-        `Tell your human to open the email we sent to ${email} and claim the account within ${UNCLAIMED_ACTIVE_DAYS} days, or the key stops working.`,
+        claimEmailSent
+          ? `Tell your human to open the email we sent to ${email} and claim the account within ${UNCLAIMED_ACTIVE_DAYS} days, or the key stops working.`
+          : `The claim email could not be sent. Tell your human to sign in with ${email} at ${new URL('/desktop/billing', deps.siteUrl).toString()} within ${UNCLAIMED_ACTIVE_DAYS} days: signing in claims the account. Otherwise the key stops working.`,
       ],
     },
   };

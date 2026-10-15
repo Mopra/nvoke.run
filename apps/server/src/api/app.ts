@@ -117,7 +117,12 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
   await app.register(webhookRoutes, { prefix: '/webhooks', signingSecret: env.CLERK_WEBHOOK_SIGNING_SECRET ?? null, accounts });
   await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
   // requireAuth sets request.userId; the plugin's requireUser guard reads it.
-  await app.register(leadsRoutes, { prefix: '/v1', getSql, authenticate: app.requireAuth });
+  await app.register(leadsRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    billingUrl: new URL('/desktop/billing', env.SITE_URL).toString(),
+  });
   await app.register(dropsRoutes, {
     prefix: '/v1',
     getSql,

@@ -16,6 +16,7 @@ beforeAll(async () => {
   await app.register(leadsRoutes, {
     prefix: '/v1',
     getSql: () => db.sql,
+    billingUrl: 'https://nvoke.test/desktop/billing',
     // Stands in for the real auth preHandler.
     authenticate: async (req) => {
       const user = req.headers['x-test-user'];
@@ -128,7 +129,7 @@ describe('lead routes', () => {
     await db.sql`insert into usage (clerk_user_id, period, emails_verified) values ('carol', ${new Date().toISOString().slice(0, 7)}, 50)`;
     const res = await createSearch('carol');
     expect(res.statusCode).toBe(403);
-    expect(res.json()).toEqual({ error: 'quota_exceeded' });
+    expect(res.json()).toEqual({ error: 'quota_exceeded', billingUrl: 'https://nvoke.test/desktop/billing' });
   });
 
   it("lists searches newest first and only the caller's", async () => {

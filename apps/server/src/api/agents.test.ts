@@ -39,6 +39,8 @@ const directory: AgentDirectory = {
 };
 const mailer: ClaimMailer = {
   send: async (mail) => {
+    // A provider that refuses the sender, for addresses starting with "unsent".
+    if (mail.to.startsWith('unsent')) return false;
     mails.push(mail);
     return true;
   },
@@ -88,6 +90,15 @@ async function signup(body: object, ip = `10.0.0.${nextIp++}`) {
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
 describe('agent sign-up', () => {
+  it('tells the agent how its human claims the account when the claim email could not be sent', async () => {
+    const res = await signup({ email: 'unsent@acme.test', agentName: 'Claude' });
+    expect(res.statusCode).toBe(201);
+    const body = AgentSignupResponse.parse(res.json());
+    expect(body.account.claimEmailSent).toBe(false);
+    expect(body.nextSteps.join(' ')).not.toContain('open the email we sent');
+    expect(body.nextSteps.at(-1)).toContain('sign in with unsent@acme.test at https://nvoke.test/desktop/billing');
+  });
+
   it('creates an unclaimed account with a working key and mails the claim link', async () => {
     const res = await signup({ email: 'Ada@Acme.test', agentName: 'Claude' });
     expect(res.statusCode).toBe(201);

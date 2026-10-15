@@ -430,7 +430,7 @@ export const ERROR_CODES: Record<string, string> = {
   claim_required: 'An agent created this account more than 7 days ago and nobody claimed it. The human claims it from the emailed link.',
   invalid_request: 'The body or query failed validation. `details` lists the problems.',
   not_found: 'No such search, key or webhook on this account.',
-  quota_exceeded: 'This month’s verified emails are used up. A human upgrades at `billingUrl` from `GET /v1/me`.',
+  quota_exceeded: 'This month’s verified emails are used up. A human upgrades at `billingUrl`, sent with this error and by `GET /v1/me`.',
   source_unavailable: 'Web search is paused on our side. Local and launch searches still work.',
   not_cancelable: 'The search already finished.',
   not_claimed: 'The company is not claimed for a local crawl right now. Claim it again with `POST /v1/local-crawl/claim`.',
