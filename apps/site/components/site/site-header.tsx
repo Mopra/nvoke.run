@@ -38,8 +38,11 @@ export function SiteHeader() {
           Pricing
         </Link>
         <ThemeToggle />
+        <Link href="/app" className={`${link} hidden sm:inline-flex`}>
+          Sign in
+        </Link>
         <Button asChild size="sm" className="h-9 px-4">
-          <Link href="/download">Download</Link>
+          <Link href="/sign-up">Start free</Link>
         </Button>
       </nav>
     </header>

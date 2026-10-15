@@ -28,7 +28,7 @@ const MCP_ADD = `claude mcp add --transport http nvoke ${urls.mcp}`;
 const WAYS = [
   {
     title: 'REST API',
-    body: 'JSON over HTTPS with a bearer key. Every route the desktop app uses, documented from the same schemas the server runs.',
+    body: 'JSON over HTTPS with a bearer key. Every route the apps use, documented from the same schemas the server runs.',
     href: '/docs/api',
     cta: 'API reference',
   },
@@ -91,7 +91,7 @@ export default function AgentsPage() {
         </div>
       </Container>
 
-      <Section id="ways" title="Three doors, one product" intro="Same searches, same checks, same price as the desktop app.">
+      <Section id="ways" title="Three doors, one product" intro="Same searches, same checks, same price as the web app and nvoke Desktop.">
         <div className="grid gap-4 md:grid-cols-3">
           {WAYS.map((w) => (
             <div key={w.title} className="glass flex flex-col gap-3 rounded-[28px] p-7">

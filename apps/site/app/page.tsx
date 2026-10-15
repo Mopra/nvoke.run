@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Download } from 'lucide-react';
+import { ArrowRight, Download } from 'lucide-react';
 import { DENTISTS } from '@/components/mockups/data';
 import { MockButton, MockFit, VERIFICATION, VerificationBadge } from '@/components/mockups/primitives';
 import {
@@ -60,20 +60,20 @@ const KINDS = [
 
 const DESKTOP_POINTS = [
   {
-    title: 'Its own window',
-    body: 'In your taskbar or Dock, like a real program. Not tab number 31.',
+    title: 'Reads the sites servers can’t',
+    body: 'Some sites refuse servers or need JavaScript. nvoke Desktop reads them from your own computer, when you allow it.',
   },
   {
-    title: 'Runs while it is closed',
-    body: 'Searches run on our servers. Quit, come back tomorrow, the results are waiting.',
+    title: 'Fresh leads every morning',
+    body: 'Daily drops watch Product Hunt, Show HN and Y Combinator for you, with a notification when new ones land.',
   },
   {
-    title: 'No browser extension',
-    body: 'Nothing reading the pages you visit. nvoke only sees the searches you start.',
+    title: 'Over any app',
+    body: 'A shortcut opens search over whatever you are doing. Grab company names from the screen, or drop a CSV to enrich it.',
   },
   {
-    title: 'Your files, your folder',
-    body: 'Export opens your system’s save dialog. The CSV goes where you put it.',
+    title: 'Yours, offline too',
+    body: 'A local copy of every result: instant to filter, there on a plane. Drag leads straight into Excel or your CRM.',
   },
 ];
 
@@ -101,8 +101,8 @@ const FAQ: FaqItem[] = [
     a: 'No. Searches run on our servers. You need internet to start one and to see the results.',
   },
   {
-    q: 'Why does Windows or macOS warn me when I install it?',
-    a: 'The installers are not code signed yet. It costs you one extra click. The download page shows where.',
+    q: 'Do I have to install anything?',
+    a: 'No. nvoke runs in your browser: sign up and search. nvoke Desktop is an optional app for Windows, macOS and Linux with extra power tools, on the same account and plan. Its installers are not code signed yet, so Windows and macOS ask for one extra click the first time. The download page shows where.',
   },
   {
     q: 'I run a website. How do I keep nvoke off it?',
@@ -198,14 +198,14 @@ export default function HomePage() {
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="xl">
-              <Link href="/download">Download nvoke</Link>
+              <Link href="/sign-up">Start free</Link>
             </Button>
             <Button asChild size="xl" variant="glass">
               <Link href="/pricing">See pricing</Link>
             </Button>
           </div>
           <p className="mt-6 text-sm text-muted-foreground">
-            Windows, macOS and Linux. {freeEmails} verified emails a month, free.
+            Runs in your browser, nothing to install. {freeEmails} verified emails a month, free.
           </p>
         </Container>
         <div className="relative mx-auto mt-24 w-full max-w-[1240px] px-4 pb-24 sm:mt-36 sm:px-6 sm:pb-36">
@@ -271,12 +271,18 @@ export default function HomePage() {
         <Container>
           <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
             <h2 id="desktop-title" className="text-headline font-semibold text-balance">
-              A desktop app. Not another browser tab.
+              nvoke Desktop. The power tools.
             </h2>
             <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
-              Most lead tools are a web page, or a Chrome extension that reads everything you browse. nvoke is a
-              program. Install it, use it, close it.
+              Everything in the browser, plus a native app for Windows, macOS and Linux. Same account, same plan, same
+              searches. No browser extension reading what you browse.
             </p>
+            <Button asChild size="lg" variant="glass" className="mt-2">
+              <Link href="/download">
+                <Download />
+                Get nvoke Desktop
+              </Link>
+            </Button>
           </div>
         </Container>
         <div className="mx-auto mt-16 w-full max-w-[1240px] px-4 sm:mt-28 sm:px-6">
@@ -380,19 +386,26 @@ export default function HomePage() {
         <Container className="relative flex flex-col items-center text-center">
           <LogoMark className="size-16 sm:size-20" />
           <h2 className="mt-12 max-w-4xl text-headline font-semibold text-balance">
-            Your first search is ten minutes away.
+            Your first search is one minute away.
           </h2>
           <p className="mt-5 max-w-xl text-lede text-pretty text-muted-foreground">
-            Download. Sign in. Search. {freeEmails} verified emails a month are on the house.
+            Sign up. Search. Right here in your browser. {freeEmails} verified emails a month are on the house.
           </p>
           <div className="mt-12 flex flex-wrap justify-center gap-3">
             <Button asChild size="xl">
-              <Link href="/download">Download nvoke</Link>
+              <Link href="/sign-up">Start free</Link>
             </Button>
             <Button asChild size="xl" variant="glass">
               <Link href="/pricing">See pricing</Link>
             </Button>
           </div>
+          <Link
+            href="/download"
+            className="mt-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Prefer a native app? Get nvoke Desktop
+            <ArrowRight className="size-3.5" />
+          </Link>
         </Container>
       </section>
     </>

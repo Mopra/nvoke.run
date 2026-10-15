@@ -27,9 +27,13 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   client and migration runner), `src/cli.ts` (local searches and `cli db`),
   `migrations/` (numbered `.sql` files, applied in order: `0001_desktop_auth`,
   `0100_leads`, `0200_pricing`). Behaviour is in `docs/SPEC.md`.
-- `apps/site`: Next.js (App Router) marketing and download site. Deploys to
-  Vercel with root directory `apps/site`. Placeholder pages, plus the desktop
-  sign-in page under `app/desktop` (Clerk is scoped there by `proxy.ts`).
+- `apps/site`: Next.js (App Router): the marketing site, the web app and
+  the desktop sign-in. Deploys to Vercel with root directory `apps/site`.
+  The web app is the front door (see "Web app" below): `app/app` (routes),
+  `components/app` (screens), `lib/app` (data layer and its tests). Sign in
+  and sign up are `app/sign-in` and `app/sign-up`; the desktop sign-in and
+  billing pages are under `app/desktop`. Clerk runs only on those routes and
+  `/claim` (`proxy.ts`); the marketing pages stay static.
 - `packages/theme`: `theme.css`, the single source of the shadcn color tokens
   (plus a few extras: `sidebar-material`, `glow`, `sheen`, `scrim`, layered
   shadows). Imported by the desktop renderer's `index.css` and the site's
@@ -97,7 +101,8 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   from `accountSummary()`.
 - Pricing: one plan for everyone, priced by verified emails a month. The
   ladder is `packages/shared/src/plans.ts`; each paid key is a Clerk Billing
-  user plan slug. Checkout is on the site (`app/desktop/billing`); the server
+  user plan slug. Checkout is on the site (`app/desktop/billing`, shown in
+  the web app at `/app/billing`); the server
   reads the held plan from Clerk (`src/billing/clerk.ts`) and charges a
   verified email in the verify job (`chargeVerified` in `src/leads/quota.ts`).
   Change a price or allowance in `plans.ts` and in the Clerk dashboard
@@ -118,6 +123,38 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   package, no Docker), builds a template database with every migration and
   gives each database test file its own copy. `TEST_DATABASE_URL` uses an
   existing Postgres instead; CI does that with a `postgres:17` service.
+
+## Web app
+
+nvoke.run/app is the front door: every marketing CTA ("Start free") goes to
+`/sign-up` and then `/app`. It does in the browser what the desktop app does
+with the API: start every search kind, poll progress every 2 seconds, browse
+and filter companies and emails, export the CSV, show usage against the plan
+and the upgrade path (`/app/billing`, the same Clerk Billing checkout as
+`/desktop/billing`), and create or revoke API keys. nvoke Desktop stays the
+premium power tools (local render crawl, drops, quick search, grab, CSV drop,
+local copy) and is sold from `/download` and the Account page.
+
+- Auth: `proxy.ts` protects `/app` with Clerk (`auth.protect()`, signed out
+  goes to `/sign-in`). The browser calls `/v1` on the API directly with the
+  Clerk session JWT (`lib/app/api.ts`, a fresh `getToken()` per call), so
+  the server needs the site origin in `CORS_ORIGINS` and allows GET, POST,
+  PATCH and DELETE.
+- Data: `lib/app/api.ts` (fetch client, `ApiError`), `lib/app/queries.tsx`
+  (React Query hooks with the desktop's keys and polling),
+  `lib/app/search-form.ts` (the New search form as data) and
+  `lib/app/quota.ts` (usage level, upgrade path, poll intervals). Tests sit
+  next to them.
+- Reuse: `lib/app/desktop.ts` imports the desktop renderer's pure modules
+  (`lib/format.ts`, `lib/countries.ts`, `lib/export-notice.ts`) straight from
+  `apps/desktop`, so labels and titles match. Keep those modules free of
+  `window.nvoke` and of `@/` imports, or the site build breaks. The shadcn
+  primitives in `components/ui` and the small presentational components in
+  `components/app` are ported copies of the desktop's.
+- Look: `[data-app]` in `globals.css` switches to the desktop type scale
+  (13px body), with the same glass, aura and iris accent from
+  `packages/theme`. The marketing header and footer stay off `/app`
+  (`components/site/site-chrome.tsx`).
 
 ## Desktop window
 

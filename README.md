@@ -1,8 +1,9 @@
 # nvoke
 
 A lead finder: a prospecting research tool. Users find companies and the
-contact details they publish on their own websites, from a native desktop app.
-The research runs on a Node backend on a VPS.
+contact details they publish on their own websites, in the web app at
+nvoke.run/app (nothing to install) or in nvoke Desktop, the native app with
+the power tools. The research runs on a Node backend on a VPS.
 
 ## Layout
 
@@ -10,7 +11,7 @@ The research runs on a Node backend on a VPS.
 apps/
   desktop/   Electron app (electron-vite, React, Tailwind v4, shadcn/ui)
   server/    Fastify API and a separate worker process, Postgres via postgres.js
-  site/      Next.js marketing and download site (Vercel, root directory apps/site)
+  site/      Next.js: marketing site and the web app at /app (Vercel, root directory apps/site)
 packages/
   shared/    zod schemas and types shared by desktop and server
   theme/     theme.css with the shadcn tokens used by desktop and site
@@ -40,6 +41,14 @@ pnpm dev:site       # site on http://localhost:3001
 
 The API boots without a database or Clerk keys, so `/health` works on a clean
 checkout. Routes behind auth answer 503 until `CLERK_SECRET_KEY` is set.
+
+## The web app
+
+`apps/site` serves the web app at `/app` (Clerk sign-in, then the same `/v1`
+API the desktop app uses, called from the browser with the Clerk session
+JWT). Run `pnpm dev:api`, `pnpm dev:worker` and `pnpm dev:site`, then open
+http://localhost:3001/app. The API must allow the site origin in
+`CORS_ORIGINS`. Details in `CLAUDE.md`, "Web app".
 
 ## Signing in from the desktop app
 

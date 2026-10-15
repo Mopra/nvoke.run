@@ -83,8 +83,8 @@ export default function McpDocs() {
             Claude Code and Cursor can use it directly. No key, no URL, no browser. <a href="#desktop">Set it up</a>.
           </p>
           <p>
-            <strong>API key.</strong> Send <code>Authorization: Bearer nvk_sk_...</code> as a header. Get the key in the
-            desktop app under Account, or let the agent <a href="/docs/agents">sign up on its own</a>.
+            <strong>API key.</strong> Send <code>Authorization: Bearer nvk_sk_...</code> as a header. Get the key under{' '}
+            <a href="/app/account">Account in the web app</a> or in nvoke Desktop, or let the agent <a href="/docs/agents">sign up on its own</a>.
           </p>
           <p>
             <strong>OAuth.</strong> Clients that speak MCP OAuth need only the URL. The first call answers 401 and points

@@ -44,7 +44,7 @@ nvoke finds companies, reads their own websites for published email addresses an
 
 ## 1. Get a key
 
-If your human already uses nvoke, ask them for an API key (desktop app, Account). Keys start with \`nvk_sk_\`.
+If your human already uses nvoke, ask them for an API key: ${site.url}/app/account, API keys (or Account in nvoke Desktop). Keys start with \`nvk_sk_\`.
 
 If they have no account, create one yourself. No browser needed:
 
@@ -119,9 +119,9 @@ nvoke never sends email. Respect opt-outs: ${site.url}/opt-out.
 export function llmsText(): string {
   return `# nvoke
 
-> nvoke finds companies, reads their websites for published email addresses and checks each address with its mail server. A desktop app for people, and a REST API and MCP server for code and AI agents. Agents can sign up without a human.
+> nvoke finds companies, reads their websites for published email addresses and checks each address with its mail server. A web app for people at ${site.url}/app (nothing to install), nvoke Desktop for power users, and a REST API and MCP server for code and AI agents. Agents can sign up without a human.
 
-Pay only for verified emails: 50 a month free, plans from $5. Searches run on nvoke's servers and take a few minutes.
+Pay only for verified emails: 50 a month free, plans from $5. Searches run on nvoke's servers and take several minutes, since every address is checked with its mail server.
 
 ## Docs
 

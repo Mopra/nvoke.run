@@ -1,6 +1,6 @@
 # nvoke v1 spec
 
-nvoke is a lead finder sold to paying customers. A native desktop app (Electron) is the main product surface; the same features are open to code and AI agents through a REST API and an MCP server (see "API and agents"). The user starts a search, the backend on our VPS finds companies, crawls their websites, extracts email addresses and checks that they can receive mail. The user browses, filters and exports the results.
+nvoke is a lead finder sold to paying customers. A web app at nvoke.run/app is the front door (see "Web app"), nvoke Desktop (Electron) is the premium native app with the power tools, and the same features are open to code and AI agents through a REST API and an MCP server (see "API and agents"). The user starts a search, the backend on our VPS finds companies, crawls their websites, extracts email addresses and checks that they can receive mail. The user browses, filters and exports the results.
 
 ## Search kinds
 
@@ -150,7 +150,7 @@ One product for everyone. Every feature is on every plan; a plan is only a month
 - An address the user was charged for is not charged again while its `billed_emails` row exists, which is 12 months (see "Privacy", retention).
 - Crawling stores addresses for free, but an address is only returned by the API and the CSV once its check has run. A valid address that no longer fits the allowance stays unchecked and hidden.
 - When the allowance is used up, the search stops with status `failed` and error `quota_exceeded`, and new searches are refused with 403 `{ error: 'quota_exceeded', billingUrl }`. No overage is ever charged. Usage resets each calendar month (UTC); nothing rolls over.
-- Plans are Clerk Billing user plans. Checkout and cancel happen on the site at `/desktop/billing`, which the desktop app opens in the browser. The server reads the held plan with the Clerk Backend API (`billing.getUserBillingSubscription`): on `GET /v1/me` when the stored plan is older than 5 minutes, on `?sync=1`, and on every billing webhook. Active and past due items count, a canceled item counts until its period ends, and the most generous plan wins. A slug Clerk reports that the catalog does not know is logged as an error and never drops the user to Free.
+- Plans are Clerk Billing user plans. Checkout and cancel happen on the site at `/desktop/billing`, which the desktop app opens in the browser, and at `/app/billing` inside the web app (the same component). The server reads the held plan with the Clerk Backend API (`billing.getUserBillingSubscription`): on `GET /v1/me` when the stored plan is older than 5 minutes, on `?sync=1`, and on every billing webhook. Active and past due items count, a canceled item counts until its period ends, and the most generous plan wins. A slug Clerk reports that the catalog does not know is logged as an error and never drops the user to Free.
 
 ## Source costs
 
@@ -186,9 +186,22 @@ Each desktop feature has its own page in `docs/desktop/`. A new feature adds its
 - **Grab from screen**: [docs/desktop/screen-grab.md](desktop/screen-grab.md).
 - **Updates, What's new and releases**: [docs/desktop/updates.md](desktop/updates.md).
 
+## Web app (nvoke.run/app)
+
+The front door. A person signs up at `/sign-up` (Clerk) and lands in `/app`, with nothing to install. Same account, plans, quotas and API as the desktop app; the browser calls `/v1` with the Clerk session JWT.
+
+- **Searches** (`/app`): the list with status, counters and live progress (polled every 2 seconds while one runs). The first visit offers the four search kinds.
+- **New search** (`/app/new?kind=`): the desktop's sentence form for `local`, `web`, `launches` and `domains` (paste a list).
+- **Results** (`/app/searches/:id`): overview numbers and progress, companies with their emails, generic or personal, and a verification badge per address (valid, catch-all, risky, invalid, unknown, or checking). Filter by text, verification and kind; export the CSV with the same filters (the export notice first); stop, run again, delete. Sites that refuse our servers point to nvoke Desktop, which can read them locally.
+- **Account** (`/app/account`): usage meter, plan with Upgrade or Change plan, a "Get nvoke Desktop" card (the power tools), API keys (create, shown once, revoke) with the MCP URL, sign out.
+- **Billing** (`/app/billing`): the plan picker and Clerk Billing checkout from `/desktop/billing`.
+- **Quota.** From 80% of the allowance every screen shows the month's remaining emails and an Upgrade link; at 100% it says searches stop at the limit. A refused search (403 `quota_exceeded`) and a search stopped by the allowance both offer Upgrade.
+
+Drops, webhooks, the local render crawl, quick search, grab, CSV drop and the local copy stay in nvoke Desktop (and the API).
+
 ## Website (nvoke.run)
 
-Landing page that sells the native app ("a lead finder that lives on your desktop"), `/agents` (the API, MCP and agent sign-up), `/docs` (quickstart, `/docs/api` rendered from the catalog, `/docs/mcp`, `/docs/agents`), `/claim` (an agent-created account's owner takes it over; Clerk, like `/desktop`), `/llms.txt` and `/agents.md` (generated from the catalog for agents), pricing (one slider over the plan ladder, no feature grid), a `/desktop/billing` page for checkout, download page (Windows, macOS, Linux from the latest GitHub Release), `/bot` page explaining nvokebot and how to block or opt out, `/opt-out` (address or whole domain, calls `POST /v1/privacy/opt-out`), `/privacy` in Danish and English including the Article 14 notice for people whose addresses we collect, and `/terms` with the customer duties listed under "Privacy".
+Landing page whose every call to action is "Start free" (`/sign-up`, then the web app), with nvoke Desktop as the premium native app, `/agents` (the API, MCP and agent sign-up), `/docs` (quickstart, `/docs/api` rendered from the catalog, `/docs/mcp`, `/docs/agents`), `/claim` (an agent-created account's owner takes it over; Clerk, like `/desktop`), `/llms.txt` and `/agents.md` (generated from the catalog for agents), pricing (one slider over the plan ladder, no feature grid), a `/desktop/billing` page for checkout, `/download` as the nvoke Desktop page (Windows, macOS, Linux from the latest GitHub Release, plus what the app adds), `/bot` page explaining nvokebot and how to block or opt out, `/opt-out` (address or whole domain, calls `POST /v1/privacy/opt-out`), `/privacy` in Danish and English including the Article 14 notice for people whose addresses we collect, and `/terms` with the customer duties listed under "Privacy".
 
 ## Privacy
 

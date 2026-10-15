@@ -177,7 +177,7 @@ function NothingToClaim({ who }: { who: string }) {
       </CardHeader>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
         <Button asChild className="w-full sm:flex-1">
-          <Link href="/download">Get the app</Link>
+          <Link href="/app">Open nvoke</Link>
         </Button>
         <Button asChild variant="secondary" className="w-full sm:flex-1">
           <Link href="/docs">Read the docs</Link>
@@ -272,7 +272,7 @@ function Done({ phase }: { phase: Extract<Phase, { kind: 'done' }> }) {
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
         <Button asChild className="w-full sm:flex-1">
-          <Link href="/download">Get the app</Link>
+          <Link href="/app">Open nvoke</Link>
         </Button>
         <Button asChild variant="secondary" className="w-full sm:flex-1">
           <Link href="/docs">Read the docs</Link>

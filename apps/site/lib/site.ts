@@ -2,7 +2,7 @@ export const site = {
   name: 'nvoke',
   tagline: 'Find companies. Get emails that actually work.',
   description:
-    'nvoke finds companies, reads their own websites and checks every email with the mail server. A desktop app for Windows, macOS and Linux.',
+    'nvoke finds companies, reads their own websites and checks every email with the mail server. In your browser, nothing to install, and as nvoke Desktop for Windows, macOS and Linux.',
   url: process.env['NEXT_PUBLIC_SITE_URL'] ?? 'https://nvoke.run',
   botUserAgent: 'nvokebot/1.0 (+https://nvoke.run/bot)',
   email: {
@@ -29,7 +29,8 @@ export const nav = [
 
 export const footerNav = [
   { href: '/pricing', label: 'Pricing' },
-  { href: '/download', label: 'Download' },
+  { href: '/app', label: 'Open the app' },
+  { href: '/download', label: 'nvoke Desktop' },
   { href: '/agents', label: 'Agents' },
   { href: '/docs', label: 'Docs' },
   { href: '/bot', label: 'nvokebot' },

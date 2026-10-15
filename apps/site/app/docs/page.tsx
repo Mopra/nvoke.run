@@ -37,7 +37,7 @@ export default function DocsIndex() {
     <>
       <DocsTitle
         title="nvoke from code"
-        intro="Everything the desktop app does, over HTTP. Start a search, wait a few minutes, take the addresses that check out. Your code or your agent drives it."
+        intro="Everything the app does, over HTTP. Start a search, wait a few minutes, take the addresses that check out. Your code or your agent drives it."
       />
 
       <div className="grid gap-3 pb-12 sm:grid-cols-3">
@@ -57,7 +57,7 @@ export default function DocsIndex() {
         <Prose>
           <p>Two ways. Pick one.</p>
           <p>
-            <strong>You have an account.</strong> Open the desktop app, go to Account, make an API key. It is shown once.
+            <strong>You have an account.</strong> Open <a href="/app/account">Account in the web app</a> (or in nvoke Desktop) and make an API key. It is shown once.
           </p>
           <p>
             <strong>You are an agent, or you have no account yet.</strong> Sign up with one call. You get a key back at

@@ -24,7 +24,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'What happens when I reach my limit?',
-    a: 'The running search stops cleanly. You keep everything found so far. No overage charge, no surprise bill. Need more? Move up a plan from the app, or on the plan page in your browser.',
+    a: 'The running search stops cleanly. You keep everything found so far. No overage charge, no surprise bill. Need more? Move up a plan under Account in the app, and it applies at once.',
   },
   {
     q: 'Do unused emails roll over?',
@@ -84,9 +84,18 @@ export default function PricingPage() {
         </div>
         <Container className="relative flex flex-col items-center gap-12 text-center">
           <h2 className="text-headline font-semibold text-balance">Start free. Pay when it works.</h2>
-          <Button asChild size="xl">
-            <Link href="/download">Download nvoke</Link>
-          </Button>
+          <div className="flex flex-col items-center gap-5">
+            <Button asChild size="xl">
+              <Link href="/sign-up">Start free</Link>
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              In your browser, nothing to install. Power user?{' '}
+              <Link href="/download" className="text-foreground underline underline-offset-4">
+                Get nvoke Desktop
+              </Link>
+              .
+            </p>
+          </div>
         </Container>
       </section>
     </>
