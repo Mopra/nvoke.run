@@ -81,3 +81,27 @@ Pipeline today (mapped 2026-10-17):
    web app and desktop experience (E), cost tracking (F).
 
 ## Runs
+
+### 2026-10-17 baseline (old pipeline, 60 min, SMTP 5/min)
+
+Full tables in `baseline.md`. nvoke-customers: 330 companies, 675 emails,
+47 verified in an hour, 0 named, would email 5 of 30, clear fit 40%.
+Whole suite: 3,176 emails found, 237 verified, 2,774 never checked.
+
+### 2026-10-17 icp1 (new pipeline, nvoke-customers as one plain words search, 20 min, SMTP 5/min, local IPv4)
+
+470 companies, 933 emails, 167 named, 155 titled, 115 decision makers,
+67 verified (41 personal, 21 named, 11 built from the pattern). Would email
+18 of 30 (baseline 5), clear fit 52% (baseline 40%). Brave 120 requests
+($0.60, the per search cap), AI $0.10, $0.010 per verified email.
+795 addresses still unchecked at the end: SMTP throughput is still the wall
+in this setup, and role inboxes ate sessions that named people needed.
+
+Changes since: verify jobs carry a priority (decision makers 30, named 20,
+personal 10, role inboxes 0, pattern hits 40; migration 1620), short
+searches are held and re-planned (ongoing.ts), ongoing searches get a daily
+round, the eval runs the ongoing tick.
+
+Next: fit precision (agent running), desktop UI (agent running), then a
+60 minute run of the full suite in icp mode, then deploy and dogfood on the
+VPS where Google and Microsoft mail go over IPv6 at 20 sessions a minute.

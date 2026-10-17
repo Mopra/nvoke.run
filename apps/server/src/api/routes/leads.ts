@@ -16,6 +16,7 @@ import {
   SEARCH_LIMIT_DEFAULT,
   SearchIdParams,
   SearchMoreRequest,
+  UpdateSearchRequest,
   type CompaniesPage,
   type DraftOpenersResponse,
   type LeadsErrorCode,
@@ -38,6 +39,7 @@ import {
   getSearch,
   listCompanies,
   listSearches,
+  setSearchOngoing,
 } from '../../leads/repo.js';
 import type { Ai } from '../../ai/client.js';
 import { queueOpeners } from '../../openers/openers.js';
@@ -127,6 +129,18 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     if (!params.ok) return sendError(reply, 404, 'not_found');
     const search = await getSearch(opts.getSql(), req.userId!, params.data.id);
     return search ?? sendError(reply, 404, 'not_found');
+  });
+
+  // Ongoing: a plain words search keeps finding new companies every day after it ends (leads/ongoing.ts).
+  app.patch('/searches/:id', async (req, reply): Promise<Search | void> => {
+    const params = parse(SearchIdParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    const body = parse(UpdateSearchRequest, req.body);
+    if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
+    const result = await setSearchOngoing(opts.getSql(), req.userId!, params.data.id, body.data.ongoing);
+    if (result === null) return sendError(reply, 404, 'not_found');
+    if (result === 'kind') return sendError(reply, 400, 'ongoing_not_supported');
+    return result;
   });
 
   app.post('/searches/:id/cancel', async (req, reply): Promise<Search | void> => {

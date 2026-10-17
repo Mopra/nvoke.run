@@ -174,10 +174,96 @@ export async function searchMore(
   });
 }
 
-/** Cancels a queued or running search. Null when it does not exist, false when it already ended. */
+/**
+ * Starts a run nvoke decided on itself (leads/ongoing.ts): a fresh round of a
+ * plain words search that came up short, or an ongoing search's daily round.
+ * Like searchMore, but the params stay, the search must be running (held by
+ * the round) and the run records its trigger and any Brave budget it
+ * reserved. False when the search is no longer running.
+ */
+export async function startAutoRun(
+  sql: Sql,
+  id: string,
+  run: { limit: number; trigger: 'escalate' | 'ongoing'; braveBudget?: number; stage: string; note: string },
+): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const [current] = await tx<{ status: SearchStatus; params: unknown }[]>`
+      select status, params from searches where id = ${id} for update
+    `;
+    if (!current || current.status !== 'running') return false;
+    const [held] = await tx<{ n: number }[]>`select count(*)::int as n from companies where search_id = ${id}`;
+    const foundBefore = held?.n ?? 0;
+    const record = {
+      params: current.params,
+      limit: run.limit,
+      foundBefore,
+      createdAt: new Date().toISOString(),
+      trigger: run.trigger,
+      ...(run.braveBudget === undefined ? {} : { braveBudget: run.braveBudget }),
+    };
+    await tx`
+      update searches set
+        "limit" = ${foundBefore + run.limit},
+        runs = coalesce(runs, '[]'::jsonb) || ${tx.json([record] as never)},
+        stage = ${run.stage}, stage_note = ${run.note}
+      where id = ${id}
+    `;
+    await enqueue(tx, { type: 'find', payload: { searchId: id }, searchId: id });
+    // A quota stop dropped queued work: pick it up again.
+    const crawls = await tx<{ id: string }[]>`
+      select c.id from companies c
+      where c.search_id = ${id} and c.crawl_status = 'pending'
+        and not exists (
+          select 1 from jobs j where j.search_id = ${id} and j.type = 'crawl' and j.status in ('queued', 'running')
+            and j.payload->>'companyId' = c.id::text
+        )
+    `;
+    const verifies = await tx<{ id: string }[]>`
+      select e.id from emails e
+      where e.search_id = ${id} and e.verification is null
+        and not exists (
+          select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status in ('queued', 'running')
+            and j.payload->>'emailId' = e.id::text
+        )
+    `;
+    await enqueue(tx, [
+      ...crawls.map((c) => ({ type: 'crawl' as const, payload: { companyId: c.id }, searchId: id })),
+      ...verifies.map((e) => ({ type: 'verify' as const, payload: { emailId: e.id }, searchId: id })),
+    ]);
+    return true;
+  });
+}
+
+/**
+ * Switches ongoing on or off (`PATCH /v1/searches/:id`). Only plain words
+ * (`icp`) searches can be ongoing: `kind` for the others, null when the
+ * search does not exist. Switching off a search paused for the allowance
+ * ends the pause note.
+ */
+export async function setSearchOngoing(sql: Sql, userId: string, id: string, ongoing: boolean): Promise<Search | null | 'kind'> {
+  const [row] = await sql<SearchRow[]>`
+    update searches set
+      ongoing = ${ongoing},
+      stage = case when ${!ongoing} and stage = 'paused' then 'done' else stage end,
+      stage_note = case when ${!ongoing} and stage = 'paused' then 'Ongoing is off' else stage_note end
+    where id = ${id} and clerk_user_id = ${userId} and kind = 'icp'
+    returning ${sql.unsafe(SEARCH_COLUMNS)}
+  `;
+  if (row) return toSearch(row);
+  return (await getSearch(sql, userId, id)) ? 'kind' : null;
+}
+
+/**
+ * Cancels a queued or running search. Null when it does not exist, false
+ * when it already ended. A cancel also switches ongoing off, and a search
+ * with a live progress line (plain words) says it stopped instead of the step
+ * it was on.
+ */
 export async function cancelSearch(sql: Sql, userId: string, id: string): Promise<Search | null | false> {
   const [row] = await sql<SearchRow[]>`
-    update searches set status = 'canceled', finished_at = now()
+    update searches set status = 'canceled', finished_at = now(), ongoing = false,
+      stage = case when stage is null then null else 'canceled' end,
+      stage_note = case when stage is null then null else 'Stopped' end
     where id = ${id} and clerk_user_id = ${userId} and status in ('queued', 'running')
     returning ${sql.unsafe(SEARCH_COLUMNS)}
   `;
@@ -269,6 +355,8 @@ function emailFilter(sql: Sql, f: LeadFilters) {
     and not ${suppressedSql(sql, 'e.address')}
     ${f.verification ? sql`and e.verification = ${f.verification}` : sql``}
     ${f.kind ? sql`and e.kind = ${f.kind}` : sql``}
+    ${f.people ? sql`and e.first_name is not null` : sql``}
+    ${f.decisionMakers ? sql`and e.first_name is not null and e.seniority in ('founder', 'executive', 'director')` : sql``}
   `;
 }
 
@@ -280,7 +368,7 @@ export async function listCompanies(
 ): Promise<CompaniesPage | null> {
   const cursor = query.cursor ? decodeCursor(query.cursor) : null;
   if (query.cursor && !cursor) return null;
-  const emailFiltered = Boolean(query.verification || query.kind);
+  const emailFiltered = Boolean(query.verification || query.kind || query.people || query.decisionMakers);
   const like = query.q ? likePattern(query.q) : null;
 
   const rows = await sql<CompanyRow[]>`

@@ -121,6 +121,7 @@ import { feedSourceStatus } from './feed/drops.js';
 import { loadEnv } from './env.js';
 import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
+import { startOngoingLoop } from './leads/ongoing.js';
 import { ensureAccount } from './leads/quota.js';
 import { createSearch, exportRows, getSearch, listCompanies } from './leads/repo.js';
 import { resumeSource } from './leads/source-pause.js';
@@ -591,9 +592,12 @@ async function main(): Promise<void> {
   const sql = postgres(url ?? local!.url, { max: 10, onnotice: () => {} });
   const log = pino({ level: args.flags.has('verbose') ? 'debug' : 'warn' });
 
-  const runner = new Runner(createPipelineDeps(sql, env, log), { concurrency: env.WORKER_CONCURRENCY, pollMs: 250 });
+  const deps = createPipelineDeps(sql, env, log);
+  const runner = new Runner(deps, { concurrency: env.WORKER_CONCURRENCY, pollMs: 250 });
+  let stopOngoing = () => {};
   let interrupted = false;
   const cleanup = async () => {
+    stopOngoing();
     await runner.stop(5_000);
     await sql.end({ timeout: 5 });
     await local?.stop();
@@ -613,6 +617,15 @@ async function main(): Promise<void> {
     console.log(`search ${created.id}: ${request.kind} ${JSON.stringify(request.params)} limit ${limit}`);
     console.log(`smtp probe: ${env.SMTP_PROBE_ENABLED ? 'on' : 'off (MX only)'}`);
     runner.start();
+    // A plain words search that comes up short is held for a fresh round, which this loop starts.
+    stopOngoing = startOngoingLoop({
+      sql,
+      ai: deps.ai,
+      log,
+      runBraveBudget: env.ICP_BRAVE_BUDGET,
+      dailyBraveBudget: env.ICP_DAILY_BRAVE_BUDGET,
+      globalDailyBraveBudget: env.ONGOING_DAILY_BRAVE_BUDGET,
+    });
 
     let last = '';
     let search: Search | null = created;

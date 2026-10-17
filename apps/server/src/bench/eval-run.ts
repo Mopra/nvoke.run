@@ -25,6 +25,7 @@ import type { Env } from '../env.js';
 import { sleep } from '../leads/limits.js';
 import { ensureAccount } from '../leads/quota.js';
 import { createSearch } from '../leads/repo.js';
+import { startOngoingLoop } from '../leads/ongoing.js';
 import { createPipelineDeps } from '../worker/deps.js';
 import { Runner } from '../worker/runner.js';
 import { judgeEntry, JUDGE_USER, personColumns, type PersonColumns } from './eval-judge.js';
@@ -185,7 +186,10 @@ export async function runEval(opts: EvalOptions): Promise<{ run: EvalRun; file: 
     SMTP_PROBES_PER_MINUTE: opts.smtpPerMinute,
     TOOLS_SMTP_PROBES_PER_MINUTE: 0,
   };
-  const runner = new Runner(createPipelineDeps(sql, env, log), { concurrency: env.WORKER_CONCURRENCY, pollMs: 250 });
+  const deps = createPipelineDeps(sql, env, log);
+  const runner = new Runner(deps, { concurrency: env.WORKER_CONCURRENCY, pollMs: 250 });
+  // The worker's never short and ongoing tick, so held searches get their next round as in production.
+  let stopOngoing: (() => void) | null = null;
 
   let interrupted = false;
   const onSigint = () => {
@@ -231,6 +235,14 @@ export async function runEval(opts: EvalOptions): Promise<{ run: EvalRun; file: 
     }
     console.error(`smtp: ${env.SMTP_PROBE_ENABLED ? `on, ${opts.smtpPerMinute}/min` : 'off (MX only)'}`);
     runner.start();
+    stopOngoing = startOngoingLoop({
+      sql,
+      ai: deps.ai,
+      log,
+      runBraveBudget: env.ICP_BRAVE_BUDGET,
+      dailyBraveBudget: env.ICP_DAILY_BRAVE_BUDGET,
+      globalDailyBraveBudget: env.ONGOING_DAILY_BRAVE_BUDGET,
+    });
 
     const deadline = startedAt.getTime() + opts.minutes * 60_000;
     const marks = snapshotMarks(opts.minutes);
@@ -261,6 +273,7 @@ export async function runEval(opts: EvalOptions): Promise<{ run: EvalRun; file: 
     const endMinutes = (Date.now() - startedAt.getTime()) / 60_000;
     snapshots.push(await takeSnapshot(sql, entrySearches, columns, opts, startedAt, { atMinutes: endMinutes, final: true }));
     console.error(`end      ${progressLine(snapshots.at(-1)!)}`);
+    stopOngoing?.();
     await runner.stop(5_000);
     await saveBrave();
 
@@ -305,6 +318,7 @@ export async function runEval(opts: EvalOptions): Promise<{ run: EvalRun; file: 
     return { run, file };
   } finally {
     process.off('SIGINT', onSigint);
+    stopOngoing?.();
     await runner.stop(5_000);
     await saveBrave().catch((err: unknown) => console.error('could not save the Brave cache:', err));
     await sql.end({ timeout: 5 });

@@ -6,7 +6,7 @@
 
 export type McpToolArgs = Record<string, unknown>;
 export interface McpToolCall {
-  method: 'GET' | 'POST' | 'DELETE';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   url: string;
   body?: unknown;
 }
@@ -61,6 +61,8 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
     case 'get_search':
     case 'wait_for_search':
       return { method: 'GET', url: `/v1/searches/${id}` };
+    case 'set_search_ongoing':
+      return { method: 'PATCH', url: `/v1/searches/${id}`, body: { ongoing: a['ongoing'] } };
     case 'cancel_search':
       return { method: 'POST', url: `/v1/searches/${id}/cancel` };
     case 'delete_search':

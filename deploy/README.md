@@ -55,6 +55,8 @@ units read it. The API needs the first block; the worker reads the second.
 | `BRAVE_SEARCH_API_KEY` | worker | Needed for `web` searches; without it they fail with a clear error |
 | `BRAVE_REQUESTS_PER_SECOND` | worker | What the Brave plan allows, default 1 (free plan); 50 here |
 | `BRAVE_MONTHLY_BUDGET_USD` | worker | Brave spend that triggers alert emails at 80% and 100%; match the usage limit in the Brave dashboard |
+| `ICP_BRAVE_BUDGET` | worker | Paid Brave requests per run of a Describe your customer search, fresh rounds included, default 120 |
+| `ICP_DAILY_BRAVE_BUDGET`, `ONGOING_DAILY_BRAVE_BUDGET` | worker | Paid Brave requests an ongoing search's daily round may make (default 40) and all daily rounds together per UTC day (default 250, about $37 a month at most). Each round reserves its whole budget up front (a query may read 4 result pages), so real spend stays well under the reservation |
 | `DAY3_API_KEY` | API, worker | Day3 key (Pradsgaard Labs organization, "nvoke server alerts") for operator alert emails |
 | `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` | worker | Who gets alerts, comma separated, and the sender (on a domain verified in Day3) |
 | `PRODUCT_HUNT_TOKEN` | worker | Optional; `launches` searches use Show HN only without it |

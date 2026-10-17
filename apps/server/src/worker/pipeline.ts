@@ -23,12 +23,13 @@ import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import type { Ai } from '../ai/client.js';
 import type { Alerter } from '../alerts.js';
+import { holdForEscalation } from '../leads/ongoing.js';
 import { pauseSource } from '../leads/source-pause.js';
 import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import { isTempfail, type Verifier } from '../leads/verify/index.js';
 import { leadSettled, searchFinished } from '../webhooks/events.js';
-import { cancelSearchJobs, enqueue, type Job } from './queue.js';
+import { cancelSearchJobs, enqueue, type Job, verifyPriority } from './queue.js';
 
 export interface PipelineDeps {
   sql: Sql;
@@ -126,11 +127,25 @@ async function searchStatus(sql: Sql, searchId: string): Promise<SearchStatus | 
   return rows[0]?.status ?? null;
 }
 
-/** Marks the search failed (unless it already ended) and cancels its remaining discovery work. */
+/**
+ * Marks the search failed (unless it already ended) and cancels its remaining
+ * discovery work. A search with a live progress line (plain words) gets an
+ * honest last note instead of the step it was on; an ongoing one is picked up
+ * again at its next daily round (leads/ongoing.ts).
+ */
 export async function failSearch(sql: Sql, searchId: string, error: string, keepVerify = false): Promise<void> {
+  const quota = error === QUOTA_EXCEEDED;
   await sql.begin(async (tx) => {
     const rows = await tx`
-      update searches set status = 'failed', error = ${error.slice(0, 500)}, finished_at = now()
+      update searches set status = 'failed', error = ${error.slice(0, 500)}, finished_at = now(),
+        stage = case when stage is null then null when ${quota} then 'paused' else 'failed' end,
+        stage_note = case
+          when stage is null then null
+          when ${quota} and ongoing then 'This month’s allowance is used up. Paused until it renews'
+          when ${quota} then 'This month’s allowance is used up'
+          when ongoing then 'Stopped by an error. Trying again at the next daily round'
+          else 'Stopped by an error. Search more to try again'
+        end
       where id = ${searchId} and status in ('queued', 'running')
       returning id
     `;
@@ -141,10 +156,13 @@ export async function failSearch(sql: Sql, searchId: string, error: string, keep
 
 /**
  * A running search with no queued or running jobs left is done. Called after
- * every job; READ COMMITTED makes the last finisher see an empty queue.
+ * every job; READ COMMITTED makes the last finisher see an empty queue. A
+ * plain words search that came up short is held running for a fresh round
+ * instead (leads/ongoing.ts).
  */
 export async function maybeFinishSearch(sql: Sql, searchId: string): Promise<boolean> {
   return sql.begin(async (tx) => {
+    if (await holdForEscalation(tx, searchId)) return false;
     const rows = await tx`
       update searches set status = 'done', finished_at = now()
       where id = ${searchId} and status = 'running'
@@ -442,7 +460,7 @@ async function finishCrawl(
           confidence: PAGE_CONFIDENCE[e.kind],
         };
       });
-      const inserted = await tx<{ id: string }[]>`
+      const inserted = await tx<{ id: string; kind: string; seniority: string | null; first_name: string | null }[]>`
         insert into emails ${tx(
           rows,
           'company_id',
@@ -460,12 +478,17 @@ async function finishCrawl(
           'confidence',
         )}
         on conflict (company_id, address) do nothing
-        returning id
+        returning id, kind, seniority, first_name
       `;
       stored = inserted.length;
       await enqueue(
         tx,
-        inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id })),
+        inserted.map((r) => ({
+          type: 'verify' as const,
+          payload: { emailId: r.id },
+          searchId: company.search_id,
+          priority: verifyPriority(r),
+        })),
       );
     }
     await tx`
@@ -510,8 +533,18 @@ export const GREYLIST_DELAY_MS = 10 * 60_000;
 export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const emailId = str(job.payload, 'emailId');
-  const [email] = await sql<{ address: string; search_id: string; clerk_user_id: string; verification: Verification | null }[]>`
-    select address, search_id, clerk_user_id, verification from emails where id = ${emailId}
+  const [email] = await sql<
+    {
+      address: string;
+      search_id: string;
+      clerk_user_id: string;
+      verification: Verification | null;
+      kind: string;
+      seniority: string | null;
+      first_name: string | null;
+    }[]
+  >`
+    select address, search_id, clerk_user_id, verification, kind, seniority, first_name from emails where id = ${emailId}
   `;
   if (!email || email.verification) return;
   const status = await searchStatus(sql, email.search_id);
@@ -527,7 +560,13 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
     // Over the probe budget for this minute: come back when a slot frees up, spread out. Not a retry.
     const now = deps.now?.() ?? new Date();
     const wait = Math.max(5_000, result.retryAfterMs ?? 60_000) + Math.floor(Math.random() * 60_000);
-    await enqueue(sql, { type: 'verify', payload: { emailId, retry }, searchId: email.search_id, runAfter: new Date(now.getTime() + wait) });
+    await enqueue(sql, {
+      type: 'verify',
+      payload: { emailId, retry },
+      searchId: email.search_id,
+      runAfter: new Date(now.getTime() + wait),
+      priority: verifyPriority(email),
+    });
     return;
   }
   // Unknown is the outcome that says the most about our own health (throttling, a blocked port 25).
@@ -540,6 +579,7 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
       payload: { emailId, retry: retry + 1 },
       searchId: email.search_id,
       runAfter: new Date(now.getTime() + GREYLIST_DELAY_MS),
+      priority: verifyPriority(email),
     });
     return;
   }

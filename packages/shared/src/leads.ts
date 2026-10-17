@@ -177,6 +177,12 @@ function runs<P extends z.ZodType>(params: P) {
         limit: z.number().int().positive(),
         foundBefore: z.number().int().nonnegative(),
         createdAt: z.iso.datetime({ offset: true }),
+        /**
+         * Who started the run. Absent: the user (the first run or Search
+         * more). `escalate`: nvoke, because a plain words search came up
+         * short. `ongoing`: nvoke's daily run of an ongoing search.
+         */
+        trigger: z.enum(['escalate', 'ongoing']).optional(),
       }),
     )
     .optional();
@@ -294,14 +300,22 @@ export const Company = z.object({
 });
 export type Company = z.infer<typeof Company>;
 
+/** A yes or no in a query string: `true`, `false`, `1`, `0` (and a plain boolean from code). */
+const queryFlag = z.union([z.boolean(), z.stringbool()]);
+
 /**
- * Filters shared by the company list and the CSV export. With `verification`
- * or `kind` set, only companies with a matching email are returned, and only
- * the matching emails. `q` matches company name, domain or email address.
+ * Filters shared by the company list and the CSV export. With `verification`,
+ * `kind`, `people` or `decisionMakers` set, only companies with a matching
+ * email are returned, only the matching emails, and `total` counts those
+ * companies. `people`: addresses with a named person. `decisionMakers`:
+ * named people whose seniority is founder, executive or director.
+ * `q` matches company name, domain or email address.
  */
 export const LeadFilters = z.object({
   verification: Verification.optional(),
   kind: EmailKind.optional(),
+  people: queryFlag.optional(),
+  decisionMakers: queryFlag.optional(),
   q: z.string().trim().min(1).max(200).optional(),
 });
 export type LeadFilters = z.infer<typeof LeadFilters>;
@@ -398,6 +412,7 @@ export const LeadsErrorCode = z.enum([
   'not_cancelable',
   'search_running',
   'kind_mismatch',
+  'ongoing_not_supported',
   'not_claimed',
   'database_unavailable',
   'source_unavailable',

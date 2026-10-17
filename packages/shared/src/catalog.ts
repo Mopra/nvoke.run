@@ -22,6 +22,7 @@ import {
   SearchIdParams,
   SearchListResponse,
   SearchMoreRequest,
+  UpdateSearchRequest,
 } from './leads.ts';
 import {
   LocalCrawlClaimRequest,
@@ -208,6 +209,22 @@ export const ENDPOINTS: Endpoint[] = [
     example: { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 50 },
   },
   {
+    id: 'updateSearch',
+    method: 'PATCH',
+    path: '/v1/searches/:id',
+    group: 'Searches',
+    summary: 'Keep a search going',
+    description:
+      'Switches `ongoing` on or off for a Describe your customer (`icp`) search. An ongoing search runs a fresh round once a day, at the time of day it was created, whenever it is not running: new niches, countries, cities and list pages it has not searched yet, so new leads arrive over days. It pauses while the month’s verified emails are used up and resumes when they renew; `stageNote` says what it does. Off by default; canceling a search switches it off. Every `icp` search also pushes on by itself when it comes up short, up to 3 fresh rounds in 24 hours, ongoing or not. Other kinds answer 400 `ongoing_not_supported`.',
+    auth: 'key',
+    params: SearchIdParams,
+    body: UpdateSearchRequest,
+    status: 200,
+    response: Search,
+    errors: ['invalid_request', 'not_found', 'ongoing_not_supported'],
+    example: { ongoing: true },
+  },
+  {
     id: 'cancelSearch',
     method: 'POST',
     path: '/v1/searches/:id/cancel',
@@ -240,7 +257,7 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Leads',
     summary: 'List companies with their emails',
     description:
-      'The companies a search found, each with its checked email addresses, 50 to a page. Filter by `verification` (`valid` is what you usually want), by `kind` (`generic` like info@, or `personal`) and by `q` (name, domain or address). Pass `nextCursor` back as `cursor` for the next page. Addresses appear once their check has run.',
+      'The companies a search found, each with its checked email addresses, 50 to a page. Filter by `verification` (`valid` is what you usually want), by `kind` (`generic` like info@, or `personal`), by `people=true` (only addresses with a named person), by `decisionMakers=true` (only founders, executives and directors) and by `q` (name, domain or address). `total` counts the companies that match. Pass `nextCursor` back as `cursor` for the next page. Addresses appear once their check has run.',
     auth: 'key',
     params: SearchIdParams,
     query: CompaniesQuery,
@@ -256,7 +273,7 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Leads',
     summary: 'Export as CSV',
     description:
-      'One row per email: company, domain, website, email, kind, verification, source_url, location, phone, opener. Takes the same filters as the company list.',
+      'One row per email: company, domain, website, email, first_name, last_name, title, seniority, kind, verification, source_url, found_via, confidence, location, phone, opener. Takes the same filters as the company list, `people` and `decisionMakers` included.',
     auth: 'key',
     params: SearchIdParams,
     query: LeadFilters,
@@ -566,6 +583,7 @@ export const ERROR_CODES: Record<string, string> = {
   not_cancelable: 'The search already finished.',
   search_running: 'The search is still running. Wait for it to finish, or cancel it, then search again.',
   kind_mismatch: 'A search runs again with its own kind. Start a new search for another kind.',
+  ongoing_not_supported: 'Only Describe your customer (`icp`) searches can be ongoing.',
   not_claimed: 'The company is not claimed for a local crawl right now. Claim it again with `POST /v1/local-crawl/claim`.',
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
   account_exists: 'An account with this email exists. Ask the human for an API key.',
@@ -720,6 +738,15 @@ export const MCP_TOOLS: McpTool[] = [
       days: z.number().int().min(1).max(30).optional().describe('launches: how many days back, default 7.'),
       limit: z.number().int().min(1).max(1000).optional().describe('New companies to look at, default 100. domains: the length of the list.'),
     }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'set_search_ongoing',
+    title: 'Keep a search going',
+    description:
+      'Switches ongoing on or off for a Describe your customer (icp) search. Ongoing searches run a fresh round every day, so new leads arrive over days; they pause while the month’s allowance is used up. Only icp searches.',
+    input: z.object({ searchId, ongoing: z.boolean().describe('true keeps it going every day, false stops that.') }),
     readOnly: false,
     destructive: false,
   },

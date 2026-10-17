@@ -49,6 +49,10 @@ const EnvSchema = z.object({
   BRAVE_COST_PER_1000_USD: z.coerce.number().positive().default(5),
   /** Paid Brave requests one Describe your customer search may make (cache hits are free). */
   ICP_BRAVE_BUDGET: z.coerce.number().int().positive().default(120),
+  /** Paid Brave requests an ongoing search's daily round may make. */
+  ICP_DAILY_BRAVE_BUDGET: z.coerce.number().int().min(0).default(40),
+  /** Paid Brave requests all ongoing searches' daily rounds together may make a day (UTC). */
+  ONGOING_DAILY_BRAVE_BUDGET: z.coerce.number().int().min(0).default(250),
   // Operator alerts by email through Day3.
   DAY3_API_KEY: optional,
   ALERT_EMAIL_TO: list,

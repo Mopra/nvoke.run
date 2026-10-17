@@ -178,6 +178,29 @@ export function listPageDeps(limiter: RateLimiter, fetch: FetchLike = guardedFet
   return { fetch, limiter, robots: new RobotsCache({ fetch, limiter }) };
 }
 
+/** Bytes read of a homepage for its title and meta description, which sit in the head. */
+export const HEAD_MAX_BYTES = 250_000;
+
+/**
+ * A homepage's title and meta description, read with the crawler's rules
+ * (robots.txt, the per host rate, a byte cap), for fit scoring. Null when the
+ * site refuses us, is down, walls us off or is not HTML. Pass deps from
+ * listPageDeps.
+ */
+export async function readHead(url: string, deps: CrawlDeps, signal?: AbortSignal): Promise<{ title: string; description: string } | null> {
+  const fetcher = new SiteFetcher(deps, HEAD_MAX_BYTES, signal);
+  const page = await fetcher.get(url);
+  if (page.kind !== 'ok' || page.status < 200 || page.status >= 300 || !isHtml(page.contentType)) return null;
+  const html = decodeBody(page.body, page.contentType);
+  if (pageWall(html)) return null;
+  const $ = load(html);
+  const meta = (sel: string) => cleanText($(sel).first().attr('content') ?? '');
+  return {
+    title: cleanText($('title').first().text()).slice(0, 200),
+    description: (meta('meta[name="description"]') || meta('meta[property="og:description"]')).slice(0, 400),
+  };
+}
+
 /** Fetches a list page with the crawler's rules and returns the companies it links to. Pass deps from listPageDeps. */
 export async function mineListPage(url: string, deps: CrawlDeps, signal?: AbortSignal): Promise<MineResult> {
   const fetcher = new SiteFetcher(deps, LIST_PAGE_MAX_BYTES, signal);

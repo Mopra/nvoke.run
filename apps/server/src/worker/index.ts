@@ -1,7 +1,8 @@
 /**
  * Worker entry point. Runs the lead pipeline jobs (find, crawl, verify) from
  * the Postgres queue, the feed collectors and daily drops (every minute) and
- * the hourly retention purge, and sends webhooks, in a separate process from the API. SIGTERM
+ * the hourly retention purge, pushes short and ongoing plain words searches on
+ * (leads/ongoing.ts), and sends webhooks, in a separate process from the API. SIGTERM
  * stops claiming, gives running jobs time to finish, and hands the rest back.
  */
 import { loadEnv } from '../env.js';
@@ -12,6 +13,7 @@ import { createCollectors } from '../feed/collectors.js';
 import { runDueDrops } from '../feed/drops.js';
 import { createClerkClient } from '@clerk/backend';
 import { purgeAgentSignups } from '../agents/purge.js';
+import { startOngoingLoop } from '../leads/ongoing.js';
 import { purge, RETENTION } from '../leads/retention.js';
 import { VERSION } from '../version.js';
 import { DELIVERY_BATCH, deliverDue } from '../webhooks/deliver.js';
@@ -32,8 +34,21 @@ if (!env.DATABASE_URL) {
 
 const sql = getSql();
 let stopping = false;
-const runner = new Runner(createPipelineDeps(sql, env, log), { concurrency: env.WORKER_CONCURRENCY });
+const deps = createPipelineDeps(sql, env, log);
+const runner = new Runner(deps, { concurrency: env.WORKER_CONCURRENCY });
 runner.start();
+
+// Never short and ongoing: every 15 seconds, start fresh rounds for plain
+// words searches that came up short, and the daily rounds of ongoing ones.
+// Claims are atomic, so several workers share the work.
+const stopOngoing = startOngoingLoop({
+  sql,
+  ai: deps.ai,
+  log: log.child({ part: 'ongoing' }),
+  runBraveBudget: env.ICP_BRAVE_BUDGET,
+  dailyBraveBudget: env.ICP_DAILY_BRAVE_BUDGET,
+  globalDailyBraveBudget: env.ONGOING_DAILY_BRAVE_BUDGET,
+});
 
 // Retention purge: once at start, then hourly. Idempotent, so several
 // workers running it at once is harmless.
@@ -113,6 +128,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(purgeTimer);
   clearInterval(feedTimer);
   clearInterval(webhookTimer);
+  stopOngoing();
   try {
     await runner.stop(25_000);
   } finally {

@@ -18,7 +18,7 @@ import { normalizeDomain, registrableDomain } from '../domain.js';
 import { FIT_BATCH, FIT_THRESHOLD, isObviousNonCompany, scoreCandidates, type FitVerdict } from '../fit.js';
 import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
-import { isDirectoryDomain, isListPage, listPageDeps, mineListPage } from '../listicle.js';
+import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead } from '../listicle.js';
 import { makePlan, savePlan, storedPlan, type IcpPlan, type LocalPair, type PlanQuery } from '../planner.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import { braveQuery, type BraveClient } from './web.js';
@@ -39,6 +39,8 @@ const MAX_FAILED_IN_A_ROW = 4;
 const MAX_DEEP_PAGE = 3;
 /** Share of a query's results that must fit for tier 4 to read its next page. */
 const DEEP_FIT_RATE = 0.25;
+/** Homepages one run reads for fit scoring. Each is free but takes a second or two. */
+export const MAX_HEADS = 2_500;
 /** Paid Brave requests per search when the server sets none (ICP_BRAVE_BUDGET). */
 export const DEFAULT_BRAVE_BUDGET = 120;
 
@@ -56,6 +58,8 @@ export interface IcpAdapterOptions {
   listFetch?: FetchLike;
   /** Paid Brave requests one search may make; cache hits are free. Default DEFAULT_BRAVE_BUDGET. */
   braveBudget?: number;
+  /** Whether fit scoring reads the homepages of candidates that are not plainly out. Default true. */
+  readHeads?: boolean;
 }
 
 type Unit =
@@ -101,6 +105,16 @@ const queryKey = (q: PlanQuery) => `${q.q.toLowerCase()}|${q.country ?? ''}`;
 const webUnits = (queries: PlanQuery[]): Unit[] =>
   spreadByCountry(queries).map((query) => ({ type: 'web', query, page: 0, key: queryKey(query) }));
 
+/**
+ * The brand a site stands for across country domains: "acme" for acme.de,
+ * acme.co.uk and acme.com. Null when the label is too short or generic to
+ * tell companies apart.
+ */
+export function brandOf(site: string): string | null {
+  const label = site.split('.')[0] ?? '';
+  return label.length >= 4 ? label : null;
+}
+
 /** "1 country", "6 countries". */
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
@@ -108,7 +122,7 @@ function plural(n: number, one: string, many: string): string {
 
 export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchParams> {
   const crawl = listPageDeps(opts.crawl?.limiter ?? new RateLimiter(1_000), opts.listFetch);
-  const budget = opts.braveBudget ?? DEFAULT_BRAVE_BUDGET;
+  const runBudget = opts.braveBudget ?? DEFAULT_BRAVE_BUDGET;
 
   return {
     kind: 'icp',
@@ -147,7 +161,9 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       ctx.log.info({ plan }, 'icp: plan');
       if (ctx.signal.aborted) return;
 
-      // Paid Brave requests (cache misses) of this run, against the search's budget.
+      // Paid Brave requests (cache misses) of this run, against the search's
+      // budget, or the smaller one an ongoing round reserved (leads/ongoing.ts).
+      const budget = Math.min(runBudget, plan.braveBudget ?? runBudget);
       let paid = 0;
       const braveCtx = {
         ...ctx,
@@ -164,6 +180,9 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
 
       const brief = { description: params.description, product: params.product, plan };
       const seen = new Set<string>();
+      // The same company under another country's domain ("acme.de" and "acme.com") is one company.
+      const brands = new Set<string>();
+      const heads = { left: MAX_HEADS };
       const mined = new Set<string>();
       const stats = new Map<string, QueryStats>();
       let yielded = 0;
@@ -192,6 +211,11 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         if (seen.has(site)) return null;
         seen.add(site);
         if (isObviousNonCompany(c.website)) return null;
+        const brand = brandOf(site);
+        if (brand) {
+          if (brands.has(brand)) return null;
+          brands.add(brand);
+        }
         // A sign-in or app host stands for the company's own site.
         return APP_HOST.test(domain) ? { ...c, website: `https://${site}` } : c;
       };
@@ -201,7 +225,15 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       const inflight: { done: boolean; result: Promise<Pending[]> }[] = [];
       const startScoring = (batch: Pending[]) => {
         const entry = { done: false, result: Promise.resolve([] as Pending[]) };
-        entry.result = scoreCandidates({ ai, userId, brief, onError: (err) => ctx.log.warn({ err }, 'icp: fit call failed') }, batch.map((p) => p.company)).then((verdicts: (FitVerdict | null)[]) => {
+        const fitOpts = {
+          ai,
+          userId,
+          brief,
+          heads,
+          readHead: opts.readHeads === false ? undefined : (website: string) => readHead(website, crawl, ctx.signal),
+          onError: (err: unknown) => ctx.log.warn({ err }, 'icp: fit call failed'),
+        };
+        entry.result = scoreCandidates(fitOpts, batch.map((p) => p.company)).then((verdicts: (FitVerdict | null)[]) => {
           entry.done = true;
           return batch.flatMap((p, i) => {
             const v = verdicts[i];

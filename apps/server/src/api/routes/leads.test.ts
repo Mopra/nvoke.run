@@ -210,6 +210,31 @@ describe('lead routes', () => {
     expect(other.statusCode).toBe(404);
   });
 
+  it('switches ongoing on and off for plain words searches only', async () => {
+    const icp = Search.parse((await createSearch('alice', { kind: 'icp', params: { description: 'Outbound agencies in Europe' } })).json());
+    expect(icp.ongoing).toBe(false);
+    const patch = (id: string, payload: unknown, user = 'alice') =>
+      app.inject({ method: 'PATCH', url: `/v1/searches/${id}`, headers: as(user), payload: payload as object });
+
+    const on = await patch(icp.id, { ongoing: true });
+    expect(on.statusCode).toBe(200);
+    expect(Search.parse(on.json())).toMatchObject({ id: icp.id, ongoing: true });
+
+    // Off ends a pause note left by a used up allowance.
+    await db.sql`update searches set status = 'done', stage = 'paused', stage_note = 'Paused until your allowance renews' where id = ${icp.id}`;
+    expect(Search.parse((await patch(icp.id, { ongoing: false })).json())).toMatchObject({ ongoing: false, stage: 'done', stageNote: 'Ongoing is off' });
+
+    expect((await patch(icp.id, { ongoing: 'yes' })).json()).toMatchObject({ error: 'invalid_request' });
+    expect((await patch(icp.id, {})).statusCode).toBe(400);
+    expect((await patch(icp.id, { ongoing: true }, 'mallory')).statusCode).toBe(404);
+    expect((await patch('nope', { ongoing: true })).statusCode).toBe(404);
+
+    const local = Search.parse((await createSearch('alice')).json());
+    const refused = await patch(local.id, { ongoing: true });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toEqual({ error: 'ongoing_not_supported' });
+  });
+
   it('deletes a search with its companies, emails and jobs', async () => {
     const a = Search.parse((await createSearch('alice')).json());
     await seedCompany(a.id, 'alice', 'Acme', 'acme.dk', [['info@acme.dk', 'generic', 'valid']]);
@@ -281,6 +306,28 @@ describe('lead routes', () => {
       expect((await page('?q=OLE@')).companies.map((c) => c.name)).toEqual(['Acme Dental']);
       expect((await page('?q=100%25')).companies).toEqual([]);
       const bad = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies?verification=maybe`, headers: as('alice') });
+      expect(bad.statusCode).toBe(400);
+    });
+
+    it('filters to named people and to decision makers, in the list, its total and the CSV', async () => {
+      await db.sql`update emails set first_name = 'Ole', last_name = 'Berg', title = 'Founder', seniority = 'founder' where address = 'ole@acme.dk'`;
+      await db.sql`update emails set first_name = 'Mette', last_name = 'Lund', title = 'Hygienist', seniority = 'staff' where address = 'mette@beta.dk'`;
+      const people = await page('?people=true');
+      expect(people.companies.map((c) => [c.name, c.emails.map((e) => e.address)])).toEqual([
+        ['Acme Dental', ['ole@acme.dk']],
+        ['Beta, "the" clinic', ['mette@beta.dk']],
+      ]);
+      expect(people.total).toBe(2);
+      const dms = await page('?decisionMakers=1');
+      expect(dms.companies.map((c) => [c.name, c.emails.map((e) => e.person?.seniority)])).toEqual([['Acme Dental', ['founder']]]);
+      expect(dms.total).toBe(1);
+      expect((await page('?decisionMakers=true&verification=valid')).total).toBe(0);
+      expect((await page('?people=false')).total).toBe(4);
+      const csv = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv?decisionMakers=true`, headers: as('alice') });
+      const lines = csv.body.slice(csv.body.charCodeAt(0) === 0xfeff ? 1 : 0).trimEnd().split('\r\n');
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain('ole@acme.dk,Ole,Berg,Founder,founder');
+      const bad = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies?people=maybe`, headers: as('alice') });
       expect(bad.statusCode).toBe(400);
     });
 

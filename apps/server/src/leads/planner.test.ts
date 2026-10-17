@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { Ai } from '../ai/client.js';
-import { PLAN_CAPS, makePlan, planKey, planPrompt, toPlan, type ClaudePlan } from './planner.js';
+import {
+  PLAN_CAPS,
+  freshCountries,
+  makePlan,
+  planKey,
+  planPrompt,
+  ranKeys,
+  replan,
+  replanPrompt,
+  toPlan,
+  toReplan,
+  type ClaudePlan,
+  type ClaudeReplan,
+} from './planner.js';
 
 const raw = (over: Partial<ClaudePlan> = {}): ClaudePlan => ({
   summary: ' Outbound agencies ',
@@ -34,6 +47,14 @@ describe('toPlan', () => {
     expect(plan.adjacent).toEqual([{ q: 'RevOps consultancy' }]);
     expect(plan.wider).toEqual([{ q: 'cold email agency', country: 'au' }]);
     expect(plan.key).toBe(planKey({ description: 'Outbound agencies' }));
+  });
+
+  it('keeps the segments, capped, and takes an answer without them', () => {
+    const segments = [' Outbound agencies ', 'Small B2B software companies', '', ...Array.from({ length: 8 }, (_, i) => `Segment ${i}`)];
+    const plan = toPlan(raw({ segments }), { description: 'Outbound agencies' });
+    expect(plan.segments?.slice(0, 2)).toEqual(['Outbound agencies', 'Small B2B software companies']);
+    expect(plan.segments).toHaveLength(PLAN_CAPS.segments);
+    expect(toPlan(raw(), { description: 'Outbound agencies' }).segments).toEqual([]);
   });
 
   it('stays inside the countries the user named', () => {
@@ -77,5 +98,72 @@ describe('makePlan', () => {
     expect(asked).toEqual([{ tier: 'quality', task: 'plan' }]);
     expect(plan.core.length).toBe(2);
     expect(costUsd).toBe(0.02);
+  });
+});
+
+describe('replan', () => {
+  const params = { description: 'Outbound agencies' };
+  const first = toPlan(raw(), params);
+  const round = (over: Partial<ClaudeReplan> = {}): ClaudeReplan => ({
+    directories: [{ q: 'top lead generation agencies in London', country: 'gb' }, { q: 'best SDR agencies 2026', country: 'us' }],
+    adjacent: [{ q: 'Cold email agency', country: 'US' }, { q: 'appointment setting agency', country: 'ca' }],
+    wider: [{ q: 'cold email agency', country: 'nl' }, { q: 'outbound agency Sydney', country: 'au' }],
+    local: [],
+    ...over,
+  });
+
+  it('repeats nothing an earlier plan ran and remembers what ran', () => {
+    const plan = toReplan(round(), params, first, 30)!;
+    // The London list query and the US cold email query ran in the first plan.
+    expect(plan.directories).toEqual([{ q: 'best SDR agencies 2026', country: 'us' }]);
+    expect(plan.adjacent).toEqual([{ q: 'appointment setting agency', country: 'ca' }]);
+    expect(plan.wider).toEqual([{ q: 'cold email agency', country: 'nl' }, { q: 'outbound agency Sydney', country: 'au' }]);
+    expect(plan.core).toEqual([]);
+    expect(plan.round).toBe(1);
+    expect(plan.ran).toEqual(ranKeys(first));
+    expect(plan.key).toBe(first.key);
+    expect(freshCountries(first, plan)).toEqual(['ca', 'nl']);
+    expect(plan.countries).toEqual(expect.arrayContaining(['us', 'gb', 'de', 'au', 'ca', 'nl']));
+
+    // The next round knows both.
+    const next = toReplan(round(), params, plan, 30);
+    expect(next).toBeNull();
+    expect(ranKeys(plan)).toEqual(expect.arrayContaining(['best sdr agencies 2026|us', 'cold email agency|us']));
+  });
+
+  it('fits the query budget, taking from every tier in turn', () => {
+    const plan = toReplan(round(), params, first, 2)!;
+    expect(plan.directories).toHaveLength(1);
+    expect(plan.adjacent).toHaveLength(1);
+    expect(plan.wider).toHaveLength(0);
+  });
+
+  it('stays inside the countries the user named', () => {
+    const named = { ...params, countries: ['us', 'au'] };
+    const plan = toReplan(round(), named, toPlan(raw(), named), 30)!;
+    expect([...plan.directories, ...plan.adjacent, ...plan.wider].map((q) => q.country)).toEqual(['us', 'au']);
+  });
+
+  it('keeps new map places even with no web budget, and gives up when nothing is new', () => {
+    const local = [{ niche: 'dentist', location: 'Odense' }];
+    expect(toReplan(round({ local }), params, first, 0)!.local).toEqual(local);
+    expect(toReplan(round({ directories: [], adjacent: [], wider: [] }), params, first, 30)).toBeNull();
+  });
+
+  it('tells Sonnet what ran and how the search stands', async () => {
+    const prompt = replanPrompt(params, first, { companies: 80, verified: 40, target: 100, maxQueries: 20 });
+    expect(prompt).toContain('- cold email agency (US)');
+    expect(prompt).toContain('80 fitting companies and 40 verified email addresses, aiming for 100');
+    const asked: string[] = [];
+    const ai: Ai = {
+      ready: async () => true,
+      structured: async (req) => {
+        asked.push(req.task);
+        return { data: round() as never, model: 'm', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 }, costUsd: 0.01 };
+      },
+    };
+    const res = await replan(ai, 'user_1', params, first, { companies: 80, verified: 40, target: 100, maxQueries: 20 });
+    expect(asked).toEqual(['replan']);
+    expect(res.plan?.round).toBe(1);
   });
 });

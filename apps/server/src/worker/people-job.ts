@@ -237,7 +237,7 @@ async function store(
     if (inserted.length === 0) return;
     await enqueue(
       tx,
-      inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id })),
+      inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id, priority: 40 })),
     );
     await tx`update searches set emails_found = emails_found + ${inserted.length} where id = ${company.search_id}`;
   });

@@ -48,6 +48,18 @@ export interface NewJob {
   searchId?: string | null;
   runAfter?: Date;
   maxAttempts?: number;
+  /** Higher runs first among runnable jobs of a type. 0 when left out. */
+  priority?: number;
+}
+
+/**
+ * How soon an address is checked: decision makers first, then other named
+ * people, then personal addresses, role inboxes last.
+ */
+export function verifyPriority(e: { kind: string; seniority?: string | null; first_name?: string | null }): number {
+  if (e.seniority === 'founder' || e.seniority === 'executive' || e.seniority === 'director') return 30;
+  if (e.first_name) return 20;
+  return e.kind === 'personal' ? 10 : 0;
 }
 
 type Db = Sql | TransactionSql;
@@ -81,12 +93,14 @@ export async function enqueue(sql: Db, jobs: NewJob | NewJob[]): Promise<void> {
     search_id: j.searchId ?? null,
     run_after: j.runAfter ?? new Date(),
     max_attempts: j.maxAttempts ?? 3,
+    priority: j.priority ?? 0,
   }));
-  await sql`insert into jobs ${sql(rows, 'type', 'payload', 'search_id', 'run_after', 'max_attempts')}`;
+  await sql`insert into jobs ${sql(rows, 'type', 'payload', 'search_id', 'run_after', 'max_attempts', 'priority')}`;
 }
 
 /**
- * Claims up to `limit` runnable jobs of the given types, oldest first, and
+ * Claims up to `limit` runnable jobs of the given types, highest priority
+ * then oldest first, and
  * marks them running. Safe to call from many workers at once.
  */
 export async function claim(sql: Db, opts: { workerId: string; limit: number; types: JobType[] }): Promise<Job[]> {
@@ -97,7 +111,7 @@ export async function claim(sql: Db, opts: { workerId: string; limit: number; ty
     where j.id in (
       select id from jobs
       where status = 'queued' and run_after <= now() and type = any(${opts.types})
-      order by run_after, id
+      order by priority desc, run_after, id
       limit ${opts.limit}
       for update skip locked
     )
