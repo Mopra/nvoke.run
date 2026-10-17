@@ -168,6 +168,11 @@ const GENERIC_LOCALS = new Set([
   'logistics', 'lager', 'warehouse', 'purchasing', 'indkob', 'procurement', 'export', 'import', 'quote',
   'quotes', 'tilbud', 'rental', 'udlejning', 'kontaktos', 'contactus', 'contact.us', 'ask',
   'questions', 'spoergsmaal', 'general.inquiries', 'welcome', 'velkommen', 'hello.world',
+  'newbusiness', 'new.business', 'new-business', 'business', 'bd', 'bizdev', 'growth', 'data', 'leads', 'lead',
+  'demo', 'demos', 'agency', 'projects', 'project', 'digital', 'creative', 'design', 'dev', 'development',
+  'tech', 'noreply', 'no-reply', 'no.reply', 'donotreply', 'algemeen', 'bureau', 'contacto', 'informacion',
+  'kundenservice', 'anfrage', 'anfragen', 'empfang', 'zentrale', 'verwaltung', 'kunde', 'kunder', 'mailbox',
+  'accueil', 'commercial', 'devis', 'vente', 'ventas', 'comercial', 'recrutement', 'emploi', 'werkstatt',
 ]);
 
 const GENERIC_PREFIX = /^(info|contact|kontakt|support|sales|salg|booking|service|office|admin|post|mail|hello|team)[._-]/;
@@ -177,6 +182,9 @@ export function classifyAddress(address: string): 'generic' | 'personal' {
   if (isWebmailDomain(domainOf(address))) return 'personal';
   const local = localPartOf(address).split('+')[0] ?? '';
   if (GENERIC_LOCALS.has(local) || GENERIC_PREFIX.test(local)) return 'generic';
+  // The company's own name as the mailbox (acme@acme.com) is the shared inbox.
+  const label = domainOf(address).split('.')[0] ?? '';
+  if (label.length >= 3 && local.replace(/[._-]/g, '') === label.replace(/-/g, '')) return 'generic';
   return 'personal';
 }
 
