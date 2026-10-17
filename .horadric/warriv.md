@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round after the place lookup merge landed: nothing new since the last wake (all 16 done, no aim open). Nothing to do; 29 quests since the last ship, shipping is the human's.
 - 2026-10-17 Woke on a dry log: local leads merge landed (6984c31 to 4f69814), so every part of Go public is on main. Marked the aim reached. Filed nothing; it still needs a ship to reach nvoke.run, which is the human's.
 - 2026-10-17 Local leads (38% to 56% per OSM place) conflicted on merge in cli.ts; told its fix-up to keep both sides, check in one turn and merge newest main last.
 - 2026-10-17 Woke on a dry log: every part of Go public has landed except the local leads merge fix (in the log as started, worktree branch with no commits yet). Gave it sonnet, filed nothing, aim stays open until it lands. Turnstile secret is set (done by the main session).
