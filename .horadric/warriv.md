@@ -10,6 +10,8 @@
 
 ## Lately
 
+- 2026-10-17 Local leads (38% to 56% per OSM place) conflicted on merge in cli.ts; told its fix-up to keep both sides, check in one turn and merge newest main last.
+- 2026-10-17 Woke on a dry log: every part of Go public has landed except the local leads merge fix (in the log as started, worktree branch with no commits yet). Gave it sonnet, filed nothing, aim stays open until it lands. Turnstile secret is set (done by the main session).
 - 2026-10-17 Round after the desktop render crawl landed (422d1a5): combined hit rate 62.2% to 66.9%; local crawl now on by default (session's Assumed line, the human may overrule). Only 'Local leads' still running; aim stays open until it lands. Nothing to file. 28 quests since the last ship, shipping is the human's.
 - 2026-10-17 Round after the crawl hit rate merge fix landed (50347ae): gain was small (60.0% to 62.2%), so filed its two named levers for the aim, side by side: 'Local leads: find the website of places that list none' (opus, server) and 'Desktop render crawl: count it in the benchmark and send it more companies' (opus, desktop). 27 quests since the last ship, shipping is the human's.
 - 2026-10-17 Crawl hit rate finished (60.0% to 62.2%) but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, adapt site profile callers, check in one turn and merge newest main last.
@@ -99,12 +101,10 @@
 
 ## Open
 
-- Push leads blocked with the human: build it or not (spec in docs/SPEC.md, Push to sending tools).
-- Crawl hit rate landed (50347ae, 60.0% to 62.2%). Desktop render lever landed (422d1a5, 66.9% combined, local crawl on by default). When 'Local leads' lands, decide whether the Go public aim is done.
+- 'Fix the merge of local-leads-find-the-website-of-places' is the last piece of Go public. When it lands on main, mark the aim done. If it sits started with no commits on the next wake, tell it to cherry-pick, resolve cli.ts and SPEC, check and commit in one turn.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
-- Turnstile quest blocked with the human: add TURNSTILE_SECRET_KEY to /opt/nvoke/.env and restart nvoke-api once the free tools (2582b1e) are live on nvoke.run. Free tools never seen live.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
