@@ -192,9 +192,9 @@ export function deobfuscate(input: string): string {
   out = out.replace(/&#0*46;|&period;|&#x0*2e;/gi, '.');
   out = out.replace(/\\u0040/gi, '@').replace(/\\u002e/gi, '.');
   // Zero width characters and soft hyphens split an address without showing.
-  out = out.replace(/[​-‍⁠﻿­]/g, '');
+  out = out.replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, '');
   // Full width and small commercial at signs.
-  out = out.replace(/[＠﹫]/g, '@');
+  out = out.replace(/[\uff20\ufe6b]/g, '@');
 
   // "(a)" is the usual German and Nordic short form; only ever inside brackets.
   const AT = '(?:at|a|@|ät|snabel-?a|arroba|chez|klammeraffe|apenstaartje|malpa)';
