@@ -10,6 +10,11 @@
 
 ## Lately
 
+- 2026-10-17 Free tool pages stopped to wait for its own review (5da0c53, tests green); told it to finish the review, recheck and mark done in one turn.
+
+- 2026-10-17 Look back: the day was clean (1 done, 1 merged, nothing repeated); the day gave 3 lore notes (never send, worktree install and vitest root, ANTHROPIC_API_KEY on the VPS).
+- 2026-10-17 Round after the Claude client foundation landed (966628d): Start from your website, free tools and crawl hit rate running; set models on Openers (opus), Push leads (sonnet), Turnstile (sonnet). 21 quests since the last ship, left shipping to the human.
+
 - 2026-10-16 Look back: the day was clean (0 quests done, 0 merged, nothing repeated).
 - 2026-10-16 Hourly round: unchanged (only the macOS test, with the human; no aim open). Main moved only by the human's own commits (GA4 consent, demo video plan). Nothing to do; 20 quests since the last ship, left shipping to the human.
 - 2026-10-15 Woke again for the macOS Grab test block; already with the human with notes, nothing else open, no aim. Nothing to do.
@@ -72,6 +77,9 @@
 - 2026-10-13 Round after "drag leads out" landed: nothing blocked. Set Model lines on the 9 unstarted native-app quests.
 
 ## Open
+
+- Claude features need ANTHROPIC_API_KEY in /opt/nvoke/.env on the VPS (human). Check it is said when Start from your website lands.
+- Turnstile quest: the VPS TURNSTILE_SECRET_KEY step needs the human; expect a block there.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
