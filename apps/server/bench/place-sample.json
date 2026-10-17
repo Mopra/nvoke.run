@@ -1,0 +1,1145 @@
+[
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Viby Tandklinik",
+  "city": "Aarhus",
+  "osmRef": "node/10956773467"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Tandlægerne Hedegaard & Kjærgaard",
+  "city": "Aarhus",
+  "osmRef": "node/12321228200"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Tandlæge Peter Schlünzen",
+  "city": "Aarhus",
+  "osmRef": "node/10052889585"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Tandlægerne Ryesgade",
+  "city": "Aarhus",
+  "osmRef": "node/7692771742"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "AROS Tandlægerne",
+  "city": "Aarhus",
+  "osmRef": "node/11190172383"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Tandlægerne Skou",
+  "city": "Aarhus",
+  "osmRef": "node/12339253385"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Tandlægerne i Vesterbrogade",
+  "city": "Aarhus",
+  "osmRef": "node/10837320161"
+ },
+ {
+  "query": "dentist in Aarhus",
+  "niche": "dentist",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Tandlægerne Kystcentret",
+  "city": "Aarhus",
+  "osmRef": "node/12211280142"
+ },
+ {
+  "query": "accountant in Copenhagen",
+  "niche": "accountant",
+  "location": "Copenhagen",
+  "country": "dk",
+  "name": "Grant Thornton Godkendt Revisionspartnerselskab",
+  "city": "Copenhagen",
+  "osmRef": "node/12737778062"
+ },
+ {
+  "query": "accountant in Copenhagen",
+  "niche": "accountant",
+  "location": "Copenhagen",
+  "country": "dk",
+  "name": "Revision",
+  "city": "Copenhagen",
+  "osmRef": "node/4889850339"
+ },
+ {
+  "query": "accountant in Copenhagen",
+  "niche": "accountant",
+  "location": "Copenhagen",
+  "country": "dk",
+  "name": "Beierholm",
+  "city": "Copenhagen",
+  "osmRef": "node/4705431658"
+ },
+ {
+  "query": "accountant in Copenhagen",
+  "niche": "accountant",
+  "location": "Copenhagen",
+  "country": "dk",
+  "name": "PwC Hellerup",
+  "city": "Copenhagen",
+  "osmRef": "node/11845009931"
+ },
+ {
+  "query": "accountant in Copenhagen",
+  "niche": "accountant",
+  "location": "Copenhagen",
+  "country": "dk",
+  "name": "PWC Punkthuset",
+  "city": "Copenhagen",
+  "osmRef": "node/8081405590"
+ },
+ {
+  "query": "lawyer in Odense",
+  "niche": "lawyer",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Kjølby Juristen",
+  "city": "Odense",
+  "osmRef": "node/4886062954"
+ },
+ {
+  "query": "lawyer in Odense",
+  "niche": "lawyer",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Handicap WC",
+  "city": "Odense",
+  "osmRef": "node/2889347701"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Bernd Lietzke",
+  "city": "Hamburg",
+  "osmRef": "node/5595008525"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Mo Architekten",
+  "city": "Hamburg",
+  "osmRef": "node/4043915241"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Architekturbüro Rüdiger F.Solvie",
+  "city": "Hamburg",
+  "osmRef": "node/13761569766"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "luenzmann architektur",
+  "city": "Hamburg",
+  "osmRef": "node/2404550433"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "TpB",
+  "city": "Hamburg",
+  "osmRef": "node/12961612365"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Axel Heller",
+  "city": "Hamburg",
+  "osmRef": "node/12078569504"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Bock Innenausbau",
+  "city": "Hamburg",
+  "osmRef": "node/7380756517"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Twesten & Sohn",
+  "city": "Hamburg",
+  "osmRef": "node/10197144897"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Stackelberg Architekten",
+  "city": "Hamburg",
+  "osmRef": "node/11165485746"
+ },
+ {
+  "query": "architect in Hamburg",
+  "niche": "architect",
+  "location": "Hamburg",
+  "country": "de",
+  "name": "Schmidt + Wille Architekten GmbH",
+  "city": "Hamburg",
+  "osmRef": "way/184567984"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "MG Barber",
+  "city": "Manchester",
+  "osmRef": "node/5074993888"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Team Barbers Barber Shop",
+  "city": "Manchester",
+  "osmRef": "node/1268133299"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "RPB",
+  "city": "Manchester",
+  "osmRef": "node/12001023876"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Cutz Gents Hair Salon",
+  "city": "Manchester",
+  "osmRef": "node/9661334461"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Hair Style",
+  "city": "Manchester",
+  "osmRef": "node/6451993684"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Barbers Boutique",
+  "city": "Manchester",
+  "osmRef": "node/11704208173"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Marina Salon by FKZ",
+  "city": "Manchester",
+  "osmRef": "node/12296987432"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Kutters Unisex Hair Salon",
+  "city": "Manchester",
+  "osmRef": "node/9503694253"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Sunset Hair and Design",
+  "city": "Manchester",
+  "osmRef": "node/2868820730"
+ },
+ {
+  "query": "hairdresser in Manchester",
+  "niche": "hairdresser",
+  "location": "Manchester",
+  "country": "gb",
+  "name": "Mensroom Barber Shop",
+  "city": "Manchester",
+  "osmRef": "node/13336602728"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Eco Waka",
+  "city": "Amsterdam",
+  "osmRef": "node/12179816104"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Leefstijl Fysiotherapie",
+  "city": "Amsterdam",
+  "osmRef": "node/12855494133"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Rugpoli",
+  "city": "Amsterdam",
+  "osmRef": "node/12730795363"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Exret",
+  "city": "Amsterdam",
+  "osmRef": "node/12716502312"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Fysiotherapie Dapperbuurt",
+  "city": "Amsterdam",
+  "osmRef": "node/12752605447"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Fysio Holland",
+  "city": "Amsterdam",
+  "osmRef": "node/11407352741"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "In-Shape",
+  "city": "Amsterdam",
+  "osmRef": "node/12194228758"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Wing Tsoen Tong",
+  "city": "Amsterdam",
+  "osmRef": "node/2725663325"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "HaptoMotion",
+  "city": "Amsterdam",
+  "osmRef": "node/2830039108"
+ },
+ {
+  "query": "physiotherapist in Amsterdam",
+  "niche": "physiotherapist",
+  "location": "Amsterdam",
+  "country": "nl",
+  "name": "Richard Smith Fysioterapie",
+  "city": "Amsterdam",
+  "osmRef": "node/12725759657"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Danielito",
+  "city": "Stockholm",
+  "osmRef": "node/12009168536"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Speedy bilservice",
+  "city": "Stockholm",
+  "osmRef": "node/3679041986"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Verkstads Partner",
+  "city": "Stockholm",
+  "osmRef": "node/11991504883"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "SF Bil och Motor",
+  "city": "Stockholm",
+  "osmRef": "node/711038084"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Mekonomen",
+  "city": "Stockholm",
+  "osmRef": "node/12009117812"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Carglass",
+  "city": "Haninge",
+  "osmRef": "node/14106239188"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Mekonomen",
+  "city": "Stockholm",
+  "osmRef": "node/7071644423"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Mekonomen",
+  "city": "Stockholm",
+  "osmRef": "node/4777271452"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Tranebergs Allservice",
+  "city": "Bromma",
+  "osmRef": "node/3891590635"
+ },
+ {
+  "query": "car repair in Stockholm",
+  "niche": "car repair",
+  "location": "Stockholm",
+  "country": "se",
+  "name": "Östermalms bilverkstad",
+  "city": "Stockholm",
+  "osmRef": "node/1215030989"
+ },
+ {
+  "query": "electrician in Oslo",
+  "niche": "electrician",
+  "location": "Oslo",
+  "country": "no",
+  "name": "Elmax",
+  "city": "Oslo",
+  "osmRef": "node/12878751969"
+ },
+ {
+  "query": "electrician in Oslo",
+  "niche": "electrician",
+  "location": "Oslo",
+  "country": "no",
+  "name": "Arkel Oslo",
+  "city": "Oslo",
+  "osmRef": "node/12787779495"
+ },
+ {
+  "query": "electrician in Oslo",
+  "niche": "electrician",
+  "location": "Oslo",
+  "country": "no",
+  "name": "City Elektro",
+  "city": "Oslo",
+  "osmRef": "node/4851272984"
+ },
+ {
+  "query": "electrician in Oslo",
+  "niche": "electrician",
+  "location": "Oslo",
+  "country": "no",
+  "name": "Hi Elektro",
+  "city": "Oslo",
+  "osmRef": "node/13589448454"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Taquero Mucho",
+  "city": "Austin",
+  "osmRef": "way/379165916"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Beto’s",
+  "city": "Austin",
+  "osmRef": "way/52697901"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Fiasco BBQ",
+  "city": "Austin",
+  "osmRef": "way/379200496"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "El Meson",
+  "city": "Austin",
+  "osmRef": "node/3281003849"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Ruth's Chris Steak House",
+  "city": "Austin",
+  "osmRef": "node/4948072426"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Super Thai Cuisine",
+  "city": "Austin",
+  "osmRef": "node/11492466915"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Roaring Fork",
+  "city": "Austin",
+  "osmRef": "node/1483931115"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "La Casita",
+  "city": "Austin",
+  "osmRef": "node/1484010012"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "DeSano Pizzeria Napoletana",
+  "city": "Austin",
+  "osmRef": "way/379206897"
+ },
+ {
+  "query": "restaurant in Austin",
+  "niche": "restaurant",
+  "location": "Austin",
+  "country": "us",
+  "name": "Granny's Tacos",
+  "city": "Austin",
+  "osmRef": "node/10562046329"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "iMove",
+  "city": "Dublin",
+  "osmRef": "way/1042036202"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "Flynn Estate Agents",
+  "city": "Dublin",
+  "osmRef": "way/651183221"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "Craddock",
+  "city": "Dublin",
+  "osmRef": "node/4579622150"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "Murphy Mullan",
+  "city": "Dublin",
+  "osmRef": "way/1419385699"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "O'Dwyer & Co",
+  "city": "Dublin",
+  "osmRef": "node/9934566742"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "DNG",
+  "city": "Dublin",
+  "osmRef": "way/346333143"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "Berkeley",
+  "city": "Dublin",
+  "osmRef": "node/8521097198"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "Arkon Lettings",
+  "city": "Dublin",
+  "osmRef": "way/970109544"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "Sherry FitzGerald",
+  "city": "Dublin",
+  "osmRef": "way/923978235"
+ },
+ {
+  "query": "estate agent in Dublin",
+  "niche": "estate agent",
+  "location": "Dublin",
+  "country": "ie",
+  "name": "O'Keeffe Estates",
+  "city": "Dublin",
+  "osmRef": "node/8952233522"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Nordfyns Tandpleje - Søndersø",
+  "city": "Odense",
+  "osmRef": "way/433805652"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Dentalklinikken Odense",
+  "city": "Odense",
+  "osmRef": "node/10864967839"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "tandlægen.dk",
+  "city": "Odense",
+  "osmRef": "node/8927114075"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Odense Tandpleje",
+  "city": "Odense",
+  "osmRef": "node/1789808277"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "dinTANDLÆGE - Odense SV",
+  "city": "Odense",
+  "osmRef": "node/1788784313"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Tandlægerne",
+  "city": "Odense",
+  "osmRef": "node/3928432818"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Godt smil",
+  "city": "Odense",
+  "osmRef": "node/11971583859"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Centrum Tandlægerne",
+  "city": "Odense",
+  "osmRef": "node/773725795"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Oris Tandlægerne Odense",
+  "city": "Odense",
+  "osmRef": "node/13485224602"
+ },
+ {
+  "query": "dentist in Odense",
+  "niche": "dentist",
+  "location": "Odense",
+  "country": "dk",
+  "name": "Tandlægerne på Thujavej",
+  "city": "Odense",
+  "osmRef": "node/11185698640"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Wasabi sushi Støvring & Brønderslev",
+  "city": "Aalborg",
+  "osmRef": "node/13509464007"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Pingvin",
+  "city": "Aalborg",
+  "osmRef": "node/11998753977"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Deli Mix",
+  "city": "Aalborg",
+  "osmRef": "node/12815700743"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Restaurant Ora",
+  "city": "Aalborg",
+  "osmRef": "node/9328572414"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Oyisi Sushi & Japansk BBQ",
+  "city": "Aalborg",
+  "osmRef": "node/7689273556"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Koch'ens Køkkon",
+  "city": "Aalborg",
+  "osmRef": "node/9458892041"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Osteria",
+  "city": "Aalborg",
+  "osmRef": "way/1545989547"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "DineHut",
+  "city": "Aalborg",
+  "osmRef": "node/8088640489"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Babylon Grill Restaurant",
+  "city": "Aalborg",
+  "osmRef": "node/12849163834"
+ },
+ {
+  "query": "restaurant in Aalborg",
+  "niche": "restaurant",
+  "location": "Aalborg",
+  "country": "dk",
+  "name": "Anas Restaurant",
+  "city": "Aalborg",
+  "osmRef": "node/12849163835"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "AS Studio",
+  "city": "Aarhus",
+  "osmRef": "node/10832118677"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Lundquist",
+  "city": "Aarhus",
+  "osmRef": "node/10221518080"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Frisør Kloch",
+  "city": "Aarhus",
+  "osmRef": "node/9841266881"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "H & M Salon",
+  "city": "Aarhus",
+  "osmRef": "node/9848253348"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Mo Fades",
+  "city": "Aarhus",
+  "osmRef": "node/12770453451"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Salon Matin",
+  "city": "Aarhus",
+  "osmRef": "node/5657156125"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Bacall",
+  "city": "Aarhus",
+  "osmRef": "node/665113058"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Frisør Loqman II",
+  "city": "Aarhus",
+  "osmRef": "node/4902381045"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Winterberg Intercoiffure",
+  "city": "Aarhus",
+  "osmRef": "node/12907619493"
+ },
+ {
+  "query": "hairdresser in Aarhus",
+  "niche": "hairdresser",
+  "location": "Aarhus",
+  "country": "dk",
+  "name": "Frisør Træholt",
+  "city": "Aarhus",
+  "osmRef": "node/10956850047"
+ },
+ {
+  "query": "car repair in Vejle",
+  "niche": "car repair",
+  "location": "Vejle",
+  "country": "dk",
+  "name": "Ølholm SUVO og Autocenter",
+  "city": "Vejle",
+  "osmRef": "way/686397695"
+ },
+ {
+  "query": "car repair in Vejle",
+  "niche": "car repair",
+  "location": "Vejle",
+  "country": "dk",
+  "name": "Knuds Auto",
+  "city": "Vejle",
+  "osmRef": "node/1985641705"
+ },
+ {
+  "query": "car repair in Vejle",
+  "niche": "car repair",
+  "location": "Vejle",
+  "country": "dk",
+  "name": "Autocenter på Toppen",
+  "city": "Vejle",
+  "osmRef": "way/161453598"
+ },
+ {
+  "query": "car repair in Vejle",
+  "niche": "car repair",
+  "location": "Vejle",
+  "country": "dk",
+  "name": "Søndermarkens Auto",
+  "city": "Vejle",
+  "osmRef": "node/3402668621"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Det Franske Bakeri og Delikatesser",
+  "city": "Bergen",
+  "osmRef": "node/3962005244"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Hjelle bakeri",
+  "city": "Bergen",
+  "osmRef": "node/886556800"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Morvik Hjemmebakeri",
+  "city": "Bergen",
+  "osmRef": "node/3126038279"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Det franske bakeri",
+  "city": "Bergen",
+  "osmRef": "node/3988383121"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Godt Brød",
+  "city": "Bergen",
+  "osmRef": "node/14100594101"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Backstube",
+  "city": "Bergen",
+  "osmRef": "node/12238910852"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Landås bakeri",
+  "city": "Bergen",
+  "osmRef": "node/5696367683"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Kronstad Surdeig",
+  "city": "Bergen",
+  "osmRef": "node/13542141301"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Godt Brød Lagunen",
+  "city": "Bergen",
+  "osmRef": "node/6166790661"
+ },
+ {
+  "query": "bakery in Bergen",
+  "niche": "bakery",
+  "location": "Bergen",
+  "country": "no",
+  "name": "Bakeri 29",
+  "city": "Bergen",
+  "osmRef": "node/3988480599"
+ },
+ {
+  "query": "optician in Utrecht",
+  "niche": "optician",
+  "location": "Utrecht",
+  "country": "nl",
+  "name": "Van der Heijde",
+  "city": "Utrecht",
+  "osmRef": "node/2670765611"
+ },
+ {
+  "query": "optician in Utrecht",
+  "niche": "optician",
+  "location": "Utrecht",
+  "country": "nl",
+  "name": "Optical Art",
+  "city": "Utrecht",
+  "osmRef": "node/1705038748"
+ },
+ {
+  "query": "optician in Utrecht",
+  "niche": "optician",
+  "location": "Utrecht",
+  "country": "nl",
+  "name": "Sunglass Hut",
+  "city": "Utrecht",
+  "osmRef": "node/4074023674"
+ },
+ {
+  "query": "optician in Utrecht",
+  "niche": "optician",
+  "location": "Utrecht",
+  "country": "nl",
+  "name": "Hans Anders",
+  "city": "Utrecht",
+  "osmRef": "node/7678111261"
+ }
+]

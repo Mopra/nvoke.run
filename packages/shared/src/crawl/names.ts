@@ -62,26 +62,53 @@ export function isOwnSiteDomain(domain: string): boolean {
   return !isPlatformDomain(domain) && !isWebmailDomain(domain);
 }
 
+/** Schools, universities and governments: never a shop's or a practice's own site. */
+const INSTITUTION = /(^|\.)(edu|gov|mil)(\.[a-z]{2})?$|\.(ac|gv)\.[a-z]{2}$/;
+
+/** Small words of the languages nvoke searches in, left out of a place's name. */
+const STOP_WORDS = new Set([
+  'i', 'pa', 'paa', 'til', 'af', 'av', 'en', 'et', 'ved', 'of', 'at', 'in', 'on', 'by', 'to', 'for', 'de', 'der', 'den',
+  'det', 'die', 'das', 'und', 'am', 'im', 'zu', 'van', 'het', 'op', 'la', 'le', 'les', 'el', 'del', 'y', 'e', 'och', 'med',
+]);
+
 /**
  * How much a domain looks like a place's own: 3 when the brand label is the
  * whole name run together, 2 when it holds every distinctive word of the
- * name, 0 otherwise. `generic` words (the niche, the city) say what and where
- * the place is, not which one, so the label need not hold them: "Tandlæge
- * Jensen" in Aarhus matches jensen-tand.dk. A name of only generic words
- * matches nothing but itself run together, and a short distinctive word
- * (under 4 letters) has to be the whole label, since "bo" is in half the
- * domains of Denmark.
+ * name or at least two of them, 0 otherwise. `generic` words (the niche, the
+ * city) say what and where the place is, not which one, so the label need
+ * not hold them, nor their plural and definite forms ("tandlægerne" after
+ * "tandlæge"): "Tandlæge Jensen" in Aarhus matches jensen-tand.dk. Stop
+ * words ("i", "på", "van") are left out too. A name of only generic words
+ * matches nothing but itself run together. A name with one distinctive word
+ * matches a label that starts with it or holds nothing else but a generic
+ * word ("Lundquist", lundquiststudio.dk; "Tandlægerne i Vesterbrogade",
+ * tandlaegerne-vesterbrogade.dk; not "Osteria", losteria.net), and a word
+ * under 4 letters has to be the whole label, since "bo" is in half the
+ * domains of Denmark. A name of two words or more also matches a label
+ * that holds it run together ("In-Shape", in-shapefysiotherapie.nl).
  */
 export function placeMatch(name: string, domain: string, generic: string[] = []): number {
+  if (INSTITUTION.test(domain)) return 0;
   if (nameMatch(name, domain) === 3) return 3;
-  const skip = new Set(generic.flatMap(nameTokens));
-  const words = nameTokens(name).filter((t) => !skip.has(t));
+  const tokens = nameTokens(name);
+  const labels = spellings(brandLabel(domain).replace(/-/g, ''));
+  if (tokens.length >= 2 && spellings(tokens.join('')).some((v) => labels.some((l) => l.includes(v)))) return 2;
+  const skip = generic.flatMap(nameTokens);
+  const isGeneric = (t: string) => skip.some((g) => t === g || (g.length >= 5 && t.startsWith(g) && t.length - g.length <= 4));
+  const words = tokens.filter((t) => !STOP_WORDS.has(t) && !isGeneric(t));
   if (words.length === 0) return 0;
-  const label = brandLabel(domain).replace(/-/g, '');
-  const labels = spellings(label);
+  const alone = (l: string, w: string) => {
+    if (l.startsWith(w)) return true;
+    const at = l.indexOf(w);
+    const rest = at < 0 ? '' : l.slice(0, at) + l.slice(at + w.length);
+    return rest.length > 0 && isGeneric(rest);
+  };
   const holds = (word: string) =>
-    spellings(word).some((w) => (word.length >= 4 ? labels.some((l) => l.includes(w)) : labels.includes(w)));
-  return words.every(holds) ? 2 : 0;
+    spellings(word).some((w) =>
+      word.length < 4 ? labels.includes(w) : labels.some((l) => (words.length === 1 ? alone(l, w) : l.includes(w))),
+    );
+  const held = words.filter(holds);
+  return held.length === words.length || held.filter((w) => w.length >= 4).length >= 2 ? 2 : 0;
 }
 
 /**

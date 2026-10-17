@@ -50,7 +50,8 @@ export async function runPlaceBench(
   sample: PlaceSample[],
   opts: { apiKey: string | undefined; braveDir: string; fetch?: FetchLike },
 ): Promise<{ places: PlaceResult[]; requests: number; cacheHits: number }> {
-  const brave = braveClient({ apiKey: opts.apiKey, cache: fileWebCache(opts.braveDir), requestsPerSecond: 1 });
+  // Without a key, a re-run reads the cached pages and Brave refuses any page it has not seen.
+  const brave = braveClient({ apiKey: opts.apiKey ?? 'none', cache: fileWebCache(opts.braveDir), requestsPerSecond: 1 });
   const usage = { request: 0, cache_hit: 0 };
   const ctx = { limit: 1, signal: AbortSignal.timeout(60 * 60_000), log: pino({ level: 'warn' }), onUsage: (e: 'request' | 'cache_hit') => void usage[e]++ };
   const places: PlaceResult[] = [];

@@ -10,6 +10,8 @@ pnpm --filter @nvoke/server cli bench fill      # OSM places per local query
 pnpm --filter @nvoke/server cli bench sample    # rebuild the sample (rarely)
 pnpm --filter @nvoke/desktop bench:render --from <label>   # the desktop pass over a run's misses
 pnpm --filter @nvoke/server cli bench render --from <label> # server plus desktop
+pnpm --filter @nvoke/server cli bench places    # look up places without a website (Brave)
+pnpm --filter @nvoke/server cli bench place-sample   # rebuild that sample (rarely)
 ```
 
 ## Method
@@ -342,8 +344,8 @@ That is less than "much better", and the reading of the misses says why:
   now shares every rule above. Many launches and one page sites simply
   publish no address: a contact form only, or nothing.
 - **Bigger levers**: the desktop render crawl on more companies (built
-  in step 7: 13 of the 104 misses), and a web search fallback per local
-  place without a website (not built here).
+  in step 7: 13 of the 104 misses), and a web search per local place
+  without a website, built and measured below.
 
 With the desktop pass (step 7) on top, 184 of 275 (66.9%), 19 more than the
 baseline: 13 of them are read on the user's computer.
@@ -351,3 +353,99 @@ baseline: 13 of them are read on the user's computer.
 Where the time goes: sitemaps and guessed paths add pages, so a site takes
 about twice as long. With one request per second per host and many sites
 crawled at once, that is throughput the worker has to spare.
+
+## Local places without a website
+
+Built after the steps above. The local search used to keep only OSM places
+with a website. Now, when those fall short of the limit, places that match
+the niche by tag but list no website are looked up on Brave as "<name>
+<city>" in the place's country, one request each (cached for 7 days, at
+most 50 per search, names already found or looked up skipped), and the
+result that is the place's own site is crawled (`pickPlaceSite` in
+`packages/shared/src/crawl/names.ts`, the local adapter in
+`apps/server/src/leads/sources/local.ts`).
+
+**How many places list no website.** The frozen sample above cannot say:
+its local slice was built from the Overpass query that asks for a website,
+so all 100 have one. `cli bench fill` (step 5) counts it on the same
+queries: of 1,642 places that match the niche by tag, 783 (48%) have no
+website, and 4 of those have an own domain email.
+
+**Sample.** `apps/server/bench/place-sample.json`, built by `cli bench
+place-sample` on 2026-10-17 and frozen: OSM places that match a local
+sample query by tag and have no `website`, `contact:website` or `url`, ten
+per query picked by a hash of their OSM id. 127 places over 16 queries.
+Fewer than ten where the area has fewer (lawyer in Odense 2, electrician in
+Oslo 4), none for physiotherapist in Esbjerg (every place there has a
+website), and cafe in Malmö failed on every Overpass mirror.
+
+**Run.** `cli bench places` makes the lookup a search makes, picks, and
+crawls the pick with the production crawler. 125 Brave requests (two
+names repeat), about 0.63 USD, with the production key; the pages are kept
+in `apps/server/.bench/brave`, so tuning the pick rule re-reads them for
+free.
+
+**Tuning the pick.** Every pick was read by hand. The rule started as the
+`domains` search's (the domain that looks most like the name, else a top
+3 result) and was made stricter until the wrong picks were few:
+
+| rule | site found | wrong (doubtful not counted) | with email |
+|---|--:|--:|--:|
+| every distinctive word in the label (niche and city words left out) | 56 | 4 | 44 |
+| plus two long words are enough, stop words and plurals of the niche left out, no .edu or .gov | 70 | 5 | 54 |
+| a one word name must start the label (or the rest is a niche word), the whole name run together inside the label | 69 | 3 | 52 |
+
+No fallback to the top result: for a dentist's or a hairdresser's name the
+top results are krak.dk, tandlaege-index.dk, fresha.com, yelp and
+dasoertliche.de as often as the place itself, and a wrong website crawls
+somebody else's addresses. The wrong picks left: "Berkeley" (an estate
+agent in Dublin) as berkeleypubliclibrary.org, "AS Studio" (a hairdresser
+in Aarhus) as studio-aarhus.dk, "Sunset Hair and Design" as
+dnhairdesign.co.uk, and "Wasabi sushi" in Aalborg as wasabisushi.dk is
+doubtful. All four crawl to addresses, so 48 of the 52 places with an email
+are right.
+
+| final | places | site found | with email |
+|---|--:|--:|--:|
+| dentist in Aarhus | 8 | 3 (38%) | 3 (38%) |
+| accountant in Copenhagen | 5 | 2 (40%) | 2 (40%) |
+| lawyer in Odense | 2 | 0 (0%) | 0 (0%) |
+| architect in Hamburg | 10 | 4 (40%) | 4 (40%) |
+| hairdresser in Manchester | 10 | 5 (50%) | 3 (30%) |
+| physiotherapist in Amsterdam | 10 | 6 (60%) | 5 (50%) |
+| car repair in Stockholm | 10 | 6 (60%) | 6 (60%) |
+| electrician in Oslo | 4 | 3 (75%) | 3 (75%) |
+| restaurant in Austin | 10 | 7 (70%) | 3 (30%) |
+| estate agent in Dublin | 10 | 8 (80%) | 4 (40%) |
+| dentist in Odense | 10 | 4 (40%) | 4 (40%) |
+| restaurant in Aalborg | 10 | 4 (40%) | 3 (30%) |
+| hairdresser in Aarhus | 10 | 6 (60%) | 6 (60%) |
+| car repair in Vejle | 4 | 2 (50%) | 2 (50%) |
+| bakery in Bergen | 10 | 5 (50%) | 3 (30%) |
+| optician in Utrecht | 4 | 4 (100%) | 1 (25%) |
+| all | 127 | 69 (54%) | 52 (41%) |
+
+What the misses are: the place's own site is in the results under another
+name (tandviby.dk for Viby Tandklinik, aarhustandlaege.dk for Tandlæge
+Peter Schlünzen, desanopizza.com for DeSano Pizzeria Napoletana), only
+directories and Facebook answer (most Bergen bakeries, the Stockholm
+garages on hitta.se and allabolag.se), or the OSM name is not a business
+("Handicap WC", "Eco Waka"). The first kind would need the page's own
+title or address to decide, which costs a fetch per result.
+
+**Before and after, per local place.** Before, a local search reached the
+52% of places with a website, and 73% of those end with an email (the
+local row of "final" above): 38% of places. Now the other 48% are looked
+up too, and 38% of those end with a right email (48 of 127):
+
+| | places reached | places with an email |
+|---|--:|--:|
+| before | 52% | 38% (0.52 x 0.73) |
+| after | 52% + 48% x 54% = 78% | 56% (0.38 + 0.48 x 0.38) |
+
+A local search can fill half again as many companies with an email from
+the same OSM places before it falls back to the generic "<niche> in
+<location>" web search. The cost is one Brave request per place looked up:
+125 requests found 48 right companies with an email, 2.6 requests or 1.3
+US cents each, against 0.25 USD at most per search (50 lookups). Chains
+(three Mekonomen branches in this sample) are looked up once per search.

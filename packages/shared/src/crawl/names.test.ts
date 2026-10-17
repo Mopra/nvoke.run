@@ -19,6 +19,25 @@ describe('place websites', () => {
     expect(placeMatch('Bo Dental', 'bo.dk', ['dental'])).toBe(2);
   });
 
+  it('reads the benchmark cases right', () => {
+    // A name of two words or more run together inside the label.
+    expect(placeMatch('In-Shape', 'in-shapefysiotherapie.nl', ['physiotherapist'])).toBe(2);
+    expect(placeMatch("O'Dwyer & Co", 'odwyerandco.ie', ['estate agent', 'Dublin'])).toBe(2);
+    // Two long words of the name are enough.
+    expect(placeMatch('Grant Thornton Godkendt Revisionspartnerselskab', 'grantthornton.dk', ['accountant'])).toBe(2);
+    // One distinctive word starts the label, or the rest of the label is generic.
+    expect(placeMatch('Lundquist', 'lundquiststudio.dk', ['hairdresser', 'Aarhus'])).toBe(2);
+    expect(placeMatch('Tandlægerne i Vesterbrogade', 'tandlaegerne-vesterbrogade.dk', dentist)).toBe(2);
+    expect(placeMatch('Osteria', 'losteria.net', ['restaurant', 'Aalborg'])).toBe(0);
+    // The name holding the label is not enough, nor a stop word left out of a short name.
+    expect(placeMatch('Odense Tandpleje', 'odense.dk', ['dentist', 'Odense'])).toBe(0);
+    expect(placeMatch('Frisør Kloch', 'frisor.dk', ['hairdresser', 'frisør'])).toBe(0);
+    expect(placeMatch('Hi Elektro', 'hauge-elektro.no', ['electrician', 'elektriker', 'Oslo'])).toBe(0);
+    // Plural forms of a generic word are generic, longer words that start with one are not.
+    expect(placeMatch('Dentalklinikken Odense', 'dentalklinikken.dk', ['dental', 'Odense'])).toBe(2);
+    expect(placeMatch('Berkeley', 'ies.berkeley.edu', ['estate agent'])).toBe(0);
+  });
+
   it('picks the own site over platforms and directories, and nothing when none matches', () => {
     const results = [
       { website: 'https://www.yelp.com/biz/jensen' },
