@@ -59,7 +59,7 @@ export const APP_INSET = 'px-4 sm:px-6';
 
 function TopBar() {
   const path = usePathname() ?? '/app';
-  const onSearches = path === '/app' || path.startsWith('/app/searches');
+  const onSearches = path === '/app' || path.startsWith('/app/searches') || path === '/app/website';
   return (
     <header className={cn(APP_FRAME, 'pointer-events-none sticky top-0 z-40 pt-4')}>
       <nav

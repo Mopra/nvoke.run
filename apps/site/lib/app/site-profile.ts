@@ -10,6 +10,8 @@ import { formatNumber, KIND_LABEL, searchTitle } from './desktop';
 
 export const MANUAL_PATH = '/app/new?manual=1';
 export const WEBSITE_PATH = '/app/new';
+/** The website read on file (or running), with its planned searches. Listed on Searches. */
+export const PROFILE_PATH = '/app/website';
 
 export type WebsiteRead = { ok: true; website: string; domain: string } | { ok: false; problem: string };
 

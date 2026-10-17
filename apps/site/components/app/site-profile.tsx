@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Check, CornerDownLeft, Loader2, Pencil, Play, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateSearchInput, SiteProfile, SuggestedSearch } from '@nvoke/shared';
@@ -19,6 +20,7 @@ import {
   useLatestProfileBuild,
   useSiteProfile,
   useUpdateSiteProfile,
+  type LatestProfileBuild,
   type ProfileBuild,
 } from '@/lib/app/queries';
 import {
@@ -30,24 +32,33 @@ import {
   displayDomain,
   isCancelled,
   MANUAL_PATH,
+  PROFILE_PATH,
   profileForm,
   profilePatch,
   readWebsite,
   suggestionCaption,
   suggestionTitle,
   type ProfileForm,
+  WEBSITE_PATH,
 } from '@/lib/app/site-profile';
 import { cn } from '@/lib/utils';
 
 /**
- * New search, step one: the user's own website. nvoke reads it, works out who
- * buys from them and suggests searches to start in one click. With a profile
- * on the account the screen opens straight on the suggestions.
+ * The website step. `fresh` is New search: always a blank field, following
+ * only the read it starts, then on to the result. Without it, the read on file
+ * (or running) and its planned searches, as listed on Searches.
  */
-export function WebsiteScreen() {
+export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
+  const router = useRouter();
   const profile = useSiteProfile();
   const build = useBuildSiteProfile();
-  const latest = useLatestProfileBuild();
+  const cached = useLatestProfileBuild();
+  // New search ignores reads started before it opened: those are on Searches.
+  const latest: LatestProfileBuild | undefined = !fresh
+    ? cached
+    : build.status === 'idle' || !build.variables
+      ? undefined
+      : { id: build.submittedAt, status: build.status, build: build.variables, error: build.error, startedAt: build.submittedAt };
   const forgetBuilds = useForgetProfileBuilds();
   const [value, setValue] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -56,7 +67,8 @@ export function WebsiteScreen() {
   const [editing, setEditing] = useState(false);
   // The build watched while it ran: its screen outlives the request until the phases have played out.
   const [following, setFollowing] = useState<number | null>(null);
-  const finishBuilding = useCallback(() => setFollowing(null), []);
+  // New search hands a finished read to its page, so Back and Searches lead to it.
+  const finishBuilding = useCallback(() => (fresh ? router.replace(PROFILE_PATH) : setFollowing(null)), [fresh, router]);
 
   // React to the build's outcome while rendering, once per status it reaches. That
   // includes a build that ended while the user was away: back to the field and why.
@@ -82,9 +94,16 @@ export function WebsiteScreen() {
     }
   }
   // Taken: coming back later should not show it again.
+  const failed = latest?.status === 'error';
   useEffect(() => {
-    if (latest?.status === 'error') forgetBuilds();
-  }, [latest, forgetBuilds]);
+    if (failed) forgetBuilds();
+  }, [failed, outcome, forgetBuilds]);
+
+  // Nothing on file and nothing running: this page has nothing to show, so New search.
+  const empty = !fresh && profile.data === null && !latest && !entering;
+  useEffect(() => {
+    if (empty) router.replace(WEBSITE_PATH);
+  }, [empty, router]);
 
   function run(raw: string, from: ProfileBuild['from']): void {
     const read = readWebsite(raw);
@@ -97,9 +116,9 @@ export function WebsiteScreen() {
   }
 
   let body: ReactNode;
-  if (profile.isPending) {
+  if (!fresh && (profile.isPending || empty)) {
     body = <ProfileSkeleton />;
-  } else if (profile.error) {
+  } else if (!fresh && profile.error) {
     body = <ErrorState error={profile.error} onRetry={() => void profile.refetch()} />;
   } else if (latest && (latest.status === 'pending' || (latest.status === 'success' && following === latest.id))) {
     body = (
@@ -111,7 +130,7 @@ export function WebsiteScreen() {
         onCancel={() => latest.build.controller.abort()}
       />
     );
-  } else if (!profile.data || entering) {
+  } else if (fresh || !profile.data || entering) {
     body = (
       <WebsiteForm
         value={value}
@@ -122,7 +141,7 @@ export function WebsiteScreen() {
         onSubmit={() => run(value, 'form')}
         problem={problem}
         onCancel={
-          profile.data
+          !fresh && profile.data
             ? () => {
                 setEntering(false);
                 setProblem(null);
@@ -139,11 +158,7 @@ export function WebsiteScreen() {
         editing={editing}
         onEdit={setEditing}
         onReadAgain={() => run(current.website, 'profile')}
-        onAnother={() => {
-          setValue('');
-          setProblem(null);
-          setEntering(true);
-        }}
+        onAnother={() => router.push(WEBSITE_PATH)}
       />
     );
   }

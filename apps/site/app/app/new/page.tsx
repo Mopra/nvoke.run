@@ -8,11 +8,12 @@ export const metadata: Metadata = { title: 'New search' };
 type Params = { kind?: string | string[]; manual?: string | string[] };
 
 /**
- * `/app/new` opens on the website step. `?manual=1` opens the form by hand,
+ * `/app/new` opens on a blank website field: New search always starts fresh,
+ * and a read already on file lives at `/app/website`. `?manual=1` opens the form by hand,
  * and so does `?kind=local` (and the other kinds), which picks its tab.
  */
 export default async function NewSearchPage({ searchParams }: { searchParams: Promise<Params> }) {
   const { kind, manual } = await searchParams;
-  if (manual === undefined && kind === undefined) return <WebsiteScreen />;
+  if (manual === undefined && kind === undefined) return <WebsiteScreen fresh />;
   return <NewSearchScreen initialKind={isFormKind(kind) ? kind : 'local'} />;
 }

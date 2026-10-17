@@ -21,7 +21,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
 import { useCancelSearch, useLatestProfileBuild, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
-import { displayDomain, WEBSITE_PATH } from '@/lib/app/site-profile';
+import { displayDomain, PROFILE_PATH, WEBSITE_PATH } from '@/lib/app/site-profile';
 import { cn } from '@/lib/utils';
 
 const href = (search: Search): string => `/app/searches/${search.id}`;
@@ -156,37 +156,65 @@ const BY_HAND = [
   { kind: 'launches', icon: Rocket, title: 'New launches' },
 ] as const;
 
-/** Where the website step stands, so the first visit picks up a read that is running or done. */
-function useWebsiteStep(): { lead: string; action: string } {
+/**
+ * The website read sits on the list like a search: running while nvoke reads
+ * the site, then planned until the user picks its searches. New search always
+ * starts fresh, so this row is the way back to it.
+ */
+function WebsiteRow() {
   const profile = useSiteProfile();
   const latest = useLatestProfileBuild();
-  if (latest?.status === 'pending') {
-    return { lead: `nvoke is reading ${latest.build.domain} and planning your searches.`, action: 'See how it’s going' };
-  }
-  if (profile.data) {
-    return {
-      lead: `Your searches for ${displayDomain(profile.data.website)} are planned. Pick one to start, or read another site.`,
-      action: 'Pick a search',
-    };
-  }
-  return {
-    lead:
-      'Give nvoke your website. It works out who buys from you and plans the searches that find them. Then it reads each company’s own site and checks every email with the mail server. Only verified emails count toward your plan.',
-    action: 'Start from your website',
-  };
+  const reading = latest?.status === 'pending' ? latest.build.domain : null;
+  if (!reading && !profile.data) return null;
+  const planned = profile.data?.suggestions.length ?? 0;
+  const title = reading ?? profile.data!.profile.name;
+  return (
+    <section className="flex flex-col gap-1 [&+&]:mt-10">
+      <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+        <Link href={PROFILE_PATH} aria-label={title} className="absolute inset-0 rounded-[24px] outline-none" />
+        <div className="pointer-events-none relative flex items-center gap-4 px-4 py-5 sm:gap-8 sm:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              {reading && <StatusDot status="running" />}
+              <span className={cn('truncate font-display text-lg font-medium', reading && 'font-mono font-normal tracking-tight')}>{title}</span>
+            </div>
+            <div className="mt-1 truncate text-sm text-muted-foreground">
+              {reading
+                ? 'Reading your website, planning searches'
+                : `Your website, ${displayDomain(profile.data!.website)}, ${relativeTime(profile.data!.updatedAt)}`}
+            </div>
+            {reading && (
+              <div className="mt-4 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07]">
+                <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate" />
+              </div>
+            )}
+          </div>
+          {!reading && (
+            <div className="shrink-0 text-right">
+              <div className="font-display text-3xl font-light tabular-nums">{formatNumber(planned)}</div>
+              <div className="text-xs tabular-nums text-muted-foreground">{planned === 1 ? 'search planned' : 'searches planned'}</div>
+            </div>
+          )}
+          <div className="-mr-2 w-7" />
+        </div>
+      </div>
+    </section>
+  );
 }
 
 /** The first visit: one obvious action, the website step, and the search kinds for those who know what they want. */
 function FirstSearch() {
-  const step = useWebsiteStep();
   return (
-    <section className={cn(APP_INSET, 'pb-10')}>
-      <p className="max-w-lg text-base text-pretty text-muted-foreground">{step.lead}</p>
+    <section className={cn(APP_INSET, 'pb-10 [section+&]:mt-10')}>
+      <p className="max-w-lg text-base text-pretty text-muted-foreground">
+        Give nvoke your website. It works out who buys from you and plans the searches that find them. Then it reads each
+        company’s own site and checks every email with the mail server. Only verified emails count toward your plan.
+      </p>
       <div className="mt-8">
         <Button asChild size="lg">
           <Link href={WEBSITE_PATH}>
             <Sparkles />
-            {step.action}
+            Start from your website
           </Link>
         </Button>
       </div>
@@ -234,9 +262,13 @@ export function SearchesScreen() {
         ) : error ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : data.length === 0 ? (
-          <FirstSearch />
+          <>
+            <WebsiteRow />
+            <FirstSearch />
+          </>
         ) : (
           <>
+            <WebsiteRow />
             <Section searches={active} />
             <Section searches={earlier} />
           </>
