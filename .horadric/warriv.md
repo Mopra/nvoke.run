@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Registry keys quest (Companies House, CVR) blocked on accounts only the human can register; left with them, noted it does not block people data.
 - 2026-10-17 Hourly round: the human committed Search more (POST /v1/searches/:id/more), /vs pages and UX polish straight to main (4f69814 to 13b0a8f), unchecked. Filed 'Checks on main after Search more and UX polish' (sonnet).
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; no code commits past checked 4f69814). Nothing to do; shipping is the human's.
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; no code commits past checked 4f69814). Nothing to do; shipping is the human's.
@@ -109,6 +110,7 @@
 
 ## Open
 
+- Registry keys (COMPANIES_HOUSE_API_KEY, CVR_USER/CVR_PASSWORD) with the human since 2026-10-17; UK and DK directors by name wait on them.
 - Go public aim reached (2026-10-17) but not shipped: about 30 quests since the last ship. Shipping is the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
 - Openers landed (8672ee6, b1b1d38); never seen live.
