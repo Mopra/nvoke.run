@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Brave top-up quest blocked (402, prepaid credit empty): spends money, left with the human. Web, by-name and icp searches down in production until then; the free fallback is the human's own mission, no quest filed.
 - 2026-10-17 Hourly round: the human committed role inboxes and a web app fix (2f5a03d, b69fc92) past checked d98544d, with 40 files still dirty (hiring, check policy, people work mid build), so no checks filed yet. Registry keys still with the human. Nothing to do.
 - 2026-10-17 Hourly round: only the human's small eval commit (5ee6a4e, bench files) past checked d98544d, and the human has people/patterns work dirty in the tree, so no checks filed yet. Registry keys still with the human. Nothing to do.
 - 2026-10-17 Round after 'Checks on main after lead quality and ongoing searches' landed: done with no fix commits, read as green at d98544d. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
@@ -121,6 +122,7 @@
 
 ## Open
 
+- Brave prepaid credit empty since 2026-10-18 (402): web, by-name and icp searches fail in production until the human tops up and runs nv sources resume brave --prod. Watch for the free search fallback landing.
 - Registry keys (COMPANIES_HOUSE_API_KEY, CVR_USER/CVR_PASSWORD) with the human since 2026-10-17; UK and DK directors by name wait on them.
 - Go public aim reached (2026-10-17) but not shipped. Shipping is the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
