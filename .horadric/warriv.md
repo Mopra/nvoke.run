@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Crawl hit rate finished (60.0% to 62.2%) but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, adapt site profile callers, check in one turn and merge newest main last.
 - 2026-10-17 Round as the human left: Dev DB UTF8 landed (bed77ad). Only crawl hit rate running; three blocks with the human (macOS test, Push leads, Turnstile secret). Aim waits on crawl hit rate. Nothing to do; 26 quests since the last ship, shipping is the human's.
 
 - 2026-10-17 Round after Journey check landed (2678983): openers fixed (thinking tokens), signed-in sign-up redirect, tool CTAs. Filed 'Dev DB: embedded Postgres in UTF8 on Windows' (sonnet) from its Not changed list. Crawl hit rate still running; aim stays open until it lands. 25 quests since the last ship, shipping is the human's.
@@ -97,7 +98,7 @@
 ## Open
 
 - Push leads blocked with the human: build it or not (spec in docs/SPEC.md, Push to sending tools).
-- Crawl hit rate told its sample retry is the last; if it stops on the sample again, push it straight to baseline.
+- Crawl hit rate done but only 60.0% to 62.2%; its merge fix is running. When it lands, consider filing its bigger levers (desktop render crawl in the benchmark, web search per local place without a website) for the aim.
 - Journey check landed (2678983); sign-up form for a new account never exercised. When crawl hit rate lands, decide whether the Go public aim is done (needs a ship, which is the human's).
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
