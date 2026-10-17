@@ -172,6 +172,7 @@ describe('lead routes', () => {
 
   it('runs a finished search again into the same list', async () => {
     const search = Search.parse((await createSearch('alice', { kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 20 })).json());
+    if (search.kind !== 'local') throw new Error('expected a local search');
     expect(search.runs).toEqual([{ params: { niche: 'dentists', location: 'Aarhus' }, limit: 20, foundBefore: 0, createdAt: expect.any(String) }]);
     const more = (body: object) => app.inject({ method: 'POST', url: `/v1/searches/${search.id}/more`, headers: as('alice'), payload: body });
     const odense = { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 50 };
@@ -187,6 +188,7 @@ describe('lead routes', () => {
     const res = await more(odense);
     expect(res.statusCode).toBe(200);
     const again = Search.parse(res.json());
+    if (again.kind !== 'local') throw new Error('expected a local search');
     expect(again).toMatchObject({ id: search.id, status: 'queued', params: odense.params, limit: 52, companiesFound: 2, finishedAt: null });
     expect(again.runs?.map((r) => [r.params, r.limit, r.foundBefore])).toEqual([
       [{ niche: 'dentists', location: 'Aarhus' }, 20, 0],
