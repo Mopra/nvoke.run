@@ -11,6 +11,7 @@
 ## Lately
 
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; no code commits past checked 4f69814). Nothing to do; shipping is the human's.
+- 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; no code commits past checked 4f69814). Nothing to do; shipping is the human's.
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; main only memory commits past checked 4f69814). Nothing to do; shipping is the human's.
 - 2026-10-17 Round as the human left: Checks on main done with no report and no commits (code unchanged since 4f69814), read as green. Log dry, no aim open, nothing to file; shipping is the human's.
 - 2026-10-17 Round as the human left: log dry, no aim. Main unchecked after 29 landings, so filed 'Checks on main before the next ship' (sonnet). The human dropped the macOS Grab test (fix on bug reports).
