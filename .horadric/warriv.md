@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Crawl hit rate stopped mid sample build (Overpass timeouts, 4 of 10 local queries); gave it opus and told it to cache and retry, accept a short local share, freeze the sample and go on with a commit per step.
 - 2026-10-17 Start from your website finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, renumber its migration if needed, check in one turn and merge newest main last.
 - 2026-10-17 Start from your website stopped again, only waiting for its desktop screens agent; noted, no message sent.
 - 2026-10-17 Start from your website stopped only to wait for its own three background agents; noted, no message sent.
