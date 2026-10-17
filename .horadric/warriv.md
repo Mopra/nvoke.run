@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round after 'Checks on main after the phone layouts' landed: done with no fix commits, read as green at 5247bab. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
 - 2026-10-17 Round as the human left: the Search more checks landed; the human then committed phone layouts (18fa1b4, cf76931) unchecked, so filed 'Checks on main after the phone layouts' (sonnet). Registry keys still with the human; large uncommitted lead quality work sits in the shared tree (not a quest). Shipping is the human's.
 
 - 2026-10-17 Registry keys quest (Companies House, CVR) blocked on accounts only the human can register; left with them, noted it does not block people data.
@@ -113,13 +114,13 @@
 ## Open
 
 - Registry keys (COMPANIES_HOUSE_API_KEY, CVR_USER/CVR_PASSWORD) with the human since 2026-10-17; UK and DK directors by name wait on them.
-- Go public aim reached (2026-10-17) but not shipped: about 30 quests since the last ship. Shipping is the human's.
+- Go public aim reached (2026-10-17) but not shipped. Shipping is the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Checks on main after the phone layouts filed 2026-10-17 for 5247bab; see it land before calling main ready to ship.
+- Main checked green at 5247bab (2026-10-17), ready for the human to ship (32 quests since the last ship).
 - Uncommitted lead quality work (people, patterns, planner, eval bench, migration 1600_people) sits in the shared tree, not in any quest; watch whether it gets committed.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
