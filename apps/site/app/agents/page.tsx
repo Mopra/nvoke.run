@@ -78,8 +78,8 @@ export default function AgentsPage() {
         </div>
       </PageHeader>
 
-      <Container className="max-w-3xl pb-8">
-        <div className="relative">
+      <Container className="overflow-x-clip pb-8">
+        <div className="relative mx-auto max-w-3xl">
           <div aria-hidden="true" className="aura absolute -inset-[10%] rounded-full opacity-70" />
           <div className="glass-strong relative flex flex-col gap-4 rounded-[28px] p-6 sm:p-8">
             <p className="text-sm font-medium">Paste this into your agent</p>

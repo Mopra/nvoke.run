@@ -39,7 +39,7 @@ function Links({ onPick }: { onPick?: () => void }) {
           </Link>
         </li>
       ))}
-      <li className="mt-4 px-4 pb-1 text-[11px] tracking-wide text-muted-foreground/80 uppercase">For agents</li>
+      <li className="mt-4 px-4 pb-1 text-xs text-muted-foreground/80">For agents</li>
       {EXTRA.map((item) => (
         <li key={item.href}>
           <a

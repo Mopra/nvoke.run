@@ -208,7 +208,7 @@ export default function HomePage() {
             Runs in your browser, nothing to install. {freeEmails} verified emails a month, free.
           </p>
         </Container>
-        <div className="relative mx-auto mt-24 w-full max-w-[1240px] px-4 pb-24 sm:mt-36 sm:px-6 sm:pb-36">
+        <Container className="relative mt-24 pb-24 sm:mt-36 sm:pb-36">
           <Stage
             width={1200}
             height={760}
@@ -218,11 +218,12 @@ export default function HomePage() {
           >
             <WindowsResultsWindow animate />
           </Stage>
-        </div>
+        </Container>
       </section>
 
       <Section
         id="how-it-works"
+        className="overflow-x-clip"
         title="How it works"
         intro="From a vague idea to a list of working emails. Three steps."
       >
@@ -250,8 +251,7 @@ export default function HomePage() {
         title="Three ways to find companies"
         intro="Three starting points. Same result: companies with checked emails."
       >
-        <div className="mx-auto max-w-5xl">
-          <div className="grid gap-16 md:grid-cols-3 md:gap-14">
+        <div className="grid gap-16 md:grid-cols-3 md:gap-14">
             {KINDS.map((k, i) => {
               const Icon = SEARCH_KINDS[i]?.icon;
               return (
@@ -263,7 +263,6 @@ export default function HomePage() {
                 </article>
               );
             })}
-          </div>
         </div>
       </Section>
 
@@ -285,7 +284,7 @@ export default function HomePage() {
             </Button>
           </div>
         </Container>
-        <div className="mx-auto mt-16 w-full max-w-[1240px] px-4 sm:mt-28 sm:px-6">
+        <Container className="mt-16 sm:mt-28">
           <Stage
             width={1200}
             height={680}
@@ -293,7 +292,7 @@ export default function HomePage() {
           >
             <MacCommandWindow />
           </Stage>
-        </div>
+        </Container>
         <Container>
           <dl className="mt-20 grid gap-x-12 gap-y-12 sm:mt-32 sm:grid-cols-2 lg:grid-cols-4">
             {DESKTOP_POINTS.map((p) => (
@@ -306,10 +305,10 @@ export default function HomePage() {
         </Container>
       </section>
 
-      <section id="verification" aria-labelledby="verification-title" className="py-24 sm:py-36">
+      <section id="verification" aria-labelledby="verification-title" className="overflow-x-clip py-24 sm:py-36">
         <Container className="grid items-start gap-16 lg:grid-cols-[1fr_1.05fr] lg:gap-24">
           <div className="flex flex-col gap-6">
-            <h2 id="verification-title" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">
+            <h2 id="verification-title" className="text-headline font-semibold text-balance">
               Every address, checked with the mail server
             </h2>
             <p className="text-lede text-pretty text-muted-foreground">
@@ -338,20 +337,22 @@ export default function HomePage() {
       </section>
 
       <section id="agents" aria-labelledby="agents-title" className="py-24 sm:py-36">
-        <Container className="flex max-w-4xl flex-col items-center gap-6 text-center">
-          <h2 id="agents-title" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">
-            Or let your agent do it
-          </h2>
-          <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
-            A REST API and an MCP server with everything the app does. Your agent can even sign you up on its own.
-          </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            <Button asChild size="lg" variant="glass">
-              <Link href="/agents">nvoke for agents</Link>
-            </Button>
-            <Button asChild size="lg" variant="ghost">
-              <Link href="/docs">Docs</Link>
-            </Button>
+        <Container>
+          <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
+            <h2 id="agents-title" className="text-headline font-semibold text-balance">
+              Or let your agent do it
+            </h2>
+            <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
+              A REST API and an MCP server with everything the app does. Your agent can even sign you up on its own.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              <Button asChild size="lg" variant="glass">
+                <Link href="/agents">nvoke for agents</Link>
+              </Button>
+              <Button asChild size="lg" variant="ghost">
+                <Link href="/docs">Docs</Link>
+              </Button>
+            </div>
           </div>
         </Container>
       </section>

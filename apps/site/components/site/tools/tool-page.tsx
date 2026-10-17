@@ -141,7 +141,7 @@ export function ToolPage({
               </li>
             </ol>
           </nav>
-          <p className="mt-10 inline-flex h-7 items-center rounded-full bg-foreground/[0.06] px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <p className="mt-10 inline-flex h-7 items-center rounded-full bg-foreground/[0.06] px-3 text-xs font-medium text-muted-foreground">
             Free tool
           </p>
           <h1 className="mt-6 max-w-4xl text-headline font-semibold text-balance">{title}</h1>
@@ -151,7 +151,7 @@ export function ToolPage({
           </div>
         </Container>
         <Container className="relative mt-12 pb-8 sm:mt-16">
-          <div className="mx-auto max-w-2xl">
+          <div className="mx-auto max-w-3xl">
             <Suspense fallback={<div className="h-[4.5rem] rounded-full glass-strong" aria-hidden="true" />}>
               {widget}
             </Suspense>
@@ -160,7 +160,7 @@ export function ToolPage({
       </section>
 
       <Section id="how-it-works" title="How it works" intro={stepsIntro}>
-        <ol className="mx-auto grid max-w-5xl gap-14 md:grid-cols-3 md:gap-12">
+        <ol className="grid gap-14 md:grid-cols-3 md:gap-12">
           {steps.map((step, i) => (
             <li key={step.title} className="flex flex-col gap-3">
               <span className="font-display text-5xl font-extralight text-muted-foreground/60 tabular-nums">

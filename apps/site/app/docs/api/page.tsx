@@ -169,7 +169,7 @@ export default function ApiDocs() {
         <div className="grid gap-6 sm:grid-cols-2">
           {groups.map(({ group, endpoints }) => (
             <div key={group} className="flex flex-col gap-2">
-              <h3 className="text-xs tracking-wide text-muted-foreground uppercase">{group}</h3>
+              <h3 className="text-xs text-muted-foreground">{group}</h3>
               <ul className="flex flex-col gap-1.5">
                 {endpoints.map((e) => (
                   <li key={e.id}>

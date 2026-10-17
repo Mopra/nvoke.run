@@ -75,7 +75,7 @@ export default function DownloadPage() {
         </Container>
       </section>
 
-      <section aria-labelledby="after-install" className="py-24 sm:py-36">
+      <section aria-labelledby="after-install" className="overflow-x-clip py-24 sm:py-36">
         <Container className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
           <div className="flex flex-col gap-8">
             <h2 id="after-install" className="text-title font-semibold text-balance sm:text-[3.5rem] sm:leading-[1.02]">

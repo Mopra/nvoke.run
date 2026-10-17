@@ -21,7 +21,7 @@ export function CodeBlock({ code, label, className }: { code: string; label?: st
   return (
     <div className={cn('group relative min-w-0 overflow-hidden rounded-2xl bg-foreground/[0.045] dark:bg-foreground/[0.06]', className)}>
       <div className="flex h-10 items-center justify-between pr-1.5 pl-5">
-        <span className="font-mono text-[11px] tracking-wide text-muted-foreground uppercase">{label ?? ''}</span>
+        <span className="font-mono text-xs text-muted-foreground">{label ?? ''}</span>
         <button
           type="button"
           onClick={() => void copy()}

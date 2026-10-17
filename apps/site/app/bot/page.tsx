@@ -52,7 +52,7 @@ export default function BotPage() {
         title="nvokebot"
         intro="The crawler behind nvoke. Found it in your logs? Here is exactly what it did, and how to make it stop."
       />
-      <Container className="max-w-5xl pb-24 sm:pb-36">
+      <Container className="pb-24 sm:pb-36">
         <dl className="mb-16 grid overflow-hidden rounded-2xl border bg-card shadow-sm sm:grid-cols-2 dark:bg-card/80">
           {FACTS.map((f, i) => (
             <div

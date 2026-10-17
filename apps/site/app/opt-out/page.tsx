@@ -19,7 +19,7 @@ export default function OptOutPage() {
         intro="Enter your email address or your company’s domain. We delete what we hold, right now, and never collect it again. No account. No confirmation email."
       />
       <Container className="pb-24 sm:pb-36">
-        <div className="mx-auto flex max-w-xl flex-col gap-12">
+        <div className="mx-auto flex max-w-3xl flex-col gap-12">
           <OptOutForm />
           <div className="flex flex-col gap-4 text-[17px] leading-relaxed text-pretty text-muted-foreground [&_a]:text-foreground [&_a]:underline [&_a]:decoration-foreground/30 [&_a]:underline-offset-4 [&_a:hover]:decoration-foreground [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-[-0.02em] [&_h2]:text-foreground">
             <h2>What happens</h2>

@@ -56,7 +56,7 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
           : 'Pick the download for your computer.'}{' '}
         {downloads.available ? `Version ${downloads.version}.` : null}
       </p>
-      <div className="mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-3">
+      <div className="grid w-full gap-4 md:grid-cols-3">
         {ordered.map((t) => {
           const isDetected = t === detected;
           return (

@@ -28,14 +28,29 @@ export const nav = [
 ];
 
 export const footerNav = [
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/app', label: 'Open the app' },
-  { href: '/download', label: 'nvoke Desktop' },
-  { href: '/tools', label: 'Free tools' },
-  { href: '/agents', label: 'Agents' },
-  { href: '/docs', label: 'Docs' },
-  { href: '/bot', label: 'nvokebot' },
-  { href: '/privacy', label: 'Privacy' },
-  { href: '/opt-out', label: 'Opt out' },
-  { href: '/terms', label: 'Terms' },
+  {
+    label: 'Product',
+    links: [
+      { href: '/pricing', label: 'Pricing' },
+      { href: '/app', label: 'Open the app' },
+      { href: '/download', label: 'nvoke Desktop' },
+      { href: '/tools', label: 'Free tools' },
+    ],
+  },
+  {
+    label: 'Developers',
+    links: [
+      { href: '/agents', label: 'Agents' },
+      { href: '/docs', label: 'Docs' },
+      { href: '/bot', label: 'nvokebot' },
+    ],
+  },
+  {
+    label: 'Legal',
+    links: [
+      { href: '/privacy', label: 'Privacy' },
+      { href: '/terms', label: 'Terms' },
+      { href: '/opt-out', label: 'Opt out' },
+    ],
+  },
 ];

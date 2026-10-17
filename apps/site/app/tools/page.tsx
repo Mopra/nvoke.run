@@ -120,7 +120,7 @@ export default function ToolsPage() {
       />
 
       <Container className="pb-24 sm:pb-36">
-        <ul className="mx-auto grid max-w-5xl gap-5 md:grid-cols-3">
+        <ul className="grid gap-5 md:grid-cols-3">
           {tools.map((tool) => {
             const Icon = ICONS[tool.slug];
             return (
@@ -154,7 +154,7 @@ export default function ToolsPage() {
         intro="You rarely need a tool. You need a symptom gone. Find yours."
         className="pt-0 sm:pt-0"
       >
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-3xl">
           <table className="w-full text-left">
             <caption className="sr-only">Symptoms and the tool that fixes each</caption>
             <thead className="sr-only sm:not-sr-only">
@@ -205,7 +205,7 @@ export default function ToolsPage() {
         intro="These are not demo toys. Every check runs on the same verifier and crawler that nvoke customers use, with the same rules."
         className="pt-0 sm:pt-0"
       >
-        <dl className="mx-auto grid max-w-5xl gap-12 sm:grid-cols-3">
+        <dl className="grid gap-12 sm:grid-cols-3">
           <div className="flex flex-col gap-2.5">
             <dt className="font-display text-lg font-semibold tracking-[-0.015em]">Asks, never guesses</dt>
             <dd className="text-pretty text-muted-foreground">
