@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Hourly round: unchanged (only registry keys, with the human; no aim; main only memory commits past checked 5247bab; lead quality work still uncommitted in the tree). Nothing to do; shipping is the human's.
 - 2026-10-17 Round after 'Checks on main after the phone layouts' landed: done with no fix commits, read as green at 5247bab. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
 - 2026-10-17 Round as the human left: the Search more checks landed; the human then committed phone layouts (18fa1b4, cf76931) unchecked, so filed 'Checks on main after the phone layouts' (sonnet). Registry keys still with the human; large uncommitted lead quality work sits in the shared tree (not a quest). Shipping is the human's.
 
