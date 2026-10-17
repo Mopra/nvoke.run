@@ -42,16 +42,24 @@ export function stoppedByQuota(search: Pick<Search, 'status' | 'error'>): boolea
 /** Running searches are polled at this interval, as the spec asks. */
 export const POLL_MS = 2000;
 
+/** An ongoing search that is not running right now adds a few companies a day: a slow poll is plenty. */
+export const ONGOING_POLL_MS = 60_000;
+
+type Polled = Pick<Search, 'status'> & { ongoing?: boolean | null };
+
 function live(status: SearchStatus): boolean {
   return status === 'queued' || status === 'running';
 }
 
-/** Poll the list while any search in it runs. */
-export function listPollInterval(searches: Pick<Search, 'status'>[] | undefined): number | false {
-  return searches?.some((s) => live(s.status)) ? POLL_MS : false;
+/** Poll the list while any search in it runs, slowly while one keeps filling. */
+export function listPollInterval(searches: Polled[] | undefined): number | false {
+  if (searches?.some((s) => live(s.status))) return POLL_MS;
+  return searches?.some((s) => s.ongoing) ? ONGOING_POLL_MS : false;
 }
 
-/** Poll one search while it runs. */
-export function searchPollInterval(search: Pick<Search, 'status'> | undefined): number | false {
-  return search && live(search.status) ? POLL_MS : false;
+/** Poll one search while it runs, slowly while it keeps filling. */
+export function searchPollInterval(search: Polled | undefined): number | false {
+  if (!search) return false;
+  if (live(search.status)) return POLL_MS;
+  return search.ongoing ? ONGOING_POLL_MS : false;
 }

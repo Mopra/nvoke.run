@@ -11,6 +11,7 @@ import type {
   Search,
   SearchListResponse,
   SiteProfile,
+  UpdateSearchRequest,
   UpdateSiteProfileRequest,
 } from '@nvoke/shared';
 
@@ -71,10 +72,11 @@ export function isQuotaError(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === 'quota_exceeded';
 }
 
-export function buildQuery(params: Record<string, string | number | undefined>): string {
+/** A query string from params; empty, undefined and false values are left out, true is sent as `true`. */
+export function buildQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === '') continue;
+    if (value === undefined || value === '' || value === false) continue;
     search.set(key, String(value));
   }
   const text = search.toString();
@@ -154,6 +156,8 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     /** Runs an ended search again with new params of its kind; only companies it does not hold yet are added. */
     searchMore: (id: string, input: CreateSearchInput): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/more`, input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
+    /** Switches ongoing on or off: a plain words search keeps finding new companies until it is off. */
+    updateSearch: (id: string, patch: UpdateSearchRequest): Promise<Search> => call('PATCH', `/v1/searches/${enc(id)}`, patch),
     deleteSearch: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/searches/${enc(id)}`);
     },

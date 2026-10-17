@@ -112,9 +112,13 @@ export function formProblem(form: SearchForm, maxLimit: number = SEARCH_LIMIT_MA
     : 'Paste a domain or a company name per line.';
 }
 
-/** Whether a search can run again into the same list: it ended, and a drop's searches never do. */
+/**
+ * Whether a search can run again into the same list with the form: it ended,
+ * and it has a form kind. A drop's searches never do; a plain words search
+ * keeps filling through ongoing instead.
+ */
 export function canSearchMore(search: Search): search is Search & { kind: FormKind } {
-  return search.kind !== 'drop' && !isActive(search.status);
+  return isFormKind(search.kind) && !isActive(search.status);
 }
 
 /** An ended search that came back with fewer companies than it asked for, so widening it is the next step. */

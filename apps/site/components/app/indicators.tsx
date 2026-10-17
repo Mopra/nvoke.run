@@ -14,8 +14,17 @@ export const VERIFICATION_DOT: Record<Verification, string> = {
   unknown: 'bg-muted-foreground/45',
 };
 
-export function VerificationBadge({ value, pending = false }: { value: Verification; pending?: boolean }) {
-  const label = pending ? 'Checking' : VERIFICATION_LABEL[value];
+export function VerificationBadge({
+  value,
+  pending = false,
+  label: words,
+}: {
+  value: Verification;
+  pending?: boolean;
+  /** Other words for the result, like the people view's "Verified" for valid. */
+  label?: string;
+}) {
+  const label = pending ? 'Checking' : (words ?? VERIFICATION_LABEL[value]);
   const hint = pending ? 'nvoke is checking whether this address receives mail.' : VERIFICATION_HINT[value];
   return (
     <Tooltip>

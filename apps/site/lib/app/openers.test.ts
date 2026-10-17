@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Company, Email, Opener } from '@nvoke/shared';
-import { anyOpenerQueued, canDraftOpener, companiesPollInterval, openerSourceLabel, openersNotice } from './openers';
-import { POLL_MS } from './quota';
+import { anyOpenerQueued, canDraftOpener, companiesPollInterval, edgePages, edgePollInterval, openerSourceLabel, openersNotice } from './openers';
+import { ONGOING_POLL_MS, POLL_MS } from './quota';
 
 const opener = (status: Opener['status']): Opener => ({ status, line: null, sourceUrl: null, quote: null, draftedAt: null });
 const withOpener = (status: Opener['status'] | null): Pick<Company, 'opener'> => ({ opener: status ? opener(status) : null });
@@ -15,17 +15,26 @@ describe('canDraftOpener', () => {
   });
 });
 
-describe('companiesPollInterval', () => {
-  it('polls while the search runs', () => {
-    expect(companiesPollInterval(true, undefined)).toBe(POLL_MS);
-  });
-
-  it('polls a finished search only while an opener is queued', () => {
+describe('polling the companies', () => {
+  it('refetches every loaded page only while an opener is queued', () => {
     const pages = [{ companies: [withOpener('done'), withOpener(null)] }, { companies: [withOpener('queued')] }] as never;
     expect(anyOpenerQueued([withOpener('done'), withOpener('queued')])).toBe(true);
-    expect(companiesPollInterval(false, pages)).toBe(POLL_MS);
-    expect(companiesPollInterval(false, [{ companies: [withOpener('done'), withOpener('failed')] }] as never)).toBe(false);
-    expect(companiesPollInterval(false, undefined)).toBe(false);
+    expect(companiesPollInterval(pages)).toBe(POLL_MS);
+    expect(companiesPollInterval([{ companies: [withOpener('done'), withOpener('failed')] }] as never)).toBe(false);
+    expect(companiesPollInterval(undefined)).toBe(false);
+  });
+
+  it('polls the edges of the list while live, slowly while ongoing', () => {
+    expect(edgePollInterval(true, false)).toBe(POLL_MS);
+    expect(edgePollInterval(true, true)).toBe(POLL_MS);
+    expect(edgePollInterval(false, true)).toBe(ONGOING_POLL_MS);
+    expect(edgePollInterval(false, false)).toBe(false);
+  });
+
+  it('refetches the first and the last loaded page, never the ones between', () => {
+    expect(edgePages(0)).toEqual([]);
+    expect(edgePages(1)).toEqual([0]);
+    expect(edgePages(7)).toEqual([0, 6]);
   });
 });
 

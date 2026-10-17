@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowUpRight,
   Ban,
-  ChevronDown,
   Copy,
   Download,
   ExternalLink,
@@ -18,6 +17,7 @@ import {
   Plus,
   Radar,
   RefreshCw,
+  Repeat,
   RotateCw,
   Search as SearchIcon,
   SearchX,
@@ -26,10 +26,12 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Company, CreateSearchInput, DraftOpenersInput, Email, EmailKind, Opener, Search, Verification } from '@nvoke/shared';
+import type { Company, CreateSearchInput, DraftOpenersInput, Email, Opener, Search } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
-import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/app/indicators';
+import { StatusLabel, VerificationBadge } from '@/components/app/indicators';
+import { copy, PEOPLE_COLUMNS, PeopleSkeleton, PersonRowView } from '@/components/app/people-list';
+import { Pill } from '@/components/app/sentence';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
 import { FoundFewNote, RunsLine, SearchMorePanel } from '@/components/app/search-more';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
@@ -39,14 +41,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ApiError, isQuotaError } from '@/lib/app/api';
 import {
@@ -59,8 +59,18 @@ import {
   searchSubtitle,
   searchTitle,
   shouldShowExportNotice,
-  VERIFICATION_LABEL,
 } from '@/lib/app/desktop';
+import {
+  canBeOngoing,
+  countsLine,
+  filterCompanies,
+  peopleCounts,
+  peopleRows,
+  personName,
+  stageLine,
+  type PeopleCounts,
+  type PeopleFilters,
+} from '@/lib/app/icp';
 import { canDraftOpener, openerSourceLabel, openersNotice } from '@/lib/app/openers';
 import { BILLING_PATH, stoppedByQuota } from '@/lib/app/quota';
 import {
@@ -71,6 +81,7 @@ import {
   useDraftOpeners,
   useRefreshWhenFinished,
   useSearch,
+  useUpdateSearch,
 } from '@/lib/app/queries';
 import { canSearchMore, foundFew } from '@/lib/app/search-form';
 import { cn } from '@/lib/utils';
@@ -86,16 +97,6 @@ const SOURCE_LABEL: Record<string, string> = {
   list: 'Your list',
 };
 
-const VERIFICATION_ORDER: Verification[] = ['valid', 'catch_all', 'risky', 'unknown', 'invalid'];
-
-async function copy(text: string, what: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(`Copied ${what}`);
-  } catch {
-    toast.error('Couldn’t copy to the clipboard');
-  }
-}
 
 /** Hands a downloaded file to the browser's save flow. */
 function saveFile(blob: Blob, name: string): void {
@@ -120,14 +121,73 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /* Overview */
 
-function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-3xl font-extralight tabular-nums sm:text-4xl">{formatNumber(value)}</span>
+        <span className="font-display text-3xl font-extralight tabular-nums sm:text-4xl">{value}</span>
         {sub && <span className="truncate text-sm tabular-nums text-muted-foreground">{sub}</span>}
       </div>
       <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+/**
+ * The live line: what the search is doing in its own words, the people found
+ * so far, and the bar while it runs. Shown while it runs or keeps filling.
+ */
+function LiveLine({ search, counts, partial }: { search: Search; counts: PeopleCounts | null; partial: boolean }) {
+  const active = isActive(search.status);
+  const note = stageLine(search) ?? (active ? progressCaption(search) : 'Watching for new companies');
+  return (
+    <div className="mt-10" aria-live="polite">
+      <div className="flex items-start gap-3">
+        <span className="relative mt-[11px] flex size-2 shrink-0">
+          {active && <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />}
+          <span className={cn('relative size-2 rounded-full', active ? 'bg-primary' : 'bg-primary/50')} />
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-xl/[30px] font-medium tracking-[-0.02em] text-pretty sm:text-2xl/[34px]">{note}</p>
+          {counts && <p className="mt-1 text-sm tabular-nums text-muted-foreground">{countsLine(counts, partial)} so far</p>}
+        </div>
+      </div>
+      {active && (
+        <div className="mt-6">
+          <div className="flex items-center gap-5">
+            <SearchProgress search={search} className="h-[3px] flex-1" />
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            New people show up here as they’re found. Every address is checked with its own mail server, so the badges fill
+            in over a few minutes. Close the tab if you like: the search keeps running.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Keep finding new leads, on a plain words search. */
+function OngoingSwitch({ search, onChange, saving }: { search: Search; onChange: (on: boolean) => void; saving: boolean }) {
+  const on = Boolean(search.ongoing);
+  const id = `ongoing-${search.id}`;
+  return (
+    <div className="mt-8 flex items-center justify-between gap-6 rounded-[22px] bg-foreground/[0.03] px-5 py-3.5">
+      <div className="flex min-w-0 items-start gap-3">
+        <Repeat className={cn('mt-0.5 size-4 shrink-0', on ? 'text-primary' : 'text-muted-foreground')} />
+        <div className="min-w-0">
+          <label htmlFor={id} className="text-sm font-medium">
+            {on ? 'Keeps finding new leads' : 'Keep finding new leads'}
+          </label>
+          <p className="mt-0.5 text-xs text-pretty text-muted-foreground">
+            {on
+              ? 'nvoke keeps looking and adds new companies as it finds them, a few a day. Switch it off to stop.'
+              : 'Off. The list stays as it is. Switch it on and nvoke adds new companies as it finds them.'}
+          </p>
+        </div>
+      </div>
+      <Switch id={id} checked={on} onCheckedChange={onChange} disabled={saving} aria-label="Keep finding new leads" />
     </div>
   );
 }
@@ -138,6 +198,10 @@ function Overview({
   onRunAgain,
   starting,
   onSearchMore,
+  counts,
+  partial,
+  onOngoing,
+  savingOngoing,
 }: {
   search: Search;
   timing: string;
@@ -145,12 +209,22 @@ function Overview({
   starting: boolean;
   /** Null while Search more is open, or when the search cannot run again. */
   onSearchMore: (() => void) | null;
+  /** From the companies loaded so far; null until they load or while a text filter narrows them. */
+  counts: PeopleCounts | null;
+  /** More pages to load, so the counts are a floor. */
+  partial: boolean;
+  onOngoing: (on: boolean) => void;
+  savingOngoing: boolean;
 }) {
   const active = isActive(search.status);
+  const showLive = active || Boolean(search.ongoing);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
+  const n = (v: number): string => (partial ? `${formatNumber(v)}+` : formatNumber(v));
   return (
     <section className={cn(APP_INSET, 'pt-6 pb-10')}>
-      <h1 className="font-display text-2xl font-semibold tracking-[-0.03em] text-balance sm:text-3xl">{searchTitle(search)}</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-[-0.03em] text-balance sm:text-3xl" title={search.kind === 'icp' ? search.params.description : undefined}>
+        {searchTitle(search)}
+      </h1>
       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-muted-foreground">
         <StatusLabel status={search.status} />
         <span>
@@ -158,24 +232,16 @@ function Overview({
         </span>
       </div>
       <RunsLine search={search} />
-      <div className="mt-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
-        <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
-        <Stat label="Websites crawled" value={search.companiesCrawled} />
-        <Stat label="Emails found" value={search.emailsFound} />
-        <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
-      </div>
-      {active && (
-        <div className="mt-8">
-          <div className="flex items-center gap-5">
-            <SearchProgress search={search} className="h-[3px] flex-1" />
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Every address is checked with its own mail server, a few a minute, so this takes a while. You can close the
-            tab: the search keeps running and is here when you come back.
-          </p>
-        </div>
+      {showLive && <LiveLine search={search} counts={counts} partial={partial} />}
+      {canBeOngoing(search) && !(search.status === 'failed' && stoppedByQuota(search)) && (
+        <OngoingSwitch search={search} onChange={onOngoing} saving={savingOngoing} />
       )}
+      <div className="mt-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
+        <Stat label="Companies" value={formatNumber(search.companiesFound)} sub={search.ongoing ? undefined : `of ${formatNumber(search.limit)}`} />
+        <Stat label="Named people" value={counts ? n(counts.people) : '0'} />
+        <Stat label="Decision makers" value={counts ? n(counts.decisionMakers) : '0'} />
+        <Stat label="Verified emails" value={formatNumber(search.emailsValid)} sub={validShare === null ? undefined : `${validShare}%`} />
+      </div>
       {search.status === 'failed' && (
         <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
           <TriangleAlert className="size-4 shrink-0 text-destructive" />
@@ -220,8 +286,8 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
         </span>
         <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/email:opacity-60" />
       </button>
-      <span className="hidden shrink-0 text-2xs text-muted-foreground sm:inline">
-        {email.kind === 'personal' ? 'person' : 'generic'}
+      <span className="hidden max-w-40 shrink-0 truncate text-2xs text-muted-foreground sm:inline">
+        {email.person ? personName(email.person) : email.kind === 'personal' ? 'person' : 'shared inbox'}
       </span>
       <span className="ml-auto" />
       <VerificationBadge value={email.verification ?? 'unknown'} pending={checking && email.verification === null} />
@@ -424,42 +490,7 @@ function TableSkeleton() {
   );
 }
 
-/* Toolbar */
-
-function VerificationFilter({ value, onChange }: { value: Verification | undefined; onChange: (value: Verification | undefined) => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
-            value ? 'bg-primary/10 text-foreground dark:bg-primary/20' : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-          )}
-        >
-          {value && <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[value])} />}
-          {value ? VERIFICATION_LABEL[value] : 'Any verification'}
-          <ChevronDown className="size-3 opacity-60" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuLabel>Show emails that are</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={value ?? 'any'} onValueChange={(v) => onChange(v === 'any' ? undefined : (v as Verification))}>
-          <DropdownMenuRadioItem value="any">Any verification</DropdownMenuRadioItem>
-          <DropdownMenuSeparator />
-          {VERIFICATION_ORDER.map((v) => (
-            <DropdownMenuRadioItem key={v} value={v}>
-              <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[v])} />
-              {VERIFICATION_LABEL[v]}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-type KindOption = 'all' | EmailKind;
+type View = 'people' | 'companies';
 
 /* Screen */
 
@@ -469,8 +500,8 @@ export function ResultsScreen({ id }: { id: string }) {
   const searchQuery = useSearch(id);
   const search = searchQuery.data;
   const [text, setText] = useState('');
-  const [verification, setVerification] = useState<Verification | undefined>();
-  const [kind, setKind] = useState<EmailKind | undefined>();
+  const [view, setView] = useState<View>('people');
+  const [peopleFilters, setPeopleFilters] = useState<PeopleFilters>({ decisionMakersOnly: false, verifiedOnly: false, showAll: false });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState(false);
@@ -484,17 +515,46 @@ export function ResultsScreen({ id }: { id: string }) {
     setWasLive(live);
     if (live) setSearchingMore(false);
   }
-  const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
+  const ongoing = Boolean(search?.ongoing);
+  // The filters that narrow by address run on the server, so the list, its total and the pages stay small.
+  const companies = useCompanies(
+    id,
+    {
+      q: q || undefined,
+      verification: peopleFilters.verifiedOnly ? 'valid' : undefined,
+      decisionMakers: peopleFilters.decisionMakersOnly || undefined,
+    },
+    live,
+    ongoing,
+  );
   useRefreshWhenFinished(live, id);
   const cancel = useCancelSearch();
   const create = useCreateSearch();
   const draft = useDraftOpeners(id);
+  const update = useUpdateSearch();
   const sentinel = useRef<HTMLDivElement>(null);
 
-  const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
+  const loaded = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
-  const filtered = Boolean(q || verification || kind);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = companies;
+  const narrowed = peopleFilters.decisionMakersOnly || peopleFilters.verifiedOnly;
+  const filtered = Boolean(q) || narrowed;
+  const people = view === 'people' ? peopleRows(loaded, peopleFilters) : [];
+  const rows = view === 'companies' ? filterCompanies(loaded, peopleFilters) : [];
+  const shown = view === 'people' ? people.length : rows.length;
+
+  // The counts come from the companies loaded without filters, so filtering keeps the last ones.
+  const [counts, setCounts] = useState<PeopleCounts | null>(null);
+  const loadedCounts = companies.data && !q && !narrowed && !companies.isPlaceholderData ? peopleCounts(loaded) : null;
+  if (loadedCounts && JSON.stringify(loadedCounts) !== JSON.stringify(counts)) setCounts(loadedCounts);
+  const [partial, setPartial] = useState(false);
+  if (loadedCounts && Boolean(hasNextPage) !== partial) setPartial(Boolean(hasNextPage));
+
+  const setFilter = (key: keyof PeopleFilters) => (value: boolean) => setPeopleFilters((f) => ({ ...f, [key]: value }));
+  const clearFilters = (): void => {
+    setText('');
+    setPeopleFilters({ decisionMakersOnly: false, verifiedOnly: false, showAll: false });
+  };
 
   // Loads the next page as the end of the list scrolls into view.
   useEffect(() => {
@@ -508,7 +568,7 @@ export function ResultsScreen({ id }: { id: string }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, rows.length]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, loaded.length, shown]);
 
   /** Shows the outreach note first, unless the user has turned it off. */
   function requestExport(): void {
@@ -521,16 +581,34 @@ export function ResultsScreen({ id }: { id: string }) {
     if (!search || exporting) return;
     setExporting(true);
     try {
-      const filters = { q: q || undefined, verification, kind };
+      // The same server filters as the list.
+      const filters = {
+        q: q || undefined,
+        verification: peopleFilters.verifiedOnly ? ('valid' as const) : undefined,
+        decisionMakers: peopleFilters.decisionMakersOnly || undefined,
+      };
+      const narrowedCsv = Boolean(filters.q || filters.verification || filters.decisionMakers);
       const blob = await api.exportCsv(search.id, filters);
-      const name = filtered ? csvFileName(search).replace(/\.csv$/, '-filtered.csv') : csvFileName(search);
+      const name = narrowedCsv ? csvFileName(search).replace(/\.csv$/, '-filtered.csv') : csvFileName(search);
       saveFile(blob, name);
-      toast.success(filtered ? 'Exported the filtered emails' : `Exported ${formatNumber(search.emailsFound)} emails`, { description: name });
+      toast.success(narrowedCsv ? 'Exported the filtered emails' : `Exported ${formatNumber(search.emailsFound)} emails`, { description: name });
     } catch (err) {
       toast.error('Export failed', { description: err instanceof Error ? err.message : undefined });
     } finally {
       setExporting(false);
     }
+  }
+
+  function setOngoing(on: boolean): void {
+    update.mutate(
+      { id, patch: { ongoing: on } },
+      {
+        onSuccess: () =>
+          toast(on ? 'Keeps finding new leads' : 'Stopped looking for new leads', {
+            description: on ? 'New companies land here as nvoke finds them.' : 'Everything found so far is kept.',
+          }),
+      },
+    );
   }
 
   function doCancel(): void {
@@ -681,6 +759,14 @@ export function ResultsScreen({ id }: { id: string }) {
     ? `${relativeTime(search.createdAt)}, ${live ? 'running for' : 'took'} ${duration(search.startedAt, search.finishedAt)}`
     : relativeTime(search.createdAt);
 
+  const more = hasNextPage ? '+' : '';
+  const dockCount =
+    view === 'people'
+      ? `${formatNumber(shown)}${more} ${shown === 1 && !more ? 'person' : 'people'}`
+      : filtered
+        ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)}`
+        : `${formatNumber(total)} companies`;
+
   return (
     <main className={cn(APP_FRAME, 'pb-40')}>
       {header}
@@ -690,60 +776,83 @@ export function ResultsScreen({ id }: { id: string }) {
         onRunAgain={runAgain}
         starting={create.isPending}
         onSearchMore={canSearchMore(search) && !searchingMore ? () => setSearchingMore(true) : null}
+        counts={counts}
+        partial={partial}
+        onOngoing={setOngoing}
+        savingOngoing={update.isPending}
       />
       {searchingMore && canSearchMore(search) && <SearchMorePanel search={search} onClose={() => setSearchingMore(false)} />}
 
-      <div className={cn(COLUMNS, 'hidden px-6 py-2 text-xs text-muted-foreground')}>
-        <span>Company</span>
-        <span className="flex items-center gap-1.5">
-          Emails
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label="About these emails"
-                className="rounded-full text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                <Info className="size-3" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-72 rounded-2xl px-3 py-2 leading-relaxed">
-              Public addresses from each company's own website. Generic ones (info@, sales@) and personal ones are marked.
-              Many EU countries require prior consent for marketing email, even to businesses. Results are deleted 12
-              months after the search.
-            </TooltipContent>
-          </Tooltip>
-        </span>
-        <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
-        <span />
+      <div className={cn(APP_INSET, 'flex flex-wrap items-center justify-between gap-3 pb-3')}>
+        <Segmented<View>
+          label="Show"
+          size="sm"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'people', label: 'People' },
+            { value: 'companies', label: 'Companies' },
+          ]}
+        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <Info className="size-3.5" />
+              About these leads
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-80 rounded-2xl px-3 py-2 leading-relaxed">
+            People and addresses from each company’s own website, or built from the domain’s address pattern and accepted by
+            its mail server. Shared inboxes (info@, hello@) show only where nobody is named. Many EU countries require prior
+            consent for marketing email, even to businesses. Results are deleted 12 months after the search.
+          </TooltipContent>
+        </Tooltip>
       </div>
+
+      {view === 'people' ? (
+        <div className={cn(PEOPLE_COLUMNS, 'hidden px-6 py-2 text-xs text-muted-foreground')}>
+          <span>Person</span>
+          <span>Email</span>
+          <span>Company</span>
+          <span />
+        </div>
+      ) : (
+        <div className={cn(COLUMNS, 'hidden px-6 py-2 text-xs text-muted-foreground')}>
+          <span>Company</span>
+          <span>Emails</span>
+          <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
+          <span />
+        </div>
+      )}
 
       <div>
         {companies.isPending ? (
-          <TableSkeleton />
+          view === 'people' ? (
+            <PeopleSkeleton />
+          ) : (
+            <TableSkeleton />
+          )
         ) : companies.error ? (
           <ErrorState error={companies.error} onRetry={() => void companies.refetch()} />
-        ) : rows.length === 0 ? (
+        ) : shown === 0 && !hasNextPage ? (
           filtered ? (
             <EmptyState
               icon={SearchX}
-              title="Nothing matches these filters"
+              title={loaded.length > 0 && !q ? 'Nobody matches these filters yet' : 'Nothing matches these filters'}
               action={
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setText('');
-                    setVerification(undefined);
-                    setKind(undefined);
-                  }}
-                >
+                <Button variant="outline" onClick={clearFilters}>
                   Clear filters
                 </Button>
               }
-            />
-          ) : live ? (
-            <EmptyState icon={Radar} title="Looking for companies">
-              They show up here the moment we find them.
+            >
+              {live || ongoing ? 'More people arrive as the search goes on.' : undefined}
+            </EmptyState>
+          ) : live || (ongoing && loaded.length === 0) ? (
+            <EmptyState icon={Radar} title={search.kind === 'icp' ? 'Planning and looking' : 'Looking for companies'}>
+              People show up here the moment we find them.
             </EmptyState>
           ) : (
             <EmptyState
@@ -758,16 +867,28 @@ export function ResultsScreen({ id }: { id: string }) {
                 ) : undefined
               }
             >
-              {search.status === 'failed'
-                ? 'It stopped before finding any. Search again into this list, wider or with other words.'
-                : 'Widen it: another place, keyword or window adds to this list.'}
+              {search.kind === 'icp'
+                ? 'Describe your customer in other words, wider or in another country, and start again.'
+                : search.status === 'failed'
+                  ? 'It stopped before finding any. Search again into this list, wider or with other words.'
+                  : 'Widen it: another place, keyword or window adds to this list.'}
             </EmptyState>
           )
         ) : (
           <div className="flex flex-col">
-            {rows.map((company) => (
-              <CompanyRow key={company.id} company={company} live={live} onDraftOpener={draftOpener} />
-            ))}
+            {view === 'people'
+              ? people.map((row) => (
+                  <PersonRowView
+                    key={row.key}
+                    row={row}
+                    live={live}
+                    onOpenCompany={(domain) => {
+                      setView('companies');
+                      setText(domain);
+                    }}
+                  />
+                ))
+              : rows.map((company) => <CompanyRow key={company.id} company={company} live={live} onDraftOpener={draftOpener} />)}
             <div ref={sentinel} className="flex h-10 items-center justify-center">
               {isFetchingNextPage && <Loader2 className="size-4 text-muted-foreground motion-safe:animate-spin" />}
             </div>
@@ -777,8 +898,8 @@ export function ResultsScreen({ id }: { id: string }) {
 
       {/* The dock: filters and export float over the list, in glass. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-3 sm:bottom-6">
-        <div className="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-[24px] p-1.5 motion-safe:animate-rise sm:flex-nowrap sm:rounded-full">
-          <div className="relative w-full sm:w-64">
+        <div className="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-[24px] p-1.5 motion-safe:animate-rise lg:flex-nowrap lg:rounded-full">
+          <div className="relative w-full lg:w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={text}
@@ -789,8 +910,8 @@ export function ResultsScreen({ id }: { id: string }) {
                   e.currentTarget.blur();
                 }
               }}
-              placeholder="Filter companies and emails"
-              aria-label="Filter companies and emails"
+              placeholder="Filter people and companies"
+              aria-label="Filter people and companies"
               autoComplete="off"
               spellCheck={false}
               className="h-9 w-full rounded-full bg-foreground/[0.045] pr-9 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
@@ -806,23 +927,33 @@ export function ResultsScreen({ id }: { id: string }) {
               </button>
             )}
           </div>
-          <VerificationFilter value={verification} onChange={setVerification} />
-          <Segmented<KindOption>
-            label="Email kind"
-            size="sm"
-            value={kind ?? 'all'}
-            onChange={(v) => setKind(v === 'all' ? undefined : v)}
-            className="bg-transparent"
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'generic', label: 'Generic' },
-              { value: 'personal', label: 'Personal' },
-            ]}
-          />
-          <span className="hidden min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground sm:flex">
+          <Pill
+            pressed={peopleFilters.decisionMakersOnly}
+            onClick={() => setFilter('decisionMakersOnly')(!peopleFilters.decisionMakersOnly)}
+            className="h-8"
+          >
+            Decision makers
+          </Pill>
+          <Pill pressed={peopleFilters.verifiedOnly} onClick={() => setFilter('verifiedOnly')(!peopleFilters.verifiedOnly)} className="h-8">
+            Verified only
+          </Pill>
+          {view === 'people' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Pill pressed={peopleFilters.showAll} onClick={() => setFilter('showAll')(!peopleFilters.showAll)} className="h-8">
+                  Shared inboxes
+                </Pill>
+              </TooltipTrigger>
+              <TooltipContent>
+                {peopleFilters.showAll
+                  ? 'Showing info@ and the like at every company.'
+                  : 'Show info@ and the like at companies with people too.'}
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <span className="hidden min-w-20 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground lg:flex">
             {companies.isPlaceholderData && <Loader2 className="size-3 motion-safe:animate-spin" />}
-            {companies.data &&
-              (filtered ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)}` : `${formatNumber(total)} companies`)}
+            {companies.data && dockCount}
           </span>
           <Button onClick={requestExport} disabled={exporting || search.emailsFound === 0}>
             {exporting ? <Loader2 className="motion-safe:animate-spin" /> : <Download />}

@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react';
+import { ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, MessageSquareText, Rocket, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { SEARCH_LIMIT_MAX, type CreateSearchInput } from '@nvoke/shared';
+import { SEARCH_LIMIT_MAX, type CreateSearchInput, type Search } from '@nvoke/shared';
 import { SearchFields } from '@/components/app/search-fields';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,9 @@ const SOURCES: Record<FormKind, string> = {
   domains: 'Companies you already know. Domains are read as given, names are looked up on the web.',
 };
 
+const HEADER_LINK =
+  'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40';
+
 const KINDS: { value: FormKind; label: string; icon: typeof MapPin }[] = [
   { value: 'local', label: 'Local businesses', icon: MapPin },
   { value: 'web', label: 'Web search', icon: Globe },
@@ -45,10 +48,12 @@ const KINDS: { value: FormKind; label: string; icon: typeof MapPin }[] = [
 export function useStartSearch() {
   const router = useRouter();
   const create = useCreateSearch();
-  const start = (input: CreateSearchInput): void => {
+  /** `onStarted` runs before the search's page opens, for a follow up such as switching ongoing on. */
+  const start = (input: CreateSearchInput, onStarted?: (search: Search) => void): void => {
     if (create.isPending) return;
     create.mutate(input, {
       onSuccess: (search) => {
+        onStarted?.(search);
         toast.success('Search started', { description: searchTitle(search) });
         router.replace(`/app/searches/${search.id}`);
       },
@@ -100,13 +105,16 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
       <form onSubmit={submit} className={cn(APP_INSET, 'flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')} noValidate>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <BackLink />
-          <Link
-            href={WEBSITE_PATH}
-            className="-mr-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          >
-            <Sparkles className="size-3.5" />
-            Plan from your website
-          </Link>
+          <div className="-mr-3 flex flex-wrap items-center">
+            <Link href={WEBSITE_PATH} className={HEADER_LINK}>
+              <Sparkles className="size-3.5" />
+              Plan from your website
+            </Link>
+            <Link href="/app/new" className={HEADER_LINK}>
+              <MessageSquareText className="size-3.5" />
+              Describe your customer
+            </Link>
+          </div>
         </div>
         <h1 className="sr-only">New search</h1>
         <div className="mt-6 flex flex-col items-start gap-3">

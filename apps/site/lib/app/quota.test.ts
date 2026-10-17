@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan } from '@nvoke/shared';
-import { listPollInterval, planName, POLL_MS, quotaState, searchPollInterval, stoppedByQuota } from './quota';
+import { listPollInterval, planName, ONGOING_POLL_MS, POLL_MS, quotaState, searchPollInterval, stoppedByQuota } from './quota';
 
 const me = (plan: Plan, used: number, limit: number) => ({
   plan,
@@ -54,5 +54,12 @@ describe('polling', () => {
     expect(searchPollInterval({ status: 'running' })).toBe(POLL_MS);
     expect(searchPollInterval({ status: 'canceled' })).toBe(false);
     expect(searchPollInterval(undefined)).toBe(false);
+  });
+
+  it('polls slowly while an ended search keeps filling', () => {
+    expect(searchPollInterval({ status: 'done', ongoing: true })).toBe(ONGOING_POLL_MS);
+    expect(searchPollInterval({ status: 'running', ongoing: true })).toBe(POLL_MS);
+    expect(listPollInterval([{ status: 'done', ongoing: true }, { status: 'done' }])).toBe(ONGOING_POLL_MS);
+    expect(listPollInterval([{ status: 'done', ongoing: true }, { status: 'running' }])).toBe(POLL_MS);
   });
 });

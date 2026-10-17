@@ -9,7 +9,8 @@ import { formatNumber, KIND_LABEL, searchTitle } from './desktop';
  */
 
 export const MANUAL_PATH = '/app/new?manual=1';
-export const WEBSITE_PATH = '/app/new';
+/** Start from your website: one of the other ways to search, next to Describe your customer. */
+export const WEBSITE_PATH = '/app/new?site=1';
 /** The website read on file (or running), with its planned searches. Listed on Searches. */
 export const PROFILE_PATH = '/app/website';
 

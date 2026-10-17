@@ -19,12 +19,15 @@ export function CountryPicker({
   value,
   onChange,
   triggerClassName,
+  anyLabel = ANY.name,
 }: {
   id: string;
   /** ISO 3166-1 alpha-2, or '' for any country. */
   value: string;
   onChange: (code: string) => void;
   triggerClassName?: string;
+  /** What the trigger says while no country is picked, like "Add a country" for a picker that adds to a list. */
+  anyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -73,7 +76,7 @@ export function CountryPicker({
     }
   }
 
-  const label = value ? (countryName(value) ?? value) : ANY.name;
+  const label = value ? (countryName(value) ?? value) : anyLabel;
 
   return (
     <PopoverPrimitive.Root

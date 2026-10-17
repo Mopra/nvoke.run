@@ -1,6 +1,6 @@
 import type { CompaniesPage, Company, DraftOpenersResponse } from '@nvoke/shared';
 import { formatNumber } from './desktop';
-import { POLL_MS } from './quota';
+import { ONGOING_POLL_MS, POLL_MS } from './quota';
 
 /**
  * Openers per company: one drafted first line from the company's own site,
@@ -16,10 +16,31 @@ export function anyOpenerQueued(companies: Pick<Company, 'opener'>[]): boolean {
   return companies.some((c) => c.opener?.status === 'queued');
 }
 
-/** Poll the companies while the search runs or any loaded opener is still being written. */
-export function companiesPollInterval(live: boolean, pages: Pick<CompaniesPage, 'companies'>[] | undefined): number | false {
-  if (live) return POLL_MS;
+/**
+ * Every loaded page is refetched only while an opener is being written,
+ * since openers land on any company, wherever it sits in the list.
+ */
+export function companiesPollInterval(pages: Pick<CompaniesPage, 'companies'>[] | undefined): number | false {
   return pages?.some((p) => anyOpenerQueued(p.companies)) ? POLL_MS : false;
+}
+
+/**
+ * While a search runs, or slowly while it keeps filling, only the edges of
+ * the loaded list are polled (`edgePages`), however far it was scrolled.
+ */
+export function edgePollInterval(live: boolean, ongoing: boolean): number | false {
+  if (live) return POLL_MS;
+  return ongoing ? ONGOING_POLL_MS : false;
+}
+
+/**
+ * The loaded pages a live poll refetches: the first (the rows most likely on
+ * screen, and the total) and the last, where new companies land since the
+ * list is oldest first.
+ */
+export function edgePages(count: number): number[] {
+  if (count <= 0) return [];
+  return count === 1 ? [0] : [0, count - 1];
 }
 
 export interface OpenersNotice {

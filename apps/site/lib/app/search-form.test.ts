@@ -167,5 +167,6 @@ describe('search more', () => {
     expect(canSearchMore({ ...local, status: 'running' })).toBe(false);
     expect(canSearchMore({ ...local, status: 'canceled' })).toBe(true);
     expect(canSearchMore({ ...base, kind: 'drop', params: { dropId: base.id, dropName: 'AI' } } as unknown as Search)).toBe(false);
+    expect(canSearchMore({ ...base, kind: 'icp', params: { description: 'Dental clinics' } } as unknown as Search)).toBe(false);
   });
 });

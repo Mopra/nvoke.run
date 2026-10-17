@@ -28,6 +28,10 @@ describe('buildQuery', () => {
     expect(buildQuery({ q: 'a b', verification: undefined, kind: '', cursor: 'x/y' })).toBe('?q=a+b&cursor=x%2Fy');
     expect(buildQuery({})).toBe('');
   });
+
+  it('sends a true flag and leaves a false one out', () => {
+    expect(buildQuery({ decisionMakers: true, people: false, verification: 'valid' })).toBe('?decisionMakers=true&verification=valid');
+  });
 });
 
 describe('createWebApi', () => {

@@ -1,10 +1,11 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ApiKey, CreateSearchInput, DraftOpenersInput, Search, SiteProfile, UpdateSiteProfileRequest } from '@nvoke/shared';
+import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import type { ApiKey, CompaniesPage, CreateSearchInput, DraftOpenersInput, Search, SiteProfile, UpdateSearchRequest, UpdateSiteProfileRequest } from '@nvoke/shared';
+import { toast } from 'sonner';
 import { ApiError, type CompaniesQuery, type WebApi } from './api';
-import { companiesPollInterval } from './openers';
+import { companiesPollInterval, edgePages, edgePollInterval } from './openers';
 import { listPollInterval, searchPollInterval } from './quota';
 
 /**
@@ -56,17 +57,61 @@ export function useSearch(id: string) {
   });
 }
 
-/** Polls while the search runs, and after it while any loaded company's opener is still queued. */
-export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>, live: boolean) {
+/**
+ * A search's companies, page by page. While the search runs (or slowly while
+ * it keeps filling) only the first and the last loaded page are polled, so a
+ * long scrolled list costs two requests a tick, not one per page. Every page
+ * is refetched only while an opener is queued, since openers land anywhere.
+ */
+export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>, live: boolean, ongoing = false) {
   const api = useApi();
-  return useInfiniteQuery({
-    queryKey: keys.companies(id, filters),
+  const client = useQueryClient();
+  const queryKey = keys.companies(id, filters);
+  const query = useInfiniteQuery({
+    queryKey,
     queryFn: ({ pageParam }) => api.listCompanies(id, { ...filters, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    refetchInterval: (query) => companiesPollInterval(live, query.state.data?.pages),
+    refetchInterval: (q) => companiesPollInterval(q.state.data?.pages),
     placeholderData: (previous) => previous,
   });
+
+  const interval = edgePollInterval(live, ongoing);
+  const keyText = JSON.stringify(queryKey);
+  useEffect(() => {
+    if (!interval) return;
+    const key = JSON.parse(keyText) as typeof queryKey;
+    const [, , , pollFilters] = key;
+    let stopped = false;
+    const tick = async (): Promise<void> => {
+      const data = client.getQueryData<InfiniteData<CompaniesPage, string | undefined>>(key);
+      // A full fetch is running, or openers are queued and every page is refetched anyway.
+      if (!data || client.isFetching({ queryKey: key }) || companiesPollInterval(data.pages)) return;
+      const indexes = edgePages(data.pages.length);
+      try {
+        const fresh = await Promise.all(indexes.map((i) => api.listCompanies(id, { ...pollFilters, cursor: data.pageParams[i] })));
+        if (stopped) return;
+        client.setQueryData<InfiniteData<CompaniesPage, string | undefined>>(key, (current) => {
+          // A page was loaded or the list refetched meanwhile: that answer is newer.
+          if (!current || current.pages.length !== data.pages.length) return current;
+          const pages = [...current.pages];
+          indexes.forEach((index, n) => {
+            pages[index] = fresh[n]!;
+          });
+          return { ...current, pages };
+        });
+      } catch {
+        // The next tick tries again; a dead connection shows on the search itself.
+      }
+    };
+    const timer = setInterval(() => void tick(), interval);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [interval, keyText, id, api, client]);
+
+  return query;
 }
 
 /**
@@ -156,6 +201,25 @@ export function useSearchMore(id: string) {
       if (error instanceof ApiError && error.code === 'quota_exceeded') void client.invalidateQueries({ queryKey: keys.me });
       // Someone else started it meanwhile (another tab, the desktop app): show it running.
       if (error instanceof ApiError && error.code === 'search_running') void client.invalidateQueries({ queryKey: keys.search(id), exact: true });
+    },
+  });
+}
+
+/** Switches a search's ongoing on or off, and shows the answer in both caches. */
+export function useUpdateSearch() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateSearchRequest }) => api.updateSearch(id, patch),
+    onSuccess: (search) => {
+      client.setQueryData(keys.search(search.id), search);
+      client.setQueryData<Search[]>(keys.searches, (list) => list?.map((s) => (s.id === search.id ? search : s)));
+    },
+    // Here, not per call: the New search screen is gone by the time the answer comes, and its callbacks with it.
+    onError: (error, { patch }) => {
+      toast.error(patch.ongoing ? 'Couldn’t switch on Keep finding new leads' : 'Couldn’t stop looking for new leads', {
+        description: patch.ongoing ? `${error.message} The search runs once. Switch it on from its page.` : error.message,
+      });
     },
   });
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MoreHorizontal, Rocket, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MessageSquareText, MoreHorizontal, Repeat, Rocket, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Search } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
@@ -74,6 +74,20 @@ function RowMenu({ search }: { search: Search }) {
   );
 }
 
+/** A plain words search that keeps filling: quiet, with the accent only on the icon. */
+function OngoingBadge() {
+  return (
+    <span
+      title="Keeps finding new leads"
+      className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-foreground/[0.05] px-2 text-2xs font-medium text-foreground/70"
+    >
+      <Repeat className="size-3 text-primary" />
+      <span className="hidden sm:inline">Ongoing</span>
+      <span className="sr-only sm:hidden">Ongoing</span>
+    </span>
+  );
+}
+
 function SearchRow({ search }: { search: Search }) {
   const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
@@ -91,6 +105,7 @@ function SearchRow({ search }: { search: Search }) {
           <div className="flex items-center gap-3">
             {(active || search.status === 'failed') && <StatusDot status={search.status} />}
             <span className="truncate font-display text-lg font-medium">{searchTitle(search)}</span>
+            {search.ongoing && <OngoingBadge />}
           </div>
           <div className="mt-1 truncate text-sm text-muted-foreground">
             {stopped || active ? `${STATUS_LABEL[search.status]}, ` : ''}
@@ -100,6 +115,11 @@ function SearchRow({ search }: { search: Search }) {
             <div className="mt-4 flex max-w-md flex-wrap items-center gap-x-4 gap-y-2">
               <SearchProgress search={search} className="h-[3px] min-w-32 flex-1" />
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
+            </div>
+          )}
+          {(active || search.ongoing) && search.stageNote && (
+            <div className="mt-2 max-w-xl truncate text-xs text-foreground/70" title={search.stageNote}>
+              {search.stageNote}
             </div>
           )}
           {search.status === 'failed' && (
@@ -208,24 +228,31 @@ function WebsiteRow() {
   );
 }
 
-/** The first visit: one obvious action, the website step, and the search kinds for those who know what they want. */
+/** The first visit: one obvious action, Describe your customer, and the other ways to search for those who know what they want. */
 function FirstSearch() {
   return (
     <section className={cn(APP_INSET, 'pb-10 [section+&]:mt-10')}>
       <p className="max-w-lg text-base text-pretty text-muted-foreground">
-        Give nvoke your website. It works out who buys from you and plans the searches that find them. Then it reads each
-        company’s own site and checks every email with the mail server. Only verified emails count toward your plan.
+        Say who you sell to in plain words. nvoke plans the searches, finds the companies and the people who decide there,
+        and checks every email with its mail server. Only verified emails count toward your plan.
       </p>
       <div className="mt-8">
         <Button asChild size="lg">
-          <Link href={WEBSITE_PATH}>
-            <Sparkles />
-            Start from your website
+          <Link href="/app/new">
+            <MessageSquareText />
+            Describe your customer
           </Link>
         </Button>
       </div>
-      <nav aria-label="Set up a search by hand" className="mt-12 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
-        <span className="mr-2 text-muted-foreground">Or by hand:</span>
+      <nav aria-label="Other ways to search" className="mt-12 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+        <span className="mr-2 text-muted-foreground">Or:</span>
+        <Link
+          href={WEBSITE_PATH}
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-foreground/75 outline-none transition-colors hover:bg-foreground/[0.05] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          <Sparkles className="size-3.5 text-muted-foreground" />
+          Start from your website
+        </Link>
         {BY_HAND.map(({ kind, icon: Icon, title }) => (
           <Link
             key={kind}
