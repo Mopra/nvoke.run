@@ -107,6 +107,9 @@ export function pickLikelyPages(html: string, pageUrl: string, max: number): str
     .map(([url]) => url);
 }
 
+/** Longest last path segment a sitemap page may have. Contact pages have short names. */
+const SITEMAP_MAX_SLUG = 40;
+
 /** The likeliest contact pages a sitemap lists, best first. */
 export function pickFromSitemap(urls: string[], max: number): string[] {
   const scored: Array<[string, number]> = [];
@@ -118,6 +121,9 @@ export function pickFromSitemap(urls: string[], max: number): string[] {
       continue;
     }
     if (url.pathname === '/' || SKIP_EXTENSIONS.test(url.pathname)) continue;
+    // A long slug is a post that mentions contact ("how-to-contact-support-..."), not the contact page.
+    const slug = url.pathname.split('/').filter(Boolean).pop() ?? '';
+    if (slug.length > SITEMAP_MAX_SLUG) continue;
     const score = pageScore(url);
     if (score > 0) scored.push([url.toString(), score]);
   }

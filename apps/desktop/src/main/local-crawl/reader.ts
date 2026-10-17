@@ -1,11 +1,13 @@
 import {
   CRAWL_MAX_PAGES,
-  GUESSED_PATHS,
+  clientRedirect,
   extractEmails,
+  fallbackPages,
+  homepageVariants,
   hostToDomain,
   isPlatformDomain,
   pageWall,
-  pickLikelyPages,
+  planPages,
   selectForCompany,
   type ExtractedEmail,
 } from '@nvoke/shared/crawl';
@@ -38,9 +40,11 @@ export async function readSite(
 ): Promise<SiteRead> {
   if (isPlatformDomain(task.domain)) return { outcome: 'blocked', emails: [], pages: 0 };
 
-  let home = await loader.load(task.website);
-  if (home.kind === 'error' && task.website.startsWith('https://')) {
-    home = await loader.load(`http://${task.website.slice('https://'.length)}`);
+  // The address given, then plain http and the www twin, when one fails.
+  let home: PageLoad = { kind: 'error', error: 'no homepage' };
+  for (const url of homepageVariants(task.website)) {
+    home = await loader.load(url);
+    if (home.kind !== 'error') break;
   }
   if (home.kind === 'robots') return { outcome: 'blocked', emails: [], pages: 0 };
   if (home.kind === 'error') return { outcome: 'failed', emails: [], pages: 0 };
@@ -48,30 +52,40 @@ export async function readSite(
   if (pageWall(home.html)) return { outcome: 'blocked', emails: [], pages: 1 };
 
   let pages = 1;
-  const found: ExtractedEmail[] = [...extractEmails(home.html, home.url)];
-  let queue = pickLikelyPages(home.html, home.url, maxPages - 1);
-  if (queue.length === 0) {
-    const origin = new URL(home.url).origin;
-    queue = GUESSED_PATHS.slice(0, Math.min(3, maxPages - 1)).map((p) => `${origin}${p}`);
-  }
-
-  const seen = new Set([task.website, home.url]);
   let attempts = 1;
-  for (const url of queue) {
-    if (attempts >= maxPages) break;
-    if (seen.has(url)) continue;
+  const found: ExtractedEmail[] = [...extractEmails(home.html, home.url)];
+  // The browser follows a meta refresh by itself only when it gets the time; follow it here.
+  const target = clientRedirect(home.html, home.url);
+  if (target) {
+    const next = await loader.load(target);
+    attempts++;
+    if (next.kind === 'ok' && !pageWall(next.html)) {
+      pages++;
+      home = next;
+      found.push(...extractEmails(next.html, next.url));
+    }
+  }
+  const homeUrl = home.url;
+  const landed = hostToDomain(new URL(homeUrl).hostname);
+  const own = landed && landed !== task.domain ? [task.domain, landed] : [task.domain];
+
+  const seen = new Set([task.website, homeUrl]);
+  const read = async (url: string): Promise<void> => {
+    if (attempts >= maxPages || seen.has(url)) return;
     seen.add(url);
     const page = await loader.load(url);
-    if (page.kind === 'robots') continue;
+    if (page.kind === 'robots') return;
     attempts++;
-    if (page.kind !== 'ok' || pageWall(page.html)) continue;
+    if (page.kind !== 'ok' || pageWall(page.html)) return;
     pages++;
     found.push(...extractEmails(page.html, page.url));
+  };
+  for (const url of planPages(home.html, homeUrl, [], maxPages - 1)) await read(url);
+  // Nothing on the linked pages: the usual contact paths, while pages are left.
+  if (selectForCompany(found, own).length === 0) {
+    for (const url of fallbackPages(homeUrl, seen, maxPages)) await read(url);
   }
 
-  // A homepage that redirects to a new brand domain makes that domain "own site" too.
-  const landed = hostToDomain(new URL(home.url).hostname);
-  const own = landed && landed !== task.domain ? [task.domain, landed] : [task.domain];
   const emails = selectForCompany(found, own)
     .slice(0, LOCAL_CRAWL_EMAILS_MAX)
     .map((e) => ({ address: e.address, sourceUrl: e.sourceUrl }));

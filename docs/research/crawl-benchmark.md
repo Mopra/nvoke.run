@@ -121,6 +121,55 @@ one address the extractor skipped: ukcdogs.com lists its mailboxes as the
 | all | 275 | 166 (60.4%) | 165 (60.0%) | 122 | 80 | 461 | 223 | 21 | 3 | 8 | 20 | 3.9 | 4.1 |
 
 1 gained (ukcdogs.com, 3 addresses), 0 lost. The same reading showed what
-holds the rest back: 33 of the 58 were read as the homepage alone, because
+holds the rest back: 32 of the 57 left were read as the homepage alone, because
 it links to no page with a contact word (one page sites, menus built by
 script). That is what the next step is for.
+
+### 4. Reaching the site: variants, client redirects, sitemap, guessed paths
+
+`packages/shared/src/crawl/site.ts` and `apps/server/src/leads/crawl.ts`:
+
+- **Address variants**: when the homepage fails, plain http, then the www
+  twin (or the bare domain), over https and http.
+- **Client redirects**: a meta refresh, or a script that sets `location` on
+  a page with next to no text, is followed (twice at most), and a new
+  domain it lands on counts as the company's own.
+- **Sitemap**: when the homepage links to fewer than two likely pages, the
+  sitemaps robots.txt declares (else `/sitemap.xml`) are read, at most two
+  files, page sitemaps of an index first, and their likely pages join the
+  queue. Pages whose last path segment is over 40 characters are posts, not
+  contact pages, and are skipped.
+- **Guessed paths after nothing**: when the linked pages held no address,
+  `/contact`, `/kontakt`, `/about`, `/impressum` and the like are tried
+  while the 8 page limit allows.
+
+| reach | sites | with email | deliverable | generic | personal | emails | done | failed | blocked | refused | js_only | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| local | 100 | 73 (73.0%) | 73 (73.0%) | 45 | 37 | 209 | 86 | 11 | 0 | 1 | 2 | 4.7 | 5.0 |
+| web | 75 | 48 (64.0%) | 47 (62.7%) | 38 | 34 | 194 | 56 | 7 | 2 | 6 | 4 | 5.2 | 7.2 |
+| launches | 100 | 50 (50.0%) | 50 (50.0%) | 43 | 12 | 66 | 83 | 2 | 1 | 1 | 13 | 5.9 | 8.0 |
+| all | 275 | 171 (62.2%) | 170 (61.8%) | 126 | 83 | 469 | 225 | 20 | 3 | 8 | 19 | 5.3 | 6.0 |
+
+5 gained, 0 lost:
+
+| site | how | found |
+|---|---|---|
+| jsonexlab.com | sitemap | support@jsonexlab.com on /privacy-policy/ |
+| takestakes.com | sitemap | hello@tomreinert.de on /imprint/ |
+| hjertingfysioterapi.dk | meta refresh to fysesbjerg.dk | fysesbjerg@fysesbjerg.dk |
+| ostomycure.com | redirect to ostomysecure.com, its contact pages | info@, graeme.smith@ostomysecure.com |
+| landsecurities.co.uk | https www refused, the bare http variant redirects to landsec.com | enquiries@, shareholderenquiries@landsec.com |
+
+A first version without the slug rule also "gained" app.treechat.com with
+support@coinbase.com, from a forum post its sitemap lists as
+`/quest/fellow-twetchers-contact-coinbase-support-...`. The rule removed it.
+
+The cost: 5.3 pages per site instead of 3.9 (sitemaps and guessed paths
+count as pages), and a median of 6.0 s per site instead of 4.1. The 16
+"robots.txt unreachable" failures did not move: every variant of those
+hosts has no DNS record, so the sites are gone.
+
+The desktop's local crawl (`apps/desktop/src/main/local-crawl/reader.ts`)
+gains the variants, the meta refresh and the guessed paths through the same
+shared rules. It reads no sitemap: its loader renders pages in a browser
+window, which is not made for XML.

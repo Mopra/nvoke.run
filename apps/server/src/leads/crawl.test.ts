@@ -238,4 +238,44 @@ describe('crawlSite', () => {
     expect(stamps).toHaveLength(4);
     for (let i = 1; i < stamps.length; i++) expect(stamps[i]! - stamps[i - 1]!).toBeGreaterThanOrEqual(110);
   });
+  it('tries the www twin when the bare domain does not answer', async () => {
+    const fetch = fakeFetch({ 'https://www.twin.dk/': page('<p>info@twin.dk</p>') }, { offline: ['twin.dk'] });
+    const result = await crawlSite('https://twin.dk/', 'twin.dk', deps(fetch));
+    expect(result.status).toBe('done');
+    expect(result.emails.map((e) => e.address)).toEqual(['info@twin.dk']);
+  });
+
+  it('follows a meta refresh to a new domain and treats it as the company site', async () => {
+    const fetch = fakeFetch({
+      'https://old.dk/': page('<meta http-equiv="refresh" content="0; url=https://new-brand.dk/">'),
+      'https://new-brand.dk/': page('<a href="/kontakt">Kontakt</a>'),
+      'https://new-brand.dk/kontakt': page('<p>hej@new-brand.dk</p>'),
+    });
+    const result = await crawlSite('https://old.dk/', 'old.dk', deps(fetch));
+    expect(result.emails.map((e) => e.address)).toEqual(['hej@new-brand.dk']);
+  });
+
+  it('reads likely pages from the sitemap robots.txt declares when the homepage links nowhere', async () => {
+    const fetch = fakeFetch({
+      'https://map.dk/robots.txt': page('User-agent: *\nAllow: /\nSitemap: https://map.dk/sitemap_index.xml'),
+      'https://map.dk/': page('<div id="menu-root"></div><p>Welcome to our shop.</p>'),
+      'https://map.dk/sitemap_index.xml': page('<sitemapindex><sitemap><loc>https://map.dk/post-sitemap.xml</loc></sitemap><sitemap><loc>https://map.dk/page-sitemap.xml</loc></sitemap></sitemapindex>'),
+      'https://map.dk/page-sitemap.xml': page('<urlset><url><loc>https://map.dk/</loc></url><url><loc>https://map.dk/find-os</loc></url></urlset>'),
+      'https://map.dk/find-os': page('<p>butik@map.dk</p>'),
+    });
+    const result = await crawlSite('https://map.dk/', 'map.dk', deps(fetch));
+    expect(result.emails.map((e) => e.address)).toEqual(['butik@map.dk']);
+    expect(fetch.calls.map((c) => c.url)).not.toContain('https://map.dk/post-sitemap.xml');
+  });
+
+  it('tries the usual contact paths when the linked pages hold no address', async () => {
+    const fetch = fakeFetch({
+      'https://quiet.dk/': page('<a href="/about">About</a>'),
+      'https://quiet.dk/about': page('<p>We make chairs.</p>'),
+      'https://quiet.dk/kontakt': page('<p>stol@quiet.dk</p>'),
+    });
+    const result = await crawlSite('https://quiet.dk/', 'quiet.dk', deps(fetch));
+    expect(result.emails.map((e) => e.address)).toEqual(['stol@quiet.dk']);
+    expect(result.pages.filter((p) => p.note !== 'robots').length).toBeLessThanOrEqual(8);
+  });
 });

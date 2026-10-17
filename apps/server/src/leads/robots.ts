@@ -11,6 +11,7 @@ import type { RateLimiter } from './limits.js';
 interface RobotsParserResult {
   isAllowed(url: string, ua?: string): boolean | undefined;
   getCrawlDelay(ua?: string): number | undefined;
+  getSitemaps(): string[];
 }
 
 // robots-parser is CommonJS (module.exports = function) and its typings
@@ -25,6 +26,8 @@ export interface RobotsRules {
   isAllowed(url: string): boolean;
   /** Crawl-delay for our group, in milliseconds, capped at 10 seconds. */
   crawlDelayMs?: number;
+  /** Sitemap URLs the file declares. */
+  sitemaps?: string[];
   /** How the rules were obtained, for logs. */
   source: 'parsed' | 'unavailable' | 'unreachable';
 }
@@ -41,6 +44,7 @@ export function parseRobots(robotsUrl: string, text: string): RobotsRules {
     isAllowed: (url) => robots.isAllowed(url, BOT_TOKEN) ?? false,
     crawlDelayMs:
       typeof delay === 'number' && delay > 0 ? Math.min(MAX_CRAWL_DELAY_MS, Math.round(delay * 1000)) : undefined,
+    sitemaps: robots.getSitemaps().slice(0, 10),
     source: 'parsed',
   };
 }

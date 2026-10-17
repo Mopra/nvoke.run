@@ -52,4 +52,15 @@ describe('readSite', () => {
     expect(big.calls).toHaveLength(8);
     expect(result.pages).toBe(8);
   });
+  it('tries the www twin, follows a meta refresh and guesses contact paths, as the server crawl does', async () => {
+    const l = loader({
+      'https://www.twin.dk/': ok('https://www.twin.dk/', '<meta http-equiv="refresh" content="0;url=/da/">'),
+      'https://www.twin.dk/da/': ok('https://www.twin.dk/da/', '<a href="/da/om">Om os</a>'),
+      'https://www.twin.dk/da/om': ok('https://www.twin.dk/da/om', '<p>Vi laver stole.</p>'),
+      'https://www.twin.dk/kontakt': ok('https://www.twin.dk/kontakt', '<p>stol@twin.dk</p>'),
+    });
+    const result = await readSite({ website: 'https://twin.dk/', domain: 'twin.dk' }, l);
+    expect(result.emails.map((e) => e.address)).toEqual(['stol@twin.dk']);
+    expect(l.calls.length).toBeLessThanOrEqual(8 + 3);
+  });
 });

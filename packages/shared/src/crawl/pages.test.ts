@@ -80,6 +80,12 @@ describe('pickFromSitemap and fallbackPages', () => {
     ]);
   });
 
+  it('skips posts whose long slug mentions contact', () => {
+    expect(pickFromSitemap(['https://a.dk/quest/fellow-users-contact-coinbase-support-32f72c7f-f366-4bb3', 'https://a.dk/kontakt'], 5)).toEqual([
+      'https://a.dk/kontakt',
+    ]);
+  });
+
   it('skips guessed paths already read', () => {
     const seen = new Set(['https://a.dk/contact', 'https://a.dk/kontakt/']);
     expect(fallbackPages('https://a.dk/', seen, 2)).toEqual(['https://a.dk/about', 'https://a.dk/impressum']);
