@@ -177,3 +177,12 @@ per company, not through inboxes.
 
 Next: cost per verified ($0.007 vs $0.0015) and volume (162 in 25
 minutes). Then a full 60 minute run of every entry on the VPS.
+
+### 2026-10-18 vps-icp2: blocked by Brave
+
+The 60 minute VPS run failed after 20 seconds: Brave answered 402,
+"Prepaid credit balance is insufficient". Production web, domains-by-name
+and plain words searches fail the same way until the owner tops up
+(Horadric quest filed). Decision: add a free web search provider as a
+fallback behind `FREE_SEARCH` (agent running), stopping at any challenge
+or CAPTCHA, never working around it. It also lowers cost per verified.
