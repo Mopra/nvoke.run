@@ -35,6 +35,9 @@ export const footerNav = [
       { href: '/app', label: 'Open the app' },
       { href: '/download', label: 'nvoke Desktop' },
       { href: '/tools', label: 'Free tools' },
+      { href: '/vs/hunter', label: 'nvoke vs Hunter' },
+      { href: '/vs/snov', label: 'nvoke vs Snov.io' },
+      { href: '/vs/apollo', label: 'nvoke vs Apollo' },
     ],
   },
   {
