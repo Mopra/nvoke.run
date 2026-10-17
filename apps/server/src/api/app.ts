@@ -23,6 +23,8 @@ import { clerkPlanSource } from '../billing/clerk.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { privacyRoutes } from './routes/privacy.js';
 import { userWebhookRoutes } from './routes/user-webhooks.js';
+import { toolsRoutes, type ToolsRoutesOptions } from './routes/tools.js';
+import { createToolsDeps } from '../tools/deps.js';
 import type { Resolve } from '../webhooks/address.js';
 import { httpSender, type WebhookSender } from '../webhooks/send.js';
 
@@ -44,12 +46,14 @@ export interface AppDeps {
   webhookSender?: WebhookSender;
   /** DNS for checking webhook URLs. Tests stub it out. */
   webhookResolve?: Resolve;
+  /** The free tools' verifier, crawler, DNS and Turnstile. Tests swap in fakes. */
+  tools?: Partial<Omit<ToolsRoutesOptions, 'getSql'>>;
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve'> = {
+  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve' | 'tools'> = {
     getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
@@ -143,6 +147,8 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
   });
   // Public, no auth: the site's opt-out page calls it from the browser.
   await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });
+  // Public, no auth: the free tools on nvoke.run/tools.
+  await app.register(toolsRoutes, { prefix: '/v1/tools', ...createToolsDeps(getSql, env), ...overrides.tools });
 
   return app;
 }

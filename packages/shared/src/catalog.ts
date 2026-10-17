@@ -29,6 +29,14 @@ import {
 import { PlansResponse } from './plans.ts';
 import { OptOutRequest, OptOutResponse } from './privacy.ts';
 import {
+  ToolEmailAuthRequest,
+  ToolEmailAuthResponse,
+  ToolExtractEmailsRequest,
+  ToolExtractEmailsResponse,
+  ToolVerifyEmailRequest,
+  ToolVerifyEmailResponse,
+} from './tools.ts';
+import {
   CreateWebhookRequest,
   CreateWebhookResponse,
   UpdateWebhookRequest,
@@ -54,7 +62,7 @@ export interface Endpoint {
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   /** Fastify style, `:id` for path parameters. */
   path: string;
-  group: 'Account' | 'Searches' | 'Leads' | 'Webhooks' | 'API keys' | 'Agents' | 'Privacy' | 'Meta';
+  group: 'Account' | 'Searches' | 'Leads' | 'Webhooks' | 'API keys' | 'Agents' | 'Privacy' | 'Tools' | 'Meta';
   summary: string;
   description: string;
   auth: EndpointAuth;
@@ -399,6 +407,51 @@ export const ENDPOINTS: Endpoint[] = [
     errors: ['invalid_request'],
   },
   {
+    id: 'toolVerifyEmail',
+    method: 'POST',
+    path: '/v1/tools/verify-email',
+    group: 'Tools',
+    summary: 'Check one email address, free',
+    description:
+      'The free email verifier on nvoke.run/tools. Syntax, disposable domains, MX records and, while the small free probe budget lasts, the mail server itself (`depth: mailbox`). Past that budget it answers from syntax and DNS (`depth: domain`). Rate limited per IP and per day. For volume, use a search of kind `domains` with an API key.',
+    auth: 'public',
+    body: ToolVerifyEmailRequest,
+    status: 200,
+    response: ToolVerifyEmailResponse,
+    errors: ['invalid_request', 'rate_limited', 'captcha_failed'],
+    example: { email: 'hello@example.com' },
+  },
+  {
+    id: 'toolExtractEmails',
+    method: 'POST',
+    path: '/v1/tools/extract-emails',
+    group: 'Tools',
+    summary: 'Read one website for emails, free',
+    description:
+      'The free website email extractor on nvoke.run/tools. Reads the homepage and likely contact pages of one domain (robots.txt honored, opt-outs respected) and returns its generic role addresses. Addresses of people are counted in `hiddenPersonal` and shown only in a search. Rate limited per IP and per day.',
+    auth: 'public',
+    body: ToolExtractEmailsRequest,
+    status: 200,
+    response: ToolExtractEmailsResponse,
+    errors: ['invalid_request', 'rate_limited', 'captcha_failed', 'busy'],
+    example: { domain: 'example.com' },
+  },
+  {
+    id: 'toolEmailAuth',
+    method: 'POST',
+    path: '/v1/tools/email-auth',
+    group: 'Tools',
+    summary: 'Check SPF, DMARC, DKIM and MX, free',
+    description:
+      'The free SPF and DMARC checker on nvoke.run/tools. DNS only: MX hosts, the SPF record with its lookup count, the DMARC policy and DKIM keys under common selectors, each graded pass, warn or fail. Rate limited per IP.',
+    auth: 'public',
+    body: ToolEmailAuthRequest,
+    status: 200,
+    response: ToolEmailAuthResponse,
+    errors: ['invalid_request', 'rate_limited'],
+    example: { domain: 'example.com' },
+  },
+  {
     id: 'openapi',
     method: 'GET',
     path: '/v1/openapi.json',
@@ -437,7 +490,9 @@ export const ERROR_CODES: Record<string, string> = {
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
   account_exists: 'An account with this email exists. Ask the human for an API key.',
   email_not_accepted: 'Disposable inbox, an opted-out address, or a domain that receives no mail.',
-  rate_limited: 'Too many sign-ups. Try again later.',
+  rate_limited: 'Too many requests from this client. Try again later.',
+  captcha_failed: 'The Turnstile token was missing or did not pass. Solve the challenge again.',
+  busy: 'Too many free tool checks are running or today’s free allowance is used up. Try again later, or sign up.',
   signup_unavailable: 'Agent sign-up is switched off right now.',
   too_many_webhooks: 'The account holds 10 webhooks. Delete one first.',
   webhook_url_not_allowed: 'Webhook URLs must be HTTPS on a public address that resolves.',

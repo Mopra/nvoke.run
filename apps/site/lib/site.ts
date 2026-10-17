@@ -31,6 +31,7 @@ export const footerNav = [
   { href: '/pricing', label: 'Pricing' },
   { href: '/app', label: 'Open the app' },
   { href: '/download', label: 'nvoke Desktop' },
+  { href: '/tools', label: 'Free tools' },
   { href: '/agents', label: 'Agents' },
   { href: '/docs', label: 'Docs' },
   { href: '/bot', label: 'nvokebot' },

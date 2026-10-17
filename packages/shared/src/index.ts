@@ -9,3 +9,4 @@ export * from './plans.ts';
 export * from './privacy.ts';
 export * from './webhooks.ts';
 export * from './mcp.ts';
+export * from './tools.ts';

@@ -82,6 +82,11 @@ const EnvSchema = z.object({
   // SMTP connections per minute across the worker. Hostinger cuts port 25 off
   // after bursts past about 5 a minute. 0 means no limit.
   SMTP_PROBES_PER_MINUTE: z.coerce.number().int().min(0).default(5),
+  // The free email verifier's share of those, probed from the API and taken
+  // off the worker's budget. 0 keeps the free verifier on DNS only.
+  TOOLS_SMTP_PROBES_PER_MINUTE: z.coerce.number().int().min(0).default(1),
+  // Cloudflare Turnstile for the free tools. Unset means rate limits only.
+  TURNSTILE_SECRET_KEY: optional,
 
   // Claude (src/ai). Without the key, features that need it answer unavailable.
   ANTHROPIC_API_KEY: optional,
