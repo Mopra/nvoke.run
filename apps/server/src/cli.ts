@@ -16,6 +16,8 @@
  *   pnpm --filter @nvoke/server cli feed collect
  *   pnpm --filter @nvoke/server cli bench sample
  *   pnpm --filter @nvoke/server cli bench crawl --label baseline
+ *   pnpm --filter @nvoke/server cli eval run --label baseline
+ *   pnpm --filter @nvoke/server cli eval report apps/server/.bench/eval/<file>.json
  *
  * `db` starts the embedded Postgres, applies the migrations, prints its URL
  * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
@@ -74,6 +76,19 @@
  *   --no-cache          fetch everything live (responses are cached by default)
  * `bench render --from L` lays the desktop's render pass over run L
  * (`pnpm --filter @nvoke/desktop bench:render --from L` writes it first).
+ *
+ * `eval run` is the lead-quality eval (src/bench/eval-run.ts, `pnpm eval`):
+ * the fixed suite through the real pipeline in a fresh database on the
+ * eval's own embedded Postgres (apps/server/.bench/eval/pgdata, port
+ * EVAL_PG_PORT or 54339) or on CLI_DATABASE_URL or --database-url, then Claude
+ * judges a sample. It writes apps/server/.bench/eval/<label>-<time>.json and
+ * prints a markdown report; `eval report <file>` prints it again.
+ *   --label L              name of the run (default: the time)
+ *   --only ID,ID           entries of the suite to run (default all)
+ *   --minutes N            time budget (default 60)
+ *   --smtp-per-minute N    SMTP probes a minute (default SMTP_PROBES_PER_MINUTE)
+ *   --no-judge             skip the judges
+ *   --keep-db              keep the eval database afterwards
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -96,6 +111,9 @@ import {
 } from './bench/crawl-bench.js';
 import { buildPlaceSample, buildSample, localFillRate, type PlaceSample } from './bench/crawl-sample.js';
 import { placeTable, runPlaceBench } from './bench/place-bench.js';
+import { renderReport } from './bench/eval-metrics.js';
+import { reportFile, runEval, startEvalPostgres } from './bench/eval-run.js';
+import { asIcp, pickEntries } from './bench/eval-suite.js';
 import { createAlerter } from './alerts.js';
 import { collectDue } from './feed/collect.js';
 import { createCollectors, sourceAvailability } from './feed/collectors.js';
@@ -129,7 +147,7 @@ function parseArgs(argv: string[]): Args {
     if (a.startsWith('--')) {
       const name = a.slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod', 'no-cache'].includes(name)) {
+      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod', 'no-cache', 'no-judge', 'keep-db'].includes(name)) {
         flags.set(name, next);
         i++;
       } else flags.set(name, true);
@@ -158,6 +176,8 @@ function usage(): never {
       '  cli bench places [--label L]',
       '  cli bench crawl [--label L] [--compare L] [--concurrency N] [--only SOURCE] [--no-cache]',
       '  cli bench render --from L',
+      '  cli eval run [--label L] [--only ID,ID] [--mode icp] [--minutes N] [--smtp-per-minute N] [--no-judge] [--keep-db]',
+      '  cli eval report <file.json>',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
       'privacy, stats, sources, alert and feed act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
@@ -481,6 +501,52 @@ async function benchRender(label: string | undefined): Promise<void> {
   for (const r of gained) console.log(`  + ${r.domain}  ${r.status}  ${r.emails.join(', ')}`);
 }
 
+/** `cli eval run | report`: the lead-quality eval (src/bench/eval-run.ts). */
+async function evalCommand(args: Args): Promise<void> {
+  const action = args.positional[1];
+  const flag = (n: string) => {
+    const v = args.flags.get(n);
+    return typeof v === 'string' ? v : undefined;
+  };
+  if (action === 'report') {
+    const file = args.positional[2];
+    if (!file) usage();
+    console.log(reportFile(resolve(file)));
+    return;
+  }
+  if (action !== 'run') usage();
+  const env = loadEnv();
+  const minutes = Number(flag('minutes') ?? 60);
+  const smtpPerMinute = Number(flag('smtp-per-minute') ?? env.SMTP_PROBES_PER_MINUTE);
+  if (!(minutes > 0) || !Number.isInteger(smtpPerMinute) || smtpPerMinute < 0) usage();
+  const picked = pickEntries(flag('only')?.split(',').map((s) => s.trim()).filter(Boolean));
+  // --mode icp: one plain-words search per entry from its intent, instead of the baseline's searches.
+  const entries = flag('mode') === 'icp' ? picked.map(asIcp) : picked;
+  const label = flag('label') ?? new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+
+  const url = flag('database-url') ?? process.env.CLI_DATABASE_URL;
+  // Its own embedded server, so a `cli db` or `cli search` running meanwhile never collides with it.
+  const local = url ? null : await startEvalPostgres(join(BENCH_DIR, 'eval', 'pgdata'));
+  try {
+    const { run, file } = await runEval({
+      label,
+      entries,
+      minutes,
+      smtpPerMinute,
+      judge: !args.flags.has('no-judge'),
+      keepDb: args.flags.has('keep-db'),
+      verbose: args.flags.has('verbose'),
+      serverUrl: url ?? local!.url,
+      outDir: join(BENCH_DIR, 'eval'),
+      env,
+    });
+    console.log(`\n${renderReport(run)}\n`);
+    console.log(`wrote ${file}`);
+  } finally {
+    await local?.stop();
+  }
+}
+
 /**
  * The database for operator commands: --database-url, then DATABASE_URL with
  * --prod, then CLI_DATABASE_URL or the embedded Postgres. Prints which.
@@ -514,6 +580,7 @@ async function main(): Promise<void> {
   if (args.positional[0] === 'alert') return alertTest(args);
   if (args.positional[0] === 'feed') return feed(args);
   if (args.positional[0] === 'bench') return bench(args);
+  if (args.positional[0] === 'eval') return evalCommand(args);
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

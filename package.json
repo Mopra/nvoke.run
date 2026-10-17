@@ -18,6 +18,7 @@
     "dev:worker": "pnpm --filter @nvoke/server dev:worker",
     "dev:site": "pnpm --filter @nvoke/site dev",
     "migrate": "pnpm --filter @nvoke/server migrate",
+    "eval": "pnpm --filter @nvoke/server cli eval run",
     "dist:desktop": "pnpm --filter @nvoke/desktop dist",
     "icons": "node scripts/icons.mjs",
     "release": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release.mjs"
