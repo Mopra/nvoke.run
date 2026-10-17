@@ -28,6 +28,7 @@ import {
 } from './local-crawl.ts';
 import { PlansResponse } from './plans.ts';
 import { OptOutRequest, OptOutResponse } from './privacy.ts';
+import { BuildSiteProfileRequest, SiteProfile, UpdateSiteProfileRequest } from './site-profile.ts';
 import {
   ToolEmailAuthRequest,
   ToolEmailAuthResponse,
@@ -103,6 +104,48 @@ export const ENDPOINTS: Endpoint[] = [
     status: 200,
     response: PlansResponse,
     errors: [],
+  },
+  {
+    id: 'getSiteProfile',
+    method: 'GET',
+    path: '/v1/site-profile',
+    group: 'Account',
+    summary: 'Your site profile and suggested searches',
+    description:
+      'What your own website says you sell, to whom, the proof it offers and the words it uses, with 3 to 6 searches that find your buyers. `not_found` until you build one with `POST /v1/site-profile`.',
+    auth: 'key',
+    status: 200,
+    response: SiteProfile,
+    errors: ['not_found'],
+  },
+  {
+    id: 'buildSiteProfile',
+    method: 'POST',
+    path: '/v1/site-profile',
+    group: 'Account',
+    summary: 'Read your website and plan searches',
+    description:
+      'Reads your homepage and its about, pricing and services pages (robots.txt honored), then Claude writes the profile and suggests 3 to 6 searches. Each suggestion holds a `search` body you can send to `POST /v1/searches` as is. Replaces the stored profile. Free, 10 a day per account. Takes about 20 seconds.',
+    auth: 'key',
+    body: BuildSiteProfileRequest,
+    status: 200,
+    response: SiteProfile,
+    errors: ['invalid_request', 'site_unreadable', 'rate_limited', 'ai_unavailable'],
+    example: { website: 'acme.dk' },
+  },
+  {
+    id: 'updateSiteProfile',
+    method: 'PATCH',
+    path: '/v1/site-profile',
+    group: 'Account',
+    summary: 'Edit your site profile',
+    description: 'Changes the fields you send and keeps the rest. Suggestions stay as they were built.',
+    auth: 'key',
+    body: UpdateSiteProfileRequest,
+    status: 200,
+    response: SiteProfile,
+    errors: ['invalid_request', 'not_found'],
+    example: { audience: 'Dental clinics in Denmark with 3 to 20 chairs' },
   },
   {
     id: 'createSearch',
@@ -490,9 +533,11 @@ export const ERROR_CODES: Record<string, string> = {
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
   account_exists: 'An account with this email exists. Ask the human for an API key.',
   email_not_accepted: 'Disposable inbox, an opted-out address, or a domain that receives no mail.',
-  rate_limited: 'Too many requests from this client. Try again later.',
+  rate_limited: 'Too many requests from this client, account or address. Try again later.',
   captcha_failed: 'The Turnstile token was missing or did not pass. Solve the challenge again.',
   busy: 'Too many free tool checks are running or today’s free allowance is used up. Try again later, or sign up.',
+  site_unreadable: 'We could not read the website: it is down, robots.txt keeps us out, it refuses our servers or it needs JavaScript. `detail` says which.',
+  ai_unavailable: 'Claude could not answer right now, or the account spent its monthly Claude budget. Try again later.',
   signup_unavailable: 'Agent sign-up is switched off right now.',
   too_many_webhooks: 'The account holds 10 webhooks. Delete one first.',
   webhook_url_not_allowed: 'Webhook URLs must be HTTPS on a public address that resolves.',

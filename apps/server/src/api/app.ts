@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { Logger } from 'pino';
 import cors from '@fastify/cors';
 import type { Sql } from 'postgres';
 import type { Env } from '../env.js';
@@ -27,6 +28,8 @@ import { toolsRoutes, type ToolsRoutesOptions } from './routes/tools.js';
 import { createToolsDeps } from '../tools/deps.js';
 import type { Resolve } from '../webhooks/address.js';
 import { httpSender, type WebhookSender } from '../webhooks/send.js';
+import { createAi, type Ai } from '../ai/client.js';
+import { siteProfileRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
@@ -44,16 +47,20 @@ export interface AppDeps {
   receivesMail?: (domain: string) => Promise<boolean>;
   /** Sends webhook test pings. Tests swap in a fake. */
   webhookSender?: WebhookSender;
-  /** DNS for checking webhook URLs. Tests stub it out. */
+  /** DNS for checking webhook URLs and the site profile's website. Tests stub it out. */
   webhookResolve?: Resolve;
   /** The free tools' verifier, crawler, DNS and Turnstile. Tests swap in fakes. */
   tools?: Partial<Omit<ToolsRoutesOptions, 'getSql'>>;
+  /** Claude. Tests pass one built on a fake client. */
+  ai?: Ai;
+  /** Reads the user's website for the site profile. Tests swap in a fake. */
+  readSite?: SiteProfileRoutesOptions['read'];
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve' | 'tools'> = {
+  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve' | 'tools' | 'ai' | 'readSite'> = {
     getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
@@ -143,6 +150,23 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     authenticate: app.requireAuth,
     urlPolicy,
     send: overrides.webhookSender ?? httpSender({ ...urlPolicy, resolve: overrides.webhookResolve }),
+    resolve: overrides.webhookResolve,
+  });
+  let ai = overrides.ai;
+  await app.register(siteProfileRoutes, {
+    prefix: '/v1/site-profile',
+    getSql,
+    authenticate: app.requireAuth,
+    getAi: () =>
+      (ai ??= createAi({
+        sql: getSql(),
+        // Fastify's logger is pino underneath; its type only leaves out a few members.
+        log: app.log as unknown as Logger,
+        apiKey: env.OPENROUTER_API_KEY,
+        budget: { floorUsd: env.AI_MONTHLY_BUDGET_FLOOR_USD, priceShare: env.AI_MONTHLY_BUDGET_PRICE_SHARE },
+      })),
+    urlPolicy,
+    read: overrides.readSite,
     resolve: overrides.webhookResolve,
   });
   // Public, no auth: the site's opt-out page calls it from the browser.

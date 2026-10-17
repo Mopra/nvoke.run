@@ -57,6 +57,8 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 - `webhooks`: `id`, `clerk_user_id`, `url`, `secret`, `events`, `scope` (`all` | `drops`), `drop_id` (cascade), `enabled`, `disabled_reason`, `last_success_at`, `last_failure_at`, `last_error`, `created_at`. See "Webhooks".
 - `webhook_deliveries`: `id` (the `webhook-id` header), `webhook_id` (cascade), `event`, `search_id` (cascade), `company_id` (cascade, `lead.ready` only), `status` (`pending` | `delivered` | `failed` | `skipped`), `attempts`, `next_attempt_at`, `locked_until`, `last_status`, `last_error`, `created_at`, `delivered_at`. Unique `(webhook_id, event, search_id, company_id)`.
 - `ai_usage`: one row per Claude call: `id`, `clerk_user_id` (cascade), `task`, `model`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_usd`, `created_at`. No prompt or response text. See "Claude".
+- `site_profiles`: one per account: `clerk_user_id` pk (cascade), `website` (as read, after redirects), `domain`, `profile` (jsonb, `SiteProfileFields`), `suggestions` (jsonb, `SuggestedSearch[]`), `pages` (jsonb, the URLs read), `created_at`, `updated_at`. See "Site profile".
+- `site_profile_runs`: one row per build attempt, read or not: `id`, `clerk_user_id` (cascade), `domain`, `created_at`. Counts against the daily limit.
 
 Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work.
 
@@ -71,6 +73,7 @@ Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work
 - `GET /v1/searches/:id/export.csv` returns one row per email: company, domain, website, email, kind, verification, source_url, location, phone.
 - `GET /v1/me` returns user, plan and usage for this period, how the request authenticated (`via`), the account's origin (`account`) and `billingUrl`. `?sync=1` re-reads the plan from Clerk Billing first.
 - `GET /v1/plans` (public) returns the plan ladder.
+- `GET /v1/site-profile`, `POST /v1/site-profile` with `{ website }`, `PATCH /v1/site-profile` with any profile fields: see "Site profile".
 - `GET /v1/api-keys`, `POST /v1/api-keys` with `{ name }`, `DELETE /v1/api-keys/:id`: see "API and agents".
 - `POST /v1/agents/signup` (public, rate limited) and `POST /v1/agents/claim` (Clerk session): see "API and agents".
 - `GET /v1/openapi.json` (public): OpenAPI 3.1 for every route.
@@ -174,11 +177,23 @@ Features that need judgment on text (the site profile, openers) call Claude thro
 - **Structured output.** `createAi(...).structured({ userId, task, tier, system, prompt, schema, toolName, toolDescription })` asks for a JSON answer (structured outputs) whose schema comes from the zod schema, trimmed to shape, types and enums, and validates the answer with the full zod schema. Errors are `AiError` with a code: `unavailable` (no `OPENROUTER_API_KEY`), `budget_exceeded`, `refusal`, `no_output`, `invalid_output`.
 - **Cost.** Every call is a row in `ai_usage` (user, task, model, tokens, `cost_usd`, no prompt or response text) and a log line with the user id. Before a call, the account's spend this calendar month (UTC) is checked against its budget: `AI_MONTHLY_BUDGET_PRICE_SHARE` (default 0.25) of the plan's price, never below `AI_MONTHLY_BUDGET_FLOOR_USD` (default 1). The check is not locked, so calls running at once may overshoot by their own cost.
 
+## Site profile
+
+Start from your website: the user pastes their own site and nvoke plans the searches. Code in `apps/server/src/profile`, route in `src/api/routes/site-profile.ts`, schemas in `packages/shared/src/site-profile.ts`.
+
+- **Read.** `POST /v1/site-profile` with `{ website }` (a domain or URL) reads the homepage and up to 4 pages that describe the business, picked from its links: pricing, services, about, product, customers, one of each (`readSite`). Same fetcher and rules as the email crawl: robots.txt on every hop, one request per second per host, 2 MB, no new page after 20 seconds. The host and every redirect hop must resolve to public addresses only (the webhook URL guard). Visible text is kept, 6,000 characters a page and 20,000 in all; nav, footer, forms and scripts are dropped.
+- **Unreadable.** 422 `site_unreadable` with `detail`: `unreachable`, `blocked` (robots.txt), `refused` (401, 403, 429, 503 or a bot challenge), `js_only`, `empty` (under 200 characters of text) or `not_allowed` (a private or local address). Claude is not called.
+- **Profile.** Claude (`quality` tier, task `site-profile`, through `src/ai`) answers with `name`, `summary`, `offer`, `audience`, `proofPoints`, `voice` (the site's own words, in its language), `language` and `country`, using only what the pages say. Stored in `site_profiles`, one per account, replaced on every build. `PATCH` edits any field and keeps the suggestions. Openers read the profile.
+- **Suggestions.** 3 to 6 searches in the real kinds (local niche and location, web keyword and country, launches, domains with named companies), each with one line on why. Each is checked against `CreateSearchRequest` and dropped when it does not fit, so `suggestion.search` is a `POST /v1/searches` body as is, `limit` 100 (domains: the list).
+- **Free, limited.** Building counts no verified emails. 10 attempts a day per account (`site_profile_runs`, read or not), then 429 `rate_limited`. A Claude failure or a spent monthly Claude budget is 503 `ai_unavailable` and keeps the old profile.
+- **Screens.** New search in the web app and the desktop opens on "Start from your website" (step one), or straight on the suggestions once a profile exists; each suggestion starts its search in one click; "Set up a search by hand" opens the manual form. A first run (no searches) leads there.
+
 ## Desktop screens
 
 Each desktop feature has its own page in `docs/desktop/`. A new feature adds its page there and one line here.
 
 - **Searches** (home): list with status, counters and progress. A "New search" button.
+- **Start from your website**: [docs/desktop/site-profile.md](desktop/site-profile.md). New search opens on it; the tabs below are "Set up a search by hand".
 - **New search**: four tabs (Local businesses, Web search, New launches, Paste a list) with the fields above and a limit. Paste a list has a large monospace field, one item per line, and reads it back as it is typed: how many domains and how many names to look up, and the first few items. A country line appears once the list holds a name. There is no limit field: the list is the limit. Searches of a list are titled by their first items ("linear.app, Pleo and 5 more"). The command bar has "Paste a list of companies". Clipboard lookup, screen OCR, CSV drop (below) and the inbox folder build on this kind.
 - **Search results**: table of companies with their emails and verification badges. Filter by verification and email kind, text search, copy email, open website, export CSV (saved via a native save dialog).
   - **Selection.** Click selects a row, Cmd/Ctrl click toggles one, Shift click selects the range from the last plain click, Cmd/Ctrl Shift click adds that range. Cmd/Ctrl+A selects every loaded row; Escape, a click on empty canvas or the bar's close button clears. Changing a filter clears it. A glass bar above the dock counts the selection.

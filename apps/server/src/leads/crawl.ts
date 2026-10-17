@@ -61,12 +61,12 @@ export interface CrawlResult {
   error?: string;
 }
 
-function isHtml(contentType: string | null): boolean {
+export function isHtml(contentType: string | null): boolean {
   if (!contentType) return true;
   return /text\/html|application\/xhtml\+xml|text\/plain/i.test(contentType);
 }
 
-interface Fetched {
+export interface Fetched {
   kind: 'ok' | 'robots' | 'error';
   url: string;
   status: number;
@@ -75,7 +75,8 @@ interface Fetched {
   error?: string;
 }
 
-class SiteFetcher {
+/** Fetches pages of one site within a byte budget. Also reads the site profile (src/profile). */
+export class SiteFetcher {
   bytesUsed = 0;
 
   constructor(
