@@ -29,12 +29,14 @@ import {
   CreateDropRequest,
   DROP_DAILY_LIMIT_DEFAULT,
   FEED_SOURCES,
+  isDecisionMaker,
   PLANS,
   SEARCH_LIMIT_MAX,
   CreateWebhookRequest,
   BuildSiteProfileRequest,
   DraftOpenersRequest,
   UpdateDropRequest,
+  UpdateSearchRequest,
   UpdateSiteProfileRequest,
   UpdateWebhookRequest,
   WEBHOOK_EVENTS,
@@ -83,6 +85,8 @@ interface SearchRecord {
   /** Companies held before the current run, and when that run was queued. */
   base: number;
   runAt: number;
+  /** Plain words searches keep finding new companies after they end, while on. */
+  ongoing?: boolean;
 }
 
 interface RunRecord {
@@ -129,14 +133,15 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   const seedCache = new Map<string, MockCompanySeed[]>();
   let counter = 0;
 
-  function findDuration(total: number): number {
-    return clamp(total * 0.18, 5, 45);
+  /** Plain words searches plan, mine directories and read team pages, so they take a few minutes. */
+  function findDuration(total: number, kind: SearchInput['kind'] = 'web'): number {
+    return kind === 'icp' ? clamp(total * 0.25, 30, 200) : clamp(total * 0.18, 5, 45);
   }
 
   /** Companies discovered after `t` seconds of running. */
-  function foundAt(total: number, t: number): number {
+  function foundAt(total: number, t: number, kind?: SearchInput['kind']): number {
     if (t <= 0) return 0;
-    return Math.floor(clamp(t / findDuration(total), 0, 1) * total);
+    return Math.floor(clamp(t / findDuration(total, kind), 0, 1) * total);
   }
 
   /** The current run counts from `runAt` on top of the `base` companies earlier runs found. */
@@ -145,10 +150,11 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     const t = (clock - rec.runAt - QUEUE_MS) / 1000;
     const startedAt = rec.base > 0 || t >= 0 ? rec.createdAt + QUEUE_MS : null;
     const fresh = rec.total - rec.base;
-    const found = rec.base + foundAt(fresh, t);
-    const crawled = rec.base + foundAt(fresh, (t - 2) / 1.2);
-    const verified = rec.base + foundAt(fresh, (t - 3.5) / 1.2);
-    const doneAfter = 3.5 + 1.2 * findDuration(fresh);
+    const kind = rec.input.kind;
+    const found = rec.base + foundAt(fresh, t, kind);
+    const crawled = rec.base + foundAt(fresh, (t - 2) / 1.2, kind);
+    const verified = rec.base + foundAt(fresh, (t - 3.5) / 1.2, kind);
+    const doneAfter = 3.5 + 1.2 * findDuration(fresh, kind);
 
     if (rec.terminal) {
       return { status: rec.terminal.status, found, crawled, verified, startedAt, finishedAt: rec.frozenAt };
@@ -241,15 +247,33 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     return json(202, { queued, skipped });
   }
 
+  /** What a plain words search says it is doing, from how far it got. Null for other kinds and once it ended. */
+  function stageOf(rec: SearchRecord, p: Progress, people: number): { stage: string; stageNote: string } | null {
+    if (rec.input.kind !== 'icp' || (p.status !== 'queued' && p.status !== 'running')) return null;
+    const { countries } = rec.input.params;
+    const share = p.found / Math.max(1, rec.total);
+    if (p.status === 'queued' || p.found === 0) return { stage: 'plan', stageNote: 'Planning 14 searches from your description' };
+    if (share < 0.3) return { stage: 'directories', stageNote: 'Reading agency directories and list pages' };
+    if (share < 0.6) {
+      const where = countries?.length ? `${countries.length} ${countries.length === 1 ? 'country' : 'countries'}` : '6 countries';
+      return { stage: 'search', stageNote: `Searching the web in ${where}` };
+    }
+    if (p.crawled < rec.total * 0.92) return { stage: 'people', stageNote: `Reading team pages, ${people} people so far` };
+    return { stage: 'verify', stageNote: 'Checking addresses with each mail server' };
+  }
+
   function toSearch(rec: SearchRecord): Search {
     const p = progress(rec);
     const companies = companiesOf(rec, p);
     let emailsFound = 0;
     let emailsValid = 0;
+    let people = 0;
     for (const c of companies) {
       emailsFound += c.emails.length;
       emailsValid += c.emails.filter((e) => e.verification === 'valid').length;
+      people += c.emails.filter((e) => e.person).length;
     }
+    const stage = stageOf(rec, p, people);
     const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
     const search = {
       id: rec.id,
@@ -266,6 +290,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       createdAt: new Date(rec.createdAt).toISOString(),
       startedAt: iso(p.startedAt),
       finishedAt: iso(p.finishedAt),
+      ...(rec.input.kind === 'icp' ? { stage: stage?.stage ?? null, stageNote: stage?.stageNote ?? null, ongoing: rec.ongoing ?? false } : {}),
     } as Search;
     if (!rec.dropRun) return search;
     const { runs: _runs, ...rest } = search as Search & { runs?: unknown };
@@ -354,6 +379,28 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       t0 - day - 6 * 60 * min,
     );
     add({ kind: 'local', params: { niche: 'bakeries', location: 'Lisbon' }, limit: 80 }, t0 - 9000);
+    add(
+      {
+        kind: 'icp',
+        params: {
+          description: 'Marketing agencies with 5 to 30 people that build websites for clients',
+          product: 'Lead lists of named decision makers with verified emails',
+          countries: ['gb', 'nl'],
+        },
+        limit: 300,
+      },
+      t0 - 2 * 60 * min,
+      { ongoing: true },
+    );
+    add(
+      {
+        kind: 'icp',
+        params: { description: 'B2B SaaS startups with 10 to 50 people hiring their first sales rep' },
+        limit: 1000,
+      },
+      t0 - 4000,
+      { ongoing: true },
+    );
   }
 
   function json(status: number, data: unknown): BridgeResponse {
@@ -370,6 +417,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     const text = (v: unknown): boolean => typeof v === 'string' && v.trim().length > 0;
     if (b.kind === 'local' && text(p['niche']) && text(p['location'])) return b as unknown as SearchInput;
     if (b.kind === 'web' && text(p['keyword'])) return b as unknown as SearchInput;
+    if (b.kind === 'icp' && text(p['description'])) return b as unknown as SearchInput;
     const days = p['days'];
     const validDays = days === undefined || (typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= 30);
     if (b.kind === 'launches' && validDays) return b as unknown as SearchInput;
@@ -383,16 +431,23 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   function listCompanies(rec: SearchRecord, query: URLSearchParams): CompaniesPage {
     const verification = query.get('verification') as Verification | null;
     const kind = query.get('kind') as EmailKind | null;
+    const flag = (key: string): boolean => ['1', 'true'].includes(query.get(key) ?? '');
+    const dm = flag('decisionMakers');
+    const people = flag('people');
     const q = query.get('q')?.trim().toLowerCase() ?? '';
     const offset = Number(query.get('cursor') ?? '0') || 0;
 
     let list = companiesOf(rec, progress(rec));
-    if (verification || kind) {
+    if (verification || kind || dm || people) {
       list = list
         .map((c) => ({
           ...c,
           emails: c.emails.filter(
-            (e) => (!verification || e.verification === verification) && (!kind || e.kind === kind),
+            (e) =>
+              (!verification || e.verification === verification) &&
+              (!kind || e.kind === kind) &&
+              (!dm || isDecisionMaker(e.person?.seniority ?? null)) &&
+              (!people || e.person != null),
           ),
         }))
         .filter((c) => c.emails.length > 0);
@@ -488,6 +543,13 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (!rec) return fail(404, 'not_found');
 
     if (parts.length === 3 && method === 'GET') return json(200, toSearch(rec));
+    if (parts.length === 3 && method === 'PATCH') {
+      const req = UpdateSearchRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      if (rec.input.kind !== 'icp' || rec.dropRun) return fail(400, 'not_ongoing');
+      rec.ongoing = req.data.ongoing;
+      return json(200, toSearch(rec));
+    }
     if (parts.length === 3 && method === 'DELETE') {
       searches.delete(rec.id);
       seedCache.delete(rec.id);
@@ -845,6 +907,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         if (query.verification) params.set('verification', query.verification);
         if (query.kind) params.set('kind', query.kind);
         if (query.q) params.set('q', query.q);
+        if (query.decisionMakers) params.set('decisionMakers', 'true');
+        if (query.people) params.set('people', 'true');
         if (query.offset) params.set('cursor', String(query.offset));
         const { nextCursor, ...page } = listCompanies(rec, params);
         return { ...page, nextOffset: nextCursor === null ? null : Number(nextCursor) };

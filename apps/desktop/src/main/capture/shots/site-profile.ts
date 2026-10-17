@@ -9,7 +9,7 @@ const click = (label: string): string =>
  * profile editor and an unreadable site. Starts from no profile each theme.
  */
 export const siteProfileShots: CaptureStep = async ({ win, js, go, until, reload, sleep, shot }) => {
-  await js(`localStorage.removeItem('nvoke.mock.site-profile'); location.hash = '#/new'`);
+  await js(`localStorage.removeItem('nvoke.mock.site-profile'); location.hash = '#/new?kind=website'`);
   await reload();
   await until('input#website');
   await shot('03a-website-step');

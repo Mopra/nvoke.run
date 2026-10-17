@@ -38,6 +38,7 @@ import type {
   CreateWebhookResponse,
   SearchListResponse,
   SiteProfile,
+  UpdateSearchRequest,
   UpdateSiteProfileRequest,
   UpdateWebhookRequest,
   Webhook,
@@ -86,10 +87,11 @@ export const LOCAL_CURSOR = 'local:';
 
 const isNetworkError = (err: unknown): boolean => err instanceof ApiError && err.status === 0;
 
-export function buildQuery(params: Record<string, string | number | undefined>): string {
+/** A query string from params. Empty, undefined and false values are left out; true reads `true`. */
+export function buildQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === '') continue;
+    if (value === undefined || value === '' || value === false) continue;
     search.set(key, String(value));
   }
   const text = search.toString();
@@ -149,6 +151,8 @@ export function createApi(transport: Transport) {
       orLocal(() => call('GET', `/v1/searches/${enc(id)}`), () => local.search(id)),
     createSearch: (input: SearchInput): Promise<Search> => call('POST', '/v1/searches', input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
+    /** `ongoing`: a plain words search keeps finding new leads after it ends, until switched off. */
+    updateSearch: (id: string, update: UpdateSearchRequest): Promise<Search> => call('PATCH', `/v1/searches/${enc(id)}`, update),
     /** Runs an ended search again with new params of its kind; what it finds joins the same list. */
     searchMore: (id: string, input: SearchInput): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/more`, input),
     deleteSearch: async (id: string): Promise<void> => {

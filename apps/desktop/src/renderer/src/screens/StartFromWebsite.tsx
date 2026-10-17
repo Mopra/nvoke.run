@@ -47,7 +47,7 @@ export function StartFromWebsite({ fresh = false }: { fresh?: boolean }) {
   // Nothing on file and nothing running: nothing to show here, so New search.
   const empty = !fresh && profile.data === null && !cached && !build.isError;
   useEffect(() => {
-    if (empty) navigate({ name: 'new', kind: null }, { replace: true });
+    if (empty) navigate({ name: 'new', kind: 'website' }, { replace: true });
   }, [empty]);
   const [site, setSite] = useState('');
   // True while the user reads another site (or again) over an existing profile.
@@ -84,7 +84,7 @@ export function StartFromWebsite({ fresh = false }: { fresh?: boolean }) {
       <Suggestions
         profile={profile.data}
         onReadAgain={() => read(profile.data!.website)}
-        onReadAnother={() => navigate({ name: 'new', kind: null })}
+        onReadAnother={() => navigate({ name: 'new', kind: 'website' })}
       />
     );
   } else {

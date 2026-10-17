@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMutationState } from '@tanstack/react-query';
 import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { Commands } from '@/components/CommandBar';
 import { GrabPanel } from '@/components/GrabPanel';
@@ -8,7 +9,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { useAuth } from '@/lib/auth';
 import { grabApi, quickApi } from '@/lib/desktop';
 import { formatNumber, isActive, searchTitle } from '@/lib/format';
-import { useCompanies, useCreateSearch, useSearch } from '@/lib/queries';
+import { UPDATE_SEARCH, useCompanies, useCreateSearch, useSearch, useUpdateSearch } from '@/lib/queries';
 import type { Search, SearchInput } from '@/lib/types';
 import type { FrontTab, GrabState, QuickClipboard } from '../../../ipc/contract';
 
@@ -112,13 +113,20 @@ function Session({
   onGrabClose: () => void;
 }) {
   const create = useCreateSearch();
+  const update = useUpdateSearch();
   const [started, setStarted] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   function start(input: SearchInput): void {
     if (create.isPending) return;
     setNotice(null);
-    create.mutate(input, { onSuccess: (search) => setStarted(search.id) });
+    create.mutate(input, {
+      onSuccess: (search) => {
+        setStarted(search.id);
+        // Described customers keep filling, like New search does by default.
+        if (search.kind === 'icp') update.mutate({ id: search.id, ongoing: true });
+      },
+    });
   }
 
   /** macOS: asks for the Automation permission (the OS prompt), then looks the site up. */
@@ -165,6 +173,11 @@ function automationHelp(browser: string): string {
 
 function Running({ id, onNew }: { id: string; onNew: () => void }) {
   const { data: search } = useSearch(id);
+  // The window has no toasts: a failed ongoing switch says so here.
+  const switchFailed = useMutationState({
+    filters: { mutationKey: UPDATE_SEARCH, status: 'error' },
+    select: (m) => (m.state.variables as { id: string } | undefined)?.id,
+  }).includes(id);
 
   const open = (): void => quickApi()?.openInMain(`#/searches/${encodeURIComponent(id)}`);
 
@@ -184,6 +197,11 @@ function Running({ id, onNew }: { id: string; onNew: () => void }) {
     <div className="px-6 pt-5 pb-5">
       {search ? <Progress search={search} /> : <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />}
       {search?.kind === 'domains' && <Addresses id={id} search={search} />}
+      {switchFailed && (
+        <div role="alert" className="mt-3 text-sm text-destructive">
+          It runs, but couldn’t switch on Keep finding new leads. Switch it on from the results.
+        </div>
+      )}
       <div className="mt-5 flex items-center justify-between">
         <Button variant="ghost" onClick={onNew}>
           New search

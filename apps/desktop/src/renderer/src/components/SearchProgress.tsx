@@ -61,6 +61,8 @@ export function progressCaption(search: Search): string {
     case 'queued':
       return 'Waiting for a worker';
     case 'running':
+      // A plain words search says what it is doing in its own words.
+      if (search.stageNote) return search.stageNote;
       if (search.companiesFound < search.limit && search.companiesCrawled === 0) return `Finding companies, ${found} so far`;
       return `${crawled} of ${found} websites crawled`;
     default:

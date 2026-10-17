@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutationState } from '@tanstack/react-query';
-import { ArrowRight, ArrowUpRight, Ban, Globe, Inbox, MoreHorizontal, Trash2 } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Ban, Inbox, MoreHorizontal, Trash2, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { DisplayTitle, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
@@ -87,6 +87,7 @@ function SearchRow({ search }: { search: Search }) {
       <a
         href={routeHref({ name: 'search', id: search.id })}
         data-search-status={search.status}
+        data-search-kind={search.kind}
         aria-label={searchTitle(search)}
         className="absolute inset-0 rounded-[24px] outline-none"
       />
@@ -99,6 +100,7 @@ function SearchRow({ search }: { search: Search }) {
           <div className="mt-1 truncate text-sm text-muted-foreground">
             {stopped || active ? `${STATUS_LABEL[search.status]}, ` : ''}
             {searchSubtitle(search).toLowerCase()}, {relativeTime(search.createdAt)}
+            {search.ongoing && !active && !stopped && <span className="text-foreground/70">, keeps finding new leads</span>}
           </div>
           {active && (
             <div className="mt-4 flex max-w-md items-center gap-4">
@@ -251,16 +253,16 @@ export function SearchesScreen() {
             <>
               <WebsiteRow />
               <EmptyState
-                icon={Globe}
-                title="Start from your website"
+                icon={UsersRound}
+                title="Who do you sell to?"
                 action={
                   <Button size="lg" onClick={() => navigate({ name: 'new', kind: null })}>
-                    Read my site
+                    Describe your customer
                     <ArrowRight />
                   </Button>
                 }
               >
-                nvoke reads your site, works out who buys from you and plans the searches that find them.
+                Say it in plain words. nvoke plans the searches, reads every site and finds the people who decide.
               </EmptyState>
             </>
           ) : (

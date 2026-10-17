@@ -1,5 +1,6 @@
-import { mkdtempSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, existsSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import type { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { company, search, uuid } from './fixtures';
@@ -106,6 +107,64 @@ describe('LocalStore', () => {
     ]);
     expect(store.queryCompanies(uuid(1), { verification: 'catch_all', kind: 'generic' })!.total).toBe(1);
     expect(store.queryCompanies(uuid(1), { verification: 'catch_all', kind: 'personal' })!.total).toBe(0);
+  });
+
+  it('keeps the people fields and filters to decision makers', () => {
+    const store = new LocalStore(':memory:');
+    store.replaceSearches([search(1)]);
+    const people = company(1, 'Acme', [
+      ['info@acme.dk', 'generic', 'valid'],
+      ['anna@acme.dk', 'personal', 'valid'],
+      ['sam@acme.dk', 'personal', 'risky'],
+    ]);
+    people.fit = 82;
+    people.emails[1] = {
+      ...people.emails[1]!,
+      person: { firstName: 'Anna', lastName: 'Berg', title: 'CEO', seniority: 'founder' },
+      foundVia: 'pattern',
+      confidence: 90,
+    };
+    people.emails[2] = { ...people.emails[2]!, person: { firstName: 'Sam', lastName: 'Lee', title: 'Engineer', seniority: 'staff' } };
+    store.replaceCompanies(uuid(1), [people, company(2, 'Inbox Only', [['info@inbox.dk', 'generic', 'valid']])], 'fp', 1);
+
+    const all = store.queryCompanies(uuid(1), {})!;
+    expect(all.companies[0]).toMatchObject({ fit: 82, emails: [{}, { person: { firstName: 'Anna' }, foundVia: 'pattern', confidence: 90 }, {}] });
+
+    const dm = store.queryCompanies(uuid(1), { decisionMakers: true })!;
+    expect(dm.total).toBe(1);
+    expect(dm.companies[0]!.emails.map((e) => e.address)).toEqual(['anna@acme.dk']);
+    expect(store.queryCompanies(uuid(1), { decisionMakers: true, verification: 'valid' })!.total).toBe(1);
+    expect(store.queryCompanies(uuid(1), { decisionMakers: true, verification: 'risky' })!.total).toBe(0);
+    expect(store.queryCompanies(uuid(1), { decisionMakers: true, kind: 'generic' })!.total).toBe(0);
+  });
+
+  it('forgets companies an older app wrote, so sync fetches them whole', () => {
+    const file = tempFile();
+    const old = new LocalStore(file);
+    old.replaceSearches([search(1), search(2)]);
+    old.replaceCompanies(uuid(1), [company(1, 'Smile Aarhus', [['mette@smile.dk', 'personal', 'valid']])], 'fp', 1);
+    old.replaceCompanies(uuid(2), [company(2, 'Fresh Dental', [['info@fresh.dk', 'generic', 'valid']])], 'fp', 1);
+    // As an older app (or one after a downgrade) leaves a row: two part tags, no mark.
+    const raw = (old as unknown as { open(): DatabaseSync }).open();
+    raw.prepare(`update companies set tags = ' valid:personal ' where search_id = ?`).run(uuid(1));
+    raw.close();
+    (old as unknown as { db: unknown }).db = null;
+
+    const reopened = new LocalStore(file);
+    opened.push(reopened);
+    const stored = reopened.listStored();
+    expect(stored.find((s) => s.search.id === uuid(1))?.syncedFingerprint).toBeNull();
+    expect(reopened.queryCompanies(uuid(1), {})).toBeNull();
+    expect(reopened.queryCompanies(uuid(2), {})!.total).toBe(1);
+  });
+
+  it('starts over from an unreadable file', () => {
+    const file = tempFile();
+    writeFileSync(file, 'not a database, just bytes '.repeat(200));
+    const store = new LocalStore(file);
+    opened.push(store);
+    store.replaceSearches([search(1)]);
+    expect(store.listSearches()).toHaveLength(1);
   });
 
   it('hides a running search, which the API serves live', () => {

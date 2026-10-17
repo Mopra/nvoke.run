@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Building2, CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, ScanText, Search as SearchIcon, Sparkles, Sun } from 'lucide-react';
+import { Building2, CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, ScanText, Search as SearchIcon, Sparkles, Sun, UsersRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
 import { useFindLeads, useSearches } from '@/lib/queries';
 import { leadHint } from '@/lib/lead-find';
 import { quickApi } from '@/lib/desktop';
-import { parseQuickSearch } from '@/lib/quick-search';
+import { parseQuickIcp, parseQuickSearch } from '@/lib/quick-search';
 import { navigate as goTo, routeHref, type Route } from '@/lib/router';
 import type { SearchInput } from '@/lib/types';
 import type { FrontTab, QuickClipboard } from '../../../ipc/contract';
@@ -101,6 +101,15 @@ export function Commands({
       run: () => navigate({ name: 'search', id: s.id }),
     }));
     list.push(
+      {
+        id: 'new:icp',
+        group: 'Actions',
+        label: 'Describe your customer',
+        hint: 'Plain words, nvoke plans the search',
+        icon: <UsersRound className={iconClass} />,
+        keywords: 'new search who do you sell to people decision makers icp',
+        run: () => navigate({ name: 'new', kind: null }),
+      },
       {
         id: 'new:local',
         group: 'Actions',
@@ -229,18 +238,41 @@ export function Commands({
     };
   }, [onGrab]);
 
-  const start = useMemo<Command | null>(() => {
-    const input = onStart ? parseQuickSearch(query) : null;
-    if (!input || !onStart) return null;
-    return {
-      id: 'start',
-      group: 'Start',
-      label: `Find ${input.kind === 'local' ? `${input.params.niche} in ${input.params.location}` : `“${input.params.keyword}”`}`,
-      hint: input.kind === 'local' ? 'Local businesses' : 'Web search',
-      icon: <Sparkles className="size-4 text-primary" />,
-      keepOpen: true,
-      run: () => onStart(input),
-    };
+  /**
+   * Typed text starts a search: a description of who you sell to finds the
+   * people at those companies (leads first when it reads like one), and a
+   * keyword or "niche in place" runs a web or local search.
+   */
+  const starts = useMemo<Command[]>(() => {
+    if (!onStart) return [];
+    const input = parseQuickSearch(query);
+    const icp = parseQuickIcp(query);
+    const out: Command[] = [];
+    if (icp) {
+      out.push({
+        id: 'start:icp',
+        group: 'Start',
+        label: `Find leads: ${icp.input.params.description}`,
+        hint: '1,000 to start, then keeps finding more',
+        icon: <UsersRound className="size-4 text-primary" />,
+        keepOpen: true,
+        run: () => onStart(icp.input),
+      });
+    }
+    if (input) {
+      const row: Command = {
+        id: 'start',
+        group: 'Start',
+        label: `Find ${input.kind === 'local' ? `${input.params.niche} in ${input.params.location}` : `“${input.params.keyword}”`}`,
+        hint: input.kind === 'local' ? 'Local businesses' : 'Web search',
+        icon: <Sparkles className={cn('size-4', icp?.describes ? 'text-muted-foreground' : 'text-primary')} />,
+        keepOpen: true,
+        run: () => onStart(input),
+      };
+      if (icp?.describes) out.push(row);
+      else out.unshift(row);
+    }
+    return out;
   }, [query, onStart]);
 
   /** Companies from every search in the local copy that match the text. */
@@ -276,10 +308,10 @@ export function Commands({
     // Typed text starts its own search. Without it, the front tab then the
     // clipboard, once when both name the same site.
     const sameSite = site && lookup && frontTab?.status === 'read' && frontTab.domain === clipboard?.domain;
-    const first = start ? [start] : q ? [] : [site, sameSite ? null : lookup].filter((c): c is Command => !!c);
+    const first = starts.length > 0 ? starts : q ? [] : [site, sameSite ? null : lookup].filter((c): c is Command => !!c);
     const grabShown = grab && (!q || `${grab.label} ${grab.keywords ?? ''}`.toLowerCase().includes(q)) ? grab : null;
     return [...first, ...(grabShown ? [grabShown] : []), ...searchesShown, ...leads, ...matches.filter((c) => c.group === 'Actions')];
-  }, [commands, query, start, lookup, site, frontTab, clipboard, grab, leads]);
+  }, [commands, query, starts, lookup, site, frontTab, clipboard, grab, leads]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });

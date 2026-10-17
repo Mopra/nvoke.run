@@ -13,6 +13,8 @@ export const LocalCompaniesQuerySchema = z.strictObject({
   verification: Verification.optional(),
   kind: EmailKind.optional(),
   q: z.string().max(200).optional(),
+  people: z.boolean().optional(),
+  decisionMakers: z.boolean().optional(),
   offset: z.number().int().min(0).max(10_000_000).optional(),
   limit: z.number().int().min(1).max(LOCAL_PAGE_MAX).optional(),
 });

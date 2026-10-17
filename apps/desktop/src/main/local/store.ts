@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { Company, Search } from '@nvoke/shared';
+import { isDecisionMaker, type Company, type Email, type Search } from '@nvoke/shared';
 import type { LocalCompaniesPage, LocalCompaniesQuery, LocalFindQuery, LocalFindResult } from '../../ipc/contract';
 
 export const LOCAL_PAGE_DEFAULT = 200;
@@ -28,7 +28,7 @@ const SCHEMA = `
     ord integer not null,
     -- lowercased name, domain and addresses, for the text filter
     haystack text not null,
-    -- ' verification:kind ' per email, for the email filters
+    -- ' verification:kind:role ' per email (role dm or na), for the email filters
     tags text not null,
     email_count integer not null,
     unique (search_id, id)
@@ -64,16 +64,76 @@ function haystackOf(company: Company): string {
   return [company.name, company.domain, ...company.emails.map((e) => e.address)].join('\n').toLowerCase();
 }
 
-function tagsOf(company: Company): string {
-  return ` ${company.emails.map((e) => `${e.verification ?? 'none'}:${e.kind}`).join(' ')} `;
+/**
+ * Leads every `tags` value, naming its format. Rows without it were written
+ * by an older app (before or after a downgrade): their tags are in another
+ * format and their JSON lacks fields zod stripped then (people, fit), so
+ * `open()` drops them and the next sync fetches them again.
+ */
+const TAGS_MARK = ' t3';
+
+const isDecisionMakerEmail = (e: Email): boolean => isDecisionMaker(e.person?.seniority ?? null);
+
+/** dm: a named decision maker. pp: another named person. na: no name (role inboxes, bare addresses). */
+function roleOf(e: Email): 'dm' | 'pp' | 'na' {
+  if (isDecisionMakerEmail(e)) return 'dm';
+  return e.person ? 'pp' : 'na';
 }
 
-/** The substring a company's `tags` must contain for these email filters, or '' for none. */
-function tagNeedle(query: LocalCompaniesQuery): string {
-  if (query.verification && query.kind) return ` ${query.verification}:${query.kind} `;
-  if (query.verification) return ` ${query.verification}:`;
-  if (query.kind) return `:${query.kind} `;
-  return '';
+function tagsOf(company: Company): string {
+  return `${TAGS_MARK} ${company.emails.map((e) => `${e.verification ?? 'none'}:${e.kind}:${roleOf(e)}`).join(' ')} `;
+}
+
+/** Substrings of which a company's `tags` must contain one for these email filters. Empty for none. */
+function tagNeedles(query: LocalCompaniesQuery): string[] {
+  const { verification: v, kind: k } = query;
+  const roles = query.decisionMakers ? ['dm'] : query.people ? ['dm', 'pp'] : null;
+  if (!roles) {
+    if (v && k) return [` ${v}:${k}:`];
+    if (v) return [` ${v}:`];
+    if (k) return [`:${k}:`];
+    return [];
+  }
+  return roles.flatMap((r) => {
+    if (v && k) return [` ${v}:${k}:${r} `];
+    if (v) return [` ${v}:generic:${r} `, ` ${v}:personal:${r} `];
+    if (k) return [`:${k}:${r} `];
+    return [`:${r} `];
+  });
+}
+
+function emailMatches(e: Email, query: LocalCompaniesQuery): boolean {
+  return (
+    (!query.verification || e.verification === query.verification) &&
+    (!query.kind || e.kind === query.kind) &&
+    (!query.decisionMakers || isDecisionMakerEmail(e)) &&
+    (!query.people || e.person != null)
+  );
+}
+
+/**
+ * Forgets the companies of every search that holds rows an older app wrote
+ * (no `TAGS_MARK`), and marks those searches unsynced so the next pass
+ * fetches them whole. One indexed delete, no JSON parsing, so it stays fast.
+ */
+function dropStaleCompanies(db: DatabaseSync): void {
+  const stale = db
+    .prepare(`select distinct search_id as id from companies where substr(tags, 1, ${TAGS_MARK.length + 1}) <> '${TAGS_MARK} '`)
+    .all() as { id: string }[];
+  if (stale.length === 0) return;
+  db.exec('begin');
+  try {
+    const drop = db.prepare('delete from companies where search_id = ?');
+    const unsync = db.prepare('update searches set synced_fingerprint = null, synced_at = null where id = ?');
+    for (const { id } of stale) {
+      drop.run(id);
+      unsync.run(id);
+    }
+    db.exec('commit');
+  } catch (err) {
+    db.exec('rollback');
+    throw err;
+  }
 }
 
 export interface StoredSearch {
@@ -100,11 +160,27 @@ export class LocalStore {
   private open(): DatabaseSync {
     if (this.db) return this.db;
     if (this.file !== ':memory:') mkdirSync(dirname(this.file), { recursive: true });
-    const db = new DatabaseSync(this.file);
-    db.exec('pragma journal_mode = wal; pragma synchronous = normal; pragma foreign_keys = on;');
-    db.exec(SCHEMA);
-    this.db = db;
-    return db;
+    try {
+      this.db = LocalStore.prepare(new DatabaseSync(this.file));
+    } catch (err) {
+      // A copy we cannot read or upgrade is only a cache: start over and let sync refill it.
+      if (this.file === ':memory:') throw err;
+      for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(`${this.file}${suffix}`, { force: true });
+      this.db = LocalStore.prepare(new DatabaseSync(this.file));
+    }
+    return this.db;
+  }
+
+  private static prepare(db: DatabaseSync): DatabaseSync {
+    try {
+      db.exec('pragma journal_mode = wal; pragma synchronous = normal; pragma foreign_keys = on;');
+      db.exec(SCHEMA);
+      dropStaleCompanies(db);
+      return db;
+    } catch (err) {
+      db.close();
+      throw err;
+    }
   }
 
   private tx<T>(fn: (db: DatabaseSync) => T): T {
@@ -222,16 +298,16 @@ export class LocalStore {
     const offset = Math.max(0, Math.floor(query.offset ?? 0));
     const limit = Math.min(LOCAL_PAGE_MAX, Math.max(1, Math.floor(query.limit ?? LOCAL_PAGE_DEFAULT)));
     const q = query.q?.trim().toLowerCase() ?? '';
-    const tag = tagNeedle(query);
+    const needles = tagNeedles(query);
     const params: Record<string, string | number> = { $search: searchId };
     const where = ['search_id = $search'];
     if (q) {
       where.push('instr(haystack, $q) > 0');
       params['$q'] = q;
     }
-    if (tag) {
-      where.push('instr(tags, $tag) > 0');
-      params['$tag'] = tag;
+    if (needles.length > 0) {
+      where.push(`(${needles.map((_, i) => `instr(tags, $tag${i}) > 0`).join(' or ')})`);
+      needles.forEach((needle, i) => (params[`$tag${i}`] = needle));
     }
     const filter = where.join(' and ');
 
@@ -245,13 +321,8 @@ export class LocalStore {
 
     const companies = rows.map((r) => {
       const company = JSON.parse(r.json) as Company;
-      if (!query.verification && !query.kind) return company;
-      return {
-        ...company,
-        emails: company.emails.filter(
-          (e) => (!query.verification || e.verification === query.verification) && (!query.kind || e.kind === query.kind),
-        ),
-      };
+      if (needles.length === 0) return company;
+      return { ...company, emails: company.emails.filter((e) => emailMatches(e, query)) };
     });
     return { companies, total, nextOffset: offset + rows.length < total ? offset + rows.length : null };
   }

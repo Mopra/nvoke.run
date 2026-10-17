@@ -17,12 +17,18 @@ export function CountryPicker({
   value,
   onChange,
   triggerClassName,
+  label: labelOverride,
+  chosen,
 }: {
   id: string;
   /** ISO 3166-1 alpha-2, or '' for any country. */
   value: string;
   onChange: (code: string) => void;
   triggerClassName?: string;
+  /** The trigger's text in place of the choice, for a picker that adds to a list. */
+  label?: string;
+  /** Codes already in that list, checked in the panel. */
+  chosen?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -71,7 +77,7 @@ export function CountryPicker({
     }
   }
 
-  const label = value ? (countryName(value) ?? value) : ANY.name;
+  const label = labelOverride ?? (value ? (countryName(value) ?? value) : ANY.name);
 
   return (
     <PopoverPrimitive.Root
@@ -150,7 +156,7 @@ export function CountryPicker({
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">No country matches “{query.trim()}”</div>
             )}
             {options.map((option, index) => {
-              const selected = option.code === value;
+              const selected = chosen ? option.code !== '' && chosen.includes(option.code) : option.code === value;
               return (
                 <div
                   key={option.code || 'any'}

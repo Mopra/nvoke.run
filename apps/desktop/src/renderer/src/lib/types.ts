@@ -26,6 +26,8 @@ export type {
   MeResponse as Me,
   Opener,
   OpenerStatus,
+  Person,
+  Seniority,
   Plan,
   Search,
   SearchKind,
@@ -51,4 +53,8 @@ export type {
 } from '../../../ipc/contract';
 
 /** Filters for `GET /v1/searches/:id/companies`, plus the page cursor. */
-export type CompaniesQuery = LeadFilters & { cursor?: string; /** Page size, 200 at most. The server defaults to 50. */ limit?: number };
+export type CompaniesQuery = LeadFilters & {
+  cursor?: string;
+  /** Page size, 200 at most. The server defaults to 50. */
+  limit?: number;
+};

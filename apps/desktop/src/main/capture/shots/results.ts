@@ -6,7 +6,9 @@ export const resultsShots: CaptureStep = async (kit) => {
   await go('#/');
   const links = await js<{ running: string | null; done: string | null }>(`(() => {
     const rows = [...document.querySelectorAll('[data-search-status]')];
-    const pick = (s) => rows.find((r) => r.getAttribute('data-search-status') === s)?.getAttribute('href') ?? null;
+    // Plain words searches have their own shots (people.ts) and no Search more.
+    const pick = (s) =>
+      rows.find((r) => r.getAttribute('data-search-status') === s && r.getAttribute('data-search-kind') !== 'icp')?.getAttribute('href') ?? null;
     return { running: pick('running'), done: pick('done') };
   })()`);
   kit.links = links;

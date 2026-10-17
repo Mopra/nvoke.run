@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api, ApiError } from './api';
 import { isActive } from './format';
 import type { ApiKey, CreateWebhookRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
-import type { CompaniesQuery, DraftOpenersInput, Drop,DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
+import type { CompaniesPage, CompaniesQuery, DraftOpenersInput, Drop,DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
 export const POLL_MS = 2000;
+/** An ongoing search that ended still adds a few leads a day: a slow look now and then. */
+export const ONGOING_POLL_MS = 60_000;
 
 export const keys = {
   searches: ['searches'] as const,
@@ -39,20 +42,67 @@ export function useSearch(id: string) {
     queryFn: () => api.getSearch(id),
     initialData: () => client.getQueryData<Search[]>(keys.searches)?.find((s) => s.id === id),
     initialDataUpdatedAt: () => client.getQueryState(keys.searches)?.dataUpdatedAt,
-    refetchInterval: (query) => (query.state.data && isActive(query.state.data.status) ? POLL_MS : false),
+    refetchInterval: (query) => {
+      const search = query.state.data;
+      if (!search) return false;
+      return isActive(search.status) ? POLL_MS : search.ongoing ? ONGOING_POLL_MS : false;
+    },
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 2,
   });
 }
 
+/** While live, every this many polls the whole list is read again, so rows past the loaded pages show up. */
+const FULL_REFRESH_EVERY = 8;
+
+/**
+ * A search's companies, page by page. While the search runs only the first
+ * page is polled every POLL_MS (new rows, the total and the next cursor),
+ * not every page loaded so far; when rows were added beyond the last loaded
+ * page, the whole list is read again now and then. The full refresh when the
+ * search ends comes from useRefreshWhenFinished.
+ */
 export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>, live: boolean) {
-  return useInfiniteQuery({
-    queryKey: keys.companies(id, filters),
+  const client = useQueryClient();
+  const key = keys.companies(id, filters);
+  const query = useInfiniteQuery({
+    queryKey: key,
     queryFn: ({ pageParam }) => api.listCompanies(id, { ...filters, cursor: pageParam }, live),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    refetchInterval: live ? POLL_MS : false,
     placeholderData: (previous) => previous,
   });
+  const keyText = JSON.stringify(key);
+  useEffect(() => {
+    if (!live) return;
+    const queryKey = JSON.parse(keyText) as typeof key;
+    let ticks = 0;
+    let stopped = false;
+    const timer = setInterval(() => {
+      ticks += 1;
+      void api.listCompanies(id, { ...filters }, true).then(
+        (first) => {
+          if (stopped) return;
+          let behind = false;
+          client.setQueryData<InfiniteData<CompaniesPage, string | undefined>>(queryKey, (data) => {
+            if (!data || data.pages.length === 0) return data;
+            const loaded = data.pages.slice(1).reduce((n, p) => n + p.companies.length, first.companies.length);
+            const last = data.pages[data.pages.length - 1]!;
+            behind = data.pages.length > 1 && last.nextCursor === null && first.total > loaded;
+            return { ...data, pages: [first, ...data.pages.slice(1)] };
+          });
+          if (behind && ticks % FULL_REFRESH_EVERY === 0) void client.invalidateQueries({ queryKey, exact: true });
+        },
+        () => undefined,
+      );
+    }, POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+    // `filters` is part of the key text.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, live, keyText, client]);
+  return query;
 }
 
 /**
@@ -203,6 +253,46 @@ export function useSearchMore(id: string) {
       void client.invalidateQueries({ queryKey: [...keys.search(search.id), 'companies'] });
     },
   });
+}
+
+/** The update mutation's key, so any screen can see a switch still in flight. */
+export const UPDATE_SEARCH = ['searches', 'update'] as const;
+
+/**
+ * Switches an ongoing search on or off. The cache flips at once and rolls
+ * back on failure. Errors toast here, at the hook, so one that lands after
+ * the screen that asked has gone (New search, the quick window) still shows.
+ */
+export function useUpdateSearch() {
+  const client = useQueryClient();
+  const put = (search: Search): void => {
+    client.setQueryData(keys.search(search.id), search);
+    client.setQueryData<Search[]>(keys.searches, (list) => list?.map((s) => (s.id === search.id ? search : s)));
+  };
+  return useMutation({
+    mutationKey: UPDATE_SEARCH,
+    mutationFn: ({ id, ongoing }: { id: string; ongoing: boolean }) => api.updateSearch(id, { ongoing }),
+    onMutate: ({ id, ongoing }) => {
+      const before = client.getQueryData<Search>(keys.search(id));
+      if (before) put({ ...before, ongoing });
+      return { before };
+    },
+    onError: (err, { ongoing }, context) => {
+      if (context?.before) put(context.before);
+      toast.error(ongoing ? 'Couldn’t keep it finding new leads' : 'Couldn’t stop it finding new leads', {
+        description: `${err.message} Try the switch on the results.`,
+      });
+    },
+    onSuccess: put,
+  });
+}
+
+/** True while an ongoing switch for this search is on its way, from any screen. */
+export function useUpdatingSearch(id: string): boolean {
+  return useMutationState({
+    filters: { mutationKey: UPDATE_SEARCH, status: 'pending' },
+    select: (m) => (m.state.variables as { id: string } | undefined)?.id,
+  }).includes(id);
 }
 
 export function useCancelSearch() {

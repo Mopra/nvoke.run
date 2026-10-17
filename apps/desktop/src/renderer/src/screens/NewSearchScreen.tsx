@@ -7,6 +7,7 @@ import { Pill } from '@/components/Sentence';
 import { isFormKind, SearchFields, SearchFootnote, useSearchForm, type FormKind } from '@/components/SearchForm';
 import { useStartSearch } from '@/lib/start-search';
 import { navigate } from '@/lib/router';
+import { DescribeCustomer } from '@/screens/DescribeCustomer';
 import { StartFromWebsite } from '@/screens/StartFromWebsite';
 
 const SOURCES: Record<FormKind, string> = {
@@ -17,12 +18,15 @@ const SOURCES: Record<FormKind, string> = {
 };
 
 /**
- * New search. Plain `#/new` opens the website step (docs/desktop/site-profile.md);
- * a kind in the route (`#/new?kind=domains`, from the command bar and the
- * "by hand" link) opens the manual form on that tab.
+ * New search. Plain `#/new` asks who you sell to (DescribeCustomer,
+ * docs/desktop/people.md). `#/new?kind=website` opens the website step
+ * (docs/desktop/site-profile.md), and a search kind (`#/new?kind=domains`,
+ * from the command bar and "Other ways to search") the manual form on that tab.
  */
 export function NewSearchScreen({ initialKind }: { initialKind: string | null }) {
-  return isFormKind(initialKind) ? <ManualSearch initialKind={initialKind} /> : <StartFromWebsite fresh />;
+  if (isFormKind(initialKind)) return <ManualSearch initialKind={initialKind} />;
+  if (initialKind === 'website') return <StartFromWebsite fresh />;
+  return <DescribeCustomer />;
 }
 
 function ManualSearch({ initialKind }: { initialKind: FormKind }) {
@@ -51,7 +55,7 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
           <h1 className="sr-only">New search</h1>
           <Pill onClick={() => navigate({ name: 'new', kind: null })} className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start">
             <ArrowLeft className="size-3" />
-            Start from your website
+            Describe your customer instead
           </Pill>
           <div className="flex flex-col items-start gap-3">
             <Segmented

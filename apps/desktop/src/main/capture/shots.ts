@@ -7,6 +7,7 @@ import { grabShots } from './shots/grab';
 import { localCopyShots } from './shots/local-copy';
 import { mcpShots } from './shots/mcp';
 import { newSearchShots } from './shots/new-search';
+import { peopleShots } from './shots/people';
 import { resultsShots } from './shots/results';
 import { searchMoreShots } from './shots/search-more';
 import { searchesShots } from './shots/searches';
@@ -21,6 +22,7 @@ export const CAPTURE_STEPS: CaptureStep[] = [
   newSearchShots,
   csvDropShots,
   resultsShots,
+  peopleShots,
   localCopyShots,
   accountShots,
   mcpShots,

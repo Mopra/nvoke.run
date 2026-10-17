@@ -25,6 +25,39 @@ describe('mock transport', () => {
     expect(list.map((s) => s.status)).toEqual(expect.arrayContaining(['done', 'failed', 'canceled']));
   });
 
+  it('runs a described customer search with stage notes, people and an ongoing switch', async () => {
+    const { api, advance } = setup();
+    const created = await api.createSearch({ kind: 'icp', params: { description: 'B2B SaaS startups hiring sales reps' }, limit: 100 });
+    expect(created).toMatchObject({ kind: 'icp', status: 'queued', ongoing: false, stageNote: expect.any(String) });
+
+    advance(20_000);
+    const mid = await api.getSearch(created.id);
+    expect(mid.status).toBe('running');
+    expect(mid.stageNote).toBeTruthy();
+
+    const on = await api.updateSearch(created.id, { ongoing: true });
+    expect(on.ongoing).toBe(true);
+
+    advance(600_000);
+    const done = await api.getSearch(created.id);
+    expect(done).toMatchObject({ status: 'done', ongoing: true, stageNote: null });
+    const { companies } = await api.listCompanies(created.id, {}, true);
+    const people = companies.flatMap((c) => c.emails).filter((e) => e.person);
+    expect(people.length).toBeGreaterThan(0);
+    expect(people[0]).toMatchObject({ foundVia: expect.any(String), confidence: expect.any(Number) });
+    expect(companies.every((c) => typeof c.fit === 'number')).toBe(true);
+
+    const dm = await api.listCompanies(created.id, { decisionMakers: true }, true);
+    expect(dm.companies.length).toBeGreaterThan(0);
+    expect(dm.companies.every((c) => c.emails.every((e) => ['founder', 'executive', 'director'].includes(e.person?.seniority ?? '')))).toBe(true);
+  });
+
+  it('switches only plain words searches to ongoing', async () => {
+    const { api } = setup();
+    const s = await api.createSearch({ kind: 'web', params: { keyword: 'cms' } });
+    await expect(api.updateSearch(s.id, { ongoing: true })).rejects.toMatchObject({ code: 'not_ongoing' });
+  });
+
   it('moves a search from queued through running to done', async () => {
     const { api, advance } = setup();
     const created = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 40 });

@@ -3,7 +3,7 @@
  * derives from a seed, so a search shows the same leads on every poll.
  */
 import { itemDomain, type SiteProfile } from '@nvoke/shared';
-import type { Company, Email, EmailKind, Opener, SearchInput, Verification } from '../types';
+import type { Company, Email, Opener, SearchInput, Seniority, Verification } from '../types';
 
 /** mulberry32: small, fast, good enough for fake data. */
 export function rng(seed: number): () => number {
@@ -48,6 +48,22 @@ const FIRST_NAMES = [
   'mia', 'william', 'ella', 'felix', 'nora', 'victor', 'alma', 'sam',
 ];
 const LAST_NAMES = ['smith', 'garcia', 'silva', 'brown', 'miller', 'costa', 'lee', 'walker', 'santos', 'clark'];
+/** Titles by seniority, as team pages print them. */
+const TITLES: Record<Seniority, string[]> = {
+  founder: ['Founder', 'Co-founder and CEO', 'Owner', 'Managing Director', 'Partner'],
+  executive: ['CTO', 'COO', 'VP of Sales', 'Chief Marketing Officer'],
+  director: ['Head of Growth', 'Head of Sales', 'Marketing Director', 'Head of Operations'],
+  manager: ['Sales Manager', 'Office Manager', 'Product Manager'],
+  staff: ['Account Executive', 'Designer', 'Engineer', 'Customer Success Lead'],
+};
+const SENIORITY_WEIGHTS: [Seniority, number][] = [
+  ['founder', 0.34],
+  ['executive', 0.16],
+  ['director', 0.18],
+  ['manager', 0.16],
+  ['staff', 0.16],
+];
+const SENIORITY_ORDER: Seniority[] = ['founder', 'executive', 'director', 'manager', 'staff'];
 const GENERIC_LOCAL = ['info', 'contact', 'booking', 'mail', 'hello', 'office'];
 const GENERIC_WEB = ['info', 'contact', 'hello', 'sales', 'support', 'team'];
 
@@ -66,6 +82,20 @@ function pickVerification(r: () => number): Verification {
     roll -= weight;
   }
   return 'unknown';
+}
+
+function pickSeniority(r: () => number): Seniority {
+  let roll = r();
+  for (const [value, weight] of SENIORITY_WEIGHTS) {
+    if (roll < weight) return value;
+    roll -= weight;
+  }
+  return 'staff';
+}
+
+/** What the plain words search would mine for a description: a few words of it, as a category. */
+function icpCategory(description: string): string {
+  return description.split(/\s+/).slice(0, 4).join(' ');
 }
 
 function slug(text: string): string {
@@ -98,6 +128,7 @@ function nicheNoun(niche: string): string {
 
 export interface MockCompanySeed {
   company: Omit<Company, 'crawlStatus' | 'crawledAt' | 'localCrawl' | 'emails' | 'opener'>;
+  /** In the server's order: decision makers first, role inboxes last. */
   emails: Omit<Email, 'checkedAt' | 'verification'>[];
   verifications: Verification[];
   /** Some sites refuse crawling, need JavaScript or fail. */
@@ -132,6 +163,13 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     tld = input.params.country ? input.params.country.toLowerCase() : pick(r, ['com', 'io', 'co']);
     source = 'brave';
     category = input.params.keyword;
+  } else if (input.kind === 'icp') {
+    name = `${pick(r, WEB_STEMS)} ${pick(r, WEB_SUFFIX)}`.trim();
+    const country = input.params.countries?.[0];
+    tld = country && country !== 'us' ? (country === 'gb' ? 'co.uk' : country) : pick(r, ['com', 'io', 'co']);
+    source = 'brave';
+    category = icpCategory(input.params.description);
+    location = input.params.locations?.length ? pick(r, input.params.locations) : null;
   } else if (input.kind === 'domains') {
     // The list as the user gave it: domains stay, names get a made up website.
     const item = input.params.items[index % input.params.items.length] ?? 'acme.com';
@@ -161,26 +199,60 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
   const emails: MockCompanySeed['emails'] = [];
   const verifications: Verification[] = [];
   if (crawlOutcome === 'done' || localCrawl === 'done') {
-    const countRoll = r();
-    const count = countRoll < 0.22 ? 0 : countRoll < 0.6 ? 1 : countRoll < 0.85 ? 2 : countRoll < 0.95 ? 3 : 4;
+    // Some domains accept any address, so a pattern guess there stays a guess.
+    const catchAll = r() < 0.18;
     const used = new Set<string>();
-    for (let e = 0; e < count; e++) {
-      const kind: EmailKind = e === 0 || r() < 0.35 ? 'generic' : 'personal';
-      let local: string;
-      if (kind === 'generic') {
-        local = pick(r, input.kind === 'local' ? GENERIC_LOCAL : GENERIC_WEB);
-      } else {
-        const first = pick(r, FIRST_NAMES);
-        local = r() < 0.5 ? first : `${first}.${pick(r, LAST_NAMES)}`;
-      }
+    const peopleRoll = r();
+    const peopleCount = peopleRoll < 0.24 ? 0 : peopleRoll < 0.55 ? 1 : peopleRoll < 0.82 ? 2 : peopleRoll < 0.95 ? 3 : 4;
+    const pattern = pick(r, ['first', 'first.last', 'flast'] as const);
+    const people: { email: MockCompanySeed['emails'][number]; verification: Verification; seniority: Seniority }[] = [];
+    for (let e = 0; e < peopleCount; e++) {
+      const first = pick(r, FIRST_NAMES);
+      const last = pick(r, LAST_NAMES);
+      const seniority = pickSeniority(r);
+      const local = pattern === 'first' ? first : pattern === 'first.last' ? `${first}.${last}` : `${first[0]}${last}`;
       const address = `${local}@${domain}`;
       if (used.has(address)) continue;
       used.add(address);
-      const page = kind === 'generic' ? pick(r, ['/', '/contact-us', '/contact', '/about']) : pick(r, ['/team', '/our-team', '/about']);
-      emails.push({ id: `${searchId}-e${index}-${e}`, address, kind, sourceUrl: `https://${domain}${page}` });
-      verifications.push(pickVerification(r));
+      const viaRoll = r();
+      const foundVia = viaRoll < 0.42 ? 'page' : viaRoll < 0.95 ? 'pattern' : 'cache';
+      const verification: Verification =
+        foundVia === 'pattern' && catchAll ? 'catch_all' : r() < 0.84 ? 'valid' : pick(r, ['risky', 'unknown'] as const);
+      const confidence =
+        verification === 'catch_all' ? (r() < 0.5 ? 35 : 70) : verification === 'valid' ? (foundVia === 'pattern' ? 85 : 95) : 50;
+      people.push({
+        seniority,
+        verification,
+        email: {
+          id: `${searchId}-e${index}-p${e}`,
+          address,
+          kind: 'personal',
+          sourceUrl: foundVia === 'pattern' ? null : `https://${domain}${pick(r, ['/team', '/our-team', '/about'])}`,
+          person: { firstName: titleCase(first), lastName: titleCase(last), title: pick(r, TITLES[seniority]), seniority },
+          foundVia,
+          confidence,
+        },
+      });
+    }
+    people.sort((a, b) => SENIORITY_ORDER.indexOf(a.seniority) - SENIORITY_ORDER.indexOf(b.seniority));
+    for (const p of people) {
+      emails.push(p.email);
+      verifications.push(p.verification);
+    }
+    const genericRoll = r();
+    const genericCount = peopleCount === 0 ? (genericRoll < 0.25 ? 0 : genericRoll < 0.8 ? 1 : 2) : genericRoll < 0.45 ? 0 : 1;
+    for (let e = 0; e < genericCount; e++) {
+      const address = `${pick(r, input.kind === 'local' ? GENERIC_LOCAL : GENERIC_WEB)}@${domain}`;
+      if (used.has(address)) continue;
+      used.add(address);
+      const page = pick(r, ['/', '/contact-us', '/contact', '/about']);
+      emails.push({ id: `${searchId}-e${index}-g${e}`, address, kind: 'generic', sourceUrl: `https://${domain}${page}`, foundVia: 'page', confidence: 60 });
+      verifications.push(catchAll ? 'catch_all' : pickVerification(r));
     }
   }
+
+  // Plain words searches score each company against the description.
+  const fit = input.kind === 'icp' ? Math.round(38 + r() * 60) : null;
 
   return {
     company: {
@@ -193,6 +265,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
       location,
       phone,
       category,
+      ...(fit === null ? {} : { fit }),
     },
     emails,
     verifications,

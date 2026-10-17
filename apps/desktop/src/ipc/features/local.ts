@@ -33,7 +33,7 @@ export interface LocalChange {
   searchesChanged: boolean;
 }
 
-/** `LeadFilters` with an offset page. `limit` is 1 to 500, 200 by default. */
+/** `LeadFilters` (`people` and `decisionMakers` too) with an offset page. `limit` is 1 to 500, 200 by default. */
 export type LocalCompaniesQuery = LeadFilters & { offset?: number; limit?: number };
 
 /** Same companies and total as `CompaniesPage`, with an offset instead of a cursor. */

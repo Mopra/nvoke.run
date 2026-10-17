@@ -48,6 +48,11 @@ describe('the person columns', () => {
     const [header, row] = companiesToCsv([company({ emails: [named] })]).trim().split(/\r\n/);
     const cells = Object.fromEntries(header!.split(',').map((h, i) => [h, row!.split(',')[i]]));
     expect(cells).toMatchObject({ email: 'ole@acme.dk', first_name: 'Ole', last_name: 'Berg', title: 'CEO', seniority: 'founder', found_via: 'page', confidence: '90' });
+
+    // Copy (TSV) and drag out (CSV with the company rows) carry the same columns.
+    const [tsvHeader, tsvRow] = companiesToTsv([company({ emails: [named] })]).trim().split('\n');
+    const tsv = Object.fromEntries(tsvHeader!.split('\t').map((h, i) => [h, tsvRow!.split('\t')[i]]));
+    expect(tsv).toMatchObject({ first_name: 'Ole', last_name: 'Berg', title: 'CEO' });
   });
 });
 

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDr
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Ban,
-  ChevronDown,
+  BadgeCheck,
   CloudOff,
   Copy,
   Download,
@@ -19,30 +19,29 @@ import {
   Search as SearchIcon,
   Trash2,
   TriangleAlert,
+  UserRoundCheck,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
-import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/indicators';
+import { StatusLabel, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { canSearchMore, fewFoundLine, RunsLine, SearchMoreEditor } from '@/components/SearchMore';
 import { EmptyState, ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Kbd } from '@/components/ui/kbd';
-import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { api, ApiError } from '@/lib/api';
 import { BILLING_URL } from '@/lib/env';
@@ -58,7 +57,6 @@ import {
   relativeTime,
   searchSubtitle,
   searchTitle,
-  VERIFICATION_LABEL,
 } from '@/lib/format';
 import { isMac, modKey, useModHotkey } from '@/lib/hotkeys';
 import {
@@ -70,15 +68,18 @@ import {
   useLocalStatus,
   useRefreshWhenFinished,
   useSearch,
+  useUpdateSearch,
+  useUpdatingSearch,
 } from '@/lib/queries';
+import { fitLabel, foundViaHint, foundViaLabel, isDecisionMakerEmail, isPersonEmail, personName, shownEmails } from '@/lib/people';
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
-import type { Company, DraftOpenersInput, Email, EmailKind, Opener, Search, SearchInput, Verification } from '@/lib/types';
+import type { Company, DraftOpenersInput, Email, Opener, Search, SearchInput } from '@/lib/types';
 import { useDesktopSettings } from '@/lib/desktop';
 import { handsToLocalCrawl } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
 
-const COLUMNS = 'grid grid-cols-[minmax(12rem,1fr)_minmax(19rem,1.6fr)_minmax(8rem,0.6fr)_4rem] gap-6';
+const COLUMNS = 'grid grid-cols-[minmax(11rem,0.9fr)_minmax(21rem,2fr)_minmax(7rem,0.55fr)_4rem] gap-6';
 
 /** Labels for Company.source, as the server's source adapters set it. */
 const SOURCE_LABEL: Record<string, string> = {
@@ -87,8 +88,6 @@ const SOURCE_LABEL: Record<string, string> = {
   product_hunt: 'Product Hunt',
   show_hn: 'Show HN',
 };
-
-const VERIFICATION_ORDER: Verification[] = ['valid', 'catch_all', 'risky', 'unknown', 'invalid'];
 
 async function copy(text: string, what: string): Promise<void> {
   try {
@@ -166,9 +165,17 @@ function Overview({
           {active && (
             <div className="mt-8 flex items-center gap-5">
               <SearchProgress search={search} className="h-[3px] flex-1" />
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
+              <span
+                data-stage-note
+                className="max-w-[60%] shrink-0 truncate text-xs tabular-nums text-muted-foreground"
+                title={progressCaption(search)}
+              >
+                {progressCaption(search)}
+              </span>
             </div>
           )}
+          {/* A search the quota stopped cannot go on; the failed banner says why. */}
+          {search.kind === 'icp' && search.error !== 'quota_exceeded' && <OngoingSwitch search={search} />}
           {canSearchMore(search) && search.status !== 'failed' && (
             <div className="mt-8 flex items-center gap-4">
               <Button variant="glass" size="sm" className="h-9 px-4" onClick={onSearchMore}>
@@ -206,22 +213,121 @@ function Overview({
   );
 }
 
+/**
+ * "Keeps finding new leads": a plain words search goes on after its first
+ * run, adding new companies until switched off (`PATCH /v1/searches/:id`).
+ */
+function OngoingSwitch({ search }: { search: Search }) {
+  const update = useUpdateSearch();
+  // Also off while New search's own switch is still on its way.
+  const saving = useUpdatingSearch(search.id);
+  const on = Boolean(search.ongoing);
+  const active = isActive(search.status);
+  const line = on
+    ? active
+      ? 'When this run ends, nvoke keeps looking and adds new people as it finds them.'
+      : 'nvoke looks for new companies a few times a day and adds the people it finds here.'
+    : 'Off. The list stays as it is.';
+  return (
+    <label data-ongoing className="mt-8 flex cursor-default items-center gap-3.5">
+      <Switch
+        checked={on}
+        disabled={saving}
+        onCheckedChange={(ongoing) =>
+          update.mutate(
+            { id: search.id, ongoing },
+            { onSuccess: () => toast(ongoing ? 'Keeps finding new leads' : 'Stopped looking for new leads') },
+          )
+        }
+      />
+      <span className="shrink-0 text-sm font-medium">Keeps finding new leads</span>
+      <span className="min-w-0 truncate text-sm text-muted-foreground" title={line}>
+        {line}
+      </span>
+    </label>
+  );
+}
+
 /* Rows */
 
-function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
+function AddressButton({ email }: { email: Email }) {
   return (
-    <div className="group/email flex min-w-0 items-center gap-2">
-      <button
-        type="button"
-        data-copy-email
-        onClick={() => void copy(email.address, email.address)}
-        className="flex min-w-0 items-center gap-1.5 rounded-sm text-left font-mono text-xs text-foreground/80 outline-none hover:text-primary dark:text-foreground/65 dark:hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
-        title="Copy email"
-      >
-        <span className="truncate">{email.address}</span>
-        <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/email:opacity-60" />
-      </button>
-      {email.kind === 'personal' && <span className="shrink-0 text-2xs text-muted-foreground">person</span>}
+    <button
+      type="button"
+      data-copy-email
+      onClick={() => void copy(email.address, email.address)}
+      className="group/email flex min-w-0 items-center gap-1.5 rounded-sm text-left font-mono text-xs text-foreground/80 outline-none hover:text-primary dark:text-foreground/65 dark:hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+      title="Copy email"
+    >
+      <span className="truncate">{email.address}</span>
+      <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/email:opacity-60" />
+    </button>
+  );
+}
+
+/** How nvoke got the address, quiet, with the long version on hover. */
+function FoundVia({ email }: { email: Email }) {
+  const label = foundViaLabel(email);
+  if (!label) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span data-found-via={email.foundVia} className="shrink-0 cursor-default text-2xs text-muted-foreground">
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64 rounded-2xl px-3 py-2 leading-relaxed">{foundViaHint(email)}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** A named person: name, title and a quiet badge for decision makers, then the address and how it was found. */
+function PersonLine({ email, checking }: { email: Email; checking: boolean }) {
+  const name = personName(email);
+  const title = email.person?.title ?? null;
+  const badge = <VerificationBadge value={email.verification ?? 'unknown'} pending={checking && email.verification === null} />;
+  if (!name) {
+    // An address that reads as a person, with no name to it (older copies).
+    return (
+      <div data-person className="flex min-w-0 items-center gap-2">
+        <AddressButton email={email} />
+        <FoundVia email={email} />
+        <span className="ml-auto" />
+        {badge}
+      </div>
+    );
+  }
+  return (
+    <div data-person className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 items-baseline gap-2 leading-5">
+        <span className="shrink-0 text-[13px] font-medium">{name}</span>
+        {title && (
+          <span className="min-w-0 truncate text-xs text-muted-foreground" title={title}>
+            {title}
+          </span>
+        )}
+        {isDecisionMakerEmail(email) && (
+          <Badge data-decision-maker className="shrink-0 self-center">
+            Decision maker
+          </Badge>
+        )}
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <AddressButton email={email} />
+        <FoundVia email={email} />
+        <span className="ml-auto" />
+        {badge}
+      </div>
+    </div>
+  );
+}
+
+/** A role inbox (info@, sales@): shown where the company has no person, or when asked for. */
+function InboxLine({ email, checking }: { email: Email; checking: boolean }) {
+  return (
+    <div data-inbox className="flex min-w-0 items-center gap-2">
+      <AddressButton email={email} />
+      <span className="shrink-0 text-2xs text-muted-foreground">Role inbox</span>
       <span className="ml-auto" />
       <VerificationBadge value={email.verification ?? 'unknown'} pending={checking && email.verification === null} />
     </div>
@@ -252,7 +358,18 @@ function LocalCrawlLine({ company }: { company: Company }) {
   return <span className={quiet}>{why}. The desktop app can read it</span>;
 }
 
-function EmailsCell({ company, live }: { company: Company; live: boolean }) {
+function PeopleCell({
+  company,
+  live,
+  showInboxes,
+  narrowed,
+}: {
+  company: Company;
+  live: boolean;
+  showInboxes: boolean;
+  /** An email filter is on, so the emails here are only the ones that passed it. */
+  narrowed: boolean;
+}) {
   const quiet = 'text-xs leading-5 text-muted-foreground';
   if (company.crawlStatus === 'pending') {
     return (
@@ -268,11 +385,14 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
     return <LocalCrawlLine company={company} />;
   }
   if (company.emails.length === 0) return <span className={quiet}>No public email</span>;
+  const shown = shownEmails(company, showInboxes);
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      {company.emails.map((e) => (
-        <EmailLine key={e.id} email={e} checking={live} />
-      ))}
+    <div className="flex min-w-0 flex-col gap-2.5">
+      {shown.emails.map((e) =>
+        isPersonEmail(e) ? <PersonLine key={e.id} email={e} checking={live} /> : <InboxLine key={e.id} email={e} checking={live} />,
+      )}
+      {/* Under a filter the people may only have been filtered out, so no claim then. */}
+      {shown.fallback && !narrowed && <span className="-mt-1 text-2xs text-muted-foreground/80">No named person found yet</span>}
     </div>
   );
 }
@@ -368,6 +488,9 @@ function OpenerLine({ opener }: { opener: Opener }) {
 function CompanyRow({
   company,
   live,
+  fresh,
+  showInboxes,
+  narrowed,
   selected,
   joinAbove,
   joinBelow,
@@ -376,6 +499,10 @@ function CompanyRow({
 }: {
   company: Company;
   live: boolean;
+  /** Arrived since the list was first shown: it rises in. */
+  fresh: boolean;
+  showInboxes: boolean;
+  narrowed: boolean;
   selected: boolean;
   /** The row above or below is selected too, so the run reads as one block. */
   joinAbove: boolean;
@@ -405,6 +532,7 @@ function CompanyRow({
       className={cn(
         COLUMNS,
         'group items-start gap-y-2 rounded-[20px] px-6 py-4 transition-colors duration-150',
+        fresh && 'motion-safe:animate-rise',
         selected ? 'bg-primary/[0.09] dark:bg-primary/[0.16]' : 'hover:bg-foreground/[0.035]',
         selected && joinAbove && 'rounded-t-none',
         selected && joinBelow && 'rounded-b-none',
@@ -423,8 +551,21 @@ function CompanyRow({
           >
             {company.domain}
           </button>
+          {company.fit != null && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span data-fit className="mt-1.5 inline-flex cursor-default items-center gap-1.5 text-2xs text-muted-foreground">
+                  <span className="h-[3px] w-10 overflow-hidden rounded-full bg-foreground/10">
+                    <span className="block h-full rounded-full bg-foreground/45" style={{ width: `${company.fit}%` }} />
+                  </span>
+                  {fitLabel(company.fit)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Fit {company.fit} of 100, judged from the company’s own site</TooltipContent>
+            </Tooltip>
+          )}
         </div>
-        <EmailsCell company={company} live={live} />
+        <PeopleCell company={company} live={live} showInboxes={showInboxes} narrowed={narrowed} />
         <div className="min-w-0 text-xs leading-5 text-muted-foreground">
           <div className="truncate" title={company.location ?? source}>
             {company.location ?? source}
@@ -501,51 +642,56 @@ function TableSkeleton() {
 
 /* Toolbar */
 
-function VerificationFilter({
-  value,
+/** A filter that is on or off, as a pill in the dock. */
+function FilterPill({
+  on,
   onChange,
+  icon: Icon,
+  children,
 }: {
-  value: Verification | undefined;
-  onChange: (value: Verification | undefined) => void;
+  on: boolean;
+  onChange: (on: boolean) => void;
+  icon: typeof BadgeCheck;
+  children: string;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
-            value
-              ? 'bg-primary/10 text-foreground dark:bg-primary/20'
-              : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-          )}
-        >
-          {value && <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[value])} />}
-          {value ? VERIFICATION_LABEL[value] : 'Any verification'}
-          <ChevronDown className="size-3 opacity-60" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuLabel>Show emails that are</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={value ?? 'any'}
-          onValueChange={(v) => onChange(v === 'any' ? undefined : (v as Verification))}
-        >
-          <DropdownMenuRadioItem value="any">Any verification</DropdownMenuRadioItem>
-          <DropdownMenuSeparator />
-          {VERIFICATION_ORDER.map((v) => (
-            <DropdownMenuRadioItem key={v} value={v}>
-              <span className={cn('size-1.5 rounded-full', VERIFICATION_DOT[v])} />
-              {VERIFICATION_LABEL[v]}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      className={cn(
+        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
+        on ? 'bg-primary/10 text-foreground dark:bg-primary/20' : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+      )}
+    >
+      <Icon className={cn('size-3.5', on ? 'text-primary' : 'opacity-70')} />
+      {children}
+    </button>
   );
 }
 
-type KindOption = 'all' | EmailKind;
+/**
+ * Ids of rows that arrived after the list was first shown, while the search
+ * runs, so they rise in. The first load and rows that only scrolled back into
+ * view stay still.
+ */
+function useFreshRows(rows: Company[], live: boolean): Set<string> {
+  const seen = useRef<Set<string> | null>(null);
+  const [fresh, setFresh] = useState<Set<string>>(() => new Set());
+  const ids = rows.map((r) => r.id).join(',');
+  useEffect(() => {
+    const list = ids ? ids.split(',') : [];
+    if (seen.current === null) {
+      if (list.length > 0) seen.current = new Set(list);
+      return;
+    }
+    const known = seen.current;
+    const arrived = live ? list.filter((id) => !known.has(id)) : [];
+    for (const id of list) known.add(id);
+    if (arrived.length > 0) setFresh(new Set(arrived));
+  }, [ids, live]);
+  return fresh;
+}
 
 /* Screen */
 
@@ -553,15 +699,20 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const searchQuery = useSearch(id);
   const search = searchQuery.data;
   const [text, setText] = useState(initialFilter);
-  const [verification, setVerification] = useState<Verification | undefined>();
-  const [kind, setKind] = useState<EmailKind | undefined>();
+  const [decisionMakers, setDecisionMakers] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [showInboxes, setShowInboxes] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState(false);
   const [editingMore, setEditingMore] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
-  const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
+  const companies = useCompanies(
+    id,
+    { q: q || undefined, verification: verifiedOnly ? 'valid' : undefined, decisionMakers: decisionMakers || undefined },
+    live,
+  );
   useRefreshWhenFinished(live, id);
   const offline = offlineCaption(useLocalStatus().data);
   const cancel = useCancelSearch();
@@ -575,7 +726,8 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
 
   const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
-  const filtered = Boolean(q || verification || kind);
+  const filtered = Boolean(q || verifiedOnly || decisionMakers);
+  const fresh = useFreshRows(rows, live);
   const drafting = rows.some((r) => r.opener?.status === 'queued');
   const drafted = rows.some((r) => r.opener != null && r.opener.status !== 'queued');
   useFollowOpeners(id, drafting, live);
@@ -585,8 +737,13 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    // A row with an opener has a line under it; measureElement corrects the rest.
-    estimateSize: (index) => (rows[index]?.opener ? 86 : 58),
+    // About 40px a person, more with an opener under it; measureElement corrects the rest.
+    estimateSize: (index) => {
+      const row = rows[index];
+      if (!row) return 58;
+      const lines = Math.max(1, shownEmails(row, showInboxes).emails.length);
+      return 18 + lines * 40 + (row.opener ? 28 : 0);
+    },
     overscan: 12,
     getItemKey: (index) => rows[index]?.id ?? index,
     // The title and numbers scroll with the list, above it.
@@ -614,7 +771,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
     scrollRef.current?.scrollTo({ top: 0 });
     // Other filters show other rows, so start the selection over.
     setSelection(EMPTY_SELECTION);
-  }, [q, verification, kind]);
+  }, [q, verifiedOnly, decisionMakers]);
 
   const selected = pickSelected(rows, selection);
 
@@ -903,20 +1060,22 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
             <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground')}>
               <span>Company</span>
               <span className="flex items-center gap-1.5">
-                Emails
+                People
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label="About these emails"
+                      aria-label="About these people"
                       className="rounded-full text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
                       <Info className="size-3" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-72 rounded-2xl px-3 py-2 leading-relaxed">
-                    Public addresses from each company’s own website. Many EU countries require prior consent for
-                    marketing email, even to businesses. Results are deleted 12 months after the search.
+                    Decision makers first. Names and titles come from each company’s own site. An address is printed there, or
+                    built from the domain’s pattern and checked with its mail server. Role inboxes show only where no person was
+                    found. Many EU countries require prior consent for marketing email, even to businesses. Results are deleted
+                    12 months after the search.
                   </TooltipContent>
                 </Tooltip>
               </span>
@@ -940,8 +1099,8 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                       variant="outline"
                       onClick={() => {
                         setText('');
-                        setVerification(undefined);
-                        setKind(undefined);
+                        setVerifiedOnly(false);
+                        setDecisionMakers(false);
                       }}
                     >
                       Clear filters
@@ -949,7 +1108,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                   }
                 />
               ) : live ? (
-                <EmptyState icon={Radar} title="Looking for companies">
+                <EmptyState icon={Radar} title={search.kind === 'icp' ? 'Looking for your customers' : 'Looking for companies'}>
                   They show up here the moment we find them.
                 </EmptyState>
               ) : editingMore ? null : (
@@ -981,6 +1140,9 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                     <CompanyRow
                       company={rows[item.index]!}
                       live={live}
+                      fresh={fresh.has(rows[item.index]!.id)}
+                      showInboxes={showInboxes}
+                      narrowed={verifiedOnly || decisionMakers}
                       selected={selection.ids.has(rows[item.index]!.id)}
                       joinAbove={item.index > 0 && selection.ids.has(rows[item.index - 1]!.id)}
                       joinBelow={selection.ids.has(rows[item.index + 1]?.id ?? '')}
@@ -1029,7 +1191,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
           </div>
         )}
         <div className="glass pointer-events-auto flex h-12 items-center gap-1 rounded-full pr-1.5 pl-1.5 motion-safe:animate-rise">
-          <div className="relative w-72">
+          <div className="relative w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               ref={filterRef}
@@ -1041,8 +1203,8 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                   e.currentTarget.blur();
                 }
               }}
-              placeholder="Filter companies and emails"
-              aria-label="Filter companies and emails"
+              placeholder="Filter people"
+              aria-label="Filter people and companies"
               spellCheck={false}
               autoComplete="off"
               className="h-9 w-full rounded-full bg-foreground/[0.045] pr-12 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
@@ -1060,19 +1222,24 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
               <Kbd className="absolute top-1/2 right-2.5 -translate-y-1/2 bg-transparent">{modKey} F</Kbd>
             )}
           </div>
-          <VerificationFilter value={verification} onChange={setVerification} />
-          <Segmented<KindOption>
-            label="Email kind"
-            size="sm"
-            value={kind ?? 'all'}
-            onChange={(v) => setKind(v === 'all' ? undefined : v)}
-            className="bg-transparent"
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'generic', label: 'Generic' },
-              { value: 'personal', label: 'Personal' },
-            ]}
-          />
+          <FilterPill on={decisionMakers} onChange={setDecisionMakers} icon={UserRoundCheck}>
+            Decision makers
+          </FilterPill>
+          <FilterPill on={verifiedOnly} onChange={setVerifiedOnly} icon={BadgeCheck}>
+            Verified
+          </FilterPill>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex">
+                <FilterPill on={showInboxes} onChange={setShowInboxes} icon={Inbox}>
+                  Role inboxes
+                </FilterPill>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-60 rounded-2xl px-3 py-2 leading-relaxed">
+              {showInboxes ? 'Showing info@ and sales@ next to people.' : 'Shown only where a company has no person. Turn on to see them all.'}
+            </TooltipContent>
+          </Tooltip>
           <span className="flex min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground">
             {offline ? (
               <Tooltip>

@@ -83,15 +83,28 @@ function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen:
               <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
               <span className="relative size-2 rounded-full bg-primary" />
             </span>
-            <span className="max-w-56 truncate font-medium">{searchTitle(current)}</span>
-            <span className="h-[3px] w-14 overflow-hidden rounded-full bg-foreground/10">
+            <span className="max-w-40 truncate font-medium" title={searchTitle(current)}>
+              {searchTitle(current)}
+            </span>
+            {/* The stage note is the progress, in words; narrow windows keep the bar instead. */}
+            {current.stageNote && (
+              <span data-island-stage className="hidden max-w-52 truncate text-xs text-muted-foreground min-[1100px]:inline" title={current.stageNote}>
+                {current.stageNote}
+              </span>
+            )}
+            <span
+              className={cn(
+                'h-[3px] w-12 shrink-0 overflow-hidden rounded-full bg-foreground/10',
+                current.stageNote && 'min-[1100px]:hidden',
+              )}
+            >
               <span
                 className="block h-full rounded-full bg-primary transition-[width] duration-700 ease-out-soft"
                 style={{ width: `${Math.max(done, 4)}%` }}
               />
             </span>
-            <span className="pr-1.5 text-xs tabular-nums text-muted-foreground">
-              {formatNumber(current.emailsFound)} emails
+            <span className="shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground">
+              <span className="text-foreground">{formatNumber(current.emailsValid)}</span> verified
               {live.length > 1 && `, ${live.length - 1} more`}
             </span>
           </>
