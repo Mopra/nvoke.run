@@ -167,6 +167,7 @@ async function startEmbedded(): Promise<LocalDb> {
     user: 'postgres',
     password: 'postgres',
     persistent: true,
+    initdbFlags: ['--encoding=UTF8', '--locale=C'],
     onLog: () => {},
     onError: () => {},
   });
@@ -176,8 +177,15 @@ async function startEmbedded(): Promise<LocalDb> {
   }
   await pg.start();
   const admin = postgres(`postgres://postgres:postgres@127.0.0.1:${port}/postgres`, { max: 1, onnotice: () => {} });
-  const exists = await admin`select 1 from pg_database where datname = 'nvoke_cli'`;
-  if (exists.length === 0) await admin.unsafe('create database nvoke_cli');
+  const [db] = await admin`select pg_encoding_to_char(encoding) as encoding from pg_database where datname = 'nvoke_cli'`;
+  if (db && db.encoding !== 'UTF8') {
+    // An older dev database made with the Windows codepage cannot hold real text (feed collectors fail).
+    console.log(`nvoke_cli was ${db.encoding}, recreating it as UTF8 (local dev data is dropped)`);
+    await admin.unsafe('drop database nvoke_cli with (force)');
+  }
+  if (!db || db.encoding !== 'UTF8') {
+    await admin.unsafe("create database nvoke_cli template template0 encoding 'UTF8' lc_collate 'C' lc_ctype 'C'");
+  }
   await admin.end();
   return { url: `postgres://postgres:postgres@127.0.0.1:${port}/nvoke_cli`, stop: () => pg.stop() };
 }

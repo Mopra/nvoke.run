@@ -56,6 +56,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
       user: 'postgres',
       password: 'postgres',
       persistent: false,
+      initdbFlags: ['--encoding=UTF8', '--locale=C'],
       onLog: () => {},
       onError: () => {},
     });
@@ -70,7 +71,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
 
   const admin = postgres(adminUrl, { max: 1, onnotice: () => {} });
   await admin.unsafe(`drop database if exists ${TEMPLATE_DB} with (force)`);
-  await admin.unsafe(`create database ${TEMPLATE_DB}`);
+  await admin.unsafe(`create database ${TEMPLATE_DB} template template0 encoding 'UTF8' lc_collate 'C' lc_ctype 'C'`);
   await admin.end();
 
   const template = postgres(withDatabase(adminUrl, TEMPLATE_DB), { max: 1, onnotice: () => {} });
