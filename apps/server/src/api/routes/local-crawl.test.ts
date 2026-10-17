@@ -52,8 +52,8 @@ async function seedCompany(searchId: string, user: string, domain: string, crawl
   return c!.id;
 }
 
-async function claim(user: string, max = 5) {
-  const res = await app.inject({ method: 'POST', url: '/v1/local-crawl/claim', headers: as(user), payload: { max } });
+async function claim(user: string, max = 5, reasons?: string[]) {
+  const res = await app.inject({ method: 'POST', url: '/v1/local-crawl/claim', headers: as(user), payload: { max, reasons } });
   expect(res.statusCode).toBe(200);
   return LocalCrawlClaimResponse.parse(res.json()).tasks;
 }
@@ -84,6 +84,22 @@ describe('local crawl claim', () => {
     expect(await claim('alice')).toEqual([]);
     const [row] = await db.sql<{ local_crawl: string }[]>`select local_crawl from companies where id = ${refused}`;
     expect(row!.local_crawl).toBe('failed');
+  });
+
+  it('hands out sites read without an address to a client that asks, after refused and JS-only ones', async () => {
+    const search = await seedSearch('alice');
+    const quiet = await seedCompany(search, 'alice', 'quiet.dk', 'done');
+    const found = await seedCompany(search, 'alice', 'found.dk', 'done');
+    await db.sql`insert into emails (company_id, search_id, clerk_user_id, address, kind) values (${found}, ${search}, 'alice', 'info@found.dk', 'generic')`;
+    await seedCompany(search, 'alice', 'gone.dk', 'failed');
+    const spa = await seedCompany(search, 'alice', 'spa.dk', 'js_only');
+
+    // An older desktop names no reasons and gets only what it was built for.
+    expect((await claim('alice', 5)).map((t) => t.companyId)).toEqual([spa]);
+    const tasks = await claim('alice', 5, ['refused', 'js_only', 'done']);
+    expect(tasks).toEqual([expect.objectContaining({ companyId: quiet, reason: 'done' })]);
+    await db.sql`update companies set local_crawl = null, local_attempts = 0`;
+    expect((await claim('alice', 1, ['refused', 'js_only', 'done'])).map((t) => t.companyId)).toEqual([spa]);
   });
 
   it('skips canceled and old searches, suppressed and platform domains, and a used up allowance', async () => {

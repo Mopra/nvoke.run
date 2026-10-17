@@ -43,8 +43,9 @@ export class HiddenBrowser implements PageLoader {
   /** HTTP status of the last main frame response. */
   private mainStatus = 0;
 
-  constructor() {
-    this.ses = session.fromPartition(CRAWL_PARTITION, { cache: false });
+  /** `partition` is in memory (no `persist:`); the crawl benchmark gives each of its windows its own. */
+  constructor(partition = CRAWL_PARTITION) {
+    this.ses = session.fromPartition(partition, { cache: false });
     this.robots = new RobotsCache(
       undefined,
       undefined,

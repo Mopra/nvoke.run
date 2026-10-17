@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { domainOf } from '@nvoke/shared/crawl';
+import { classifyAddress, domainOf } from '@nvoke/shared/crawl';
 import { crawlSite, type CrawlResult } from '../leads/crawl.js';
 import type { FetchLike } from '../leads/http.js';
 import { RateLimiter } from '../leads/limits.js';
@@ -120,19 +120,24 @@ export interface BenchOptions {
   onResult?: (result: SiteResult, done: number) => void;
 }
 
-export async function runCrawlBench(sample: SampleSite[], opts: BenchOptions = {}): Promise<SiteResult[]> {
-  const limiter = new RateLimiter(1_000);
-  const deps = { fetch: opts.fetch, limiter, robots: new RobotsCache({ fetch: opts.fetch, limiter }) };
+/** Whether a domain has a mail server (MX, or an address record), one lookup per domain. */
+export function mxChecker(): (domain: string) => Promise<boolean> {
   const dns = systemDns();
-  const mxCache = new Map<string, Promise<boolean>>();
-  const hasMx = (domain: string) => {
-    let hit = mxCache.get(domain);
+  const cache = new Map<string, Promise<boolean>>();
+  return (domain) => {
+    let hit = cache.get(domain);
     if (!hit) {
       hit = lookupMx(domain, dns).then((r) => r.kind === 'ok');
-      mxCache.set(domain, hit);
+      cache.set(domain, hit);
     }
     return hit;
   };
+}
+
+export async function runCrawlBench(sample: SampleSite[], opts: BenchOptions = {}): Promise<SiteResult[]> {
+  const limiter = new RateLimiter(1_000);
+  const deps = { fetch: opts.fetch, limiter, robots: new RobotsCache({ fetch: opts.fetch, limiter }) };
+  const hasMx = mxChecker();
 
   const results: SiteResult[] = new Array(sample.length);
   let next = 0;
@@ -250,4 +255,70 @@ export function diffRuns(before: SiteResult[], after: SiteResult[]): { gained: S
     if (p.emails.length > 0 && r.emails.length === 0) lost.push(r);
   }
   return { gained, lost };
+}
+
+// The desktop pass
+
+/** One site read by the desktop's local render crawl (apps/desktop/src/main/local-crawl/bench.ts). */
+export interface RenderResult {
+  domain: string;
+  outcome: 'done' | 'failed' | 'blocked';
+  emails?: Array<{ address: string; sourceUrl: string | null }>;
+  pages: number;
+  ms: number;
+}
+
+/**
+ * The server run with the desktop pass laid over it: a site the server found
+ * no address on and `handed` lets through takes the desktop's addresses,
+ * classified and MX checked like the server's own.
+ */
+export async function mergeRender(
+  server: SiteResult[],
+  render: RenderResult[],
+  handed: (r: SiteResult) => boolean,
+  hasMx: (domain: string) => Promise<boolean> = () => Promise.resolve(false),
+): Promise<SiteResult[]> {
+  const byDomain = new Map(render.map((r) => [r.domain, r]));
+  return Promise.all(
+    server.map(async (r) => {
+      const local = byDomain.get(r.domain);
+      if (r.emails.length > 0 || !local || !handed(r) || !local.emails?.length) return r;
+      const emails = local.emails.map((e) => e.address);
+      const kinds = emails.map(classifyAddress);
+      return {
+        ...r,
+        emails,
+        generic: kinds.filter((k) => k === 'generic').length,
+        personal: kinds.filter((k) => k === 'personal').length,
+        deliverable: (await Promise.all(emails.map((e) => hasMx(domainOf(e))))).filter(Boolean).length,
+        via: ['desktop'],
+        pages: r.pages + local.pages,
+        ms: r.ms + local.ms,
+      };
+    }),
+  );
+}
+
+/** What the desktop pass did, per server outcome of the sites it read. */
+export function renderTable(server: SiteResult[], render: RenderResult[], handed: (r: SiteResult) => boolean): string {
+  const byDomain = new Map(server.map((r) => [r.domain, r]));
+  const lines = [
+    '| server outcome | read | handed | done | failed | blocked | with email | emails | pages | median s |',
+    '|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
+  ];
+  const rows = (status: string, list: RenderResult[]) => {
+    if (list.length === 0) return;
+    const ms = list.map((r) => r.ms).sort((a, b) => a - b);
+    const count = (o: RenderResult['outcome']) => list.filter((r) => r.outcome === o).length;
+    const handedCount = list.filter((r) => handed(byDomain.get(r.domain)!)).length;
+    const pages = list.reduce((n, r) => n + r.pages, 0) / list.length;
+    lines.push(
+      `| ${status} | ${list.length} | ${handedCount} | ${count('done')} | ${count('failed')} | ${count('blocked')} | ${list.filter((r) => r.emails?.length).length} | ${list.reduce((n, r) => n + (r.emails?.length ?? 0), 0)} | ${pages.toFixed(1)} | ${(ms[Math.floor(ms.length / 2)]! / 1000).toFixed(1)} |`,
+    );
+  };
+  const read = render.filter((r) => byDomain.has(r.domain));
+  for (const status of STATUSES) rows(status === 'done' ? 'done, no email' : status, read.filter((r) => byDomain.get(r.domain)!.status === status));
+  rows('all', read);
+  return lines.join('\n');
 }

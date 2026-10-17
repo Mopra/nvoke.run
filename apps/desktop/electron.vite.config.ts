@@ -16,7 +16,12 @@ export default defineConfig({
     build: {
       rollupOptions: {
         // mcp-launcher runs in Node mode for MCP clients (src/main/mcp-launcher.ts).
-        input: { index: resolve(__dirname, 'src/main/index.ts'), 'mcp-launcher': resolve(__dirname, 'src/main/mcp-launcher.ts') },
+        // render-bench is the crawl benchmark's desktop pass, built only by scripts/render-bench.mjs.
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          'mcp-launcher': resolve(__dirname, 'src/main/mcp-launcher.ts'),
+          ...(process.env['NVOKE_RENDER_BENCH'] ? { 'render-bench': resolve(__dirname, 'src/main/local-crawl/bench.ts') } : {}),
+        },
       },
     },
   },

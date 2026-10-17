@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "install-electron && electron-vite dev",
     "capture": "install-electron && node scripts/capture.mjs",
+    "bench:render": "install-electron && node scripts/render-bench.mjs",
     "build": "electron-vite build",
     "preview": "install-electron && electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",

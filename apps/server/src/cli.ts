@@ -68,15 +68,28 @@
  *   --concurrency N     sites at once (default 24)
  *   --only SOURCE       local, web or launches
  *   --no-cache          fetch everything live (responses are cached by default)
+ * `bench render --from L` lays the desktop's render pass over run L
+ * (`pnpm --filter @nvoke/desktop bench:render --from L` writes it first).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres, { type Sql } from 'postgres';
 import { pino } from 'pino';
-import { CreateSearchRequest, type Search } from '@nvoke/shared';
+import { CreateSearchRequest, handsToLocalCrawl, type Search } from '@nvoke/shared';
 import { applyMigrations } from './db/migrations.js';
-import { diffRuns, markdownTable, runCrawlBench, cachingFetch, type SampleSite, type SiteResult } from './bench/crawl-bench.js';
+import {
+  diffRuns,
+  markdownTable,
+  mergeRender,
+  mxChecker,
+  renderTable,
+  runCrawlBench,
+  cachingFetch,
+  type RenderResult,
+  type SampleSite,
+  type SiteResult,
+} from './bench/crawl-bench.js';
 import { buildSample, localFillRate } from './bench/crawl-sample.js';
 import { createAlerter } from './alerts.js';
 import { collectDue } from './feed/collect.js';
@@ -138,6 +151,7 @@ function usage(): never {
       '  cli feed [collect] [--prod]',
       '  cli bench sample | fill',
       '  cli bench crawl [--label L] [--compare L] [--concurrency N] [--only SOURCE] [--no-cache]',
+      '  cli bench render --from L',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
       'privacy, stats, sources, alert and feed act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
@@ -384,6 +398,7 @@ async function bench(args: Args): Promise<void> {
     console.log(`| all | ${sum('places')} | ${sum('website')} | ${sum('ownEmailOnly')} | ${sum('webmailOnly')} |`);
     return;
   }
+  if (action === 'render') return benchRender(flag('from'));
   if (action !== 'crawl') usage();
   let sample = JSON.parse(readFileSync(SAMPLE_PATH, 'utf8')) as SampleSite[];
   const only = flag('only');
@@ -410,6 +425,33 @@ async function bench(args: Args): Promise<void> {
     for (const r of gained) console.log(`  + ${r.domain}  ${r.emails.join(', ')}  (${r.via.join(', ')})`);
     for (const r of lost) console.log(`  - ${r.domain}  ${r.status}${r.error ? ` ${r.error}` : ''}`);
   }
+}
+
+/**
+ * `cli bench render --from L`: run L of the server crawl with the desktop
+ * pass (`pnpm --filter @nvoke/desktop bench:render --from L`) laid over it.
+ * Prints what the desktop read per server outcome, then the combined table
+ * for what the local crawl is handed today and for every miss.
+ */
+async function benchRender(label: string | undefined): Promise<void> {
+  if (!label) usage();
+  const results = join(BENCH_DIR, 'results');
+  const server = JSON.parse(readFileSync(join(results, `${label}.json`), 'utf8')) as SiteResult[];
+  const render = JSON.parse(readFileSync(join(results, `${label}.render.json`), 'utf8')) as RenderResult[];
+  const handed = (r: SiteResult) => handsToLocalCrawl(r.status, r.emails.length);
+  const hasMx = mxChecker();
+  console.log(`${renderTable(server, render, handed)}
+`);
+  console.log(`${markdownTable(label, server)}
+`);
+  const merged = await mergeRender(server, render, handed, hasMx);
+  console.log(`${markdownTable(`${label} + desktop`, merged)}
+`);
+  console.log(`${markdownTable(`${label} + desktop, every miss`, await mergeRender(server, render, () => true, hasMx))}
+`);
+  const { gained } = diffRuns(server, merged);
+  console.log(`the desktop gained ${gained.length}:`);
+  for (const r of gained) console.log(`  + ${r.domain}  ${r.status}  ${r.emails.join(', ')}`);
 }
 
 /**

@@ -6,7 +6,7 @@ import { RobotsCache } from './robots';
 const away: WorkConditions = { enabled: true, signedIn: true, onBattery: false, idleState: 'idle' };
 
 describe('mayWork', () => {
-  it('works only opted in, signed in, on power and while the computer is idle or locked', () => {
+  it('works only switched on, signed in, on power and while the computer is idle or locked', () => {
     expect(mayWork(away)).toBe(true);
     expect(mayWork({ ...away, idleState: 'locked' })).toBe(true);
     expect(mayWork({ ...away, idleState: 'active' })).toBe(false);
@@ -44,7 +44,7 @@ describe('LocalCrawler', () => {
     });
     expect(await crawler.tick()).toBe(1);
     expect(sent.map((s) => s.path)).toEqual(['/v1/local-crawl/claim', '/v1/local-crawl/results', '/v1/local-crawl/claim']);
-    expect(sent[0]!.body).toEqual({ max: 1 });
+    expect(sent[0]!.body).toEqual({ max: 1, reasons: ['refused', 'js_only', 'done'] });
     expect(sent[1]!.body).toMatchObject({ companyId: task.companyId, outcome: 'done', emails: [{ address: 'info@spa.dk' }] });
     expect(resets).toBe(1);
   });

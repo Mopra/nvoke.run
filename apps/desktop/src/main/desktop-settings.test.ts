@@ -3,12 +3,20 @@ import { parseSavedDesktop } from './desktop-settings';
 
 describe('parseSavedDesktop', () => {
   it('keeps openAtLogin unset until the first sign-in saves it', () => {
-    expect(parseSavedDesktop('{}')).toEqual({ openAtLogin: undefined, localCrawl: false, closeHintShown: false });
-    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: false, localCrawl: true, closeHintShown: true }))).toEqual({
+    expect(parseSavedDesktop('{}')).toEqual({ openAtLogin: undefined, closeHintShown: false });
+    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: false, localCrawlOn: true, closeHintShown: true }))).toEqual({
       openAtLogin: false,
-      localCrawl: true,
+      localCrawlOn: true,
       closeHintShown: true,
     });
+  });
+
+  it('leaves the local crawl unset (on) until the user turns it off', () => {
+    expect(parseSavedDesktop('{}')).not.toHaveProperty('localCrawlOn');
+    expect(parseSavedDesktop(JSON.stringify({ localCrawlOn: false })).localCrawlOn).toBe(false);
+    // Off-by-default builds saved false for everyone; only their explicit on carries over.
+    expect(parseSavedDesktop(JSON.stringify({ localCrawl: false }))).not.toHaveProperty('localCrawlOn');
+    expect(parseSavedDesktop(JSON.stringify({ localCrawl: true })).localCrawlOn).toBe(true);
   });
 
   it('keeps a valid hotkey and drops a bad one', () => {
@@ -22,9 +30,8 @@ describe('parseSavedDesktop', () => {
   });
 
   it('drops malformed fields and survives bad JSON', () => {
-    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: 'yes', localCrawl: 'yes' }))).toEqual({
+    expect(parseSavedDesktop(JSON.stringify({ openAtLogin: 'yes', localCrawlOn: 'yes' }))).toEqual({
       openAtLogin: undefined,
-      localCrawl: false,
       closeHintShown: false,
     });
     expect(parseSavedDesktop('{nope')).toEqual({});

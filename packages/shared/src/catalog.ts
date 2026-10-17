@@ -271,13 +271,13 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Leads',
     summary: 'Claim sites to read from your own computer',
     description:
-      'For the desktop app’s local render crawl. Hands out up to `max` companies from your searches of the last 30 days whose site refused our servers (`refused`) or needs JavaScript (`js_only`), each held for 10 minutes. Read them under the same rules as nvokebot (robots.txt, one page a second, 8 pages, no logins, no CAPTCHAs) and send what you found to `POST /v1/local-crawl/results`. Empty while this month’s allowance is used up.',
+      'For the desktop app’s local render crawl. Hands out up to `max` companies from your searches of the last 30 days whose crawl ended without an address because the site refused our servers (`refused`), needs JavaScript (`js_only`) or showed no address (`done`), each held for 10 minutes. `reasons` picks which (default `refused` and `js_only`); refused and JS-only sites come first. Read them under the same rules as nvokebot (robots.txt, one page a second, 8 pages, no logins, no CAPTCHAs) and send what you found to `POST /v1/local-crawl/results`. Empty while this month’s allowance is used up.',
     auth: 'key',
     body: LocalCrawlClaimRequest,
     status: 200,
     response: LocalCrawlClaimResponse,
     errors: ['invalid_request'],
-    example: { max: 3 },
+    example: { max: 3, reasons: ['refused', 'js_only', 'done'] },
   },
   {
     id: 'submitLocalCrawl',

@@ -170,7 +170,7 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
   app.post('/local-crawl/claim', async (req, reply): Promise<LocalCrawlClaimResponse | void> => {
     const body = parse(LocalCrawlClaimRequest, req.body ?? {});
     if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
-    return { tasks: await claimLocalCrawl(opts.getSql(), req.userId!, body.data.max) };
+    return { tasks: await claimLocalCrawl(opts.getSql(), req.userId!, body.data.max, body.data.reasons) };
   });
 
   app.post('/local-crawl/results', async (req, reply): Promise<LocalCrawlResultResponse | void> => {

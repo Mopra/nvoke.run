@@ -8,11 +8,36 @@ import { z } from 'zod';
  */
 
 export const LOCAL_CRAWL_CLAIM_MAX = 5;
+
+/**
+ * Why the server crawl hands a company to the desktop: how that crawl ended
+ * without an address. `refused` and `js_only` are what the local crawl was
+ * built for; `done` is a site read with no address found, where a rendered
+ * page sometimes shows one (docs/research/crawl-benchmark.md, step 7).
+ * `failed` and `blocked` are not handed over: the desktop gained nothing on
+ * them, and robots.txt answers it the same.
+ */
+export const LocalCrawlReason = z.enum(['refused', 'js_only', 'done']);
+export type LocalCrawlReason = z.infer<typeof LocalCrawlReason>;
+export const LOCAL_CRAWL_REASONS = LocalCrawlReason.options;
+/** What a client that names no `reasons` is handed: desktop builds from before `done` read only these. */
+export const LOCAL_CRAWL_LEGACY_REASONS: LocalCrawlReason[] = ['refused', 'js_only'];
+
+/** Whether a company the server crawl ended `status` with `emails` addresses goes to the desktop. */
+export function handsToLocalCrawl(status: string, emails: number): boolean {
+  return emails === 0 && (LOCAL_CRAWL_REASONS as readonly string[]).includes(status);
+}
 export const LOCAL_CRAWL_EMAILS_MAX = 50;
 export const LOCAL_CRAWL_PAGES_MAX = 8;
 
 export const LocalCrawlClaimRequest = z.object({
   max: z.number().int().min(1).max(LOCAL_CRAWL_CLAIM_MAX).default(3),
+  /** The outcomes the client reads. Refused and JS-only sites are handed out before `done` ones. */
+  reasons: z
+    .array(LocalCrawlReason)
+    .min(1)
+    .max(LOCAL_CRAWL_REASONS.length)
+    .default(LOCAL_CRAWL_LEGACY_REASONS),
 });
 export type LocalCrawlClaimRequest = z.infer<typeof LocalCrawlClaimRequest>;
 
@@ -22,7 +47,7 @@ export const LocalCrawlTask = z.object({
   domain: z.string(),
   website: z.string(),
   /** Why the server crawl could not read it. */
-  reason: z.enum(['refused', 'js_only']),
+  reason: LocalCrawlReason,
 });
 export type LocalCrawlTask = z.infer<typeof LocalCrawlTask>;
 

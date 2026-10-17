@@ -8,6 +8,8 @@ Every crawl change is measured against it before it ships.
 pnpm --filter @nvoke/server cli bench crawl --label <name> --compare baseline
 pnpm --filter @nvoke/server cli bench fill      # OSM places per local query
 pnpm --filter @nvoke/server cli bench sample    # rebuild the sample (rarely)
+pnpm --filter @nvoke/desktop bench:render --from <label>   # the desktop pass over a run's misses
+pnpm --filter @nvoke/server cli bench render --from <label> # server plus desktop
 ```
 
 ## Method
@@ -238,6 +240,88 @@ site. Fixed before shipping, with tests:
 addresses are someone else's, which costs 0.4 pages per site on average and
 found nothing more on this sample.
 
+### 7. The desktop render pass
+
+The desktop's local render crawl (`apps/desktop/src/main/local-crawl`)
+exists for the sites the server crawl cannot read, but the benchmark never
+ran it. `bench:render` now does: it takes every site a server run found no
+address on, builds the desktop app with an extra entry
+(`src/main/local-crawl/bench.ts`) and reads each site through the same
+`readSite` and `HiddenBrowser` as the app, in hidden windows (4 at a time, 6 with the `--concurrency 6` used here),
+each in its own in-memory session wiped after every site. Same rules:
+robots.txt for `nvokebot` on every page, one page per second per host, 8
+pages, no logins or challenges. A browser renders live, so this pass is
+not cached: it reads today's web. `cli bench render` lays the result over
+the server run, with the desktop's addresses classified and MX checked like
+the server's own.
+
+Run on 2026-10-17 against a fresh server run (commit 50347ae, 171 of 275,
+the same as step 6), both from the same home connection. What the desktop
+read, per server outcome (*handed* is what the rule below hands it):
+
+| server outcome | read | handed | done | failed | blocked | with email | emails | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| done, no email | 54 | 54 | 53 | 0 | 1 | 3 | 3 | 2.6 | 10.8 |
+| failed | 19 | 0 | 1 | 2 | 16 | 0 | 0 | 0.1 | 0.3 |
+| blocked | 3 | 0 | 0 | 0 | 3 | 0 | 0 | 0.0 | 0.2 |
+| refused | 9 | 9 | 5 | 4 | 0 | 4 | 6 | 1.7 | 10.4 |
+| js_only | 19 | 19 | 19 | 0 | 0 | 6 | 7 | 4.1 | 13.0 |
+| all | 104 | 82 | 78 | 6 | 20 | 13 | 16 | 2.3 | 10.2 |
+
+| server + desktop | sites | with email | deliverable | generic | personal | emails | done | failed | blocked | refused | js_only | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| server alone | 275 | 171 (62.2%) | 170 (61.8%) | 126 | 82 | 460 | 225 | 19 | 3 | 9 | 19 | 5.7 | 8.1 |
+| + refused, js_only | 275 | 181 (65.8%) | 180 (65.5%) | 135 | 84 | 473 | 225 | 19 | 3 | 9 | 19 | 5.8 | 8.1 |
+| + done without email | 275 | 184 (66.9%) | 183 (66.5%) | 136 | 86 | 476 | 225 | 19 | 3 | 9 | 19 | 5.9 | 8.1 |
+
+(The status columns stay the server's.) By source with every handed site:
+local 76 of 100, web 53 of 75, launches 55 of 100.
+
+What it gained, 13 sites, 0 lost:
+
+| server outcome | site | found |
+|---|---|---|
+| js_only | catchy.games | info@catchy.games |
+| js_only | weatheristic.com | feedback@weatheristic.com |
+| js_only | modern-matchmaker.com | support@, legal@modern-matchmaker.com |
+| js_only | danishagro.com, danishagro.dk | mail@danishagro.dk |
+| js_only | galaxycafeaustin.com | galaxycafeoffice@gmail.com |
+| refused | varner.com | contact@varner.com |
+| refused | hmvgroup.com | service@, jonathan@, legal@atom.com (where it redirects) |
+| refused | imsa.com | info@imsa.com |
+| refused | fagerborg.no | post@fagerborg.no |
+| done | cr34te.it | institut.fdh+createit@gmail.com on the rendered homepage |
+| done | ivokeys.com | zentelechia@gmail.com |
+| done | aol.com | legal@bendingspoons.com (its owner) |
+
+Reading it:
+
+- **Refused and JS-only are worth it**: 10 of 28 (36%) end with an
+  address. The 9 refused sites refuse this home connection too, so what
+  they refuse is a plain HTTP client, not only datacenter addresses; a real
+  browser with the same `nvokebot` user agent gets through on 5.
+- **Done without an email is a long tail**: 3 of 54 (6%), and only one is
+  plainly the company's own. It is still handed over now (below): it costs
+  the user's idle computer 2.6 pages a site, the server checks every address
+  again, and only valid ones are charged. Refused and JS-only sites are
+  claimed first.
+- **Failed and blocked stay out**: 0 of 22. The failures are hosts without
+  DNS, and robots.txt answers the desktop exactly as it answers the server.
+
+What changed in the product, from these numbers:
+
+- **Which outcomes go to the desktop**: `refused`, `js_only` and `done`
+  without an address (`handsToLocalCrawl` and `LocalCrawlReason` in
+  `packages/shared/src/local-crawl.ts`, the claim in
+  `apps/server/src/leads/local-crawl.ts`). The claim takes `reasons`; a
+  desktop build from before this names none and keeps getting refused and
+  JS-only only.
+- **On by default**: the switch on Account starts on for every desktop
+  user who has not turned it off. Earlier builds saved `localCrawl: false`
+  for everyone who never touched it, so the setting moved to `localCrawlOn`
+  and only an off saved by this build counts. It still works only signed in, on power
+  and while the computer is idle or locked.
+
 ## Before and after
 
 | | sites with email | deliverable | emails | pages per site | median s |
@@ -257,9 +341,12 @@ That is less than "much better", and the reading of the misses says why:
   Those 27 are what the desktop's local render crawl exists for, and it
   now shares every rule above. Many launches and one page sites simply
   publish no address: a contact form only, or nothing.
-- **Bigger levers, not built here**: the desktop render crawl on more
-  companies (it reads js_only and refused sites today, 27 of the 104 misses
-  here), and a web search fallback per local place without a website.
+- **Bigger levers**: the desktop render crawl on more companies (built
+  in step 7: 13 of the 104 misses), and a web search fallback per local
+  place without a website (not built here).
+
+With the desktop pass (step 7) on top, 184 of 275 (66.9%), 19 more than the
+baseline: 13 of them are read on the user's computer.
 
 Where the time goes: sitemaps and guessed paths add pages, so a site takes
 about twice as long. With one request per second per host and many sites

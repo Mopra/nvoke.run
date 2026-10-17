@@ -6,11 +6,11 @@ import { IDLE_AFTER_S, LocalCrawler } from '../local-crawl';
 
 /** The local render crawl: sites the VPS could not read, read from here while idle. docs/desktop/local-crawl.md. */
 export function registerLocalCrawl(ctx: MainContext): void {
-  ctx.provideSettings(() => ({ localCrawl: ctx.desktop.localCrawl === true }));
+  ctx.provideSettings(() => ({ localCrawl: ctx.desktop.localCrawlOn !== false }));
 
   ipcMain.handle(IpcChannel.desktopSetLocalCrawl, (_event, enabled: unknown): DesktopSettings => {
     if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
-    ctx.saveDesktop({ localCrawl: enabled });
+    ctx.saveDesktop({ localCrawlOn: enabled });
     return ctx.settings();
   });
 
@@ -20,7 +20,7 @@ export function registerLocalCrawl(ctx: MainContext): void {
   const crawler = new LocalCrawler({
     api: (path, init) => session.api(path, init),
     conditions: () => ({
-      enabled: ctx.desktop.localCrawl === true,
+      enabled: ctx.desktop.localCrawlOn !== false,
       signedIn: session.getState().status === 'signed-in',
       onBattery: powerMonitor.isOnBatteryPower(),
       idleState: powerMonitor.getSystemIdleState(IDLE_AFTER_S),

@@ -73,6 +73,7 @@ import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
 import type { Company, DraftOpenersInput, Email, EmailKind, Opener, Search, SearchInput, Verification } from '@/lib/types';
 import { useDesktopSettings } from '@/lib/desktop';
+import { handsToLocalCrawl } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
 
 const COLUMNS = 'grid grid-cols-[minmax(12rem,1fr)_minmax(19rem,1.6fr)_minmax(8rem,0.6fr)_4rem] gap-6';
@@ -195,11 +196,15 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
   );
 }
 
-/** A site our servers could not read, and where the desktop's own read of it stands. */
+const LOCAL_WHY: Record<string, string> = { js_only: 'Needs JavaScript', refused: 'Refuses our servers', done: 'No public email' };
+
+/** A site our servers found no address on, and where the desktop's own read of it stands. */
 function LocalCrawlLine({ company }: { company: Company }) {
   const { data: settings } = useDesktopSettings();
   const quiet = 'text-xs leading-5 text-muted-foreground';
-  const why = company.crawlStatus === 'js_only' ? 'Needs JavaScript' : 'Refuses our servers';
+  const why = LOCAL_WHY[company.crawlStatus] ?? 'No public email';
+  // A read site with no address is only a maybe: say nothing more until this computer has tried.
+  if (company.crawlStatus === 'done' && company.localCrawl !== 'claimed') return <span className={quiet}>{why}</span>;
   if (company.localCrawl === 'claimed') {
     return (
       <span className={cn(quiet, 'inline-flex items-center gap-2')}>
@@ -227,7 +232,7 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
   }
   if (company.crawlStatus === 'blocked') return <span className={quiet}>Site blocks crawlers, so we stay out</span>;
   if (company.crawlStatus === 'failed') return <span className={quiet}>Site unreachable</span>;
-  if ((company.crawlStatus === 'refused' || company.crawlStatus === 'js_only') && company.localCrawl !== 'done') {
+  if (company.emails.length === 0 && handsToLocalCrawl(company.crawlStatus, 0) && company.localCrawl !== 'done') {
     return <LocalCrawlLine company={company} />;
   }
   if (company.emails.length === 0) return <span className={quiet}>No public email</span>;

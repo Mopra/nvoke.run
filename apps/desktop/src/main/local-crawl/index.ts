@@ -1,10 +1,11 @@
-import { LocalCrawlClaimResponse, type LocalCrawlTask } from '@nvoke/shared';
+import { LOCAL_CRAWL_REASONS, LocalCrawlClaimResponse, type LocalCrawlTask } from '@nvoke/shared';
 import { readSite, type PageLoader } from './reader';
 
 /**
  * The local render crawl (docs/desktop/local-crawl.md): while the computer is idle or
- * locked, on power, signed in and opted in, claim refused and JS-only
- * companies from the user's own searches one at a time, read them in the
+ * locked, on power, signed in and not opted out, claim the companies the
+ * server crawl ended without an address (refused, JS-only, then read with
+ * none found) from the user's own searches one at a time, read them in the
  * hidden window and send back what was found. Verification and billing stay
  * on the server.
  */
@@ -79,7 +80,7 @@ export class LocalCrawler {
     const res = await this.deps.api('/v1/local-crawl/claim', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ max: 1 }),
+      body: JSON.stringify({ max: 1, reasons: LOCAL_CRAWL_REASONS }),
     });
     if (!res.ok) return null;
     const parsed = LocalCrawlClaimResponse.safeParse(await res.json());

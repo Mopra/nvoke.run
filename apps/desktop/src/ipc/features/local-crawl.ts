@@ -7,9 +7,9 @@ export const LocalCrawlChannel = {
 
 export interface LocalCrawlSettings {
   /**
-   * Read sites that refuse our servers or need JavaScript from this computer,
-   * in a hidden window while it is idle (docs/desktop/local-crawl.md). Off by
-   * default.
+   * Read the sites the server crawl could not from this computer, in a
+   * hidden window while it is idle (docs/desktop/local-crawl.md). On until
+   * the user turns it off.
    */
   localCrawl: boolean;
 }

@@ -5,8 +5,8 @@ import { desktopApi, desktopSettingsKey, useDesktopSettings } from '@/lib/deskto
 import { Setting } from './Setting';
 
 /**
- * The local render crawl: sites that refuse our servers or need JavaScript,
- * read from this computer while it is idle. Off by default, and the copy says
+ * The local render crawl: sites our servers could not read, read from this
+ * computer while it is idle. On until the user turns it off, and the copy says
  * plainly that it uses the user's connection.
  */
 export function LocalCrawl() {
@@ -30,7 +30,7 @@ export function LocalCrawl() {
   return (
     <Setting
       label="Read blocked sites from this computer"
-      description="Some sites refuse our servers or only show an address with JavaScript. When your computer is idle and plugged in, nvoke reads those from here, over your connection, as nvokebot: robots.txt, one page a second, no logins. Only the addresses leave this computer."
+      description="Some sites refuse our servers or only show an address with JavaScript. When your computer is idle and plugged in, nvoke reads the sites it found no address on from here, over your connection, as nvokebot: robots.txt, one page a second, no logins. Only the addresses leave this computer. On unless you turn it off."
     >
       <Switch checked={settings.localCrawl} onCheckedChange={change} aria-label="Read blocked sites from this computer" />
     </Setting>

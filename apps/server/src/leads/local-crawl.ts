@@ -1,12 +1,13 @@
 // The desktop's local render crawl (docs/desktop/local-crawl.md).
-// The app claims refused and JS-only companies from the user's own searches,
+// The app claims the companies the server crawl ended without an address
+// (handsToLocalCrawl in @nvoke/shared: which outcomes) from the user's own searches,
 // reads them on the user's computer and sends back addresses. Nothing it
 // sends is trusted: every address goes through the server's own acceptance,
 // classification and own-domain rule again, and none of it enters the shared
 // crawl cache. Verification and billing run in the worker as for any crawl.
 
 import type { Sql } from 'postgres';
-import type { LocalCrawlResultRequest, LocalCrawlTask } from '@nvoke/shared';
+import { LOCAL_CRAWL_LEGACY_REASONS, type LocalCrawlReason, type LocalCrawlResultRequest, type LocalCrawlTask } from '@nvoke/shared';
 import { acceptAddress, classifyAddress, isPlatformDomain, selectForCompany, type ExtractedEmail } from '@nvoke/shared/crawl';
 import { enqueue } from '../worker/queue.js';
 import { quotaExhausted } from './quota.js';
@@ -24,11 +25,21 @@ interface Candidate {
   search_id: string;
   domain: string;
   website: string;
-  crawl_status: 'refused' | 'js_only';
+  crawl_status: LocalCrawlReason;
 }
 
-/** Claims up to `max` companies for the user's desktop. Empty while the allowance is used up. */
-export async function claimLocalCrawl(sql: Sql, userId: string, max: number, now: Date = new Date()): Promise<LocalCrawlTask[]> {
+/**
+ * Claims up to `max` companies for the user's desktop whose crawl ended in
+ * one of `reasons` without an address, refused and JS-only sites first.
+ * Empty while the allowance is used up.
+ */
+export async function claimLocalCrawl(
+  sql: Sql,
+  userId: string,
+  max: number,
+  reasons: LocalCrawlReason[] = LOCAL_CRAWL_LEGACY_REASONS,
+  now: Date = new Date(),
+): Promise<LocalCrawlTask[]> {
   if (await quotaExhausted(sql, userId, now)) return [];
   const at = now.toISOString();
   const leaseUntil = new Date(now.getTime() + LOCAL_CLAIM_LEASE_MS).toISOString();
@@ -47,12 +58,13 @@ export async function claimLocalCrawl(sql: Sql, userId: string, max: number, now
       from companies c
       join searches s on s.id = c.search_id
       where c.clerk_user_id = ${userId}
-        and c.crawl_status in ('refused', 'js_only')
+        and c.crawl_status in ${tx(reasons)}
+        and not exists (select 1 from emails e where e.company_id = c.id)
         and (c.local_crawl is null or (c.local_crawl = 'claimed' and c.local_claimed_until < ${at}::timestamptz))
         and c.local_attempts < ${LOCAL_CLAIM_ATTEMPTS}
         and s.status <> 'canceled' and s.created_at > ${since}::timestamptz
         and not ${domainSuppressedSql(tx, 'c.domain')}
-      order by s.created_at desc, c.created_at, c.id
+      order by (c.crawl_status = 'done'), s.created_at desc, c.created_at, c.id
       limit ${max * 2}
       for update of c skip locked
     `;

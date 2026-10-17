@@ -11,8 +11,13 @@ import { isVersion } from './changelog';
 export interface SavedDesktop {
   /** Undefined until the first sign-in turns it on. */
   openAtLogin?: boolean;
-  /** Read refused and JS-only sites from this computer while idle. Off unless the user turns it on. */
-  localCrawl?: boolean;
+  /**
+   * Read the sites the server crawl could not, from this computer while idle.
+   * Undefined means on: only the user's own off stops it. Saved as
+   * `localCrawlOn`, because builds that were off by default saved
+   * `localCrawl: false` for everyone who never touched the switch.
+   */
+  localCrawlOn?: boolean;
   /** The "still running in the tray" hint is shown once, on the first close. */
   closeHintShown?: boolean;
   /** The global shortcut for the quick window. Undefined means the default. */
@@ -31,7 +36,11 @@ export function parseSavedDesktop(raw: string): SavedDesktop {
     const data = JSON.parse(raw) as Record<string, unknown>;
     return {
       openAtLogin: typeof data['openAtLogin'] === 'boolean' ? data['openAtLogin'] : undefined,
-      localCrawl: data['localCrawl'] === true,
+      ...(typeof data['localCrawlOn'] === 'boolean'
+        ? { localCrawlOn: data['localCrawlOn'] }
+        : data['localCrawl'] === true
+          ? { localCrawlOn: true }
+          : {}),
       closeHintShown: data['closeHintShown'] === true,
       ...(isAccelerator(data['hotkey']) ? { hotkey: data['hotkey'] } : {}),
       ...(data['inboxEnabled'] === true ? { inboxEnabled: true } : {}),
