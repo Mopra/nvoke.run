@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round as the human left: tree clean, the human committed never short, Who do you sell to? and the verifier fix (4c3b405 to d98544d) unchecked, so filed 'Checks on main after lead quality and ongoing searches' (sonnet). Registry keys still with the human.
 - 2026-10-17 Round as the human left: the human committed the lead quality work (542be05 eval, 1d23e4f people, 73f76dd describe your customer, 27f016c ongoing searches schema) but 87 files are still dirty (ongoing searches mid build). Did not file checks: they would run against half done work in the shared tree. Registry keys still with the human.
 
 - 2026-10-17 Round as the human left: unchanged (only registry keys, with the human; no aim; main only memory commits past checked 5247bab). Nothing to do; shipping is the human's.
@@ -125,7 +126,7 @@
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
 - Main checked green at 5247bab (2026-10-17), ready for the human to ship (32 quests since the last ship).
-- Lead quality work committed (542be05 to 27f016c), main unchecked since 5247bab. Ongoing searches still uncommitted in the tree (87 files on 2026-10-17). Once the tree is clean, file 'Checks on main after lead quality and ongoing searches' (sonnet).
+- Filed 'Checks on main after lead quality and ongoing searches' (2026-10-17, main at d98544d); when it lands, read its result as green or not before calling main ready to ship.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
