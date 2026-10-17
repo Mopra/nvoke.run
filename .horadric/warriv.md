@@ -10,6 +10,8 @@
 
 ## Lately
 
+- 2026-10-17 Round as the human left: the human committed the lead quality work (542be05 eval, 1d23e4f people, 73f76dd describe your customer, 27f016c ongoing searches schema) but 87 files are still dirty (ongoing searches mid build). Did not file checks: they would run against half done work in the shared tree. Registry keys still with the human.
+
 - 2026-10-17 Round as the human left: unchanged (only registry keys, with the human; no aim; main only memory commits past checked 5247bab). Nothing to do; shipping is the human's.
 - 2026-10-17 Hourly round: unchanged (only registry keys, with the human; no aim; main only memory commits past checked 5247bab; lead quality work still uncommitted in the tree). Nothing to do; shipping is the human's.
 - 2026-10-17 Round after 'Checks on main after the phone layouts' landed: done with no fix commits, read as green at 5247bab. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
@@ -123,7 +125,7 @@
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
 - Main checked green at 5247bab (2026-10-17), ready for the human to ship (32 quests since the last ship).
-- Uncommitted lead quality work (people, patterns, planner, eval bench, migration 1600_people) sits in the shared tree, not in any quest; watch whether it gets committed.
+- Lead quality work committed (542be05 to 27f016c), main unchecked since 5247bab. Ongoing searches still uncommitted in the tree (87 files on 2026-10-17). Once the tree is clean, file 'Checks on main after lead quality and ongoing searches' (sonnet).
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
