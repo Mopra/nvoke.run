@@ -1,0 +1,1927 @@
+[
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "FourCities",
+  "website": "https://fourcities.app/",
+  "domain": "fourcities.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Biblio Times, your RSS feeds, typeset as a morning newspaper (Mac/iOS)",
+  "website": "https://biblio.ink/times",
+  "domain": "biblio.ink"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I built a free collection of browser-based 3D tools",
+  "website": "https://3dvalley.com/",
+  "domain": "3dvalley.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Crowned",
+  "website": "https://www.crowned.wtf/",
+  "domain": "crowned.wtf"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Llmspeed",
+  "website": "https://llmspeed.dev/",
+  "domain": "llmspeed.dev"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "100kb-SDK",
+  "website": "https://www.100kb.in/en/developer",
+  "domain": "100kb.in"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Gittins, an online bandit engine that enforces log correctness",
+  "website": "https://www.getgittins.dev/",
+  "domain": "getgittins.dev"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Online Piano",
+  "website": "https://urpiano.com/",
+  "domain": "urpiano.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I deployed a Prolog WAF on a free-tier GCP instance with only 1 GB RAM",
+  "website": "https://prologwaf.site/",
+  "domain": "prologwaf.site"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I made a million dollar music video for $400",
+  "website": "https://app.treechat.com/quest/post-5f994d78-3ceb-4b79-927f-1dd8d3602bd9",
+  "domain": "app.treechat.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Connectio",
+  "website": "https://connectio.pulkitbanta.com/",
+  "domain": "connectio.pulkitbanta.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Tensor Golf",
+  "website": "https://tensor.golf/",
+  "domain": "tensor.golf"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Let AI order DoorDash for me",
+  "website": "https://www.wysebee.com/",
+  "domain": "wysebee.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "FeedTamer",
+  "website": "https://thefeedtamer.com/",
+  "domain": "thefeedtamer.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Netsat, a shared internet virtual satellite you can use to learn DSP",
+  "website": "https://netsat.space/",
+  "domain": "netsat.space"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Things to Do API",
+  "website": "https://thingstodoapi.com/",
+  "domain": "thingstodoapi.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Fakeipedia",
+  "website": "https://fakeipedia.org/",
+  "domain": "fakeipedia.org"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I built a virtual pianist with his own performance style",
+  "website": "https://ivokeys.com/listen/cannonball-adderley-barefoot-sunday-blues/",
+  "domain": "ivokeys.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Ozil AI",
+  "website": "https://ozilai.net/",
+  "domain": "ozilai.net"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Fly a Tesla Roadster over parked Teslas before the air runs out",
+  "website": "https://roadster.pavlin.dev/",
+  "domain": "roadster.pavlin.dev"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Play a 5 minutes match of CS 1.6 1v1 while you wait for your agent",
+  "website": "https://csfor.fun/",
+  "domain": "csfor.fun"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "TV Explorer. Improving UI for a Solid IPTV App",
+  "website": "https://tvexplorer.live/channel",
+  "domain": "tvexplorer.live"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Make house walkthrough videos only from photos",
+  "website": "https://tensorpix.ai/usecases/real-estate-video-maker",
+  "domain": "tensorpix.ai"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Stoke Money",
+  "website": "https://stoke.money/",
+  "domain": "stoke.money"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Camera Controls and Motion for AI Video Prompts",
+  "website": "https://www.kapwing.com/ai/prompt-generator/camera",
+  "domain": "kapwing.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "2026 Midterms Tracker blends polls and Kalshi/Poymarket odds",
+  "website": "https://pressaudit.org/midterms-2026",
+  "domain": "pressaudit.org"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "What will you say to 1M people?",
+  "website": "https://thesoapbox.email/",
+  "domain": "thesoapbox.email"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "A \"falling block puzzle game\"",
+  "website": "https://tetracube.fun/",
+  "domain": "tetracube.fun"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Family Internet Speed Game",
+  "website": "https://guessthespeed.com/",
+  "domain": "guessthespeed.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Toolbit",
+  "website": "https://toolbit.app/",
+  "domain": "toolbit.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Brian2 Atlas, a Rust engine for distributed neural simulation",
+  "website": "https://next-brain.ai/brian2-atlas/",
+  "domain": "next-brain.ai"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Downcheck, a free \"is it down\" page for 45 dev tools, no signup",
+  "website": "https://downcheck.dev/",
+  "domain": "downcheck.dev"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Jumpy Car",
+  "website": "https://www.jumpycar.com/",
+  "domain": "jumpycar.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Aegis",
+  "website": "https://aegisfw.com/",
+  "domain": "aegisfw.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Autonomous community research lab powered by agents",
+  "website": "https://lemmapark.com/",
+  "domain": "lemmapark.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Agent Chat in Your Markdown Notes",
+  "website": "https://blog.etherpk.com/agent-chat-ask-a-language-model-about-your-notes",
+  "domain": "blog.etherpk.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I made the Tesla Roadster's kickflip playable in the browser",
+  "website": "https://roadster.rocks/",
+  "domain": "roadster.rocks"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "OneDeploy",
+  "website": "https://onedeploy.co/",
+  "domain": "onedeploy.co"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Gent, email a task to Codex or Claude Code",
+  "website": "https://thecompound.tech/",
+  "domain": "thecompound.tech"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "MacVisor Runs VMs with VLANs and Firewall on Apple Silicon",
+  "website": "https://scaleninja.com/macvisor/",
+  "domain": "scaleninja.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Grimoire for Biology",
+  "website": "https://grimoire.bio/",
+  "domain": "grimoire.bio"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "rStation",
+  "website": "https://rstation.ai/",
+  "domain": "rstation.ai"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Wasmga.me",
+  "website": "https://wasmga.me/",
+  "domain": "wasmga.me"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Gemini 4 Argon plays StarCraft",
+  "website": "https://starskirmish.com/bench/v0-2/",
+  "domain": "starskirmish.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Anima, interactive biology models from plain English (open source)",
+  "website": "https://anima.arcumet.com/",
+  "domain": "anima.arcumet.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Scriber-Pro 2.0, a Mac app that transcribes m3u8 streams from web pages",
+  "website": "https://scriberpro.cc/hn2/",
+  "domain": "scriberpro.cc"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "A WebGL hommage to PS1 demo discs",
+  "website": "https://demo-disc.pixelnest.io/",
+  "domain": "demo-disc.pixelnest.io"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Landed Cost Kit",
+  "website": "https://landedcostkit.com/",
+  "domain": "landedcostkit.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "LifeStats",
+  "website": "https://twentyfun.com/games/life-stats",
+  "domain": "twentyfun.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Online Microphone Test",
+  "website": "https://amictest.com/",
+  "domain": "amictest.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "SlopGrid",
+  "website": "https://slopgrid.com/",
+  "domain": "slopgrid.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Sufuku",
+  "website": "https://crossnum.com/sufuku",
+  "domain": "crossnum.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I made puzzle game IT THINKS",
+  "website": "https://catchy.games/it-thinks/",
+  "domain": "catchy.games"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "OAuth Mock Server",
+  "website": "https://oauth.kogiqa.com/",
+  "domain": "oauth.kogiqa.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Check if your AI Agent looks good for clients",
+  "website": "https://nevermined.app/agents-scoring",
+  "domain": "nevermined.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Visual Lean",
+  "website": "https://leangame.autumnofautumn.com/",
+  "domain": "leangame.autumnofautumn.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "OutClocked, a nearly impossible daily trivia game",
+  "website": "https://outclocked.com/",
+  "domain": "outclocked.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Pdf2epub",
+  "website": "https://epub.ftak.net/?s=hn",
+  "domain": "epub.ftak.net"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Videre",
+  "website": "https://videre.sh/",
+  "domain": "videre.sh"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Cr34te.it",
+  "website": "https://cr34te.it/",
+  "domain": "cr34te.it"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Katalog",
+  "website": "https://musickatalog.com/",
+  "domain": "musickatalog.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Lisorto",
+  "website": "https://lisorto.app/",
+  "domain": "lisorto.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Flashpapers",
+  "website": "https://flashpapers.ai/",
+  "domain": "flashpapers.ai"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "A fun little app to play with chaos",
+  "website": "https://modlit.io/emergence/",
+  "domain": "modlit.io"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Chartist v2",
+  "website": "https://chartist.dev/",
+  "domain": "chartist.dev"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "We automated market Intel with a Statista-like engine for fashion",
+  "website": "https://tfb.databoutique.com/",
+  "domain": "tfb.databoutique.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "63 media tools in a 54MB Rust app with local phone-to-PC transfer",
+  "website": "https://formatif.net/formatif-pro",
+  "domain": "formatif.net"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "A Music-Reading Trainer",
+  "website": "https://parkscomputing.com/page/sight-reader",
+  "domain": "parkscomputing.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "RoamDial",
+  "website": "https://roamdial.com/",
+  "domain": "roamdial.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Tunedaway",
+  "website": "https://tunedaway.com/",
+  "domain": "tunedaway.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "CanvoWP",
+  "website": "https://canvowp.com/",
+  "domain": "canvowp.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "case blossom, design and manufacture cases for e-readers and devices",
+  "website": "https://caseblossom.com/",
+  "domain": "caseblossom.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "WP Replai",
+  "website": "https://wpreplai.com/",
+  "domain": "wpreplai.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "I built 7 B2B APIs and 5 MCP servers for compliance and trade",
+  "website": "https://jsonexlab.com/",
+  "domain": "jsonexlab.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "TheFairNet Professional Networking Platform",
+  "website": "https://thefairnet.com/",
+  "domain": "thefairnet.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "CiteProof",
+  "website": "https://getciteproof.com/",
+  "domain": "getciteproof.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Gitsu.app",
+  "website": "https://gitsu.app/",
+  "domain": "gitsu.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Continuous Trunk Builds of Network Ups Tools (Nut) for Fedora/EL",
+  "website": "https://copr.fedorainfracloud.org/coprs/karellen/nut-next/",
+  "domain": "copr.fedorainfracloud.org"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Lobby Domains",
+  "website": "https://lobby.domains/",
+  "domain": "lobby.domains"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Kitaphone",
+  "website": "https://kitaphone.com/",
+  "domain": "kitaphone.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Beeline Multiplayer Agent Harness",
+  "website": "https://usebeeline.app/",
+  "domain": "usebeeline.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Wayseer",
+  "website": "https://wayseer.app/",
+  "domain": "wayseer.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Firmenza",
+  "website": "https://firmenza.com/",
+  "domain": "firmenza.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Inherit",
+  "website": "https://inherit.virtualbeck.com/",
+  "domain": "inherit.virtualbeck.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Weatheristic.com to answer questions other weather sites don't",
+  "website": "https://weatheristic.com/",
+  "domain": "weatheristic.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Crowd Supply",
+  "website": "https://www.crowdsupply.com/",
+  "domain": "crowdsupply.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "MadMoon Shield",
+  "website": "https://challenge.madmoonsecurity.com/",
+  "domain": "challenge.madmoonsecurity.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Chickadee Bandit",
+  "website": "https://www.chickadeebandit.com/gallery",
+  "domain": "chickadeebandit.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Find a compatible partner through Matchmaking",
+  "website": "https://modern-matchmaker.com/en",
+  "domain": "modern-matchmaker.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Luksmith",
+  "website": "https://luksmith.app/",
+  "domain": "luksmith.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "AlwaysGreen",
+  "website": "https://alwaysgreen.tech/",
+  "domain": "alwaysgreen.tech"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Guess the LLM",
+  "website": "https://guessthellm.com/",
+  "domain": "guessthellm.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Rebuilt our directory of 241 AI tools for hardware engineering",
+  "website": "https://productflo.io/ai-tools",
+  "domain": "productflo.io"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Drift",
+  "website": "https://hakancn.com/drift/",
+  "domain": "hakancn.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "In Memoriam, Web Development",
+  "website": "https://roygbiv99.neocities.org/",
+  "domain": "roygbiv99.neocities.org"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Untangle Unknots in the Browser",
+  "website": "http://zkingston.com/unknot/",
+  "domain": "zkingston.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Takes Takes",
+  "website": "https://www.takestakes.com/",
+  "domain": "takestakes.com"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Jamfetti",
+  "website": "https://jamfetti.boondoggle.studio/",
+  "domain": "jamfetti.boondoggle.studio"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "Explanations and follow-ons for OpenAI/math",
+  "website": "https://thecompanygardener.yaks.app/openai-math/",
+  "domain": "thecompanygardener.yaks.app"
+ },
+ {
+  "source": "launches",
+  "query": "show hn, last 30 days",
+  "name": "HireReady, interview prep with spaced repetition and AI voice mocks",
+  "website": "https://imhireready.com/",
+  "domain": "imhireready.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Baum Guitars",
+  "website": "https://baumguitars.com/",
+  "domain": "baumguitars.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "William Demant Invest",
+  "website": "https://www.demantinvest.com/",
+  "domain": "demantinvest.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "BioCirc Group Holding ApS",
+  "website": "https://biocirc.com/",
+  "domain": "biocirc.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Bytømreren Gruppen",
+  "website": "https://bytomreren.dk/",
+  "domain": "bytomreren.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Aalborg Portland",
+  "website": "http://www.aalborgportland.dk/",
+  "domain": "aalborgportland.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Sika Footwear",
+  "website": "https://www.sikafootwear.dk/",
+  "domain": "sikafootwear.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Hoffmann A/S",
+  "website": "https://www.hoffmann.dk/",
+  "domain": "hoffmann.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Kamstrup A/S",
+  "website": "https://www.kamstrup.com/",
+  "domain": "kamstrup.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Danish Agro",
+  "website": "https://danishagro.com/",
+  "domain": "danishagro.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Danish Agro",
+  "website": "https://danishagro.dk/",
+  "domain": "danishagro.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Kristian Rytter Gruppen",
+  "website": "https://kristianrytter.dk/",
+  "domain": "kristianrytter.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "inMobile",
+  "website": "https://www.inmobile.com/",
+  "domain": "inmobile.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Kähler",
+  "website": "http://www.kahlerdesign.com/",
+  "domain": "kahlerdesign.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Nets Denmark",
+  "website": "https://www.nets.eu/",
+  "domain": "nets.eu"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (dk)",
+  "name": "Keolis Danmark",
+  "website": "https://keolis.dk/",
+  "domain": "keolis.dk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Naviaq (Norway)",
+  "website": "http://www.naviaq.no/",
+  "domain": "naviaq.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Timber",
+  "website": "https://timber.no/",
+  "domain": "timber.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Tech Damper (Norway)",
+  "website": "http://www.techdamper.com/",
+  "domain": "techdamper.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Onsite Treatment Technologies (Norway)",
+  "website": "http://www.ott-as.no/",
+  "domain": "ott-as.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "BASF (Norway)",
+  "website": "https://www.basf.com/no/en",
+  "domain": "basf.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Osland Havbruk",
+  "website": "https://osland.no/",
+  "domain": "osland.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Bruse",
+  "website": "https://www.bruse.no/",
+  "domain": "bruse.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Fri Vestland",
+  "website": "https://www.foreningenfri.no/fri-vestland/",
+  "domain": "foreningenfri.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Norwegian Oilfield Supply",
+  "website": "http://www.oilfieldsupply.no/",
+  "domain": "oilfieldsupply.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Varner AS",
+  "website": "https://varner.com/en/",
+  "domain": "varner.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Benchmark Holdings (Norway)",
+  "website": "http://www.benchmarkplc.com/",
+  "domain": "benchmarkplc.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Ostomycure (Norway)",
+  "website": "http://www.ostomycure.com/",
+  "domain": "ostomycure.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Smi Human (Norway)",
+  "website": "http://smihuman.no/",
+  "domain": "smihuman.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Olav Thon (Norway)",
+  "website": "http://www.olavthon.no/English/",
+  "domain": "olavthon.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (no)",
+  "name": "Fitjar Kraftlag",
+  "website": "https://www.fitjar-kraftlag.no/",
+  "domain": "fitjar-kraftlag.no"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Hyundai Motor Company",
+  "website": "https://www.hyundai.com/",
+  "domain": "hyundai.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Montblanc International GmbH",
+  "website": "https://www.montblanc.com/",
+  "domain": "montblanc.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "0711 Entertainment",
+  "website": "https://www.0711.net/",
+  "domain": "0711.net"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Zeppelin Baumaschinen",
+  "website": "https://www.zeppelin-cat.de/",
+  "domain": "zeppelin-cat.de"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Abt Sportsline",
+  "website": "http://www.abt-sportsline.de/en/",
+  "domain": "abt-sportsline.de"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Black Forest Games",
+  "website": "https://black-forest-games.com/",
+  "domain": "black-forest-games.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Stihl",
+  "website": "https://www.stihl.com/",
+  "domain": "stihl.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "AL-KO",
+  "website": "https://al-ko.com/",
+  "domain": "al-ko.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "ALBA plc & Co. KG",
+  "website": "https://www.alba.info/",
+  "domain": "alba.info"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "AWG Mode",
+  "website": "https://www.awg-mode.de/",
+  "domain": "awg-mode.de"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Deutsche Vermögensberatung",
+  "website": "https://www.dvag.de/",
+  "domain": "dvag.de"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Alte Gilde Schönkirchen von 1560",
+  "website": "https://www.xn--alte-gilde-schnkirchen-7hc.de/",
+  "domain": "xn--alte-gilde-schnkirchen-7hc.de"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Faber-Castell",
+  "website": "https://www.faber-castell.de/",
+  "domain": "faber-castell.de"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "Faber-Castell",
+  "website": "https://www.faber-castell.com/",
+  "domain": "faber-castell.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (de)",
+  "name": "DHL",
+  "website": "https://www.dhl.com/",
+  "domain": "dhl.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "His Master's Voice",
+  "website": "http://www.hmvgroup.com/",
+  "domain": "hmvgroup.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "MTA International",
+  "website": "http://www.mta.tv/",
+  "domain": "mta.tv"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Land Securities",
+  "website": "http://www.landsecurities.co.uk/",
+  "domain": "landsecurities.co.uk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Anglo American plc",
+  "website": "https://angloamerican.com/",
+  "domain": "angloamerican.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Electronic Theatre Controls",
+  "website": "https://www.etcconnect.com/",
+  "domain": "etcconnect.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Mubi",
+  "website": "https://mubi.com/",
+  "domain": "mubi.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Association for Project Management",
+  "website": "http://apm.org.uk/",
+  "domain": "apm.org.uk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "INIT SE",
+  "website": "https://initse.com/",
+  "domain": "initse.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "International Dendrology Society",
+  "website": "http://www.dendrology.org/",
+  "domain": "dendrology.org"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "BullionVault",
+  "website": "https://www.bullionvault.com/",
+  "domain": "bullionvault.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Matchroom Sport",
+  "website": "http://www.matchroomsport.com/",
+  "domain": "matchroomsport.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "TS Lombard",
+  "website": "http://www.lombardstreetresearch.com/",
+  "domain": "lombardstreetresearch.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "International Nuclear Services",
+  "website": "http://www.innuserv.com/",
+  "domain": "innuserv.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "BSI Group",
+  "website": "https://www.bsigroup.com/ja-JP/",
+  "domain": "bsigroup.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (gb)",
+  "name": "Amal",
+  "website": "http://www.amalcarb.co.uk/",
+  "domain": "amalcarb.co.uk"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "AOL",
+  "website": "https://aol.com/",
+  "domain": "aol.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "United Kennel Club",
+  "website": "https://www.ukcdogs.com/",
+  "domain": "ukcdogs.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Space Adventures",
+  "website": "http://www.spaceadventures.com/",
+  "domain": "spaceadventures.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "International Motor Sports Association",
+  "website": "https://www.imsa.com/",
+  "domain": "imsa.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Visual Concepts",
+  "website": "http://www.vcentertainment.com/us/",
+  "domain": "vcentertainment.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Dropbox",
+  "website": "https://www.dropbox.com/",
+  "domain": "dropbox.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Berkshire Hathaway",
+  "website": "https://www.berkshirehathaway.com/",
+  "domain": "berkshirehathaway.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "BlackRock",
+  "website": "https://www.blackrock.com/",
+  "domain": "blackrock.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "American Society of Composers, Authors and Publishers",
+  "website": "https://www.ascap.com/",
+  "domain": "ascap.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "International Sport Karate Association",
+  "website": "http://www.iska.com/",
+  "domain": "iska.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Airwalk",
+  "website": "http://www.airwalk.com/",
+  "domain": "airwalk.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "SAE International",
+  "website": "https://www.sae.org/",
+  "domain": "sae.org"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Lowepro",
+  "website": "http://www.lowepro.com/",
+  "domain": "lowepro.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Hormel",
+  "website": "http://www.hormel.com/",
+  "domain": "hormel.com"
+ },
+ {
+  "source": "web",
+  "query": "wikidata business (us)",
+  "name": "Major League Wrestling",
+  "website": "https://mlw.com/",
+  "domain": "mlw.com"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Silkeborgvej 297",
+  "website": "https://silkeborgvej297.dk/",
+  "domain": "silkeborgvej297.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandklinikken Hasle Torv",
+  "website": "https://tkhasletorv.dk/",
+  "domain": "tkhasletorv.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Nord Smil",
+  "website": "https://www.nord-smil.dk/",
+  "domain": "nord-smil.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Banegårdspladsen 10",
+  "website": "https://smildubare.dk/",
+  "domain": "smildubare.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Frederiksgade",
+  "website": "https://tandfred.dk/",
+  "domain": "tandfred.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Frederiksbjerg",
+  "website": "https://xn--tandlgernefrederiksbjerg-9cc.dk/",
+  "domain": "xn--tandlgernefrederiksbjerg-9cc.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Specialtandlægerne Aarhus Tandregulering",
+  "website": "https://www.specialtandlaeger.dk/",
+  "domain": "specialtandlaeger.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Aarhus Ø",
+  "website": "https://xn--tandlgerneaarhus-yob94a.dk/",
+  "domain": "xn--tandlgerneaarhus-yob94a.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Risskov Tandklinik",
+  "website": "https://risskovtand.dk/kontakt/",
+  "domain": "risskovtand.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Aarhus",
+  "name": "Tandlægerne Grundtvigsvej",
+  "website": "https://smilet.dk/",
+  "domain": "smilet.dk"
+ },
+ {
+  "source": "local",
+  "query": "accountant in Copenhagen",
+  "name": "Revisionsfirmaet Jan Kristensen",
+  "website": "https://www.accountant.dk/",
+  "domain": "accountant.dk"
+ },
+ {
+  "source": "local",
+  "query": "accountant in Copenhagen",
+  "name": "JS Revision",
+  "website": "https://jsrevision.dk/",
+  "domain": "jsrevision.dk"
+ },
+ {
+  "source": "local",
+  "query": "lawyer in Odense",
+  "name": "Baker Tilly",
+  "website": "https://www.bakertilly.dk/lokationer/odense",
+  "domain": "bakertilly.dk"
+ },
+ {
+  "source": "local",
+  "query": "lawyer in Odense",
+  "name": "Axel & Borre Advokater",
+  "website": "https://www.axelogborre.dk/",
+  "domain": "axelogborre.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "Barber Barber Manchester",
+  "website": "https://www.barberbarber.com/",
+  "domain": "barberbarber.com"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "Denny",
+  "website": "http://www.dennyhairdressing.com/",
+  "domain": "dennyhairdressing.com"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "Toni & Guy",
+  "website": "https://toniandguy.com/salon/didsbury",
+  "domain": "toniandguy.com"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "Flanagans",
+  "website": "https://www.flanagansbarbers.com/barber-shops/didsbury-barbers/",
+  "domain": "flanagansbarbers.com"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "City Cut",
+  "website": "https://citycut.uk/",
+  "domain": "citycut.uk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "King Street Grooming",
+  "website": "https://kingstreetgrooming.com/",
+  "domain": "kingstreetgrooming.com"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "McCrory Hair",
+  "website": "http://www.mccroryhair.co.uk/",
+  "domain": "mccroryhair.co.uk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "DN Hair Design",
+  "website": "https://dnhairdesign.co.uk/",
+  "domain": "dnhairdesign.co.uk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "Village Hair & Barbers",
+  "website": "https://village-hair-manchester.mytreatwell.co.uk/",
+  "domain": "village-hair-manchester.mytreatwell.co.uk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Manchester",
+  "name": "The Mill House Hair & Beauty",
+  "website": "https://enhancemanchester.com/",
+  "domain": "enhancemanchester.com"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Fysiotherapie Oud Zuid",
+  "website": "https://www.fysiotherapieoudzuid.nl/",
+  "domain": "fysiotherapieoudzuid.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Córdoba Concept",
+  "website": "https://cordobaconcept.nl/",
+  "domain": "cordobaconcept.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Weteringstraat",
+  "website": "https://www.fysiotherapie-weteringstraat.nl/",
+  "domain": "fysiotherapie-weteringstraat.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Fysiotherapie Couperus",
+  "website": "https://www.fysiocouperus.nl/",
+  "domain": "fysiocouperus.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Fysio Beter Bewegen",
+  "website": "https://fysiobeterbewegen.nl/fysio-beter-bewegen-locatie-oud-west-vondelbuurt",
+  "domain": "fysiobeterbewegen.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Fysiotherapie Oud-West",
+  "website": "http://www.fysiotherapieoudwest.nl/",
+  "domain": "fysiotherapieoudwest.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Fysiotherapie de Baarsjes",
+  "website": "https://www.fysiotherapiedebaarsjes.nl/locaties/willem-de-zwijgerlaan/",
+  "domain": "fysiotherapiedebaarsjes.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Physicum",
+  "website": "https://www.physicum.nl/",
+  "domain": "physicum.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Nolet",
+  "website": "https://noletfysiotherapeuten.nl/",
+  "domain": "noletfysiotherapeuten.nl"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Amsterdam",
+  "name": "Fysio Huis",
+  "website": "https://www.fysio-huis.com/",
+  "domain": "fysio-huis.com"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Mekonomen",
+  "website": "https://www.mekonomen.se/",
+  "domain": "mekonomen.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "AS Däckdepå",
+  "website": "https://www.dackonline.se/",
+  "domain": "dackonline.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Kyrkbyns Motor AB",
+  "website": "http://kyrkbynsmotor.se/",
+  "domain": "kyrkbynsmotor.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Autoexperten",
+  "website": "https://www.bilvard.net/",
+  "domain": "bilvard.net"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Speedy Autoservice Solna C",
+  "website": "http://www.speedyauto.se/index.php/solna-c.html",
+  "domain": "speedyauto.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Brav",
+  "website": "https://www.brav.se/",
+  "domain": "brav.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Mekonomen Bilverkstad",
+  "website": "https://www.sollentunabil.se/",
+  "domain": "sollentunabil.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Ryds Bilglas",
+  "website": "https://rydsbilglas.se/hitta-verkstad/stockholm/stockholm-sodermalm/",
+  "domain": "rydsbilglas.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "Speedy",
+  "website": "https://speedybilservice.se/verkstader/stockholm/speedy-bilservice-ostermalm",
+  "domain": "speedybilservice.se"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Stockholm",
+  "name": "AR-Bil",
+  "website": "https://www.ar-bil.se/",
+  "domain": "ar-bil.se"
+ },
+ {
+  "source": "local",
+  "query": "electrician in Oslo",
+  "name": "Fagerborg Installasjon",
+  "website": "http://www.fagerborg.no/",
+  "domain": "fagerborg.no"
+ },
+ {
+  "source": "local",
+  "query": "electrician in Oslo",
+  "name": "Kampen Installasjon",
+  "website": "https://www.kampeninstallasjon.no/",
+  "domain": "kampeninstallasjon.no"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Galaxy Cafe",
+  "website": "https://www.galaxycafeaustin.com/",
+  "domain": "galaxycafeaustin.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "El Alma South (Westgate)",
+  "website": "https://www.elalmacafe.com/",
+  "domain": "elalmacafe.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "The Omelettry",
+  "website": "http://www.theomelettry.com/",
+  "domain": "theomelettry.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "KHON Thai Kitchen by Seeda",
+  "website": "https://khonthaiatx.com/",
+  "domain": "khonthaiatx.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Taqueria Guadalajara Arandas",
+  "website": "https://taqueriasarandasaustin.com/",
+  "domain": "taqueriasarandasaustin.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Zen Japanese Food Fast",
+  "website": "https://www.eatzen.com/",
+  "domain": "eatzen.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Oakmont Food Company",
+  "website": "https://oakmontfood.com/",
+  "domain": "oakmontfood.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Kerbey Lane Cafe",
+  "website": "https://kerbeylanecafe.com/",
+  "domain": "kerbeylanecafe.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Sip Pho",
+  "website": "https://www.sippho.com/",
+  "domain": "sippho.com"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Austin",
+  "name": "Cabo Bob's",
+  "website": "https://cabobobs.com/",
+  "domain": "cabobobs.com"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Wyse Property",
+  "website": "https://www.wyse.ie/",
+  "domain": "wyse.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Quillsen",
+  "website": "https://quillsen.ie/",
+  "domain": "quillsen.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Ray Cooke Auctioneers",
+  "website": "https://www.raycooke.ie/",
+  "domain": "raycooke.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Sherry FitzGerald",
+  "website": "https://www.sherryfitz.ie/",
+  "domain": "sherryfitz.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Savills",
+  "website": "https://www.savills.ie/offices/dublin-commercial.aspx",
+  "domain": "savills.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Brennan Property Consultants",
+  "website": "https://www.brennanproperty.com/",
+  "domain": "brennanproperty.com"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "DNG",
+  "website": "https://www.dng.ie/contact-dng-estate-agents/branch-finder/donnybrook/",
+  "domain": "dng.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Herman White",
+  "website": "https://hermanwhite.ie/",
+  "domain": "hermanwhite.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "O'Connor Shannon",
+  "website": "https://www.oconnorshannon.ie/",
+  "domain": "oconnorshannon.ie"
+ },
+ {
+  "source": "local",
+  "query": "estate agent in Dublin",
+  "name": "Lowe & Associates",
+  "website": "http://www.lowe.ie/",
+  "domain": "lowe.ie"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Odense",
+  "name": "Tandlægerne Rødegårdsvej",
+  "website": "https://www.tandlaege-odense.com/",
+  "domain": "tandlaege-odense.com"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Odense",
+  "name": "Skibhus Tandlægerne",
+  "website": "https://skibhustandlaegerne.dk/",
+  "domain": "skibhustandlaegerne.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Odense",
+  "name": "Tandlægerne Svendborgvej",
+  "website": "https://tandlaegerne-svendborgvej.dk/",
+  "domain": "tandlaegerne-svendborgvej.dk"
+ },
+ {
+  "source": "local",
+  "query": "dentist in Odense",
+  "name": "Tandlægerne Enebærvej",
+  "website": "https://xn--tandlgerne-h6a.nu/",
+  "domain": "xn--tandlgerne-h6a.nu"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Fru Søgaard",
+  "website": "https://soegaardsbryghus.dk/fru-soegaard/",
+  "domain": "soegaardsbryghus.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "SanGiovanni La Cantina",
+  "website": "https://www.sangiovanni.dk/",
+  "domain": "sangiovanni.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Mortens Kro",
+  "website": "https://mortenskro.dk/",
+  "domain": "mortenskro.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Roku",
+  "website": "https://rokuizakaya.dk/",
+  "domain": "rokuizakaya.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Kystens Perle - Strandpavilionen",
+  "website": "https://kystensperle.dk/",
+  "domain": "kystensperle.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Fusion",
+  "website": "https://restaurantfusion.dk/",
+  "domain": "restaurantfusion.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Azzurra",
+  "website": "https://azzurra.dk/",
+  "domain": "azzurra.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Restaurant Flammen",
+  "website": "https://restaurant-flammen.dk/restauranter/aalborg/",
+  "domain": "restaurant-flammen.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Meat",
+  "website": "https://restaurantmeat.dk/",
+  "domain": "restaurantmeat.dk"
+ },
+ {
+  "source": "local",
+  "query": "restaurant in Aalborg",
+  "name": "Sam's Barbeque",
+  "website": "http://samsbarbeque.dk/",
+  "domain": "samsbarbeque.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Hasle Frisør",
+  "website": "https://hasle-frisor.dk/",
+  "domain": "hasle-frisor.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Design Cut",
+  "website": "https://www.design-cut.dk/",
+  "domain": "design-cut.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Camilla Haug",
+  "website": "https://camillahaug.dk/",
+  "domain": "camillahaug.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Frisør Piet",
+  "website": "http://frisor-piet.dk/",
+  "domain": "frisor-piet.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "ART",
+  "website": "https://frisorart.dk/",
+  "domain": "frisorart.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Hårstudiet",
+  "website": "https://www.haarstudiet.com/",
+  "domain": "haarstudiet.com"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Grisk barber",
+  "website": "https://www.griskbarber.dk/",
+  "domain": "griskbarber.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Hair by Stella",
+  "website": "https://www.hairbystella.dk/",
+  "domain": "hairbystella.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Magic Hair",
+  "website": "http://magichair.dk/",
+  "domain": "magichair.dk"
+ },
+ {
+  "source": "local",
+  "query": "hairdresser in Aarhus",
+  "name": "Astrup & Korsvig",
+  "website": "https://astrupkorsvik.dk/",
+  "domain": "astrupkorsvik.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "Klinik for Fysioterapi & Træning",
+  "website": "https://www.fysstoregade.dk/",
+  "domain": "fysstoregade.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "EmCare Sundhed",
+  "website": "https://emcare.dk/",
+  "domain": "emcare.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "FysMed",
+  "website": "https://www.fysmed.net/",
+  "domain": "fysmed.net"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "Hjerting Fysioterapi",
+  "website": "https://hjertingfysioterapi.dk/",
+  "domain": "hjertingfysioterapi.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "Fysioterapeuterne Esbjerg",
+  "website": "https://www.esbjergfys.dk/",
+  "domain": "esbjergfys.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "FysioDanmark",
+  "website": "https://varde-fysioterapi.dk/",
+  "domain": "varde-fysioterapi.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "din fysioterapeut",
+  "website": "https://dinfysioterapeut.dk/",
+  "domain": "dinfysioterapeut.dk"
+ },
+ {
+  "source": "local",
+  "query": "physiotherapist in Esbjerg",
+  "name": "Borgens Maskinrum",
+  "website": "https://borgenshjerterum.dk/borgens-maskinrum",
+  "domain": "borgenshjerterum.dk"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Vejle",
+  "name": "Automester",
+  "website": "http://www.xn--trring-servicecenter-bcc.dk/",
+  "domain": "xn--trring-servicecenter-bcc.dk"
+ },
+ {
+  "source": "local",
+  "query": "car repair in Vejle",
+  "name": "CarPeople",
+  "website": "https://www.carpeople.dk/torring",
+  "domain": "carpeople.dk"
+ }
+]
