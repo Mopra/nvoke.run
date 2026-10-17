@@ -15,6 +15,7 @@ export function Stage({
   className,
   motion = 'reveal',
   halo = 'soft',
+  minScale,
 }: {
   width: number;
   height: number;
@@ -24,6 +25,8 @@ export function Stage({
   /** `tilt` straightens with the first scroll (the hero), `reveal` rises in once. */
   motion?: 'tilt' | 'reveal' | 'none';
   halo?: 'soft' | 'strong';
+  /** Floor for the scale on phones; see MockFit. */
+  minScale?: number;
 }) {
   return (
     <div className={cn('relative', className)}>
@@ -35,7 +38,7 @@ export function Stage({
         )}
       />
       <div className={cn(motion === 'tilt' && 'hero-tilt', motion === 'reveal' && 'reveal')}>
-        <MockFit width={width} height={height} label={label}>
+        <MockFit width={width} height={height} label={label} minScale={minScale}>
           {children}
         </MockFit>
       </div>

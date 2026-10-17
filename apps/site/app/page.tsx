@@ -208,12 +208,13 @@ export default function HomePage() {
             Runs in your browser, nothing to install. {freeEmails} verified emails a month, free.
           </p>
         </Container>
-        <Container className="relative mt-24 pb-24 sm:mt-36 sm:pb-36">
+        <Container className="relative mt-16 pb-12 sm:mt-36 sm:pb-36">
           <Stage
             width={1200}
             height={760}
             motion="tilt"
             halo="strong"
+            minScale={0.55}
             label="The nvoke app on Windows, showing a running search for bakeries in Lisbon with verified emails arriving."
           >
             <WindowsResultsWindow animate />
@@ -227,7 +228,7 @@ export default function HomePage() {
         title="How it works"
         intro="From a vague idea to a list of working emails. Three steps."
       >
-        <ol className="flex flex-col gap-28 sm:gap-44">
+        <ol className="flex flex-col gap-20 sm:gap-44">
           {STEPS.map((step, i) => (
             <li key={step.title} className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
               <div className={i % 2 === 1 ? 'lg:order-2' : undefined}>
@@ -266,7 +267,7 @@ export default function HomePage() {
         </div>
       </Section>
 
-      <section id="desktop" aria-labelledby="desktop-title" className="overflow-hidden py-24 sm:py-36">
+      <section id="desktop" aria-labelledby="desktop-title" className="overflow-hidden py-20 sm:py-36">
         <Container>
           <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
             <h2 id="desktop-title" className="text-headline font-semibold text-balance">
@@ -284,10 +285,11 @@ export default function HomePage() {
             </Button>
           </div>
         </Container>
-        <Container className="mt-16 sm:mt-28">
+        <Container className="mt-12 sm:mt-28">
           <Stage
             width={1200}
             height={680}
+            minScale={0.55}
             label="The nvoke app on macOS: the list of searches, with the command bar open to jump to Dentists in Austin."
           >
             <MacCommandWindow />
@@ -305,7 +307,7 @@ export default function HomePage() {
         </Container>
       </section>
 
-      <section id="verification" aria-labelledby="verification-title" className="overflow-x-clip py-24 sm:py-36">
+      <section id="verification" aria-labelledby="verification-title" className="overflow-x-clip py-20 sm:py-36">
         <Container className="grid items-start gap-16 lg:grid-cols-[1fr_1.05fr] lg:gap-24">
           <div className="flex flex-col gap-6">
             <h2 id="verification-title" className="text-headline font-semibold text-balance">
@@ -336,7 +338,7 @@ export default function HomePage() {
         </Container>
       </section>
 
-      <section id="agents" aria-labelledby="agents-title" className="py-24 sm:py-36">
+      <section id="agents" aria-labelledby="agents-title" className="py-20 sm:py-36">
         <Container>
           <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
             <h2 id="agents-title" className="text-headline font-semibold text-balance">

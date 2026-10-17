@@ -148,6 +148,26 @@
 }
 
 /*
+ * iOS zooms the page into any field under 16px and never zooms back. On
+ * phones and touch screens small fields get 16px. Unlayered, so it beats the
+ * text size utilities; fields set larger than 16px keep their size.
+ */
+@media (max-width: 767px), (pointer: coarse) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), textarea, select):is(
+      [class*="text-sm"],
+      [class*="text-xs"],
+      [class*="text-2xs"],
+      [class*="text-[11"],
+      [class*="text-[12"],
+      [class*="text-[13"],
+      [class*="text-[14"],
+      [class*="text-[15"]
+    ) {
+    font-size: 16px;
+  }
+}
+
+/*
  * App mockups are drawn at the desktop app's real size (13px body text) and
  * scaled down to the space they get. `mock-fit` is the container, the child
  * sets its own design width and scales by 100cqw over that width. The
@@ -298,6 +318,11 @@
     appearance: none;
     height: 1.25rem;
     background: transparent;
+  }
+  @media (pointer: coarse) {
+    .plan-range {
+      height: 2.5rem;
+    }
   }
   .plan-range:focus-visible {
     outline: none;

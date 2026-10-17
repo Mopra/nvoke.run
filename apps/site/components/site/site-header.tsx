@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/site/logo';
+import { MobileMenu } from '@/components/site/mobile-menu';
 import { Container } from '@/components/site/section';
 import { ThemeToggle } from '@/components/site/theme';
 import { nav } from '@/lib/site';
@@ -38,9 +39,6 @@ export function SiteHeader() {
             ))}
           </ul>
           <div className="flex items-center gap-1 md:justify-self-end">
-            <Link href="/pricing" className={`${link} md:hidden`}>
-              Pricing
-            </Link>
             <ThemeToggle />
             <Link href="/app" className={`${link} hidden sm:inline-flex`}>
               Sign in
@@ -48,6 +46,7 @@ export function SiteHeader() {
             <Button asChild size="sm" className="h-9 px-4">
               <Link href="/sign-up">Start free</Link>
             </Button>
+            <MobileMenu />
           </div>
         </nav>
       </Container>

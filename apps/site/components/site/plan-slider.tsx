@@ -75,7 +75,8 @@ export function PlanSlider({
               type="button"
               onClick={() => onIndexChange(i)}
               className={cn(
-                'rounded-md px-1 py-0.5 transition-colors hover:text-foreground',
+                // The padding makes a finger sized target; the negative margin keeps the row's spacing.
+                '-mx-1 -my-2.5 rounded-md px-2 py-3 transition-colors hover:text-foreground',
                 i === index && 'font-medium text-foreground',
                 // Narrow screens: keep the ends and the picked tier only.
                 i !== 0 && i !== tiers.length - 1 && i !== index && 'hidden sm:inline',

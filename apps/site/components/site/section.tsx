@@ -26,7 +26,7 @@ export function Section({
 }) {
   const headingId = id ? `${id}-title` : undefined;
   return (
-    <section id={id} aria-labelledby={headingId} className={cn('py-24 sm:py-36', className)}>
+    <section id={id} aria-labelledby={headingId} className={cn('py-20 sm:py-36', className)}>
       <Container>
         <div
           className={cn(
@@ -39,7 +39,7 @@ export function Section({
           </h2>
           {intro ? <p className="max-w-2xl text-lede text-pretty text-muted-foreground">{intro}</p> : null}
         </div>
-        {children ? <div className="mt-16 sm:mt-28">{children}</div> : null}
+        {children ? <div className="mt-12 sm:mt-28">{children}</div> : null}
       </Container>
     </section>
   );

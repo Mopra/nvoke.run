@@ -10,12 +10,15 @@ import { cn } from '@/lib/utils';
 /**
  * Draws its child at a fixed design size and scales it to the width it gets,
  * never above 1. Pure CSS (container query units), so the page stays static.
+ * `minScale` stops it shrinking past a legible size on phones: the picture
+ * then runs off the right edge, and an ancestor with overflow hidden cuts it.
  */
 export function MockFit({
   width,
   height,
   label,
   className,
+  minScale = 0,
   children,
 }: {
   width: number;
@@ -23,23 +26,22 @@ export function MockFit({
   /** What the picture shows, for screen readers. */
   label: string;
   className?: string;
+  minScale?: number;
   children: ReactNode;
 }) {
+  const scale = `max(${minScale}, min(1, tan(atan2(100cqw, ${width}px))))`;
   const inner: CSSProperties = {
     width,
     height,
-    transform: `scale(min(1, tan(atan2(100cqw, ${width}px))))`,
+    transform: `scale(${scale})`,
     transformOrigin: '0 0',
   };
   return (
-    <div
-      role="img"
-      aria-label={label}
-      className={cn('mock-fit mx-auto w-full', className)}
-      style={{ maxWidth: width, aspectRatio: `${width} / ${height}` }}
-    >
-      <div aria-hidden="true" inert className="mock absolute top-0 left-0" style={inner}>
-        {children}
+    <div role="img" aria-label={label} className={cn('mock-fit mx-auto w-full', className)} style={{ maxWidth: width }}>
+      <div style={{ height: `calc(${height}px * ${scale})` }}>
+        <div aria-hidden="true" inert className="mock absolute top-0 left-0" style={inner}>
+          {children}
+        </div>
       </div>
     </div>
   );
