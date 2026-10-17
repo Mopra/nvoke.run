@@ -1,42 +1,68 @@
-// Claude for the server: one call shape, structured output, cost per account.
+// Claude for the server, through OpenRouter: one call shape, structured
+// output, cost per account.
 //
-// structured() asks Claude to answer through a single tool whose input schema
-// comes from a zod schema, then validates the tool input with that schema.
-// The tool is strict, so the input matches the schema's shape; zod still
-// checks what JSON Schema cannot (lengths, ranges, refinements). Forced
-// tool_choice is a 400 on the current models, so the prompt asks for the
-// tool and a reply without it is an error.
+// structured() asks for a JSON answer whose schema comes from a zod schema
+// (OpenRouter structured outputs, `response_format: json_schema`), then
+// validates the answer with that schema. The schema sent is trimmed to what
+// every provider accepts (shape, types, enums); zod still checks the rest
+// (lengths, ranges, refinements).
 //
 // Every call is recorded with its tokens and cost (usage.ts), logged with the
 // user id, and refused before it starts when the account has spent its
 // monthly budget.
 
-import Anthropic from '@anthropic-ai/sdk';
-import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { loadEnv } from '../env.js';
 import { MODELS, costUsd, type ModelTier, type TokenCounts } from './models.js';
 import { monthlyBudgetUsd, recordUsage, spentThisMonth, type BudgetRule } from './usage.js';
 
-/** The part of the Anthropic client nvoke uses, so tests can pass a fake. */
-export interface MessagesClient {
-  messages: {
-    create(body: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+/** The request body nvoke sends to OpenRouter's chat completions. */
+export interface ChatRequest {
+  model: string;
+  max_tokens: number;
+  messages: { role: 'system' | 'user'; content: string }[];
+  response_format: {
+    type: 'json_schema';
+    json_schema: { name: string; description: string; strict: boolean; schema: Record<string, unknown> };
+  };
+  reasoning?: { effort: 'low' | 'medium' | 'high' };
+}
+
+/** The parts of OpenRouter's answer nvoke reads. */
+export interface ChatResponse {
+  model: string;
+  choices: {
+    finish_reason: string | null;
+    message: { content: string | null; refusal?: string | null };
+  }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    /** USD charged by OpenRouter for the call. */
+    cost?: number;
+    prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
   };
 }
 
+/** Sends one chat request, so tests can pass a fake. */
+export interface ChatClient {
+  complete(body: ChatRequest): Promise<ChatResponse>;
+}
+
 export type AiErrorCode =
-  /** No ANTHROPIC_API_KEY. */
+  /** No OPENROUTER_API_KEY. */
   | 'unavailable'
   /** The account spent its monthly Claude budget. */
   | 'budget_exceeded'
   /** Claude declined the request. */
   | 'refusal'
-  /** Claude answered without calling the tool, or ran out of tokens. */
+  /** Claude answered without JSON, or ran out of tokens. */
   | 'no_output'
-  /** The tool input failed the zod schema. */
+  /** The answer failed the zod schema. */
   | 'invalid_output';
 
 export class AiError extends Error {
@@ -56,9 +82,10 @@ export interface StructuredRequest<S extends z.ZodType> {
   task: string;
   tier: ModelTier;
   system: string;
-  prompt: string | Anthropic.ContentBlockParam[];
+  prompt: string;
   /** The answer's shape. Must be an object schema. */
   schema: S;
+  /** Names the answer's schema, for example "save_profile". */
   toolName: string;
   toolDescription: string;
   maxTokens?: number;
@@ -81,18 +108,81 @@ export interface AiOptions {
   log: Logger;
   budget: BudgetRule;
   apiKey?: string;
-  /** Replaces the Anthropic client built from apiKey. Tests pass a fake. */
-  client?: MessagesClient;
+  /** Replaces the OpenRouter client built from apiKey. Tests pass a fake. */
+  client?: ChatClient;
   now?: () => Date;
 }
 
+/** The OpenRouter client over fetch. */
+export function openRouterClient(apiKey: string): ChatClient {
+  return {
+    async complete(body) {
+      const res = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          'content-type': 'application/json',
+          'http-referer': 'https://nvoke.run',
+          'x-title': 'nvoke',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`OpenRouter answered ${res.status}: ${text.slice(0, 300)}`);
+      }
+      return (await res.json()) as ChatResponse;
+    },
+  };
+}
+
+// Keywords structured outputs accept everywhere. The limits below are dropped
+// from the schema, told to the model in the description instead, and checked
+// by zod afterwards.
+const KEEP = new Set(['type', 'properties', 'required', 'items', 'enum', 'const', 'anyOf', 'description', 'additionalProperties', '$defs', '$ref']);
+const HINTS: Record<string, (v: unknown) => string> = {
+  minItems: (v) => `At least ${String(v)} items.`,
+  maxItems: (v) => `At most ${String(v)} items.`,
+  minLength: (v) => `At least ${String(v)} characters.`,
+  maxLength: (v) => `At most ${String(v)} characters.`,
+  minimum: (v) => `At least ${String(v)}.`,
+  maximum: (v) => `At most ${String(v)}.`,
+  pattern: (v) => `Matches ${String(v)}.`,
+};
+
+function trimSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(trimSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  const hints: string[] = [];
+  for (const [key, value] of Object.entries(node)) {
+    const hint = HINTS[key];
+    if (hint) hints.push(hint(value));
+    if (!KEEP.has(key)) continue;
+    if (key === 'properties' || key === '$defs') {
+      out[key] = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, trimSchema(v)]));
+    } else {
+      out[key] = trimSchema(value);
+    }
+  }
+  if (hints.length) out.description = [out.description, ...hints].filter(Boolean).join(' ');
+  if (out.type === 'object') out.additionalProperties = false;
+  return out;
+}
+
+/** The JSON schema sent for a zod schema. */
+export function answerSchema(schema: z.ZodType): Record<string, unknown> {
+  return trimSchema(z.toJSONSchema(schema, { io: 'output', unrepresentable: 'any' })) as Record<string, unknown>;
+}
+
 export function createAi(opts: AiOptions): Ai {
-  const client: MessagesClient | undefined = opts.client ?? (opts.apiKey ? new Anthropic({ apiKey: opts.apiKey }) : undefined);
+  const client: ChatClient | undefined = opts.client ?? (opts.apiKey ? openRouterClient(opts.apiKey) : undefined);
   const now = opts.now ?? (() => new Date());
 
   return {
     async structured(req) {
-      if (!client) throw new AiError('unavailable', 'Claude is not configured (ANTHROPIC_API_KEY)');
+      if (!client) throw new AiError('unavailable', 'Claude is not configured (OPENROUTER_API_KEY)');
 
       const at = now();
       const [spent, budget] = await Promise.all([
@@ -104,48 +194,54 @@ export function createAi(opts: AiOptions): Ai {
         throw new AiError('budget_exceeded', 'The monthly Claude budget for this account is spent');
       }
 
-      const model = MODELS[req.tier];
-      const response = await client.messages.create({
-        model,
+      const response = await client.complete({
+        model: MODELS[req.tier],
         max_tokens: req.maxTokens ?? 4096,
-        system: `${req.system}\n\nAnswer only by calling the ${req.toolName} tool, once.`,
-        messages: [{ role: 'user', content: req.prompt }],
-        tools: [
-          {
-            name: req.toolName,
-            description: req.toolDescription,
-            input_schema: zodOutputFormat(req.schema).schema as Anthropic.Tool.InputSchema,
-            strict: true,
-          },
+        messages: [
+          { role: 'system', content: `${req.system}\n\nAnswer only with JSON that matches the ${req.toolName} schema.` },
+          { role: 'user', content: req.prompt },
         ],
-        ...(req.effort ? { output_config: { effort: req.effort } } : {}),
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: req.toolName, description: req.toolDescription, strict: true, schema: answerSchema(req.schema) },
+        },
+        ...(req.effort ? { reasoning: { effort: req.effort } } : {}),
       });
 
       const usage: TokenCounts = {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-        cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
-        cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
+        inputTokens: response.usage?.prompt_tokens ?? 0,
+        outputTokens: response.usage?.completion_tokens ?? 0,
+        cacheReadTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+        cacheWriteTokens: response.usage?.prompt_tokens_details?.cache_write_tokens ?? 0,
       };
-      const cost = costUsd(response.model, usage);
+      // OpenRouter reports what it charged; the price table is the fallback.
+      const cost = typeof response.usage?.cost === 'number' ? response.usage.cost : costUsd(response.model, usage);
       await recordUsage(opts.sql, { userId: req.userId, task: req.task, model: response.model, costUsd: cost, ...usage }, at);
+
+      const choice = response.choices[0];
       opts.log.info(
-        { userId: req.userId, task: req.task, model: response.model, ...usage, costUsd: cost, stopReason: response.stop_reason },
+        { userId: req.userId, task: req.task, model: response.model, ...usage, costUsd: cost, finishReason: choice?.finish_reason },
         'ai: call',
       );
 
-      if (response.stop_reason === 'refusal') {
-        throw new AiError('refusal', `Claude declined: ${response.stop_details?.category ?? 'no category'}`);
+      if (choice?.message.refusal || choice?.finish_reason === 'content_filter') {
+        throw new AiError('refusal', `Claude declined: ${choice.message.refusal ?? 'content filter'}`);
       }
-      const call = response.content.find(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === req.toolName,
-      );
-      if (!call) throw new AiError('no_output', `Claude did not call ${req.toolName} (stop: ${response.stop_reason})`);
+      const content = choice?.message.content;
+      if (!content || choice.finish_reason === 'length') {
+        throw new AiError('no_output', `Claude gave no ${req.toolName} answer (finish: ${choice?.finish_reason ?? 'none'})`);
+      }
+      let json: unknown;
+      try {
+        json = JSON.parse(content);
+      } catch {
+        throw new AiError('no_output', `Claude's ${req.toolName} answer is not JSON`);
+      }
 
-      const parsed = req.schema.safeParse(call.input);
+      const parsed = req.schema.safeParse(json);
       if (!parsed.success) {
         opts.log.warn({ userId: req.userId, task: req.task, issues: parsed.error.issues.slice(0, 5) }, 'ai: invalid output');
-        throw new AiError('invalid_output', `Claude's ${req.toolName} input failed validation`);
+        throw new AiError('invalid_output', `Claude's ${req.toolName} answer failed validation`);
       }
       return { data: parsed.data, model: response.model, usage, costUsd: cost };
     },
@@ -158,7 +254,7 @@ export function createAiFromEnv(sql: Sql, log: Logger): Ai {
   return createAi({
     sql,
     log,
-    apiKey: env.ANTHROPIC_API_KEY,
+    apiKey: env.OPENROUTER_API_KEY,
     budget: { floorUsd: env.AI_MONTHLY_BUDGET_FLOOR_USD, priceShare: env.AI_MONTHLY_BUDGET_PRICE_SHARE },
   });
 }

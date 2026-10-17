@@ -168,10 +168,10 @@ Brave Search bills every request, while users pay only for valid emails. A web s
 
 ## Claude
 
-Features that need judgment on text (the site profile, openers) call Claude through `apps/server/src/ai`, never the SDK directly.
+Features that need judgment on text (the site profile, openers) call Claude through OpenRouter (`OPENROUTER_API_KEY`) and `apps/server/src/ai`, never the HTTP API directly.
 
-- **Models.** `MODELS` in `src/ai/models.ts`: `bulk` is `claude-haiku-5-5` for many small calls, `quality` is `claude-sonnet-5-5` where the answer matters. Prices sit next to them.
-- **Structured output.** `createAi(...).structured({ userId, task, tier, system, prompt, schema, toolName, toolDescription })` gives Claude one strict tool whose input schema comes from the zod schema, and validates the tool input with it. Errors are `AiError` with a code: `unavailable` (no `ANTHROPIC_API_KEY`), `budget_exceeded`, `refusal`, `no_output`, `invalid_output`.
+- **Models.** `MODELS` in `src/ai/models.ts`: `bulk` is `anthropic/claude-haiku-5.5` for many small calls, `quality` is `anthropic/claude-sonnet-5.5` where the answer matters. The cost is what OpenRouter reports per call, with prices next to the models as the fallback.
+- **Structured output.** `createAi(...).structured({ userId, task, tier, system, prompt, schema, toolName, toolDescription })` asks for a JSON answer (structured outputs) whose schema comes from the zod schema, trimmed to shape, types and enums, and validates the answer with the full zod schema. Errors are `AiError` with a code: `unavailable` (no `OPENROUTER_API_KEY`), `budget_exceeded`, `refusal`, `no_output`, `invalid_output`.
 - **Cost.** Every call is a row in `ai_usage` (user, task, model, tokens, `cost_usd`, no prompt or response text) and a log line with the user id. Before a call, the account's spend this calendar month (UTC) is checked against its budget: `AI_MONTHLY_BUDGET_PRICE_SHARE` (default 0.25) of the plan's price, never below `AI_MONTHLY_BUDGET_FLOOR_USD` (default 1). The check is not locked, so calls running at once may overshoot by their own cost.
 
 ## Desktop screens

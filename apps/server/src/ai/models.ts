@@ -1,10 +1,11 @@
-// The Claude models nvoke uses and what they cost.
-// Prices: https://platform.claude.com/docs/en/about-claude/pricing
+// The Claude models nvoke uses (OpenRouter ids) and what they cost. OpenRouter
+// reports the charge per call; these prices are the fallback when it does not.
+// Prices: https://openrouter.ai/anthropic
 
 /** bulk: many small calls (openers). quality: few calls where the answer matters (site profile). */
 export const MODELS = {
-  bulk: 'claude-haiku-5-5',
-  quality: 'claude-sonnet-5-5',
+  bulk: 'anthropic/claude-haiku-5.5',
+  quality: 'anthropic/claude-sonnet-5.5',
 } as const;
 
 export type ModelTier = keyof typeof MODELS;
@@ -19,8 +20,8 @@ interface Price {
 
 const PRICES: Record<string, Price> = {
   // Prompts up to 100K tokens; nvoke never sends more to Haiku.
-  'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
-  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  'anthropic/claude-haiku-5.5': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  'anthropic/claude-sonnet-5.5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
 };
 
 // An unknown model is priced as Opus, so the cost guard errs on the safe side.

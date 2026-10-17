@@ -88,8 +88,8 @@ const EnvSchema = z.object({
   // Cloudflare Turnstile for the free tools. Unset means rate limits only.
   TURNSTILE_SECRET_KEY: optional,
 
-  // Claude (src/ai). Without the key, features that need it answer unavailable.
-  ANTHROPIC_API_KEY: optional,
+  // Claude through OpenRouter (src/ai). Without the key, features that need it answer unavailable.
+  OPENROUTER_API_KEY: optional,
   // Monthly Claude budget per account: this share of the plan's price, never below the floor.
   AI_MONTHLY_BUDGET_FLOOR_USD: z.coerce.number().min(0).default(1),
   AI_MONTHLY_BUDGET_PRICE_SHARE: z.coerce.number().min(0).max(1).default(0.25),
