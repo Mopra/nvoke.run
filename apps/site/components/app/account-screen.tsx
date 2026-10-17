@@ -7,7 +7,7 @@ import { ArrowUpRight, Check, Copy, Download, Loader2, LogOut, Plus } from 'luci
 import { toast } from 'sonner';
 import { FREE_PLAN, PLANS, type ApiKey, type MeResponse } from '@nvoke/shared';
 import { Avatar } from '@/components/app/avatar';
-import { DisplayTitle } from '@/components/app/shell';
+import { APP_COLUMN, APP_FRAME, APP_INSET, DisplayTitle } from '@/components/app/shell';
 import { ErrorState } from '@/components/app/states';
 import {
   AlertDialog,
@@ -366,26 +366,26 @@ export function AccountScreen() {
   usePlanSync();
 
   return (
-    <main className="w-full px-4 pb-24 sm:px-8">
-      <div className="mx-auto max-w-[720px] motion-safe:animate-rise">
-        <DisplayTitle className="px-1">Account</DisplayTitle>
+    <main className={cn(APP_FRAME, 'pb-24')}>
+      <div className={cn(APP_INSET, APP_COLUMN, 'motion-safe:animate-rise')}>
+        <DisplayTitle>Account</DisplayTitle>
         {error ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : !me ? (
-          <div className="flex flex-col gap-4 px-1">
+          <div className="flex flex-col gap-4">
             <Skeleton className="h-12 w-48" />
             <Skeleton className="h-1 w-full" />
             <Skeleton className="h-3 w-64" />
           </div>
         ) : (
-          <div className="flex flex-col gap-14 px-1">
+          <div className="flex flex-col gap-14">
             <div className="flex items-center gap-4">
               <Avatar user={me.user} className="size-11" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[15px] font-medium">{me.user.name ?? me.user.email ?? 'Signed in'}</div>
                 {me.user.name && me.user.email && <div className="truncate text-sm text-muted-foreground">{me.user.email}</div>}
               </div>
-              <Button variant="ghost" onClick={() => void signOut({ redirectUrl: '/' })}>
+              <Button variant="ghost" className="-mr-4" onClick={() => void signOut({ redirectUrl: '/' })}>
                 <LogOut />
                 Sign out
               </Button>

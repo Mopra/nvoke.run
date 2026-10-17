@@ -30,7 +30,7 @@ import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/app/indicators';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
-import { BackLink } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { EmptyState, ErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import {
@@ -133,7 +133,7 @@ function Overview({ search, timing, onRunAgain, starting }: { search: Search; ti
   const active = isActive(search.status);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
-    <section className="px-1 pt-6 pb-10 sm:px-6">
+    <section className={cn(APP_INSET, 'pt-6 pb-10')}>
       <h1 className="font-display text-2xl font-semibold tracking-[-0.03em] text-balance sm:text-3xl">{searchTitle(search)}</h1>
       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-muted-foreground">
         <StatusLabel status={search.status} />
@@ -301,7 +301,7 @@ function CompanyRow({
   return (
     <div
       data-company-row
-      className={cn(COLUMNS, 'group flex flex-col gap-2 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start md:px-6')}
+      className={cn(COLUMNS, 'group flex flex-col gap-2 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start sm:px-6')}
     >
       <div className="min-w-0 leading-5">
         <div className="truncate text-[14px] font-medium">{company.name}</div>
@@ -376,7 +376,7 @@ function TableSkeleton() {
   return (
     <div>
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className={cn(COLUMNS, 'flex flex-col gap-3 px-4 py-5 md:px-6')}>
+        <div key={i} className={cn(COLUMNS, 'flex flex-col gap-3 px-4 py-5 sm:px-6')}>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3.5 w-40" />
             <Skeleton className="h-2.5 w-24" />
@@ -541,7 +541,7 @@ export function ResultsScreen({ id }: { id: string }) {
   }
 
   const header = (
-    <div className="flex items-center gap-2 px-1 pt-8 sm:px-6">
+    <div className={cn(APP_INSET, 'flex items-center gap-2 pt-8')}>
       <BackLink />
       {search && (
         <div className="ml-auto flex items-center gap-2">
@@ -592,7 +592,7 @@ export function ResultsScreen({ id }: { id: string }) {
   if (searchQuery.error) {
     const missing = searchQuery.error instanceof ApiError && (searchQuery.error.status === 404 || searchQuery.error.status === 400);
     return (
-      <main className="mx-auto w-full max-w-[1120px] px-4 sm:px-8">
+      <main className={APP_FRAME}>
         {header}
         {missing ? (
           <EmptyState
@@ -615,9 +615,9 @@ export function ResultsScreen({ id }: { id: string }) {
 
   if (!search) {
     return (
-      <main className="mx-auto w-full max-w-[1120px] px-4 sm:px-8">
+      <main className={APP_FRAME}>
         {header}
-        <div className="px-1 pt-6 pb-10 sm:px-6">
+        <div className={cn(APP_INSET, 'pt-6 pb-10')}>
           <Skeleton className="h-8 w-80 max-w-full" />
           <Skeleton className="mt-3 h-3.5 w-56" />
         </div>
@@ -631,7 +631,7 @@ export function ResultsScreen({ id }: { id: string }) {
     : relativeTime(search.createdAt);
 
   return (
-    <main className="mx-auto w-full max-w-[1120px] px-4 pb-40 sm:px-8">
+    <main className={cn(APP_FRAME, 'pb-40')}>
       {header}
       <Overview search={search} timing={timing} onRunAgain={runAgain} starting={create.isPending} />
 

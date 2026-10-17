@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { itemDomain, SEARCH_LIMIT_MAX, type CreateSearchInput } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
 import { Line, Pill, SENTENCE, SentenceInput } from '@/components/app/sentence';
-import { BackLink } from '@/components/app/shell';
+import { APP_COLUMN, APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -96,13 +96,13 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
   const problem = touched ? formProblem(form, maxLimit) : null;
 
   return (
-    <main className="w-full px-4 pb-24 sm:px-8">
-      <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]" noValidate>
+    <main className={cn(APP_FRAME, 'pb-24')}>
+      <form onSubmit={submit} className={cn(APP_INSET, APP_COLUMN, 'flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')} noValidate>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <BackLink />
           <Link
             href={WEBSITE_PATH}
-            className="-mr-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            className="-mr-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
           >
             <Sparkles className="size-3.5" />
             Plan from your website

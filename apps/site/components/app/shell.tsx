@@ -49,14 +49,24 @@ function Aura({ on }: { on: boolean }) {
 const navLink =
   'rounded-full px-3 py-1.5 text-[13px] text-foreground/65 outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-foreground/[0.06] aria-[current=page]:text-foreground';
 
+/**
+ * One frame for the bar and every screen, the same box as the site's
+ * Container, so all edges line up. Lists and results fill it; forms and
+ * settings sit in `APP_COLUMN` on the same left edge. `APP_INSET` is the
+ * text inset inside the frame, matching the list rows and the bar's logo.
+ */
+export const APP_FRAME = 'mx-auto w-full max-w-6xl px-4 sm:px-6';
+export const APP_COLUMN = 'max-w-3xl';
+export const APP_INSET = 'px-4 sm:px-6';
+
 function TopBar() {
   const path = usePathname() ?? '/app';
   const onSearches = path === '/app' || path.startsWith('/app/searches');
   return (
-    <header className="pointer-events-none sticky top-0 z-40 flex justify-center px-4 pt-4">
+    <header className={cn(APP_FRAME, 'pointer-events-none sticky top-0 z-40 pt-4')}>
       <nav
         aria-label="App"
-        className="glass pointer-events-auto flex h-12 w-full max-w-[880px] items-center gap-1 rounded-full pr-1.5 pl-3"
+        className="glass pointer-events-auto flex h-12 w-full items-center gap-1 rounded-full pr-1.5 pl-4 sm:pl-6"
       >
         <Link
           href="/app"
@@ -180,12 +190,12 @@ function QuotaNotice() {
   if (quota.level === 'ok') return null;
   const out = quota.level === 'out';
   return (
-    <div className="flex justify-center px-4 pt-3">
+    <div className={cn(APP_FRAME, 'pt-3')}>
       <div
         role={out ? 'alert' : 'status'}
         data-quota={quota.level}
         className={cn(
-          'flex w-full max-w-[880px] flex-wrap items-center gap-x-4 gap-y-2 rounded-[20px] px-5 py-3 text-sm',
+          'flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-[20px] px-4 py-3 text-sm sm:px-6',
           out ? 'bg-destructive/8' : 'bg-primary/[0.07]',
         )}
       >

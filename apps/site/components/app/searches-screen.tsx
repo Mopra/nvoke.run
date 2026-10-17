@@ -8,7 +8,7 @@ import type { Search } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { StatusDot } from '@/components/app/indicators';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
-import { DisplayTitle } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, DisplayTitle } from '@/components/app/shell';
 import { ErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
 import { useCancelSearch, useLatestProfileBuild, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
 import { displayDomain, WEBSITE_PATH } from '@/lib/app/site-profile';
+import { cn } from '@/lib/utils';
 
 const href = (search: Search): string => `/app/searches/${search.id}`;
 
@@ -122,7 +123,7 @@ function ListSkeleton() {
   return (
     <div className="flex flex-col gap-2">
       {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className="flex items-center gap-8 px-6 py-6">
+        <div key={i} className="flex items-center gap-8 px-4 py-6 sm:px-6">
           <div className="flex flex-1 flex-col gap-2.5">
             <Skeleton className="h-4 w-56 max-w-full" />
             <Skeleton className="h-3 w-36" />
@@ -179,7 +180,7 @@ function useWebsiteStep(): { lead: string; action: string } {
 function FirstSearch() {
   const step = useWebsiteStep();
   return (
-    <section className="px-2 pb-10 sm:px-6">
+    <section className={cn(APP_INSET, 'pb-10')}>
       <p className="max-w-lg text-base text-pretty text-muted-foreground">{step.lead}</p>
       <div className="mt-8">
         <Button asChild size="lg">
@@ -223,9 +224,9 @@ export function SearchesScreen() {
       : 'Start your first one. Results show up here as nvoke finds them.';
 
   return (
-    <main className="w-full px-4 pb-24 sm:px-8">
-      <div className="mx-auto max-w-[880px] motion-safe:animate-rise">
-        <DisplayTitle className="px-2 sm:px-6" subtitle={subtitle}>
+    <main className={cn(APP_FRAME, 'pb-24')}>
+      <div className="motion-safe:animate-rise">
+        <DisplayTitle className={APP_INSET} subtitle={subtitle}>
           Searches
         </DisplayTitle>
         {isPending ? (

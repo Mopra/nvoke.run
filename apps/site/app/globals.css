@@ -106,6 +106,8 @@
   }
   html {
     scroll-padding-top: 6rem;
+    /* Short and long pages center on the same axis, so the header never shifts. */
+    scrollbar-gutter: stable;
     font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
   }

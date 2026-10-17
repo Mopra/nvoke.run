@@ -2,26 +2,27 @@
 
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { BackLink } from '@/components/app/shell';
+import { APP_COLUMN, APP_FRAME, APP_INSET, BackLink, DisplayTitle } from '@/components/app/shell';
 import { DesktopBilling } from '@/app/desktop/billing/desktop-billing';
 import { BILLING_PATH } from '@/lib/app/quota';
 import { keys } from '@/lib/app/queries';
+import { cn } from '@/lib/utils';
 
 /** The plans from /pricing with Clerk Billing checkout, inside the app. */
 export function AppBilling() {
   const client = useQueryClient();
   const onPlanChange = useCallback(() => void client.invalidateQueries({ queryKey: keys.me }), [client]);
   return (
-    <main className="w-full px-4 pb-24 sm:px-8">
-      <div className="mx-auto max-w-2xl pt-8">
+    <main className={cn(APP_FRAME, 'pb-24')}>
+      <div className={cn(APP_INSET, APP_COLUMN, 'pt-8 motion-safe:animate-rise')}>
         <BackLink href="/app/account" label="Account" />
-        <div className="mt-6 flex flex-col items-center motion-safe:animate-rise">
-          <DesktopBilling
-            returnUrl={BILLING_PATH}
-            doneHint="Your new allowance applies at once, here and in nvoke Desktop."
-            onPlanChange={onPlanChange}
-          />
-        </div>
+        <DisplayTitle className="pt-6">Your plan</DisplayTitle>
+        <DesktopBilling
+          returnUrl={BILLING_PATH}
+          doneHint="Your new allowance applies at once, here and in nvoke Desktop."
+          onPlanChange={onPlanChange}
+          title={false}
+        />
       </div>
     </main>
   );

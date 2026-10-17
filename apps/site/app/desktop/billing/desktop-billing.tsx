@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
+import { cn } from '@/lib/utils';
 
 type Load = { kind: 'loading' } | { kind: 'ready'; me: MeResponse } | { kind: 'error'; message: string };
 
@@ -19,6 +20,8 @@ interface BillingProps {
   doneHint?: string;
   /** Called after a checkout or cancel, so the page around it can refresh too. */
   onPlanChange?: () => void;
+  /** False when the page around it sets its own title, like the web app. */
+  title?: boolean;
 }
 
 /**
@@ -29,16 +32,22 @@ export function DesktopBilling({
   returnUrl = '/desktop/billing',
   doneHint = 'Done? Go back to nvoke. It picks up the new plan on its own.',
   onPlanChange,
+  title = true,
 }: BillingProps) {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <p className="text-sm text-muted-foreground">Loading...</p>;
   if (!isSignedIn) {
     return <SignIn routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
-  return <Billing returnUrl={returnUrl} doneHint={doneHint} onPlanChange={onPlanChange} />;
+  return <Billing returnUrl={returnUrl} doneHint={doneHint} onPlanChange={onPlanChange} title={title} />;
 }
 
-function Billing({ returnUrl, doneHint, onPlanChange }: Required<Omit<BillingProps, 'onPlanChange'>> & Pick<BillingProps, 'onPlanChange'>) {
+function Billing({
+  returnUrl,
+  doneHint,
+  onPlanChange,
+  title,
+}: Required<Omit<BillingProps, 'onPlanChange'>> & Pick<BillingProps, 'onPlanChange'>) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
@@ -77,7 +86,7 @@ function Billing({ returnUrl, doneHint, onPlanChange }: Required<Omit<BillingPro
 
   const who = user?.primaryEmailAddress?.emailAddress ?? user?.fullName ?? null;
   // Keyed by plan so the picker starts on the new plan after a checkout.
-  return <PlanPicker key={load.me.plan} me={load.me} who={who} onChanged={refresh} returnUrl={returnUrl} doneHint={doneHint} />;
+  return <PlanPicker key={load.me.plan} me={load.me} who={title ? who : null} onChanged={refresh} returnUrl={returnUrl} doneHint={doneHint} title={title} />;
 }
 
 /**
@@ -106,12 +115,14 @@ function PlanPicker({
   onChanged,
   returnUrl,
   doneHint,
+  title,
 }: {
   me: MeResponse;
   who: string | null;
   onChanged: () => void;
   returnUrl: string;
   doneHint: string;
+  title: boolean;
 }) {
   const current = Math.max(0, PLAN_ORDER.indexOf(me.plan));
   const [index, setIndex] = useState(current);
@@ -123,10 +134,12 @@ function PlanPicker({
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-[-0.03em]">Your plan</h1>
-        {who ? <p className="text-sm text-muted-foreground">Signed in as {who}</p> : null}
-      </div>
+      {title ? (
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h1 className="text-3xl font-semibold tracking-[-0.03em]">Your plan</h1>
+          {who ? <p className="text-sm text-muted-foreground">Signed in as {who}</p> : null}
+        </div>
+      ) : null}
 
       <Card className="w-full">
         <CardHeader>
@@ -158,6 +171,7 @@ function PlanPicker({
         tiers={pricing.tiers}
         index={index}
         onIndexChange={setIndex}
+        className="max-w-none"
         badge={
           index === current ? (
             <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">Current</span>
@@ -179,7 +193,7 @@ function PlanPicker({
         </div>
       </PlanSlider>
 
-      <p className="text-center text-sm text-pretty text-muted-foreground">
+      <p className={cn('text-sm text-pretty text-muted-foreground', title && 'text-center')}>
         {pricing.vatNote} {doneHint}
       </p>
     </div>
