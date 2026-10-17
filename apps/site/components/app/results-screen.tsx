@@ -807,7 +807,7 @@ export function ResultsScreen({ id }: { id: string }) {
             ]}
           />
           <span className="hidden min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground sm:flex">
-            {companies.isFetching && !companies.isPending && <Loader2 className="size-3 motion-safe:animate-spin" />}
+            {companies.isPlaceholderData && <Loader2 className="size-3 motion-safe:animate-spin" />}
             {companies.data &&
               (filtered ? `${formatNumber(total)} of ${formatNumber(search.companiesFound)}` : `${formatNumber(total)} companies`)}
           </span>
