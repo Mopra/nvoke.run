@@ -31,6 +31,13 @@ const SOURCES: Record<FormKind, string> = {
   domains: 'Companies you already know. Domains are read as given, names are looked up on the web.',
 };
 
+const KINDS: { value: FormKind; label: string; icon: typeof MapPin }[] = [
+  { value: 'local', label: 'Local businesses', icon: MapPin },
+  { value: 'web', label: 'Web search', icon: Globe },
+  { value: 'launches', label: 'New launches', icon: Rocket },
+  { value: 'domains', label: 'Paste a list', icon: ClipboardList },
+];
+
 /**
  * Starts a search the way the form does: the same mutation and cache updates,
  * a toast, then the search's page. Suggestions from the website step use it too.
@@ -103,18 +110,33 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
         </div>
         <h1 className="sr-only">New search</h1>
         <div className="mt-6 flex flex-col items-start gap-3">
-          <div className="max-w-full overflow-x-auto pb-1">
-            <Segmented
-              label="Where to look"
-              value={form.kind}
-              onChange={set('kind')}
-              options={[
-                { value: 'local', label: 'Local businesses', icon: MapPin },
-                { value: 'web', label: 'Web search', icon: Globe },
-                { value: 'launches', label: 'New launches', icon: Rocket },
-                { value: 'domains', label: 'Paste a list', icon: ClipboardList },
-              ]}
-            />
+          <Segmented
+            label="Where to look"
+            value={form.kind}
+            onChange={set('kind')}
+            options={KINDS}
+            className="hidden sm:inline-flex"
+          />
+          {/* Phones: the four kinds don't fit on one row, so they sit in a grid. */}
+          <div role="radiogroup" aria-label="Where to look" className="grid w-full grid-cols-2 gap-2 sm:hidden">
+            {KINDS.map((k) => (
+              <button
+                key={k.value}
+                type="button"
+                role="radio"
+                aria-checked={form.kind === k.value}
+                onClick={() => set('kind')(k.value)}
+                className={cn(
+                  'flex min-h-11 items-center gap-2 rounded-full px-3.5 py-1.5 text-left text-sm leading-tight font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                  form.kind === k.value
+                    ? 'bg-card text-foreground shadow-float dark:bg-foreground/15'
+                    : 'bg-foreground/[0.055] text-muted-foreground',
+                )}
+              >
+                <k.icon className="size-4 shrink-0" />
+                <span>{k.label}</span>
+              </button>
+            ))}
           </div>
           <p className="pl-1 text-sm text-muted-foreground">{SOURCES[form.kind]}</p>
         </div>

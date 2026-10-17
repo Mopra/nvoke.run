@@ -105,8 +105,13 @@ function SearchRow({ search }: { search: Search }) {
           {search.status === 'failed' && (
             <div className="mt-1 truncate text-xs text-muted-foreground/80">{errorMessage(search.error)}</div>
           )}
+          {/* Phones: the figure moves under the title, so the title keeps the width. */}
+          <div className="mt-1 text-sm tabular-nums text-muted-foreground sm:hidden">
+            <span className="text-foreground">{formatNumber(search.emailsFound)}</span>{' '}
+            {stopped && search.emailsFound === 0 ? 'emails' : `emails, ${formatNumber(search.emailsValid)} valid`}
+          </div>
         </div>
-        <div className="shrink-0 text-right">
+        <div className="hidden shrink-0 text-right sm:block">
           <div className="font-display text-3xl font-light tabular-nums">{formatNumber(search.emailsFound)}</div>
           <div className="text-xs tabular-nums text-muted-foreground">
             {stopped && search.emailsFound === 0 ? 'no emails' : `emails, ${formatNumber(search.emailsValid)} valid`}
@@ -129,7 +134,7 @@ function ListSkeleton() {
             <Skeleton className="h-4 w-56 max-w-full" />
             <Skeleton className="h-3 w-36" />
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="hidden flex-col items-end gap-2 sm:flex">
             <Skeleton className="h-7 w-12" />
             <Skeleton className="h-2.5 w-20" />
           </div>

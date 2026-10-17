@@ -210,13 +210,19 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
       <button
         type="button"
         onClick={() => void copy(email.address, email.address)}
-        className="flex min-w-0 items-center gap-1.5 rounded-sm text-left font-mono text-xs text-foreground/80 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50 dark:text-foreground/65 dark:hover:text-primary"
+        className="-my-1.5 flex min-w-0 items-center gap-1.5 rounded-sm py-1.5 text-left font-mono text-xs text-foreground/80 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50 sm:my-0 sm:py-0 dark:text-foreground/65 dark:hover:text-primary"
         title={`Copy ${email.address}`}
       >
-        <span className="truncate">{email.address}</span>
+        {/* Phones show the whole address over two lines rather than cutting it. */}
+        <span className="wrap-anywhere sm:truncate">
+          {email.address.split('@')[0]}@<wbr />
+          {email.address.split('@').slice(1).join('@')}
+        </span>
         <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/email:opacity-60" />
       </button>
-      <span className="shrink-0 text-2xs text-muted-foreground">{email.kind === 'personal' ? 'person' : 'generic'}</span>
+      <span className="hidden shrink-0 text-2xs text-muted-foreground sm:inline">
+        {email.kind === 'personal' ? 'person' : 'generic'}
+      </span>
       <span className="ml-auto" />
       <VerificationBadge value={email.verification ?? 'unknown'} pending={checking && email.verification === null} />
     </div>
