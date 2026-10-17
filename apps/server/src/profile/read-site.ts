@@ -2,13 +2,15 @@
 // pages that say what the business sells (about, pricing, services, product,
 // customers). Same fetcher and rules as the email crawl (src/leads/crawl.ts):
 // robots.txt on every hop, one request per second per host, a byte budget.
-// Returns the visible text of each page, capped, for the Claude prompt.
+// Returns the visible text of each page, capped, for the Claude prompt, and
+// the icon and share image the homepage declares (site-visuals.ts).
 
 import { load } from 'cheerio';
 import { hostToDomain, looksJsOnly, pageWall, registrableDomain, sameSite } from '@nvoke/shared/crawl';
 import { decodeBody } from '../leads/http.js';
 import { SiteFetcher, isHtml, type CrawlDeps } from '../leads/crawl.js';
 import { pageText, type SitePage } from '../leads/page-text.js';
+import { visualCandidates, type VisualCandidates } from './site-visuals.js';
 
 export { pageText, type SitePage };
 
@@ -34,7 +36,7 @@ const PROFILE_HINTS: Array<{ re: RegExp; score: number }> = [
 const SKIP = /\.(png|jpe?g|gif|webp|avif|svg|ico|pdf|zip|docx?|xlsx?|pptx?|mp4|mp3|mov|webm|css|js|xml|json|txt)$/i;
 
 export type ReadSiteResult =
-  | { ok: true; website: string; domain: string; pages: SitePage[] }
+  | { ok: true; website: string; domain: string; pages: SitePage[]; visuals: VisualCandidates }
   | { ok: false; reason: 'unreachable' | 'blocked' | 'refused' | 'js_only' | 'empty' };
 
 /** Same-site links that look like they describe the business, best first. */
@@ -127,5 +129,5 @@ async function read(website: string, deps: CrawlDeps, signal: AbortSignal | unde
     total += p.text.length;
   }
   if (total < MIN_TEXT) return { ok: false, reason: looksJsOnly(homeHtml) ? 'js_only' : 'empty' };
-  return { ok: true, website: home.url, domain: registrableDomain(domain), pages };
+  return { ok: true, website: home.url, domain: registrableDomain(domain), pages, visuals: visualCandidates(homeHtml, home.url) };
 }

@@ -316,6 +316,9 @@ export function mockSiteProfile(domain: string, at: string): SiteProfile {
       },
     ],
     pages: [`https://${domain}/`, `https://${domain}/about`, `https://${domain}/pricing`, `https://${domain}/cases`],
+    // The mock never reaches the network, so no pictures.
+    icon: null,
+    image: null,
     createdAt: at,
     updatedAt: at,
   };

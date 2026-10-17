@@ -2,6 +2,7 @@
 // site, ask Claude what it sells and to whom, and turn its suggestions into
 // searches the user starts in one click. One profile per account, editable.
 
+import { randomBytes } from 'node:crypto';
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -17,7 +18,10 @@ import {
 } from '@nvoke/shared';
 import { normalizeWebsite } from '@nvoke/shared/crawl';
 import { AiError, type Ai } from '../ai/client.js';
+import type { FetchLike } from '../leads/http.js';
 import type { SitePage, readSite } from './read-site.js';
+import type { ShootSite } from './site-shot.js';
+import { firstImage, type VisualCandidates } from './site-visuals.js';
 
 /** Companies a suggested search looks at. The user's plan caps what gets verified, not this. */
 const SUGGESTION_LIMIT = 100;
@@ -131,6 +135,8 @@ interface Row {
   profile: unknown;
   suggestions: unknown;
   pages: unknown;
+  icon_url: string | null;
+  image_url: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -146,14 +152,22 @@ function toSiteProfile(row: Row): SiteProfile {
       return parsed.success ? [parsed.data] : [];
     }),
     pages: row.pages as string[],
+    icon: row.icon_url,
+    image: row.image_url,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
+/** A stored screenshot by its token, for the public image route. */
+export async function getSiteShot(sql: Sql, token: string): Promise<Buffer | null> {
+  const [row] = await sql<{ image: Buffer }[]>`select image from site_shots where token = ${token}`;
+  return row?.image ?? null;
+}
+
 export async function getSiteProfile(sql: Sql, userId: string): Promise<SiteProfile | null> {
   const [row] = await sql<Row[]>`
-    select website, domain, profile, suggestions, pages, created_at, updated_at
+    select website, domain, profile, suggestions, pages, icon_url, image_url, created_at, updated_at
     from site_profiles where clerk_user_id = ${userId}
   `;
   return row ? toSiteProfile(row) : null;
@@ -166,7 +180,7 @@ export async function updateSiteProfile(sql: Sql, userId: string, patch: UpdateS
   const [row] = await sql<Row[]>`
     update site_profiles set profile = ${sql.json(profile)}, updated_at = now()
     where clerk_user_id = ${userId}
-    returning website, domain, profile, suggestions, pages, created_at, updated_at
+    returning website, domain, profile, suggestions, pages, icon_url, image_url, created_at, updated_at
   `;
   return row ? toSiteProfile(row) : null;
 }
@@ -183,9 +197,35 @@ export interface BuildDeps {
   read: (website: string, signal?: AbortSignal) => ReturnType<typeof readSite>;
   /** Throws when the host does not resolve to public addresses only. */
   checkHost: (host: string) => Promise<void>;
+  /** Icon and picture of the site. Without it the profile has neither. */
+  visuals?: {
+    /** The guarded fetch, to check that an image loads. */
+    fetch: FetchLike;
+    /** A homepage screenshot, for sites without a share image. Unset: no screenshots. */
+    shoot?: ShootSite;
+    /** Where a stored screenshot is served (/site-shots/<token>.jpg on the API). */
+    shotUrl: (token: string) => string;
+  };
 }
 
-/** Reads the site, asks Claude and replaces the account's profile. */
+interface Pictures {
+  icon: string | null;
+  image: string | null;
+  shot: Buffer | null;
+}
+
+/** The icon, and the share image or else a screenshot. Never throws: a site without pictures still gets a profile. */
+async function pickPictures(visuals: BuildDeps['visuals'], website: string, found: VisualCandidates, signal?: AbortSignal): Promise<Pictures> {
+  if (!visuals) return { icon: null, image: null, shot: null };
+  const [icon, image] = await Promise.all([
+    firstImage(visuals.fetch, found.icons, signal),
+    firstImage(visuals.fetch, found.images, signal),
+  ]);
+  const shot = image || !visuals.shoot ? null : await visuals.shoot(website, signal);
+  return { icon, image, shot };
+}
+
+/** Reads the site, asks Claude, finds its pictures and replaces the account's profile. */
 export async function buildSiteProfile(deps: BuildDeps, userId: string, input: string, signal?: AbortSignal): Promise<BuildResult> {
   const website = normalizeWebsite(/^https?:\/\//i.test(input) ? input : `https://${input}`);
   if (!website) return { ok: false, error: 'invalid_request' };
@@ -216,6 +256,11 @@ export async function buildSiteProfile(deps: BuildDeps, userId: string, input: s
   if (!site.ok) return { ok: false, error: 'site_unreadable', detail: site.reason };
   // Nobody is waiting for the answer: do not pay Claude for it.
   if (signal?.aborted) return { ok: false, error: 'site_unreadable', detail: 'unreachable' };
+  // While Claude reads. Caught here, so a failed build does not leave it unhandled.
+  const pictures = pickPictures(deps.visuals, site.website, site.visuals, signal).catch((err: unknown) => {
+    deps.log.warn({ err, userId }, 'site profile: pictures failed');
+    return { icon: null, image: null, shot: null } satisfies Pictures;
+  });
 
   let answer: ClaudeSiteProfile;
   try {
@@ -249,13 +294,23 @@ export async function buildSiteProfile(deps: BuildDeps, userId: string, input: s
   }
   const profile = toFields(answer.profile, site.domain);
   const pages = site.pages.map((p) => p.url);
-  const [row] = await deps.sql<Row[]>`
-    insert into site_profiles (clerk_user_id, website, domain, profile, suggestions, pages)
-    values (${userId}, ${site.website}, ${site.domain}, ${deps.sql.json(profile)}, ${deps.sql.json(suggestions)}, ${deps.sql.json(pages)})
-    on conflict (clerk_user_id) do update set
-      website = excluded.website, domain = excluded.domain, profile = excluded.profile,
-      suggestions = excluded.suggestions, pages = excluded.pages, created_at = now(), updated_at = now()
-    returning website, domain, profile, suggestions, pages, created_at, updated_at
-  `;
-  return { ok: true, profile: toSiteProfile(row!) };
+  const { icon, image, shot } = await pictures;
+  const token = shot ? randomBytes(32).toString('base64url') : null;
+  const imageUrl = token && deps.visuals ? deps.visuals.shotUrl(token) : image;
+  const row = await deps.sql.begin(async (tx) => {
+    // One screenshot per account: the last build's.
+    await tx`delete from site_shots where clerk_user_id = ${userId}`;
+    if (token && shot) await tx`insert into site_shots (token, clerk_user_id, image) values (${token}, ${userId}, ${shot})`;
+    const [saved] = await tx<Row[]>`
+      insert into site_profiles (clerk_user_id, website, domain, profile, suggestions, pages, icon_url, image_url)
+      values (${userId}, ${site.website}, ${site.domain}, ${tx.json(profile)}, ${tx.json(suggestions)}, ${tx.json(pages)}, ${icon}, ${imageUrl})
+      on conflict (clerk_user_id) do update set
+        website = excluded.website, domain = excluded.domain, profile = excluded.profile,
+        suggestions = excluded.suggestions, pages = excluded.pages, icon_url = excluded.icon_url,
+        image_url = excluded.image_url, created_at = now(), updated_at = now()
+      returning website, domain, profile, suggestions, pages, icon_url, image_url, created_at, updated_at
+    `;
+    return saved!;
+  });
+  return { ok: true, profile: toSiteProfile(row) };
 }

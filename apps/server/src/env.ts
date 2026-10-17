@@ -88,6 +88,13 @@ const EnvSchema = z.object({
   // Cloudflare Turnstile for the free tools. Unset means rate limits only.
   TURNSTILE_SECRET_KEY: optional,
 
+  // Homepage screenshots on site profiles, for sites without a share image.
+  // Needs Chromium for playwright-core (deploy/deploy.sh installs it).
+  SITE_SHOTS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // Claude through OpenRouter (src/ai). Without the key, features that need it answer unavailable.
   OPENROUTER_API_KEY: optional,
   // Monthly Claude budget per account: this share of the plan's price, never below the floor.

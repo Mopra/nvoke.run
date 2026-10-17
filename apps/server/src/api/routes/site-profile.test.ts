@@ -4,12 +4,13 @@ import { SITE_PROFILE_RUNS_PER_DAY, SiteProfile } from '@nvoke/shared';
 import { AiError, type Ai, type StructuredRequest } from '../../ai/client.js';
 import type { ReadSiteResult } from '../../profile/read-site.js';
 import { createTestDb, type TestDb } from '../../testing/db.js';
-import { siteProfileRoutes } from './site-profile.js';
+import { siteProfileRoutes, siteShotRoutes } from './site-profile.js';
 
 let db: TestDb;
 let app: FastifyInstance;
 let reply: unknown;
 let site: ReadSiteResult;
+let shots: string[] = [];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const requests: StructuredRequest<any>[] = [];
 
@@ -59,9 +60,19 @@ beforeAll(async () => {
     },
     getAi: () => ai,
     urlPolicy: { allowPrivate: false },
+    apiUrl: 'https://api.nvoke.test/',
+    shots: false,
     read: async () => site,
     resolve: async (host) => [{ address: host === 'intranet.example' ? '10.0.0.5' : '93.184.216.34', family: 4 }],
+    // Images whose URL says "live" load; the rest 404.
+    imageFetch: async (url) =>
+      String(url).includes('live') ? new Response('img', { status: 200, headers: { 'content-type': 'image/png' } }) : new Response('', { status: 404 }),
+    shoot: async (url) => {
+      shots.push(url);
+      return Buffer.from('jpeg bytes');
+    },
   });
+  await app.register(siteShotRoutes, { getSql: () => db.sql });
   await app.ready();
 });
 
@@ -74,18 +85,48 @@ beforeEach(async () => {
   await db.sql`truncate accounts cascade`;
   await db.sql`insert into accounts (clerk_user_id) values ('alice'), ('bob')`;
   requests.length = 0;
+  shots = [];
   reply = claudeAnswer;
   site = {
     ok: true,
     website: 'https://acme.dk/',
     domain: 'acme.dk',
     pages: [{ url: 'https://acme.dk/', title: 'Acme', description: 'Chairs', text: 'We sell chairs to clinics.' }],
+    visuals: { icons: ['https://acme.dk/gone.png', 'https://acme.dk/live-icon.png'], images: ['https://acme.dk/live-og.png'] },
   };
 });
 
 const as = (user: string) => ({ 'x-test-user': user });
 const build = (user: string, website: unknown) =>
   app.inject({ method: 'POST', url: '/v1/site-profile', headers: as(user), payload: { website } });
+
+describe('site profile pictures', () => {
+  it('keeps the first icon and the share image that load, without a screenshot', async () => {
+    const profile = SiteProfile.parse((await build('alice', 'acme.dk')).json());
+    expect(profile.icon).toBe('https://acme.dk/live-icon.png');
+    expect(profile.image).toBe('https://acme.dk/live-og.png');
+    expect(shots).toEqual([]);
+  });
+
+  it('takes a screenshot when the share image does not load, served by its token only', async () => {
+    if (site.ok) site.visuals = { icons: [], images: ['https://acme.dk/gone-og.png'] };
+    const profile = SiteProfile.parse((await build('alice', 'acme.dk')).json());
+    expect(shots).toEqual(['https://acme.dk/']);
+    expect(profile.icon).toBeNull();
+    expect(profile.image).toMatch(/^https:\/\/api\.nvoke\.test\/site-shots\/[A-Za-z0-9_-]{43}\.jpg$/);
+
+    const path = new URL(profile.image!).pathname;
+    const res = await app.inject({ method: 'GET', url: path });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('image/jpeg');
+    expect(res.body).toBe('jpeg bytes');
+    expect((await app.inject({ method: 'GET', url: '/site-shots/nope.jpg' })).statusCode).toBe(404);
+
+    // A new build replaces the account's screenshot.
+    await build('alice', 'acme.dk');
+    expect((await app.inject({ method: 'GET', url: path })).statusCode).toBe(404);
+  });
+});
 
 describe('site profile routes', () => {
   it('401s without a user', async () => {

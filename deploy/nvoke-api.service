@@ -26,6 +26,8 @@ WorkingDirectory=/opt/nvoke/app
 # Secrets only. Mode 600, owned by the nvoke user.
 EnvironmentFile=/opt/nvoke/.env
 Environment=NODE_ENV=production
+# Headless Chromium for site profile screenshots (SITE_SHOTS), installed by deploy.sh.
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/nvoke/ms-playwright
 
 ExecStart=/opt/nvoke-node/bin/node apps/server/dist/api/index.js
 

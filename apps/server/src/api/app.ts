@@ -29,7 +29,7 @@ import { createToolsDeps } from '../tools/deps.js';
 import type { Resolve } from '../webhooks/address.js';
 import { httpSender, type WebhookSender } from '../webhooks/send.js';
 import { createAiFromEnv, type Ai } from '../ai/client.js';
-import { siteProfileRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
+import { siteProfileRoutes, siteShotRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
@@ -162,9 +162,13 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     authenticate: app.requireAuth,
     getAi,
     urlPolicy,
+    apiUrl: env.PUBLIC_API_URL,
+    shots: env.SITE_SHOTS,
     read: overrides.readSite,
     resolve: overrides.webhookResolve,
   });
+  // Public, no auth: the screenshot on a site profile, in an <img>.
+  await app.register(siteShotRoutes, { getSql });
   // Public, no auth: the site's opt-out page calls it from the browser.
   await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });
   // Public, no auth: the free tools on nvoke.run/tools.

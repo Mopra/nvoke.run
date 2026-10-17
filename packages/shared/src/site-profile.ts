@@ -61,6 +61,10 @@ export const SiteProfile = z.object({
   suggestions: z.array(SuggestedSearch),
   /** The pages that were read. */
   pages: z.array(z.string()),
+  /** The site's icon (apple-touch-icon, declared icon or favicon), on the site itself. Null when none loads. */
+  icon: z.string().nullable(),
+  /** The site's share image (og:image), or a screenshot of the homepage nvoke took when it has none. */
+  image: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
