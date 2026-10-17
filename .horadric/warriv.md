@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Woke on a dry log: local leads merge landed (6984c31 to 4f69814), so every part of Go public is on main. Marked the aim reached. Filed nothing; it still needs a ship to reach nvoke.run, which is the human's.
 - 2026-10-17 Local leads (38% to 56% per OSM place) conflicted on merge in cli.ts; told its fix-up to keep both sides, check in one turn and merge newest main last.
 - 2026-10-17 Woke on a dry log: every part of Go public has landed except the local leads merge fix (in the log as started, worktree branch with no commits yet). Gave it sonnet, filed nothing, aim stays open until it lands. Turnstile secret is set (done by the main session).
 - 2026-10-17 Round after the desktop render crawl landed (422d1a5): combined hit rate 62.2% to 66.9%; local crawl now on by default (session's Assumed line, the human may overrule). Only 'Local leads' still running; aim stays open until it lands. Nothing to file. 28 quests since the last ship, shipping is the human's.
@@ -101,7 +102,7 @@
 
 ## Open
 
-- 'Fix the merge of local-leads-find-the-website-of-places' is the last piece of Go public. When it lands on main, mark the aim done. If it sits started with no commits on the next wake, tell it to cherry-pick, resolve cli.ts and SPEC, check and commit in one turn.
+- Go public aim reached (2026-10-17) but not shipped: about 30 quests since the last ship. Shipping is the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
