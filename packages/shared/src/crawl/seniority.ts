@@ -107,3 +107,44 @@ export function looksLikeTitle(text: string): boolean {
   if (SENTENCE_WORD.test(foldTitle(t))) return false;
   return hasTitleWord(t);
 }
+
+/** Sales, growth, marketing, business development, partnerships, revenue: the commercial team. */
+const COMMERCIAL =
+  /sales|\bsalg|salgs|saelg|vertrieb|verkauf|\bvente|ventas|comercial|commercial|kommerciel|kommerziell|business development|forretningsudvikl|geschaftsentwicklung|\bbd(r|m)?\b|\bsdr\b|account exec|account manag|key account|new business|growth|marketing|markedsfor|demand gen|lead gen|revenue|\bc(r|m)o\b|partnership|partner (manager|development)|alliances|go-to-market|\bgtm\b/;
+
+/**
+ * Functions a B2B seller has no reason to write to: HR and recruiting, data
+ * protection, customer support and success, bookkeeping and finance clerks,
+ * office assistants and interns.
+ */
+const OFF_TARGET = [
+  /\bhr\b|\bhrbp\b|human resources?|people (and|&) culture|people (partner|operations|ops)|\btalent\b|personale|personal(leiter|leitung|referent|sachbearbeiter|abteilung|wesen)|ressources humaines|recursos humanos/,
+  /recruit|rekrut|headhunt|sourcer\b/,
+  /\bdpo\b|data protection|privacy|datenschutz|databeskyttelse|\bgdpr\b|\bdsgvo\b/,
+  /customer (success|support|service|care|experience)|client (support|care)|\bsupport\b|helpdesk|help desk|service ?desk|kundeservice|kundesupport|kundenservice|kundendienst|kundenbetreuung|service client/,
+  /bookkeep|bogholder|buchhalt|accountant|accounting|regnskab|accounts (payable|receivable)|payroll|\bloen|lohnbuchhalt|\bcontroller\b|\bfinance\b|\bfinans|okonomi|finanz|comptab|contabil/,
+  /office (manager|coordinator|administrator)|reception|secretar|sekretaer|kontor|\badministration\b|sachbearbeit/,
+];
+
+/** Assistants, interns, trainees and students: off target in any team, the commercial one too. */
+const JUNIOR = /assist(ant|ent|ente)\b|\bintern\b|internship|praktikant|trainee|working student|werkstudent|\bstudent\b|apprentice|\belev\b|laerling|auszubild|stagiaire/;
+
+/** Whether a title is in sales, growth, marketing, business development or partnerships. */
+export function isCommercialTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  return COMMERCIAL.test(foldTitle(title));
+}
+
+/**
+ * Whether a person is plainly not who a B2B seller writes to: an HR,
+ * recruiting, privacy, support, bookkeeping or office title unless they sit
+ * in the commercial team, or an assistant or intern anywhere. Never someone
+ * who also runs the company (founder, C level).
+ */
+export function isOffTargetTitle(title: string | null | undefined, seniority: Seniority | null | undefined = seniorityOf(title)): boolean {
+  if (!title || seniority === 'founder' || seniority === 'executive') return false;
+  const t = foldTitle(title);
+  if (JUNIOR.test(t)) return true;
+  if (COMMERCIAL.test(t)) return false;
+  return OFF_TARGET.some((re) => re.test(t));
+}

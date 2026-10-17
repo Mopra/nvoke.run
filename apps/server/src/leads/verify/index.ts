@@ -441,9 +441,9 @@ export class Verifier {
         if (out.accepted[g] || left.length === 0) continue;
         if (g !== current) {
           current = g;
-          // The pattern that just worked for a colleague goes first.
-          const i = winner ? left.findIndex((c) => c.tag === winner) : -1;
-          if (i > 0) left.unshift(...left.splice(i, 1));
+          // The pattern that just worked for a colleague is the only one tried (one RCPT, two for a name spelled two ways).
+          if (winner) left.splice(0, left.length, ...left.filter((c) => c.tag === winner));
+          if (left.length === 0) continue;
         }
         const c = left.shift()!;
         asked.push({ address: c.address, group: g, tag: c.tag });

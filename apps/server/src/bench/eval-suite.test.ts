@@ -28,7 +28,7 @@ describe('pickEntries', () => {
 describe('judge prompts', () => {
   it('numbers companies and addresses from 1', () => {
     const icp = icpPrompt('dentists', [
-      { id: 'a', name: 'Smile', domain: 'smile.dk', website: 'https://smile.dk', category: 'dentist', location: 'Aarhus', title: 'Smile\nclinic', description: '' },
+      { id: 'a', name: 'Smile', domain: 'smile.dk', website: 'https://smile.dk', category: 'dentist', location: 'Aarhus', source: 'osm', sourceRef: null, title: 'Smile\nclinic', description: '' },
     ]);
     expect(icp).toContain('1. Smile (smile.dk); category: dentist; location: Aarhus; homepage title: Smile clinic');
     const mail = emailPrompt('dentists', [

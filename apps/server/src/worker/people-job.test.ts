@@ -9,7 +9,7 @@ import { suppress } from '../leads/suppression.js';
 import type { DomainProbe, ProbeCandidate, Verifier } from '../leads/verify/index.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
-import { CONFIDENCE, runPeople } from './people-job.js';
+import { CONFIDENCE, PEOPLE_MAX_RCPT, PEOPLE_PER_COMPANY, pickPeople, personCandidates, runPeople } from './people-job.js';
 import { runVerify, type PipelineDeps } from './pipeline.js';
 import type { Job } from './queue.js';
 
@@ -32,10 +32,13 @@ beforeEach(async () => {
  */
 function stubVerifier(opts: { accepts?: string[]; catchAll?: boolean; paced?: boolean } = {}) {
   const asked: ProbeCandidate[][][] = [];
+  const maxRcpt: Array<number | undefined> = [];
   const verifier = {
     asked,
-    async probeDomain(domain: string, groups: ProbeCandidate[][]): Promise<DomainProbe> {
+    maxRcpt,
+    async probeDomain(domain: string, groups: ProbeCandidate[][], o: { maxRcpt?: number } = {}): Promise<DomainProbe> {
       asked.push(groups);
+      maxRcpt.push(o.maxRcpt);
       const base = { domain, mxHost: 'mx.test', results: [], accepted: groups.map(() => null) };
       if (opts.paced) return { ...base, catchAll: null, reason: 'smtp_paced', retryAfterMs: 30_000 };
       if (opts.catchAll) return { ...base, catchAll: true, reason: 'accepts_any_recipient' };
@@ -135,9 +138,11 @@ describe('runPeople', () => {
     expect(v.asked).toHaveLength(1);
     expect(v.asked[0]!.map((g) => g.map((c) => c.address))).toEqual([
       ['soren.kjaer@acme.dk', 'soeren.kjaer@acme.dk'],
-      ['ole.holm@acme.dk', 'ole@acme.dk'],
-      ['mia.kro@acme.dk', 'mia@acme.dk'],
+      ['ole.holm@acme.dk'],
+      ['mia.kro@acme.dk'],
     ]);
+    // The pattern is known: the decoy and one RCPT per person.
+    expect(v.maxRcpt).toEqual([PEOPLE_MAX_RCPT.knownPattern]);
 
     const rows = await emailsOf(companyId);
     expect(rows.find((r) => r.address === 'anna.berg@acme.dk')).toMatchObject({ first_name: 'Anna', last_name: 'Berg', title: 'Designer', found_via: 'page' });
@@ -189,7 +194,21 @@ describe('runPeople', () => {
     const second = await seed({ people: [{ first: 'Eva', last: 'Sand', title: 'CTO', seniority: 'executive' }] });
     const v2 = stubVerifier({});
     await runPeople(deps(v2), second.job, signal);
-    expect(v2.asked[0]![0]!.map((c) => c.address)).toEqual(['eva@acme.dk', 'eva.sand@acme.dk']);
+    expect(v2.asked[0]![0]!.map((c) => c.address)).toEqual(['eva@acme.dk']);
+    expect(v.maxRcpt).toEqual([PEOPLE_MAX_RCPT.unknownPattern]);
+  });
+
+  it('never learns a pattern from a name read off an address', async () => {
+    const first = await seed({ people: [], emails: [] });
+    await db.sql`
+      insert into emails (company_id, search_id, clerk_user_id, address, kind, first_name, last_name, found_via, confidence, verification)
+      values (${first.companyId}, ${first.searchId}, 'u1', 'anna.berg@acme.dk', 'personal', 'Anna', 'Berg', 'page', 80, 'valid')
+    `;
+    const second = await seed({ people: [{ first: 'Eva', last: 'Sand', title: 'CTO', seniority: 'executive' }] });
+    const v = stubVerifier({});
+    await runPeople(deps(v), second.job, signal);
+    expect(v.asked[0]![0]!.map((c) => c.address)).toHaveLength(5);
+    expect(v.maxRcpt).toEqual([PEOPLE_MAX_RCPT.unknownPattern]);
   });
 
   it('guesses on a catch-all domain only as far as the evidence goes', async () => {
@@ -247,5 +266,59 @@ describe('runPeople', () => {
     expect(v.asked).toHaveLength(0);
     const [search] = await db.sql<{ status: string; error: string | null }[]>`select status, error from searches where id = ${spent.searchId}`;
     expect(search).toEqual({ status: 'failed', error: 'quota_exceeded' });
+  });
+});
+
+describe('who the people job asks about', () => {
+  const p = (title: string | null, seniority: string | null, id: string) => ({ id, title, seniority: seniority as never });
+
+  it('takes five: decision makers, then the commercial team, then other titles, off-target staff last', () => {
+    const picked = pickPeople(
+      [
+        p('Recruiter', 'staff', 'recruiter'),
+        p('Developer', 'staff', 'dev'),
+        p('Head of Growth', 'director', 'growth'),
+        p('Marketing Manager', 'manager', 'marketing'),
+        p('Customer Success Manager', 'manager', 'cs'),
+        p('Business Development Representative', 'staff', 'bdr'),
+        p('Partner', 'founder', 'partner'),
+        p('CEO', 'founder', 'ceo'),
+        p(null, null, 'untitled'),
+      ],
+      PEOPLE_PER_COMPANY,
+    );
+    expect(PEOPLE_PER_COMPANY).toBe(5);
+    expect(picked.map((x) => x.id)).toEqual(['partner', 'ceo', 'growth', 'marketing', 'bdr']);
+  });
+
+  it('asks off-target staff only when nobody else is left', () => {
+    const picked = pickPeople([p('Bookkeeper', 'staff', 'books'), p('HR Manager', 'manager', 'hr'), p('Designer', 'staff', 'design')], 5);
+    expect(picked.map((x) => x.id)).toEqual(['design', 'hr', 'books']);
+  });
+
+  it('tries one address per person once the pattern is known, two for a name spelled two ways', () => {
+    expect(personCandidates({ firstName: 'Ole', lastName: 'Holm' }, 'first.last').map((c) => c.local)).toEqual(['ole.holm']);
+    expect(personCandidates({ firstName: 'Søren', lastName: 'Kjær' }, 'first.last').map((c) => c.local)).toEqual(['soren.kjaer', 'soeren.kjaer']);
+    expect(personCandidates({ firstName: 'Ole', lastName: 'Holm' }, null)).toHaveLength(5);
+  });
+
+  it('asks about the commercial team in the same session as the founders', async () => {
+    const { job, companyId } = await seed({
+      people: [
+        { first: 'Søren', last: 'Kjær', title: 'CEO', seniority: 'founder' },
+        { first: 'Ole', last: 'Holm', title: 'Head of Sales', seniority: 'director' },
+        { first: 'Ida', last: 'Lund', title: 'Growth Marketer', seniority: 'staff' },
+        { first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
+        { first: 'Eva', last: 'Sand', title: 'Partnerships Lead', seniority: 'manager' },
+        { first: 'Kim', last: 'Ravn', title: 'Account Executive', seniority: 'staff' },
+      ],
+      emails: ['anna@acme.dk'],
+    });
+    const v = stubVerifier({ accepts: ['soren@acme.dk', 'ole@acme.dk', 'ida@acme.dk', 'eva@acme.dk', 'kim@acme.dk'] });
+    await runPeople(deps(v), job, signal);
+    expect(v.asked).toHaveLength(1);
+    expect(v.asked[0]!.map((g) => g[0]!.address)).toEqual(['soren@acme.dk', 'ole@acme.dk', 'eva@acme.dk', 'ida@acme.dk', 'kim@acme.dk']);
+    const found = (await emailsOf(companyId)).filter((r) => r.found_via === 'pattern').map((r) => r.address);
+    expect(found.sort()).toEqual(['eva@acme.dk', 'ida@acme.dk', 'kim@acme.dk', 'ole@acme.dk', 'soren@acme.dk']);
   });
 });

@@ -1,25 +1,33 @@
 // The people job: turns the people a crawl found on a company's site into
 // personal addresses. It links addresses the site printed to their owners,
 // infers the domain's address pattern from addresses whose owner is known,
-// and asks the mail server about pattern candidates for up to three people
-// without an address, in one SMTP session. An accepted address is stored
+// and asks the mail server about pattern candidates for up to five people
+// without an address (decision makers, then the commercial team), in one
+// SMTP session. An accepted address is stored
 // like any found address and goes through the normal verify job, which the
 // probe's cache entry answers (and which charges the user).
 
 import { isDecisionMaker, type Seniority } from '@nvoke/shared';
-import { candidates, inferPattern, matchPerson, type KnownPair, type PatternId } from '../leads/patterns.js';
+import { isCommercialTitle, isOffTargetTitle } from '../leads/extract.js';
+import { candidates, inferPattern, matchPerson, type Candidate, type KnownPair, type PatternId } from '../leads/patterns.js';
 import { quotaExhausted } from '../leads/quota.js';
 import { PermanentError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import { isTempfail, type ProbeCandidate } from '../leads/verify/index.js';
 import { leadSettled } from '../webhooks/events.js';
-import { failSearch, GREYLIST_DELAY_MS, QUOTA_EXCEEDED, type PipelineDeps } from './pipeline.js';
+import { failSearch, GREYLIST_DELAY_MS, QUOTA_EXCEEDED, wakeDeferredChecks, type PipelineDeps } from './pipeline.js';
 import { enqueue, type Job } from './queue.js';
 
 /** People asked about per company. */
-export const PEOPLE_PER_COMPANY = 3;
-/** Candidates per person without a known pattern; with one, candidates() gives at most two. */
+export const PEOPLE_PER_COMPANY = 5;
+/** Candidates per person without a known pattern; with one, a person gets one (two for a name spelled two ways). */
 const CANDIDATES_UNKNOWN_PATTERN = 5;
+/**
+ * RCPT commands per session, the decoy included. With a known pattern that
+ * is the decoy and one per person; without one, the first hit teaches the
+ * session the pattern, so the people after it take one each.
+ */
+export const PEOPLE_MAX_RCPT = { knownPattern: PEOPLE_PER_COMPANY + 1, unknownPattern: 8 } as const;
 /** A probe that ended on greylisting or an unreachable server is tried once more. */
 const PEOPLE_RETRIES = 1;
 
@@ -61,12 +69,43 @@ function person(p: PersonRow) {
   return { firstName: p.first_name, lastName: p.last_name };
 }
 
-/** Decision makers first (founders before executives before directors), then other people with a title. */
-export function pickPeople(people: PersonRow[], max: number): PersonRow[] {
+/** 0 decision maker, 1 commercial team, 2 other titles, 3 off target. */
+function band(p: Pick<PersonRow, 'title' | 'seniority'>): number {
+  if (isDecisionMaker(p.seniority)) return 0;
+  if (isCommercialTitle(p.title)) return 1;
+  if (isOffTargetTitle(p.title, p.seniority)) return 3;
+  return 2;
+}
+
+/**
+ * Who a seller writes to first: decision makers (founders, then executives,
+ * then directors and heads), then the commercial team (sales, growth,
+ * marketing, business development, partnerships) by seniority, then other
+ * titled people, and staff in functions a seller does not write to (HR,
+ * support, bookkeeping) only when nobody else is left.
+ */
+export function pickPeople<T extends Pick<PersonRow, 'title' | 'seniority'>>(people: T[], max: number): T[] {
   return people
     .filter((p) => isDecisionMaker(p.seniority) || (p.title?.trim() ?? '') !== '')
-    .sort((a, b) => (a.seniority ? RANK[a.seniority] : 5) - (b.seniority ? RANK[b.seniority] : 5))
-    .slice(0, max);
+    .map((p, i) => ({ p, i }))
+    .sort(
+      (a, b) =>
+        band(a.p) - band(b.p) ||
+        (a.p.seniority ? RANK[a.p.seniority] : 5) - (b.p.seniority ? RANK[b.p.seniority] : 5) ||
+        a.i - b.i,
+    )
+    .slice(0, max)
+    .map(({ p }) => p);
+}
+
+/**
+ * Candidates for one person. With the domain's pattern known that is one
+ * address, plus the other spelling of the same pattern for a name spelled
+ * two ways (Søren: soren, soeren); never a guess at another pattern.
+ */
+export function personCandidates(who: { firstName: string; lastName: string }, pattern: PatternId | null): Candidate[] {
+  if (!pattern) return candidates(who, null, CANDIDATES_UNKNOWN_PATTERN);
+  return candidates(who, pattern, 2).filter((c) => c.pattern === pattern);
 }
 
 export async function runPeople(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
@@ -119,7 +158,8 @@ export async function runPeople(deps: PipelineDeps, job: Job, signal: AbortSigna
     select distinct e.address, e.first_name, e.last_name
     from emails e join companies c on c.id = e.company_id
     where c.domain = ${company.domain} and e.company_id <> ${company.id}
-      and e.first_name is not null and e.last_name is not null
+      -- Owners printed on a page or found by a probe; never names read from the address itself.
+      and e.person_id is not null and e.first_name is not null and e.last_name is not null
       and (e.found_via is distinct from 'pattern' or e.verification = 'valid')
     limit 50
   `;
@@ -130,21 +170,21 @@ export async function runPeople(deps: PipelineDeps, job: Job, signal: AbortSigna
   const inferred = inferPattern(pairs);
   const pattern: PatternId | null = inferred?.pattern ?? null;
 
-  // 3. Up to three people without an address, and their candidates.
+  // 3. Up to five people without an address, and their candidates.
   const targets = pickPeople(
     people.filter((p) => !linked.has(p.id)),
     PEOPLE_PER_COMPANY,
   );
   if (targets.length === 0) return;
-  const max = pattern ? 2 : CANDIDATES_UNKNOWN_PATTERN;
   const groups: ProbeCandidate[][] = targets.map((p) =>
-    candidates(person(p), pattern, max).map((c) => ({ address: `${c.local}@${company.domain}`, tag: c.pattern })),
+    personCandidates(person(p), pattern).map((c) => ({ address: `${c.local}@${company.domain}`, tag: c.pattern })),
   );
   const blocked = await suppressedAddresses(sql, groups.flat().map((c) => c.address));
   const allowed = groups.map((g) => g.filter((c) => !blocked.has(c.address)));
   if (allowed.every((g) => g.length === 0)) return;
 
-  const probe = await deps.verifier.probeDomain(company.domain, allowed, { signal });
+  const maxRcpt = pattern ? PEOPLE_MAX_RCPT.knownPattern : PEOPLE_MAX_RCPT.unknownPattern;
+  const probe = await deps.verifier.probeDomain(company.domain, allowed, { signal, maxRcpt });
   const log = deps.log.child({ companyId: company.id, domain: company.domain });
   log.debug(
     { people: targets.length, pattern, catchAll: probe.catchAll, accepted: probe.accepted.filter(Boolean).length, reason: probe.reason },
@@ -247,12 +287,16 @@ async function store(
  * Settles the company's lead after its people job is off the queue. leadSettled
  * waits while a people job is pending, so a company whose addresses all settled
  * while that job was queued needs one more attempt once it is done. New
- * personal addresses, if any, wait for their own verify jobs instead.
+ * personal addresses, if any, wait for their own verify jobs instead. The
+ * company's deferred checks decide again now that the job is off the queue.
  */
 export async function settleCompanyLead(deps: PipelineDeps, companyId: string): Promise<void> {
   await deps.sql.begin(async (tx) => {
     const [company] = await tx<{ id: string }[]>`select id from companies where id = ${companyId} for update`;
-    if (company) await leadSettled(tx, companyId);
+    if (!company) return;
+    await leadSettled(tx, companyId);
+    // Role inboxes and off-target staff waited for this job's addresses.
+    await wakeDeferredChecks(tx, companyId);
   });
 }
 

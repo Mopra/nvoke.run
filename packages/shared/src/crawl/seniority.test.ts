@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { looksLikeTitle, seniorityOf } from './seniority.ts';
+import { isCommercialTitle, isOffTargetTitle, looksLikeTitle, seniorityOf } from './seniority.ts';
 
 describe('seniorityOf', () => {
   it('reads founders, owners, CEOs, managing directors and partners in the languages nvoke sells in', () => {
@@ -80,5 +80,44 @@ describe('partners and MDs', () => {
     expect(seniorityOf('MD')).toBe('founder');
     expect(seniorityOf('MD & Founder')).toBe('founder');
     expect(seniorityOf('Cardiologist, MD')).toBe('staff');
+  });
+});
+
+describe('who a B2B seller writes to', () => {
+  it('knows the commercial team', () => {
+    for (const title of ['Head of Sales', 'VP Growth', 'Marketing Manager', 'Business Development Representative', 'SDR', 'Account Executive', 'Partnerships Lead', 'Salgschef', 'Vertriebsleiter', 'CMO', 'Head of Revenue']) {
+      expect(isCommercialTitle(title), title).toBe(true);
+    }
+    for (const title of ['Developer', 'HR Manager', 'CEO', null]) expect(isCommercialTitle(title), String(title)).toBe(false);
+  });
+
+  it('marks HR, recruiting, privacy, support, bookkeeping, office and intern titles as off target', () => {
+    for (const title of [
+      'HR Manager',
+      'Head of People & Culture',
+      'Talent Acquisition Specialist',
+      'Recruiter',
+      'Data Protection Officer',
+      'Customer Success Manager',
+      'Support Engineer',
+      'Kundeservice',
+      'Bookkeeper',
+      'Bogholder',
+      'Accountant',
+      'Office Manager',
+      'Receptionist',
+      'Executive Assistant',
+      'Marketing Intern',
+      'Praktikant',
+      'Personalleiterin',
+    ]) {
+      expect(isOffTargetTitle(title), title).toBe(true);
+    }
+  });
+
+  it('never marks founders, C level or the commercial team', () => {
+    for (const title of ['Founder & Head of People', 'CFO', 'Chief People Officer', 'Sales Support', 'Head of Sales', 'Developer', 'Designer', null]) {
+      expect(isOffTargetTitle(title), String(title)).toBe(false);
+    }
   });
 });

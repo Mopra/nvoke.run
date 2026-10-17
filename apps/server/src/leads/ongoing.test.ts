@@ -7,9 +7,12 @@ import { failSearch, maybeFinishSearch } from '../worker/pipeline.js';
 import { periodOf } from './plans.js';
 import {
   MAX_ESCALATIONS_PER_DAY,
+  MIN_SETTLED_FOR_RATE,
   STAGES,
   decide,
   markShortSearches,
+  projectVerified,
+  searchCounts,
   ongoingReserved,
   runOngoing,
   utcDay,
@@ -348,5 +351,68 @@ describe('ongoing', () => {
     await db.sql`delete from jobs where search_id = ${id}`;
     expect(await maybeFinishSearch(db.sql, id)).toBe(true);
     expect(await row(id)).toMatchObject({ status: 'done', stage: 'done', stage_note: 'Added 0 verified emails in this daily round, 0 in all. Next round tomorrow' });
+  });
+});
+
+describe('projectVerified', () => {
+  it('counts unchecked addresses at the valid rate seen so far, and one per people job', () => {
+    // 200 checks back, half valid: 60 unchecked bring about 30.
+    expect(projectVerified({ verified: 100, settled: 200, unchecked: 60, peoplePending: 4 })).toBe(134);
+    // Too few back to tell: every unchecked address counts.
+    expect(projectVerified({ verified: 5, settled: MIN_SETTLED_FOR_RATE - 1, unchecked: 60, peoplePending: 0 })).toBe(65);
+  });
+});
+
+describe('escalation while checks and people probes are left', () => {
+  async function withAddresses(id: string, n: number, verification: string | null) {
+    const [c] = await db.sql<{ id: string; clerk_user_id: string }[]>`select id, clerk_user_id from companies where search_id = ${id} limit 1`;
+    for (let i = 0; i < n; i++) {
+      await db.sql`
+        insert into emails (company_id, search_id, clerk_user_id, address, kind, verification, checked_at)
+        values (${c!.id}, ${id}, ${c!.clerk_user_id}, ${`p${verification ?? 'open'}${i}@co0.test`}, 'personal', ${verification}, ${verification ? new Date() : null})`;
+    }
+  }
+
+  it('holds a search whose open checks cannot close the gap at the rate seen so far, even with people jobs queued', async () => {
+    // Target 100: 40 valid of 100 checked, 80 open (about 32 more) and 3 people jobs: 75, short.
+    const id = await shortSearch('erin', 100, { validEmails: 40 });
+    await withAddresses(id, 60, 'invalid');
+    await withAddresses(id, 80, null);
+    const [c] = await db.sql<{ id: string }[]>`select id from companies where search_id = ${id} limit 1`;
+    for (let i = 0; i < 3; i++) {
+      await db.sql`insert into jobs (type, payload, search_id) values ('people', ${db.sql.json({ companyId: c!.id })}, ${id})`;
+    }
+    await db.sql`insert into jobs (type, payload, search_id) values ('verify', ${db.sql.json({ emailId: 'x' })}, ${id})`;
+    expect(await markShortSearches(db.sql)).toBe(1);
+    expect((await row(id)).stage).toBe(STAGES.hold);
+
+    // The tick starts the fresh round at once, with checks and people jobs still queued.
+    const result = await runOngoing(deps(), { daily: false });
+    expect(result.rounds).toBe(1);
+    expect((await row(id)).stage).toBe(STAGES.round);
+    expect(await findJobs(id)).toBe(1);
+  });
+
+  it('leaves a search alone while its open checks can still reach the target', async () => {
+    // 40 valid of 50 checked: 80 open at that rate bring 64, enough for 100.
+    const id = await shortSearch('frank', 100, { validEmails: 40 });
+    await withAddresses(id, 10, 'invalid');
+    await withAddresses(id, 80, null);
+    expect(await markShortSearches(db.sql)).toBe(0);
+    expect((await row(id)).stage).toBe('exhausted');
+  });
+
+  it('does not count role inboxes that will be left unchecked, or ones already left out', async () => {
+    const id = await shortSearch('gina', 100, { validEmails: 2 });
+    const [c] = await db.sql<{ id: string; clerk_user_id: string }[]>`select id, clerk_user_id from companies where search_id = ${id} limit 1`;
+    await db.sql`
+      insert into emails (company_id, search_id, clerk_user_id, address, kind, verification)
+      values (${c!.id}, ${id}, 'gina', 'mette@co0.test', 'personal', 'valid')`;
+    for (let i = 0; i < 150; i++) {
+      await db.sql`
+        insert into emails (company_id, search_id, clerk_user_id, address, kind, skipped)
+        values (${c!.id}, ${id}, 'gina', ${`role${i}@co0.test`}, 'generic', ${i % 2 ? 'role_inbox' : null})`;
+    }
+    expect((await searchCounts(db.sql, id)).unchecked).toBe(0);
   });
 });

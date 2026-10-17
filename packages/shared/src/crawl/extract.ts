@@ -173,6 +173,8 @@ const GENERIC_LOCALS = new Set([
   'tech', 'noreply', 'no-reply', 'no.reply', 'donotreply', 'algemeen', 'bureau', 'contacto', 'informacion',
   'kundenservice', 'anfrage', 'anfragen', 'empfang', 'zentrale', 'verwaltung', 'kunde', 'kunder', 'mailbox',
   'accueil', 'commercial', 'devis', 'vente', 'ventas', 'comercial', 'recrutement', 'emploi', 'werkstatt',
+  'datacontroller', 'data.controller', 'dataprotection', 'data.protection', 'datenschutz', 'backoffice', 'back.office',
+  'frontoffice', 'support.team', 'privacyofficer', 'impressum', 'kontaktformular',
 ]);
 
 const GENERIC_PREFIX = /^(info|contact|kontakt|support|sales|salg|booking|service|office|admin|post|mail|hello|team)[._-]/;

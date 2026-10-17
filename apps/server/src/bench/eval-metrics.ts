@@ -65,6 +65,8 @@ export interface EmailRow {
   seniority: string | null;
   /** page (printed on the site), pattern (built from the domain's pattern) or cache. */
   foundVia: string | null;
+  /** Left unchecked on purpose (a role inbox or off-target staff at a company with a better address). Absent before 1640. */
+  skipped?: boolean;
 }
 
 export interface SearchUsage {
@@ -99,10 +101,16 @@ export interface EntryMetrics {
   unknown: number;
   risky: number;
   invalid: number;
-  /** Not checked yet. */
+  /** Not checked yet, and not skipped on purpose. */
   pending: number;
+  /** Left unchecked on purpose: hidden, never charged. */
+  skipped: number;
   validPersonal: number;
   validNamed: number;
+  /** Valid, with first and last name and a title: the bar's "named people". */
+  validNamedTitled: number;
+  /** Valid decision makers (founder, executive, director). */
+  validDecisionMakers: number;
   /** Built from the domain's address pattern rather than read on a page. */
   pattern: number;
   validPattern: number;
@@ -185,9 +193,12 @@ export function entryMetrics(input: MetricsInput): EntryMetrics {
     unknown: count((e) => e.verification === 'unknown'),
     risky: count((e) => e.verification === 'risky'),
     invalid: count((e) => e.verification === 'invalid'),
-    pending: count((e) => e.verification === null),
+    pending: count((e) => e.verification === null && !e.skipped),
+    skipped: count((e) => e.verification === null && !!e.skipped),
     validPersonal: count((e) => e.verification === 'valid' && e.kind === 'personal'),
     validNamed: count((e) => e.verification === 'valid' && !!e.name),
+    validNamedTitled: count((e) => e.verification === 'valid' && !!e.name && !!e.title),
+    validDecisionMakers: count((e) => e.verification === 'valid' && isDecisionMaker(e)),
     pattern: count((e) => e.foundVia === 'pattern'),
     validPattern: count((e) => e.verification === 'valid' && e.foundVia === 'pattern'),
     braveRequests,
@@ -217,8 +228,11 @@ const SUMMED = [
   'risky',
   'invalid',
   'pending',
+  'skipped',
   'validPersonal',
   'validNamed',
+  'validNamedTitled',
+  'validDecisionMakers',
   'pattern',
   'validPattern',
   'braveRequests',
@@ -311,6 +325,8 @@ function row(m: EntryMetrics): string {
     pct(m.validRate),
     `${m.catchAll}/${m.unknown + m.risky}/${m.invalid}/${m.pending}`,
     `${m.validPersonal}/${m.validNamed}`,
+    m.valid > 0 ? `${pct(m.validNamedTitled / m.valid)} / ${pct(m.validDecisionMakers / m.valid)}` : 'n/a',
+    m.skipped,
     `${m.pattern}/${m.validPattern}`,
     `${m.braveRequests}+${m.braveCacheHits}`,
     `${money(m.braveCostUsd)} (${money(m.bravePaidUsd)})`,
@@ -321,8 +337,8 @@ function row(m: EntryMetrics): string {
 }
 
 const HEADER = [
-  '| entry | min | ended | companies | crawled | w/ email | emails | pers/gen | named/titled/DM | valid | valid rate | catch-all/unk/inv/pending | valid pers/named | pattern/valid | Brave req+hits | Brave $ (paid) | AI $ | $/valid |',
-  '|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
+  '| entry | min | ended | companies | crawled | w/ email | emails | pers/gen | named/titled/DM | valid | valid rate | catch-all/unk/inv/pending | valid pers/named | valid named+titled / DM | skipped | pattern/valid | Brave req+hits | Brave $ (paid) | AI $ | $/valid |',
+  '|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
 ];
 
 /** One markdown table per snapshot, then the judges and the would-email sample of `nvoke-customers`. */

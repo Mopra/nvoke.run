@@ -23,6 +23,9 @@ export interface JudgeCompany {
   website: string;
   category: string | null;
   location: string | null;
+  /** Where the lead finder found it, for example `hiring` for a public job post. */
+  source: string | null;
+  sourceRef: string | null;
   title: string;
   description: string;
 }
@@ -52,8 +55,19 @@ async function liveHead(website: string): Promise<{ title: string; description: 
 
 /** The ICP sample of an entry's searches: stored homepage text where the crawl kept it, else fetched live. */
 export async function icpSample(sql: Sql, searchIds: string[], rng: () => number): Promise<JudgeCompany[]> {
-  const rows = await sql<{ id: string; name: string; domain: string; website: string; category: string | null; location: string | null }[]>`
-    select id, name, domain, website, category, location from companies
+  const rows = await sql<
+    {
+      id: string;
+      name: string;
+      domain: string;
+      website: string;
+      category: string | null;
+      location: string | null;
+      source: string | null;
+      sourceRef: string | null;
+    }[]
+  >`
+    select id, name, domain, website, category, location, source, source_ref as "sourceRef" from companies
     where search_id in ${sql(searchIds)} order by id
   `;
   const picked = sample(rows, ICP_SAMPLE, rng);
@@ -156,6 +170,8 @@ export function icpPrompt(intent: string, companies: JudgeCompany[]): string {
         c.location ? `location: ${line(c.location)}` : '',
         c.title ? `homepage title: ${line(c.title)}` : '',
         c.description ? `description: ${line(c.description)}` : '',
+        // Facts, not the scorer's opinion: a company found through its own job post is hiring now.
+        c.source === 'hiring' && c.sourceRef ? `found through a public job post: ${line(c.sourceRef)}` : '',
       ]
         .filter(Boolean)
         .join('; '),

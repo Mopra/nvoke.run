@@ -125,7 +125,8 @@ async function takeSnapshot(
   const emails = await sql<EmailRow[]>`
     select e.company_id as "companyId", e.search_id as "searchId", e.kind, e.verification,
       ${sql.unsafe(columns.name)} as name, ${sql.unsafe(columns.title)} as title, ${sql.unsafe(columns.seniority)} as seniority,
-      ${sql.unsafe(columns.foundVia)} as "foundVia"
+      ${sql.unsafe(columns.foundVia)} as "foundVia",
+      (to_jsonb(e) ->> 'skipped') is not null as skipped
     from emails e where e.search_id in ${sql(allIds)}
   `;
   const searches = await sql<(SearchUsage & { finishedAt: Date | null })[]>`

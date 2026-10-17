@@ -16,7 +16,17 @@ import { addressHash, domainHash, suppress } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
-import { GREYLIST_DELAY_MS, GREYLIST_RETRIES, runVerify, type PipelineDeps } from './pipeline.js';
+import { settleCompanyLead } from './people-job.js';
+import {
+  CHECK_DEFER_MS,
+  GREYLIST_DELAY_MS,
+  GREYLIST_RETRIES,
+  MAX_CHECK_DEFERS,
+  MAX_CHECK_WAIT_MS,
+  maybeFinishSearch,
+  runVerify,
+  type PipelineDeps,
+} from './pipeline.js';
 import type { Job } from './queue.js';
 import { Runner } from './runner.js';
 
@@ -24,6 +34,9 @@ let db: TestDb;
 
 beforeAll(async () => {
   db = await createTestDb();
+  // These tests run the pipeline with role inbox checks switched on (the stub calls info@ valid);
+  // the check policy, inboxes off included, has its own tests below and in leads/check-policy.test.ts.
+  await db.sql`alter table searches alter column check_inboxes set default true`;
 });
 afterAll(async () => {
   await db.drop();
@@ -685,8 +698,8 @@ describe('greylisting', () => {
     const search = await createSearch(db.sql, 'u1', LOCAL, 10);
     await db.sql`update searches set status = 'running' where id = ${search.id}`;
     const [company] = await db.sql<{ id: string }[]>`
-      insert into companies (search_id, clerk_user_id, name, domain, website, source)
-      values (${search.id}, 'u1', 'Grey', 'grey.dk', 'https://grey.dk', 'test') returning id
+      insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status)
+      values (${search.id}, 'u1', 'Grey', 'grey.dk', 'https://grey.dk', 'test', 'done') returning id
     `;
     const [email] = await db.sql<{ id: string }[]>`
       insert into emails (company_id, search_id, clerk_user_id, address, kind)
@@ -731,5 +744,201 @@ describe('greylisting', () => {
     expect(again!.run_after.getTime() - now.getTime()).toBeGreaterThanOrEqual(30_000);
     expect(again!.run_after.getTime() - now.getTime()).toBeLessThan(90_000);
     expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBeNull();
+  });
+});
+
+describe('check policy', () => {
+  /** Valid for the addresses given, invalid otherwise; counts what it was asked. */
+  function countingVerifier(valid: string[]) {
+    const asked: string[] = [];
+    return {
+      asked,
+      verify: async (address: string) => {
+        asked.push(address);
+        return { address, verification: valid.includes(address) ? ('valid' as const) : ('invalid' as const), mxHost: 'mx.test', reason: 'stub' };
+      },
+    };
+  }
+
+  type Seed = { address: string; kind: string; first?: string; last?: string; title?: string; seniority?: string };
+
+  async function seedCompany(emails: Seed[], { checkInboxes = false } = {}) {
+    await ensureAccount(db.sql, 'u1');
+    const [hook] = await db.sql<{ id: string }[]>`
+      insert into webhooks (clerk_user_id, url, secret, events) values ('u1', 'https://hooks.example.com/x', 'whsec_eA==', '{lead.ready}') returning id`;
+    const search = await createSearch(db.sql, 'u1', LOCAL, 10);
+    await db.sql`update searches set status = 'running', check_inboxes = ${checkInboxes} where id = ${search.id}`;
+    await db.sql`delete from jobs`;
+    const [company] = await db.sql<{ id: string }[]>`
+      insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status)
+      values (${search.id}, 'u1', 'Acme', 'acme.dk', 'https://acme.dk', 'test', 'done') returning id
+    `;
+    const ids: Record<string, string> = {};
+    for (const m of emails) {
+      const [row] = await db.sql<{ id: string }[]>`
+        insert into emails (company_id, search_id, clerk_user_id, address, kind, first_name, last_name, title, seniority)
+        values (${company!.id}, ${search.id}, 'u1', ${m.address}, ${m.kind}, ${m.first ?? null}, ${m.last ?? null}, ${m.title ?? null}, ${m.seniority ?? null})
+        returning id
+      `;
+      ids[m.address] = row!.id;
+    }
+    return { searchId: search.id, companyId: company!.id, ids, hookId: hook!.id };
+  }
+
+  const job = (emailId: string, searchId: string, extra: Record<string, unknown> = {}): Job => ({
+    id: '1',
+    type: 'verify',
+    payload: { emailId, ...extra },
+    searchId,
+    attempts: 1,
+    maxAttempts: 3,
+  });
+  const signal = new AbortController().signal;
+  const row = async (id: string) =>
+    (await db.sql<{ verification: string | null; skipped: string | null }[]>`select verification, skipped from emails where id = ${id}`)[0];
+  const queued = async () =>
+    db.sql<{ due: boolean; payload: Record<string, unknown> }[]>`select run_after <= now() as due, payload from jobs where type = 'verify' and status = 'queued'`;
+  const mette: Seed = { address: 'mette.hansen@acme.dk', kind: 'personal', first: 'Mette', last: 'Hansen', title: 'CEO', seniority: 'founder' };
+
+  it('leaves role inboxes unchecked and free unless the search asks, and still settles the lead and finishes', async () => {
+    const { searchId, companyId, ids, hookId } = await seedCompany([{ address: 'info@acme.dk', kind: 'generic' }, mette]);
+    const v = countingVerifier(['mette.hansen@acme.dk', 'info@acme.dk']);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['info@acme.dk']!, searchId), signal);
+    expect(await row(ids['info@acme.dk']!)).toEqual({ verification: null, skipped: 'role_inbox' });
+    await runVerify(d, job(ids['mette.hansen@acme.dk']!, searchId), signal);
+    expect(v.asked).toEqual(['mette.hansen@acme.dk']);
+    const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
+    expect(usage?.emails_verified).toBe(1);
+    expect(await db.sql`select 1 from webhook_deliveries where webhook_id = ${hookId} and company_id = ${companyId}`).toHaveLength(1);
+    expect(await maybeFinishSearch(db.sql, searchId)).toBe(true);
+    const page = await listCompanies(db.sql, 'u1', searchId, { limit: 10 });
+    expect(page?.companies[0]?.emails.map((x) => x.address)).toEqual(['mette.hansen@acme.dk']);
+  });
+
+  it('with check_inboxes, waits for the named people and checks the inbox only when none is valid', async () => {
+    const { searchId, ids } = await seedCompany([{ address: 'info@acme.dk', kind: 'generic' }, mette], { checkInboxes: true });
+    const v = countingVerifier(['info@acme.dk']);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    const now = Date.now();
+    await runVerify(d, job(ids['info@acme.dk']!, searchId), signal);
+    const [deferred] = await db.sql<{ payload: { deferred?: boolean; defers?: number }; run_after: Date }[]>`select payload, run_after from jobs where type = 'verify'`;
+    expect(deferred?.payload).toMatchObject({ deferred: true, defers: 1 });
+    expect(deferred!.run_after.getTime()).toBeGreaterThanOrEqual(now + CHECK_DEFER_MS - 5_000);
+    // Mette settles: the wait ends at once.
+    await runVerify(d, job(ids['mette.hansen@acme.dk']!, searchId), signal);
+    expect((await queued())[0]?.due).toBe(true);
+    await db.sql`update jobs set status = 'done' where type = 'verify'`;
+    await runVerify(d, job(ids['info@acme.dk']!, searchId, { deferred: true, defers: 1 }), signal);
+    expect(v.asked).toEqual(['mette.hansen@acme.dk', 'info@acme.dk']);
+    expect(await row(ids['info@acme.dk']!)).toEqual({ verification: 'valid', skipped: null });
+  });
+
+  it('waits for the people job, and wakes when it is done', async () => {
+    const { searchId, companyId, ids } = await seedCompany([{ address: 'info@acme.dk', kind: 'generic' }], { checkInboxes: true });
+    await db.sql`insert into jobs (type, payload, search_id) values ('people', ${db.sql.json({ companyId })}, ${searchId})`;
+    const v = countingVerifier(['info@acme.dk']);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['info@acme.dk']!, searchId), signal);
+    expect(v.asked).toEqual([]);
+    expect((await queued())[0]?.due).toBe(false);
+    await db.sql`update jobs set status = 'done' where type = 'people'`;
+    await settleCompanyLead(d, companyId);
+    expect((await queued())[0]?.due).toBe(true);
+    await runVerify(d, job(ids['info@acme.dk']!, searchId, { deferred: true }), signal);
+    expect(v.asked).toEqual(['info@acme.dk']);
+  });
+
+  it('leaves off-target staff and unnamed addresses out once a named lead is valid', async () => {
+    const { searchId, ids } = await seedCompany([
+      { address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
+      { address: 'mh@acme.dk', kind: 'personal' },
+      { address: 'ole.holm@acme.dk', kind: 'personal', first: 'Ole', last: 'Holm', title: 'Head of Sales', seniority: 'director' },
+    ]);
+    const v = countingVerifier(['ole.holm@acme.dk', 'bo.dam@acme.dk', 'mh@acme.dk']);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['mh@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['ole.holm@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true }), signal);
+    await runVerify(d, job(ids['mh@acme.dk']!, searchId, { deferred: true }), signal);
+    expect(v.asked).toEqual(['ole.holm@acme.dk']);
+    expect(await row(ids['bo.dam@acme.dk']!)).toEqual({ verification: null, skipped: 'off_target' });
+    expect(await row(ids['mh@acme.dk']!)).toEqual({ verification: null, skipped: 'unnamed' });
+  });
+
+  it('checks two off-target directors at once instead of letting them wait on each other', async () => {
+    const { searchId, ids } = await seedCompany([
+      { address: 'hr@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Director', seniority: 'director' },
+      { address: 'fin@acme.dk', kind: 'personal', first: 'Ida', last: 'Lund', title: 'Finance Director', seniority: 'director' },
+    ]);
+    const v = countingVerifier([]);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['hr@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['fin@acme.dk']!, searchId), signal);
+    expect(v.asked).toEqual(['hr@acme.dk', 'fin@acme.dk']);
+    expect(await queued()).toHaveLength(0);
+  });
+
+  it('stops waiting after MAX_CHECK_DEFERS defers or MAX_CHECK_WAIT_MS', async () => {
+    const { searchId, ids } = await seedCompany([
+      { address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
+      mette,
+    ]);
+    const v = countingVerifier([]);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true, defers: MAX_CHECK_DEFERS }), signal);
+    expect(v.asked).toEqual(['bo.dam@acme.dk']);
+    await db.sql`update emails set verification = null where id = ${ids['bo.dam@acme.dk']!}`;
+    const since = new Date(Date.now() - MAX_CHECK_WAIT_MS - 1_000).toISOString();
+    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true, defers: 1, deferredSince: since }), signal);
+    expect(v.asked).toEqual(['bo.dam@acme.dk', 'bo.dam@acme.dk']);
+  });
+
+  it('records an address that became unnecessary during its check as skipped, not charged', async () => {
+    const { searchId, ids } = await seedCompany([
+      { address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
+      mette,
+    ]);
+    // Mette comes back valid while Bo's check is on the wire.
+    const v = {
+      verify: async (address: string) => {
+        await db.sql`update emails set verification = 'valid' where id = ${ids['mette.hansen@acme.dk']!}`;
+        return { address, verification: 'valid' as const, mxHost: 'mx.test', reason: 'stub' };
+      },
+    };
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true, defers: MAX_CHECK_DEFERS }), signal);
+    expect(await row(ids['bo.dam@acme.dk']!)).toEqual({ verification: null, skipped: 'off_target' });
+    expect(await db.sql`select 1 from usage where clerk_user_id = 'u1' and emails_verified > 0`).toHaveLength(0);
+  });
+});
+
+describe('names read from addresses', () => {
+  it('names anna.berg@ when nobody was printed for it, with less confidence and no title', async () => {
+    const named = fakeFetch({
+      'https://named.dk/': { body: '<p>Skriv til anna.berg@named.dk, max@named.dk, sales.team@named.dk eller info@named.dk</p>' },
+    });
+    await ensureAccount(db.sql, 'u1');
+    const search = await createSearch(db.sql, 'u1', LOCAL, 10);
+    const limiter = new RateLimiter(1);
+    const d = {
+      ...deps(adapterOf([{ name: 'Named', website: 'https://named.dk', source: 'test' }])),
+      crawl: { fetch: named, limiter, robots: new RobotsCache({ fetch: named, limiter }) },
+    };
+    const runner = new Runner(d, { concurrency: 4, pollMs: 20 });
+    runner.start();
+    try {
+      await waitFor(search.id, ['done', 'failed']);
+    } finally {
+      await runner.stop(5_000);
+    }
+    const emails = await db.sql`select address, first_name, last_name, title, confidence from emails where search_id = ${search.id} order by address`;
+    expect(emails).toEqual([
+      { address: 'anna.berg@named.dk', first_name: 'Anna', last_name: 'Berg', title: null, confidence: 80 },
+      { address: 'info@named.dk', first_name: null, last_name: null, title: null, confidence: 60 },
+      { address: 'max@named.dk', first_name: null, last_name: null, title: null, confidence: 90 },
+      { address: 'sales.team@named.dk', first_name: null, last_name: null, title: null, confidence: 60 },
+    ]);
   });
 });

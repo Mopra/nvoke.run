@@ -20,6 +20,11 @@ export interface VerifyPayload {
   emailId: string;
   /** Greylisting retries so far. */
   retry?: number;
+  /** Waiting for the company's other checks (checkPolicy); wakeDeferredChecks runs it early. */
+  deferred?: boolean;
+  /** How often and since when (ISO) it waited, so it stops at MAX_CHECK_DEFERS or MAX_CHECK_WAIT_MS. */
+  defers?: number;
+  deferredSince?: string;
 }
 export interface OpenerPayload {
   /** Up to OPENER_BATCH companies of one user, drafted in one Claude call. */

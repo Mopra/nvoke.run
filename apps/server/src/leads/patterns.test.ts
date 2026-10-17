@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPattern, candidates, firstNameParts, inferPattern, lastNameParts, matchPerson } from './patterns.js';
+import { applyPattern, candidates, firstNameParts, inferPattern, lastNameParts, matchPerson, nameFromLocal } from './patterns.js';
 
 describe('name parts', () => {
   it('spells Nordic and German letters the usual way first, then the other', () => {
@@ -99,5 +99,30 @@ describe('candidates', () => {
 
   it('copes with a missing last name', () => {
     expect(candidates({ firstName: 'Anna', lastName: '' }, null, 5).map((c) => c.local)).toEqual(['anna']);
+  });
+});
+
+describe('nameFromLocal', () => {
+  it('reads first.last, first_last and first-last when both parts read as a name', () => {
+    expect(nameFromLocal('anna.berg')).toEqual({ firstName: 'Anna', lastName: 'Berg' });
+    expect(nameFromLocal('john_smith')).toEqual({ firstName: 'John', lastName: 'Smith' });
+    expect(nameFromLocal('lars-nielsen')).toEqual({ firstName: 'Lars', lastName: 'Nielsen' });
+    expect(nameFromLocal('Mette.Hansen+news')).toEqual({ firstName: 'Mette', lastName: 'Hansen' });
+  });
+
+  it('leaves lone first names, initials, functions and unknown first parts unnamed', () => {
+    for (const local of ['max', 'jd', 'j.smith', 'anna.b', 'accounts.payable', 'web.design', 'sales.team', 'press.office', 'xq.berg', 'anna.berg.dk', 'anna.anna']) {
+      expect(nameFromLocal(local), local).toBeNull();
+    }
+    // Words of a company or a page are not a last name.
+    expect(nameFromLocal('anna.marketing')).toBeNull();
+    // Double first names are one first name.
+    for (const local of ['anne-marie', 'hans-peter', 'karl-heinz', 'jean-luc', 'marie-louise']) expect(nameFromLocal(local), local).toBeNull();
+    expect(nameFromLocal('anne.marie')).toEqual({ firstName: 'Anne', lastName: 'Marie' });
+  });
+
+  it('takes a first name the site printed even when it is not a common one', () => {
+    expect(nameFromLocal('zlatko.berg')).toBeNull();
+    expect(nameFromLocal('zlatko.berg', [{ firstName: 'Zlatko', lastName: 'Ibsen' }])).toEqual({ firstName: 'Zlatko', lastName: 'Berg' });
   });
 });

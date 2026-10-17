@@ -160,7 +160,7 @@ export async function searchMore(
     `;
     const verifies = await tx<{ id: string }[]>`
       select e.id from emails e
-      where e.search_id = ${id} and e.verification is null
+      where e.search_id = ${id} and e.verification is null and e.skipped is null
         and not exists (
           select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status in ('queued', 'running')
             and j.payload->>'emailId' = e.id::text
@@ -220,7 +220,7 @@ export async function startAutoRun(
     `;
     const verifies = await tx<{ id: string }[]>`
       select e.id from emails e
-      where e.search_id = ${id} and e.verification is null
+      where e.search_id = ${id} and e.verification is null and e.skipped is null
         and not exists (
           select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status in ('queued', 'running')
             and j.payload->>'emailId' = e.id::text

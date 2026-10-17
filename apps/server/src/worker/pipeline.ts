@@ -1,7 +1,7 @@
 // Job handlers for one search: find -> crawl (per company) -> verify (per email).
 
 import type { Logger } from 'pino';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import {
   DomainsSearchParams,
   IcpSearchParams,
@@ -16,7 +16,9 @@ import { DropRunInternal } from '../feed/drops.js';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
 import { cachedCrawl, isCacheable, recentPeopleRead, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
 import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
-import { classifyAddress, mergePeople, personForAddress, type FoundPerson } from '../leads/extract.js';
+import { checkPolicy, checkTier, type Decision, type PolicyContext, type PolicyEmail, type PolicySelf } from '../leads/check-policy.js';
+import { classifyAddress, companyAsPerson, mergePeople, personForAddress, type FoundPerson } from '../leads/extract.js';
+import { nameFromLocal } from '../leads/patterns.js';
 import type { SitePage } from '../leads/page-text.js';
 import { needsPeopleLlm, peopleFromText } from '../leads/people-llm.js';
 import { chargeVerified, quotaExhausted } from '../leads/quota.js';
@@ -292,6 +294,7 @@ interface CompanyRow {
   id: string;
   search_id: string;
   clerk_user_id: string;
+  name: string;
   domain: string;
   website: string;
   crawl_status: string;
@@ -301,7 +304,7 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   const { sql } = deps;
   const companyId = str(job.payload, 'companyId');
   const [company] = await sql<CompanyRow[]>`
-    select id, search_id, clerk_user_id, domain, website, crawl_status from companies where id = ${companyId}
+    select id, search_id, clerk_user_id, name, domain, website, crawl_status from companies where id = ${companyId}
   `;
   if (!company || company.crawl_status !== 'pending') return;
   if ((await searchStatus(sql, company.search_id)) !== 'running') return;
@@ -363,8 +366,13 @@ interface FoundEmail {
   foundVia: 'page' | 'cache';
 }
 
-/** How sure nvoke is that a printed address reaches a person or an inbox (emails.confidence). */
-export const PAGE_CONFIDENCE = { personal: 90, generic: 60 } as const;
+/**
+ * How sure nvoke is that a printed address reaches a person or an inbox
+ * (emails.confidence). An address whose owner's name was read from the
+ * address itself (anna.berg@, nobody printed for it) is less sure of the
+ * person than one printed next to their name.
+ */
+export const PAGE_CONFIDENCE = { personal: 90, nameFromAddress: 80, generic: 60 } as const;
 
 interface FinishOptions {
   /** Set for a real crawl, which also refreshes the shared cache. */
@@ -390,6 +398,8 @@ async function finishCrawl(
   { crawledAt, texts, people = [], peopleRead = false }: FinishOptions = {},
 ): Promise<void> {
   const { sql } = deps;
+  // A "person" that is the company itself ("Agence Nova" on agencenova.com) is not one.
+  people = people.filter((p) => !companyAsPerson(p, company.name));
   const stored = await sql.begin(async (tx) => {
     // Only the first finisher records the crawl (guards against a retried job).
     const claimed = await tx`
@@ -444,6 +454,8 @@ async function finishCrawl(
       const owners = named.map((p) => ({ firstName: p.first_name, lastName: p.last_name, row: p }));
       const rows = emails.map((e) => {
         const owner = e.kind === 'personal' ? personForAddress(e.address, owners)?.row : undefined;
+        // Nobody printed for it: anna.berg@ still names Anna Berg, with no title and less confidence.
+        const read = e.kind === 'personal' && !owner ? nameFromLocal(e.address.slice(0, e.address.lastIndexOf('@')), owners) : null;
         return {
           company_id: company.id,
           search_id: company.search_id,
@@ -452,12 +464,12 @@ async function finishCrawl(
           kind: e.kind,
           source_url: e.sourceUrl,
           person_id: owner?.id ?? null,
-          first_name: owner?.first_name ?? null,
-          last_name: owner?.last_name ?? null,
+          first_name: owner?.first_name ?? read?.firstName ?? null,
+          last_name: owner?.last_name ?? read?.lastName ?? null,
           title: owner?.title ?? null,
           seniority: owner?.seniority ?? null,
           found_via: e.foundVia,
-          confidence: PAGE_CONFIDENCE[e.kind],
+          confidence: read ? PAGE_CONFIDENCE.nameFromAddress : PAGE_CONFIDENCE[e.kind],
         };
       });
       const inserted = await tx<{ id: string; kind: string; seniority: string | null; first_name: string | null }[]>`
@@ -530,6 +542,104 @@ export async function onCrawlGaveUp(deps: PipelineDeps, job: Job): Promise<void>
 export const GREYLIST_RETRIES = 2;
 export const GREYLIST_DELAY_MS = 10 * 60_000;
 
+/**
+ * A check that waits for the company's better addresses is woken as soon as
+ * one of them settles (wakeDeferredChecks); this is only the fallback.
+ */
+export const CHECK_DEFER_MS = 5 * 60_000;
+/** A check stops waiting after this many defers or this long, whichever comes first, and is decided. */
+export const MAX_CHECK_DEFERS = 12;
+export const MAX_CHECK_WAIT_MS = 30 * 60_000;
+
+/** The company and search around an address, as checkPolicy needs them. Takes the company's lock. */
+async function policyContext(
+  tx: TransactionSql,
+  emailId: string,
+  companyId: string,
+  searchId: string,
+): Promise<{ others: PolicyEmail[]; ctx: Omit<PolicyContext, 'force'> } | null> {
+  const [company] = await tx<{ crawl_status: string; people_pending: boolean; check_inboxes: boolean }[]>`
+    select c.crawl_status, exists (
+      select 1 from jobs j
+      where j.type = 'people' and j.status in ('queued', 'running') and j.payload->>'companyId' = c.id::text
+    ) as people_pending,
+    coalesce((select (to_jsonb(s) ->> 'check_inboxes')::boolean from searches s where s.id = ${searchId}), false) as check_inboxes
+    from companies c where c.id = ${companyId}
+    for update of c
+  `;
+  if (!company) return null;
+  const others = await tx<PolicyEmail[]>`
+    select kind, first_name, last_name, seniority, title, verification, skipped from emails
+    where company_id = ${companyId} and id <> ${emailId}
+  `;
+  return {
+    others,
+    ctx: { crawlPending: company.crawl_status === 'pending', peoplePending: company.people_pending, checkInboxes: company.check_inboxes },
+  };
+}
+
+/** How long a deferred check has waited, from its payload. */
+interface Waited {
+  defers: number;
+  since: string | null;
+}
+
+/**
+ * Applies checkPolicy under the company's lock (the one recordVerification
+ * takes), so a decision sees every settled check of the company and a
+ * deferred check is queued before anyone can look for it to wake. A skip is
+ * recorded here and may settle the company's lead. A check that waited
+ * MAX_CHECK_DEFERS times or MAX_CHECK_WAIT_MS is decided without waiting more.
+ */
+async function decideCheck(
+  deps: PipelineDeps,
+  emailId: string,
+  job: { searchId: string; retry: number; priority: number; waited: Waited },
+): Promise<Decision | 'gone'> {
+  return deps.sql.begin(async (tx) => {
+    const [self] = await tx<(PolicySelf & { company_id: string; search_id: string; verification: Verification | null; skipped: string | null })[]>`
+      select company_id, search_id, kind, first_name, last_name, seniority, title, verification, skipped from emails where id = ${emailId} for update
+    `;
+    if (!self || self.verification || self.skipped) return 'gone';
+    if (checkTier(self) === 'primary') return 'check';
+    const around = await policyContext(tx, emailId, self.company_id, self.search_id);
+    if (!around) return 'gone';
+    const now = deps.now?.() ?? new Date();
+    const since = job.waited.since ?? now.toISOString();
+    const force = job.waited.defers >= MAX_CHECK_DEFERS || now.getTime() - new Date(since).getTime() >= MAX_CHECK_WAIT_MS;
+    const decision = checkPolicy(self, around.others, { ...around.ctx, force });
+    if (decision === 'skip') {
+      await tx`update emails set skipped = ${checkTier(self)} where id = ${emailId}`;
+      await leadSettled(tx, self.company_id);
+    } else if (decision === 'defer') {
+      // Not a retry: the company's other checks decide whether this one is needed.
+      await enqueue(tx, {
+        type: 'verify',
+        payload: { emailId, retry: job.retry, deferred: true, defers: job.waited.defers + 1, deferredSince: since },
+        searchId: job.searchId,
+        runAfter: new Date(now.getTime() + CHECK_DEFER_MS),
+        priority: job.priority,
+      });
+    }
+    return decision;
+  });
+}
+
+/**
+ * Wakes the company's deferred checks (checkPolicy) to decide again now: a
+ * check of the company settled, or its people job finished. Call it holding
+ * the company's lock.
+ */
+export async function wakeDeferredChecks(tx: TransactionSql, companyId: string): Promise<void> {
+  await tx`
+    update jobs set run_after = now()
+    where type = 'verify' and status = 'queued' and payload ? 'deferred' and run_after > now()
+      and payload->>'emailId' in (
+        select id::text from emails where company_id = ${companyId} and verification is null and skipped is null
+      )
+  `;
+}
+
 export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const emailId = str(job.payload, 'emailId');
@@ -539,14 +649,15 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
       search_id: string;
       clerk_user_id: string;
       verification: Verification | null;
+      skipped: string | null;
       kind: string;
       seniority: string | null;
       first_name: string | null;
     }[]
   >`
-    select address, search_id, clerk_user_id, verification, kind, seniority, first_name from emails where id = ${emailId}
+    select address, search_id, clerk_user_id, verification, skipped, kind, seniority, first_name from emails where id = ${emailId}
   `;
-  if (!email || email.verification) return;
+  if (!email || email.verification || email.skipped) return;
   const status = await searchStatus(sql, email.search_id);
   if (status === null || status === 'canceled') return;
   if (await quotaExhausted(sql, email.clerk_user_id, deps.now?.())) {
@@ -554,8 +665,15 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
     return;
   }
 
-  const result = await deps.verifier.verify(email.address, signal);
   const retry = typeof job.payload.retry === 'number' ? job.payload.retry : 0;
+  const waited = {
+    defers: typeof job.payload.defers === 'number' ? job.payload.defers : 0,
+    since: typeof job.payload.deferredSince === 'string' ? job.payload.deferredSince : null,
+  };
+  const decision = await decideCheck(deps, emailId, { searchId: email.search_id, retry, priority: verifyPriority(email), waited });
+  if (decision !== 'check') return;
+
+  const result = await deps.verifier.verify(email.address, signal);
   if (result.reason === 'smtp_paced') {
     // Over the probe budget for this minute: come back when a slot frees up, spread out. Not a retry.
     const now = deps.now?.() ?? new Date();
@@ -589,17 +707,28 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
 /**
  * Records a check. A valid address is charged in the same transaction; when
  * the allowance ran out meanwhile, it stays unchecked (and hidden) and the
- * search stops with quota_exceeded.
+ * search stops with quota_exceeded. The policy is applied once more under
+ * the company's lock: a role inbox, off-target or unnamed address that
+ * became unnecessary while it was checked (a colleague came back valid) is
+ * recorded skipped and not charged.
  */
 async function recordVerification(deps: PipelineDeps, emailId: string, verification: Verification): Promise<void> {
   const { sql } = deps;
   const outcome = await sql.begin(async (tx) => {
-    const [email] = await tx<{ search_id: string; company_id: string; clerk_user_id: string; address: string }[]>`
-      select search_id, company_id, clerk_user_id, address from emails
-      where id = ${emailId} and verification is null
+    const [email] = await tx<(PolicySelf & { search_id: string; company_id: string; clerk_user_id: string; address: string })[]>`
+      select search_id, company_id, clerk_user_id, address, kind, first_name, last_name, seniority, title from emails
+      where id = ${emailId} and verification is null and skipped is null
       for update
     `;
     if (!email) return null;
+    // Checks of one company finishing together queue behind this lock, so
+    // the last one sees every other result and announces the lead.
+    const around = await policyContext(tx, emailId, email.company_id, email.search_id);
+    if (around && checkTier(email) !== 'primary' && checkPolicy(email, around.others, { ...around.ctx, force: true }) === 'skip') {
+      await tx`update emails set skipped = ${checkTier(email)} where id = ${emailId}`;
+      await leadSettled(tx, email.company_id);
+      return { searchId: email.search_id, overLimit: false };
+    }
     if (verification === 'valid') {
       const charge = await chargeVerified(tx, email.clerk_user_id, email.address, deps.now?.());
       if (charge === 'over_limit') return { searchId: email.search_id, overLimit: true };
@@ -608,10 +737,8 @@ async function recordVerification(deps: PipelineDeps, emailId: string, verificat
     if (verification === 'valid') {
       await tx`update searches set emails_valid = emails_valid + 1 where id = ${email.search_id}`;
     }
-    // Checks of one company finishing together queue behind this lock, so
-    // the last one sees every other result and announces the lead.
-    await tx`select id from companies where id = ${email.company_id} for update`;
     await leadSettled(tx, email.company_id);
+    await wakeDeferredChecks(tx, email.company_id);
     return { searchId: email.search_id, overLimit: false };
   });
   if (outcome?.overLimit) {

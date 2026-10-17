@@ -4,6 +4,8 @@
 // is known, and candidates for a named person come out in the order most
 // likely to exist: the domain's own pattern when known, else a global prior.
 
+import { isFirstName, parseName } from './extract.js';
+
 export type PatternId =
   | 'first'
   | 'first.last'
@@ -262,4 +264,33 @@ export function candidates(person: NamedPerson, pattern: PatternId | null, max: 
     if (out.length >= max) break;
   }
   return out.slice(0, max);
+}
+
+/** The separators of a two part local part that names a person. */
+const NAME_LOCAL = /^([a-z]{2,20})([._-])([a-z]{2,25})$/;
+
+/** Second halves of double first names that are not common first names on their own: Karl-Heinz, Hans-Jürgen. */
+const DOUBLE_FIRST_SECOND = new Set(['heinz', 'juergen', 'jurgen', 'joergen', 'jorgen', 'dieter', 'uwe', 'olof', 'kristin', 'christin', 'luc', 'yves', 'baptiste', 'francois', 'claude', 'noel']);
+
+const capitalize = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+
+/**
+ * A person's name read from a personal address nobody on the site was
+ * printed for: anna.berg@, anna_berg@ and anna-berg@ give Anna Berg, when
+ * both parts read as a name (parseName: no company, place or title words)
+ * and the first is a common first name or a first name the site printed.
+ * A lone first name (max@), a double first name (anne-marie@, hans-peter@)
+ * or initials give nothing. A name read this way never teaches a domain its
+ * pattern (worker/people-job.ts learns only from printed people).
+ */
+export function nameFromLocal(localPart: string, printed: NamedPerson[] = []): NamedPerson | null {
+  const m = NAME_LOCAL.exec(localPart.toLowerCase().split('+')[0] ?? '');
+  if (!m) return null;
+  const [, first, sep, last] = m as unknown as [string, string, string, string];
+  const known = isFirstName(first) || printed.some((p) => firstNameParts(p.firstName).includes(first));
+  if (!known || first === last) return null;
+  // Anne-Marie, Hans-Peter, Karl-Heinz: one first name, not a first and a last.
+  if (sep === '-' && (isFirstName(last) || DOUBLE_FIRST_SECOND.has(last))) return null;
+  const name = parseName(`${capitalize(first)} ${capitalize(last)}`);
+  return name ? { firstName: name.firstName, lastName: name.lastName } : null;
 }

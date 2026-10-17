@@ -226,7 +226,7 @@ describe('renderReport', () => {
 
   it('renders a table per snapshot with a totals row', () => {
     expect(md).toContain('## End, 3.0 min');
-    expect(md).toContain('| nvoke-customers | 3.0 | 1/1 | 1 | 1 | 1 | 1 | 1/0 | 0/0/0 | 1 | 100% | 0/0/0/0 | 1/0 | 0/0 |');
+    expect(md).toContain('| nvoke-customers | 3.0 | 1/1 | 1 | 1 | 1 | 1 | 1/0 | 0/0/0 | 1 | 100% | 0/0/0/0 | 1/0 | 0% / 0% | 0 | 0/0 |');
     expect(md).toContain('| **total** |');
     expect(md).toContain('1+1');
   });

@@ -158,6 +158,98 @@ export function ownCompanyOf(sourceUrl: string | null): OwnCompany {
   }
 }
 
+/**
+ * Common first names in nvoke's markets (English, Nordic, German, Dutch,
+ * French, Spanish, Italian, Polish), as local part spellings: enough to tell
+ * anna.berg@ from accounts.payable@, and Peter Jensen from Agence Nova.
+ */
+const FIRST_NAMES: ReadonlySet<string> = new Set(
+  `aaron adam adrian aidan alan albert alex alexander alexandra alexis alfred ali alice alicia alison amanda amber amelia amy
+  ana andrea andreas andrew andy angela angelika anja ann anna anne annette annika anthony anton antonio arne arthur astrid
+  barbara ben benjamin bernd bernhard bert beth betty bill birgit birgitte bjorn bo bob brad brandon brian bruce bruno camilla
+  carl carla carlos carmen carol caroline casper catherine charles charlie charlotte chris christian christina christine christoph
+  christopher claire clara claudia colin connor craig dan daniel daniela danny david dean deborah dennis derek diana diego dirk
+  dominic donald doris dorte dorthe douglas dylan ed eddie edward elena eli elias elisabeth elizabeth ella ellen emil emilie emily
+  emma eric erik erika ernst esben eva evelyn fabian felix filip finn florian frank franz fred frederik frida gabriel gareth gary
+  george georg gerald gerhard gina giovanni giulia grace graham greg gregor gustav hanna hannah hannes hans harald harry heidi
+  heike helen helena helene helle henning henrik henry herbert hugo ian ida ines inga inge ingrid isabel isabella jack jacob
+  jakob james jan jane janet janne jason javier jean jeff jennifer jens jeppe jeremy jerome jesper jessica jim joachim joan joe
+  joel johan johanna johannes john jon jonas jonathan jordan jorge jose josef joseph josh joshua juan judith julia julian julie
+  jurgen justin kai karen kari karin karl karsten kasper kate katharina katherine kathrin katja kay keith kelly ken kenneth kevin
+  kim kirsten klaus kristian kristina kurt lara lars laura lauren lea leif lena leo leon lilly lina linda line lisa lise liam lone
+  lotte louis louise luca lucas lucy luis luka lukas maja malene malte manuel marc marco marcus margaret maria marie marina mario
+  mark marko markus martha martin mary mathias matt matthew matthias max maximilian megan melanie mette mia michael michaela
+  michel michelle miguel mikael mike mikkel mona morten nadia natalie nathan neil nicholas nick niclas nicolai nicolas nicole niels
+  nikita nikolaj nils nina noah nora oliver olivia oscar oskar ole otto pablo pamela patricia patrick paul paula pedro per pernille
+  peter petra philip philipp phillip pia pierre rachel rafael ralf ralph rasmus rebecca rene richard rick rikke rita rob robert
+  robin roger roland ronald rosa ross ruth ryan sabine sabrina sam samantha samuel sandra sara sarah sascha scott sean sebastian
+  sergio shane sharon simon simone sofia sofie sophia sophie stefan stefanie steffen stephan stephanie stephen steve steven stine
+  susan susanne sven svend sylvia tanja teresa thea theo thomas tim timo timothy tina tobias todd tom tommy tony torben tove troels
+  tyler ulla ulrich ulrik uwe valentina vanessa vera victor victoria vincent walter werner will william wolfgang yvonne zoe
+  agnieszka anders bartosz carina cecilie dagmar elin emelie hedda hilde ivar jacek jorgen karolina katarzyna kjell krzysztof
+  magnus malin marek mats marta michal nanna oddvar pawel piotr ragnar sigrid solveig tomasz trine ulf viktor vilde wojciech
+  soren soeren mads rune jorn kristoffer christoffer asger anders bent birthe gitte hanne jytte kirsten lene lotte susanne
+  trevor nigel stuart gavin darren wayne lee barry terry phil philippe steph gemma hayley kirsty lindsay leanne natasha jade
+  chloe megan holly abigail molly jenny katie becky jo jamie toby ollie freddie archie alfie harvey reece kyle shaun dale
+  julien antoine guillaume mathieu thibault camille manon chloe lucie pauline marion aurelie celine sandrine nathalie
+  jesus alejandro pablo raul sergio alberto fernando ignacio lucia marta paula irene cristina silvia beatriz
+  marco luca matteo andrea francesco alessandro lorenzo stefano federico chiara francesca giulia elena sara`
+    .split(/\s+/)
+    .filter(Boolean),
+);
+
+/** Whether a word is a common first name: "Søren", "anna", "Anne-Marie" (by its first part). */
+export function isFirstName(word: string): boolean {
+  const folded = foldTitle(word).replace(/[^a-z-]/g, '');
+  return FIRST_NAMES.has(folded) || FIRST_NAMES.has(folded.split('-')[0] ?? '');
+}
+
+/** Letters of a name or company only, folded: "Agence Nova" is agencenova. */
+function squash(text: string): string {
+  return foldTitle(text).replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Whether a "person" is the company itself: "Agence Nova" on agencenova.com,
+ * "Nova Studio" for the company Nova Studio ApS. True when the name equals
+ * the domain label or company name, sits inside it, or holds it across more
+ * than one of its words. A founder who shares one word with the company
+ * (Peter Jensen at jensen.dk) is still a person.
+ */
+export function namesCompany(person: { firstName: string; lastName: string }, company: string | null | undefined): boolean {
+  if (!company) return false;
+  const words = foldTitle(company)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w && !LEGAL_FORM.test(w));
+  const own = words.join('');
+  if (own.length < 3) return false;
+  const name = squash(`${person.firstName} ${person.lastName}`);
+  if (!name) return false;
+  if (name === own || own.includes(name)) return true;
+  if (!name.includes(own)) return false;
+  // The company inside the name: only when it is not just one of the name's own words.
+  const parts = [person.firstName, ...person.lastName.split(/\s+/)].map(squash);
+  return !parts.includes(own);
+}
+
+/**
+ * Whether a "person" read from a page is really the company, and dropped:
+ * the name names the company (namesCompany) and either has no first name in
+ * it ("Agence Nova, Propriétaire") or is the company's whole name with no
+ * title. A titled founder whose name is the company's (Peter Jensen,
+ * Founder, at Peter Jensen ApS) is kept.
+ */
+export function companyAsPerson(person: { firstName: string; lastName: string; title?: string | null }, company: string | null | undefined): boolean {
+  if (!namesCompany(person, company)) return false;
+  if (!isFirstName(person.firstName)) return true;
+  if (person.title?.trim()) return false;
+  const own = foldTitle(company ?? '')
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w && !LEGAL_FORM.test(w))
+    .join('');
+  return squash(`${person.firstName} ${person.lastName}`) === own;
+}
+
 /** Whether a company name in a title is the page's own company. */
 function isOwn(org: string, own: OwnCompany): boolean {
   if (!own.label) return false;
@@ -555,13 +647,16 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
   }
 
   return mergePeople(
-    found.slice(0, PAGE_PEOPLE_MAX).map((c) => ({
-      firstName: c.name.firstName,
-      lastName: c.name.lastName,
-      title: c.title,
-      seniority: c.seniority !== undefined ? c.seniority : seniorityOf(c.title),
-      sourceUrl,
-    })),
+    found
+      .filter((c) => !companyAsPerson({ ...c.name, title: c.title }, own.label))
+      .slice(0, PAGE_PEOPLE_MAX)
+      .map((c) => ({
+        firstName: c.name.firstName,
+        lastName: c.name.lastName,
+        title: c.title,
+        seniority: c.seniority !== undefined ? c.seniority : seniorityOf(c.title),
+        sourceUrl,
+      })),
     PAGE_PEOPLE_MAX,
   );
 }

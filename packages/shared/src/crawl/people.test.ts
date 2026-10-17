@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractPeople, mergePeople, parseName, personForAddress, type FoundPerson } from './people.ts';
+import { companyAsPerson, extractPeople, isFirstName, mergePeople, namesCompany, parseName, personForAddress, type FoundPerson } from './people.ts';
 
 const names = (people: FoundPerson[]) => people.map((p) => `${p.firstName} ${p.lastName}|${p.title ?? ''}|${p.seniority ?? ''}`);
 
@@ -205,5 +205,44 @@ describe('review fixes', () => {
     const html = `<script type="application/ld+json">${JSON.stringify({ '@type': 'Person', name: 'Ole Nielsen', jobTitle: `CEO ${'x'.repeat(5000)}` })}</script>`;
     const [ole] = extractPeople(html);
     expect(ole?.title?.length).toBeLessThanOrEqual(120);
+  });
+});
+
+describe('namesCompany', () => {
+  it('rejects a person who is the company itself', () => {
+    const html = '<div><h3>Agence Nova</h3><p>Propriétaire</p></div><div><h3>Claire Martin</h3><p>Fondatrice</p></div>';
+    expect(names(extractPeople(html, 'https://agencenova.com/equipe'))).toEqual(['Claire Martin|Fondatrice|founder']);
+    expect(namesCompany({ firstName: 'Agence', lastName: 'Nova' }, 'agencenova')).toBe(true);
+    expect(namesCompany({ firstName: 'Nova', lastName: 'Studio' }, 'Nova Studio ApS')).toBe(true);
+    expect(namesCompany({ firstName: 'Nova', lastName: 'Studio Berlin' }, 'novastudio')).toBe(true);
+  });
+
+  it('keeps a founder who shares one word with the company', () => {
+    expect(namesCompany({ firstName: 'Peter', lastName: 'Jensen' }, 'jensen')).toBe(false);
+    expect(namesCompany({ firstName: 'Peter', lastName: 'Jensen' }, 'Jensen Rådgivning ApS')).toBe(false);
+    expect(namesCompany({ firstName: 'Anna', lastName: 'Berg' }, 'acme')).toBe(false);
+    expect(namesCompany({ firstName: 'Anna', lastName: 'Berg' }, null)).toBe(false);
+  });
+});
+
+describe('companyAsPerson', () => {
+  it('drops a company read as a person, keeps founders the company is named after', () => {
+    expect(companyAsPerson({ firstName: 'Agence', lastName: 'Nova', title: 'Propriétaire' }, 'agencenova')).toBe(true);
+    expect(companyAsPerson({ firstName: 'Nova', lastName: 'Studio', title: null }, 'Nova Studio ApS')).toBe(true);
+    expect(companyAsPerson({ firstName: 'Peter', lastName: 'Jensen', title: 'Founder' }, 'Peter Jensen ApS')).toBe(false);
+    expect(companyAsPerson({ firstName: 'Hans', lastName: 'Müller', title: 'Geschäftsführer' }, 'Hans Müller GmbH')).toBe(false);
+    expect(companyAsPerson({ firstName: 'Hans', lastName: 'Müller', title: null }, 'Hans Müller GmbH')).toBe(true);
+    expect(companyAsPerson({ firstName: 'Peter', lastName: 'Jensen', title: null }, 'jensen')).toBe(false);
+  });
+
+  it('keeps the titled founder on the page of a company named after them', () => {
+    const html = '<div><h3>Peter Jensen</h3><p>Founder</p></div>';
+    expect(names(extractPeople(html, 'https://peterjensen.dk/om'))).toEqual(['Peter Jensen|Founder|founder']);
+  });
+
+  it('knows common first names in their folded and hyphenated forms', () => {
+    expect(isFirstName('Søren')).toBe(true);
+    expect(isFirstName('Anne-Marie')).toBe(true);
+    expect(isFirstName('Agence')).toBe(false);
   });
 });

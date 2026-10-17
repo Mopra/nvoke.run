@@ -129,3 +129,51 @@ irrelevant staff when the company has a decision maker), up to 5 people
 per company, names from first.last addresses, the escalation that did not
 fire; and discovery yield (hiring signals from public ATS boards, fuller
 list page mining, fit for small B2B companies that show outbound).
+
+### 2026-10-17 policy1 (local, nvoke-customers, 25 min, SMTP 30/min)
+
+347 companies, 785 emails, **326 verified in 25 minutes** (target 300 in
+60). 247 personal, 79 role inboxes (fallbacks for companies with no
+personal address), 142 named with a title (44%), 115 decision makers
+(35%). Clear fit 68% of 25, would email 11 of 30. $0.003 per verified
+(Brave $0.58, AI $0.23). The plan ran out at 347 candidates; the
+escalation correctly did not fire because the target was met.
+
+Changes in this round:
+- Role inboxes and off-target staff (HR, privacy, support, finance,
+  assistants) are skipped, hidden and never charged when the company has a
+  valid personal address or decision maker (`emails.skipped`, 1640).
+- People job: up to 5 people per company, still one SMTP session.
+- first.last@ addresses fill first and last name (confidence 80).
+- Escalation fixed: the hold now estimates the final count from the valid
+  rate so far, not from every unchecked address; paced people jobs no
+  longer block it.
+- Discovery: public job posts on ATS boards (hiring = outbound now), up to
+  400 list pages a run with next pages: 404 kept companies per 120 Brave
+  requests (was 244) at 84% clear fit.
+- The ICP judge now sees when a company was found through its own job
+  post. Without it the judge graded every small startup hiring SDRs as the
+  wrong buyer, which a human reviewer would not.
+- The eval reports the bar ratios: valid named+titled and valid decision
+  makers as shares of verified, and skipped addresses apart from pending.
+
+Gaps against the bar: named share (44% vs 70%), decision makers (35% vs
+50%), would email (11 vs 25), cost ($0.003 vs $0.0015). The named share
+is dragged down by role inbox fallbacks and unnamed personal addresses.
+
+### 2026-10-18 policy2 (local, nvoke-customers, 25 min, SMTP 30/min)
+
+471 companies, 854 emails, **162 verified**, **72% named with a title,
+64% decision makers** (both past the bar), would email **21 of 30**
+(was 11), clear fit 80%. $0.007 per verified (Brave $0.49, AI $0.43).
+Escalation now works: 4 rounds in 25 minutes, companies 411 to 471.
+
+Decision: role inboxes are no longer checked by default
+(`searches.check_inboxes`, 1650, default false) and unnamed personal
+addresses are checked only when a company has no valid named person. That
+traded half the verified count for the quality bar. The volume and the
+cost now have to come back through more companies and more named people
+per company, not through inboxes.
+
+Next: cost per verified ($0.007 vs $0.0015) and volume (162 in 25
+minutes). Then a full 60 minute run of every entry on the VPS.

@@ -15,6 +15,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { IcpSearchParams } from '@nvoke/shared';
 import type { Ai } from '../ai/client.js';
 import { searchFinished } from '../webhooks/events.js';
+import { stillToCheck, type PolicyEmail } from './check-policy.js';
 import { MAX_SEARCH_LIMIT } from './plans.js';
 import { IcpPlan, PLAN_CAPS, freshCountries, replan, savePlan } from './planner.js';
 import { quotaExhausted } from './quota.js';
@@ -91,21 +92,59 @@ export function roundNote(previous: IcpPlan, plan: IcpPlan): string {
 interface Counts {
   companies: number;
   verified: number;
-  /** Addresses found but not checked yet. */
+  /** Addresses found, not checked yet, and still to be checked. */
   unchecked: number;
+  /** Addresses whose check came back, valid or not. */
+  settled: number;
+  /** People jobs of the search still to run: each may add a personal address. */
+  peoplePending: number;
+}
+
+/** Below this many settled checks the valid rate is unknown, and every unchecked address is counted as valid. */
+export const MIN_SETTLED_FOR_RATE = 20;
+
+/**
+ * The verified count a search can still expect to reach: what it has, plus
+ * the unchecked addresses at the share of checks that came back valid so far
+ * (all of them while too few came back to tell), plus one per people job
+ * still to run.
+ */
+export function projectVerified(c: Pick<Counts, 'verified' | 'unchecked' | 'settled' | 'peoplePending'>): number {
+  const rate = c.settled >= MIN_SETTLED_FOR_RATE ? c.verified / c.settled : 1;
+  return c.verified + Math.round(c.unchecked * rate) + c.peoplePending;
 }
 
 /** Counts from the database, so the notes match what the user sees. */
 export async function searchCounts(db: Db, searchId: string, since?: Date): Promise<Counts & { verifiedSince: number }> {
-  const [row] = await db<(Counts & { verifiedSince: number })[]>`
+  const [row] = await db<(Omit<Counts, 'unchecked'> & { verifiedSince: number; checkInboxes: boolean })[]>`
     select
       (select count(*)::int from companies where search_id = ${searchId}) as companies,
       count(*) filter (where verification = 'valid')::int as verified,
-      count(*) filter (where verification is null)::int as unchecked,
-      count(*) filter (where verification = 'valid' and checked_at >= ${(since ?? new Date(0)).toISOString()}::timestamptz)::int as "verifiedSince"
+      count(*) filter (where verification is not null)::int as settled,
+      (select count(*)::int from jobs where search_id = ${searchId} and type = 'people' and status in ('queued', 'running')) as "peoplePending",
+      count(*) filter (where verification = 'valid' and checked_at >= ${(since ?? new Date(0)).toISOString()}::timestamptz)::int as "verifiedSince",
+      coalesce((select (to_jsonb(s) ->> 'check_inboxes')::boolean from searches s where s.id = ${searchId}), false) as "checkInboxes"
     from emails where search_id = ${searchId}
   `;
-  return row ?? { companies: 0, verified: 0, unchecked: 0, verifiedSince: 0 };
+  if (!row) return { companies: 0, verified: 0, unchecked: 0, settled: 0, peoplePending: 0, verifiedSince: 0 };
+  // Unchecked addresses still to be checked: not one left out on purpose, nor one the
+  // company's settled addresses already make unnecessary (check-policy.ts).
+  const open = await db<(PolicyEmail & { company_id: string })[]>`
+    select company_id, kind, first_name, last_name, seniority, title, verification, skipped from emails
+    where search_id = ${searchId} and skipped is null
+      and company_id in (select company_id from emails where search_id = ${searchId} and verification is null and skipped is null)
+  `;
+  const byCompany = new Map<string, PolicyEmail[]>();
+  for (const e of open) byCompany.set(e.company_id, [...(byCompany.get(e.company_id) ?? []), e]);
+  let unchecked = 0;
+  for (const emails of byCompany.values()) {
+    for (const [i, e] of emails.entries()) {
+      if (e.verification !== null) continue;
+      if (stillToCheck(e, emails.filter((_, j) => j !== i), row.checkInboxes)) unchecked++;
+    }
+  }
+  const { checkInboxes: _, ...counts } = row;
+  return { ...counts, unchecked };
 }
 
 interface SearchState {
@@ -184,7 +223,7 @@ async function verdictFor(db: Db, s: SearchState, now: Date, early: boolean): Pr
     limit: s.limit,
     ongoing: s.ongoing,
     verified: counts.verified,
-    projected: early ? counts.verified + counts.unchecked : undefined,
+    projected: early ? projectVerified(counts) : undefined,
     verifiedSince: counts.verifiedSince,
     quotaExhausted: await quotaExhausted(db, s.clerk_user_id, now),
     now,
@@ -211,12 +250,13 @@ export async function holdForEscalation(tx: TransactionSql, searchId: string, no
 }
 
 /**
- * Holds running icp searches whose find, crawls and people jobs are done
- * while only checks are left, when even every unchecked address coming back
- * valid would leave them short: the next round starts without waiting for
- * greylisted checks. The longest unjudged go first; one judged and left alone
- * waits EARLY_RECHECK_MS before the next look, as only settling checks change
- * the answer.
+ * Holds running icp searches whose find and crawls are done while checks
+ * and people jobs are still left, when what those can still bring
+ * (projectVerified) would leave them short: the next round starts within a
+ * tick or two, without waiting for greylisted checks, paced people probes or
+ * addresses that will come back catch-all. The longest unjudged go first;
+ * one judged and left alone waits EARLY_RECHECK_MS before the next look, as
+ * only settling checks change the answer.
  */
 export async function markShortSearches(sql: Sql, now: Date = new Date()): Promise<number> {
   const recheck = new Date(now.getTime() - EARLY_RECHECK_MS).toISOString();
@@ -225,7 +265,7 @@ export async function markShortSearches(sql: Sql, now: Date = new Date()): Promi
     where s.kind = 'icp' and s.status = 'running' and s.stage is distinct from ${STAGES.hold} and s.stage is distinct from ${STAGES.replan}
       and coalesce((s.plan->>'earlyCheckedAt')::timestamptz, 'epoch') < ${recheck}::timestamptz
       and not exists (
-        select 1 from jobs j where j.search_id = s.id and j.type in ('find', 'crawl', 'people') and j.status in ('queued', 'running')
+        select 1 from jobs j where j.search_id = s.id and j.type in ('find', 'crawl') and j.status in ('queued', 'running')
       )
     order by coalesce((s.plan->>'earlyCheckedAt')::timestamptz, 'epoch'), s.created_at
     limit 50

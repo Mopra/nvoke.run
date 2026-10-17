@@ -44,7 +44,8 @@ export async function leadSettled(sql: Db, companyId: string): Promise<number> {
     join webhooks w on ${matching(sql, 'lead.ready')}
     where c.id = ${companyId}
       and c.crawl_status <> 'pending'
-      and not exists (select 1 from emails e where e.company_id = c.id and e.verification is null)
+      -- An address left unchecked on purpose (emails.skipped) is settled.
+      and not exists (select 1 from emails e where e.company_id = c.id and e.verification is null and e.skipped is null)
       -- A people job still to run may add this company's personal addresses, so the lead is not settled yet.
       and not exists (
         select 1 from jobs j

@@ -494,7 +494,7 @@ describe('Verifier.probeDomain', () => {
     expect(smtp.sessions).toHaveLength(1);
   });
 
-  it('tries the pattern that worked for a colleague first and keeps to the RCPT budget', async () => {
+  it('tries only the pattern that worked for a colleague and keeps to the RCPT budget', async () => {
     const smtp = await fakeSmtp({ rcpt: accepts(['aberg@acme.dk', 'oholm@acme.dk']) });
     const v = new Verifier({ ...base, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }), connect: connectTo(smtp.port) });
     const probe = await v.probeDomain('acme.dk', [
@@ -513,6 +513,7 @@ describe('Verifier.probeDomain', () => {
       ],
     ]);
     expect(probe.accepted).toEqual(['aberg@acme.dk', 'oholm@acme.dk', null]);
+    // After the first hit, one RCPT per person: never ole@ or mia@.
     const rcpts = smtp.sessions[0]!.filter((l) => l.startsWith('RCPT')).slice(1);
     expect(rcpts).toEqual([
       'RCPT TO:<anna@acme.dk>',

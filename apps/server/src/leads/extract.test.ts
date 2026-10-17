@@ -90,6 +90,8 @@ describe('classifyAddress', () => {
     ['regnskab@acme.dk', 'generic'],
     ['newbusiness@acme.co.uk', 'generic'],
     ['data@acme.com', 'generic'],
+    ['datacontroller@acme.com', 'generic'],
+    ['backoffice@acme.com', 'generic'],
     ['agencenova@agencenova.com', 'generic'],
     ['agence.nova@agence-nova.com', 'generic'],
     ['mette@acme.dk', 'personal'],
