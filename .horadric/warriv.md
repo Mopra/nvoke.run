@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round after the desktop render crawl landed (422d1a5): combined hit rate 62.2% to 66.9%; local crawl now on by default (session's Assumed line, the human may overrule). Only 'Local leads' still running; aim stays open until it lands. Nothing to file. 28 quests since the last ship, shipping is the human's.
 - 2026-10-17 Round after the crawl hit rate merge fix landed (50347ae): gain was small (60.0% to 62.2%), so filed its two named levers for the aim, side by side: 'Local leads: find the website of places that list none' (opus, server) and 'Desktop render crawl: count it in the benchmark and send it more companies' (opus, desktop). 27 quests since the last ship, shipping is the human's.
 - 2026-10-17 Crawl hit rate finished (60.0% to 62.2%) but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, adapt site profile callers, check in one turn and merge newest main last.
 - 2026-10-17 Round as the human left: Dev DB UTF8 landed (bed77ad). Only crawl hit rate running; three blocks with the human (macOS test, Push leads, Turnstile secret). Aim waits on crawl hit rate. Nothing to do; 26 quests since the last ship, shipping is the human's.
@@ -99,7 +100,7 @@
 ## Open
 
 - Push leads blocked with the human: build it or not (spec in docs/SPEC.md, Push to sending tools).
-- Crawl hit rate landed (50347ae, 60.0% to 62.2%). Its two levers filed as quests; when both land, decide whether the Go public aim is done.
+- Crawl hit rate landed (50347ae, 60.0% to 62.2%). Desktop render lever landed (422d1a5, 66.9% combined, local crawl on by default). When 'Local leads' lands, decide whether the Go public aim is done.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
