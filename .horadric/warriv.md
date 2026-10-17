@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round after free tool pages landed (2582b1e): Turnstile blocked as expected on the VPS secret, left with the human. Start from your website and crawl hit rate running, Openers and Push leads waiting. 22 quests since the last ship, left shipping to the human.
 - 2026-10-17 Free tool pages finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, check in one turn and merge newest main last.
 - 2026-10-17 Free tool pages stopped to wait for its own review (5da0c53, tests green); told it to finish the review, recheck and mark done in one turn.
 
@@ -80,7 +81,7 @@
 ## Open
 
 - Claude features need ANTHROPIC_API_KEY in /opt/nvoke/.env on the VPS (human). Check it is said when Start from your website lands.
-- Turnstile quest: the VPS TURNSTILE_SECRET_KEY step needs the human; expect a block there.
+- Turnstile quest blocked with the human: add TURNSTILE_SECRET_KEY to /opt/nvoke/.env and restart nvoke-api once the free tools (2582b1e) are live on nvoke.run. Free tools never seen live.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
