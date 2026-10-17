@@ -111,8 +111,8 @@ describe('site profile routes', () => {
     });
     expect(profile.suggestions[3]!.search).toEqual({ kind: 'domains', params: { items: ['tandlaegen.dk', 'Colosseum Klinikken'], country: 'dk' } });
 
-    // The pages went to Claude on the quality tier, billed to the account.
-    expect(requests[0]).toMatchObject({ userId: 'alice', task: 'site-profile', tier: 'quality' });
+    // The pages went to Claude on the bulk tier, billed to the account.
+    expect(requests[0]).toMatchObject({ userId: 'alice', task: 'site-profile', tier: 'bulk' });
     expect(JSON.stringify(requests[0]!.prompt)).toContain('We sell chairs to clinics.');
 
     const got = await app.inject({ method: 'GET', url: '/v1/site-profile', headers: as('alice') });

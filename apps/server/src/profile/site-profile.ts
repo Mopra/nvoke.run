@@ -222,7 +222,8 @@ export async function buildSiteProfile(deps: BuildDeps, userId: string, input: s
     const res = await deps.ai.structured({
       userId,
       task: 'site-profile',
-      tier: 'quality',
+      // Haiku first; move to 'quality' (Sonnet) if the profiles fall short.
+      tier: 'bulk',
       system: SYSTEM,
       prompt: profilePrompt(site.website, site.pages),
       schema: ClaudeSiteProfile,
