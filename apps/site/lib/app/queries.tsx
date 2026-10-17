@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ApiKey, CreateSearchInput, Search } from '@nvoke/shared';
+import type { ApiKey, CreateSearchInput, Search, SiteProfile, UpdateSiteProfileRequest } from '@nvoke/shared';
 import { ApiError, type CompaniesQuery, type WebApi } from './api';
 import { listPollInterval, POLL_MS, searchPollInterval } from './quota';
 
@@ -29,6 +29,7 @@ export const keys = {
   companies: (id: string, filters: Omit<CompaniesQuery, 'cursor'>) => ['searches', id, 'companies', filters] as const,
   me: ['me'] as const,
   apiKeys: ['api-keys'] as const,
+  siteProfile: ['site-profile'] as const,
 };
 
 export function useSearches() {
@@ -174,6 +175,35 @@ export function useRevokeApiKey() {
     mutationFn: (id: string) => api.revokeApiKey(id),
     onSuccess: (_void, id) => {
       client.setQueryData<ApiKey[]>(keys.apiKeys, (list) => list?.filter((k) => k.id !== id));
+    },
+  });
+}
+
+/** The account's site profile: null before the first build. Changes only when the user acts, so no polling. */
+export function useSiteProfile() {
+  const api = useApi();
+  return useQuery({ queryKey: keys.siteProfile, queryFn: api.getSiteProfile, staleTime: 5 * 60_000 });
+}
+
+/** Reads the website and plans searches (10 to 30 seconds), replacing the stored profile. */
+export function useBuildSiteProfile() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (website: string) => api.buildSiteProfile(website),
+    onSuccess: (profile) => client.setQueryData<SiteProfile | null>(keys.siteProfile, profile),
+  });
+}
+
+export function useUpdateSiteProfile() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: UpdateSiteProfileRequest) => api.updateSiteProfile(patch),
+    onSuccess: (profile) => client.setQueryData<SiteProfile | null>(keys.siteProfile, profile),
+    onError: (error) => {
+      // Gone on the server (built over from another tab, or deleted): show the website step.
+      if (error instanceof ApiError && error.status === 404) client.setQueryData<SiteProfile | null>(keys.siteProfile, null);
     },
   });
 }

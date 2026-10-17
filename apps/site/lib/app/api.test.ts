@@ -130,6 +130,39 @@ describe('createWebApi', () => {
   });
 });
 
+describe('site profile', () => {
+  it('reads no profile yet as null', async () => {
+    const { fetch, calls } = fakeFetch(json({ error: 'not_found' }, 404));
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    await expect(api.getSiteProfile()).resolves.toBeNull();
+    expect(calls[0]?.url).toBe('https://api/v1/site-profile');
+  });
+
+  it('keeps other errors as errors', async () => {
+    const { fetch } = fakeFetch(json({ error: 'internal' }, 500));
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    await expect(api.getSiteProfile()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('builds with the website and keeps the detail of an unreadable site', async () => {
+    const { fetch, calls } = fakeFetch(json({ error: 'site_unreadable', detail: 'blocked' }, 422));
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    const error = (await api.buildSiteProfile('acme.dk').catch((e: unknown) => e)) as ApiError;
+    expect(calls[0]?.init.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ website: 'acme.dk' });
+    expect(error.code).toBe('site_unreadable');
+    expect(error.detail).toBe('blocked');
+  });
+
+  it('patches only the fields sent', async () => {
+    const { fetch, calls } = fakeFetch(json({ website: 'https://acme.dk/' }));
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    await api.updateSiteProfile({ audience: 'Dental clinics' });
+    expect(calls[0]?.init.method).toBe('PATCH');
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ audience: 'Dental clinics' });
+  });
+});
+
 describe('describeError', () => {
   it('says what to do for the codes a user can hit', () => {
     expect(describeError(404, 'not_found')).toBe('That search is gone.');

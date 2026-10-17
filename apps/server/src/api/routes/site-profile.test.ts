@@ -27,6 +27,7 @@ const claudeAnswer = {
   suggestions: [
     { kind: 'local', niche: 'tandlæge', location: 'Aarhus', keyword: null, country: null, items: null, why: 'Clinics that buy chairs.' },
     { kind: 'web', niche: null, location: null, keyword: 'tandklinik', country: 'DK', items: null, why: 'Clinics with their own site.' },
+    { kind: 'maps', niche: 'dentist', location: 'Aarhus', keyword: null, country: null, items: null, why: 'Unknown kind.' },
     // Missing its location: dropped.
     { kind: 'local', niche: 'dentist', location: null, keyword: null, country: null, items: null, why: 'Broken.' },
     { kind: 'launches', niche: null, location: null, keyword: 'dental', country: null, items: null, why: 'New dental software.' },

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MoreHorizontal, Plus, Rocket, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MoreHorizontal, Rocket, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Search } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
@@ -21,6 +21,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
 import { useCancelSearch, useRefreshWhenFinished, useSearches } from '@/lib/app/queries';
+import { WEBSITE_PATH } from '@/lib/app/site-profile';
 
 const href = (search: Search): string => `/app/searches/${search.id}`;
 
@@ -147,46 +148,42 @@ function Section({ searches }: { searches: Search[] }) {
   );
 }
 
-const STARTERS = [
-  { kind: 'local', icon: MapPin, title: 'Local businesses', text: 'Dentists in Austin, bakeries in Lyon: a niche and a place.' },
-  { kind: 'web', icon: Globe, title: 'Web search', text: 'Company sites for a keyword, in any country.' },
-  { kind: 'domains', icon: ClipboardList, title: 'Paste a list', text: 'Domains or company names you already have.' },
-  { kind: 'launches', icon: Rocket, title: 'New launches', text: 'Fresh startups from Product Hunt and Show HN.' },
+const BY_HAND = [
+  { kind: 'local', icon: MapPin, title: 'Local businesses' },
+  { kind: 'web', icon: Globe, title: 'Web search' },
+  { kind: 'domains', icon: ClipboardList, title: 'Paste a list' },
+  { kind: 'launches', icon: Rocket, title: 'New launches' },
 ] as const;
 
-/** The first visit: what nvoke can look for, one click from each. */
+/** The first visit: one obvious action, the website step, and the search kinds for those who know what they want. */
 function FirstSearch() {
   return (
     <section className="px-2 pb-10 sm:px-6">
-      <p className="max-w-lg text-base text-muted-foreground">
-        Pick where to look. nvoke finds the companies, reads their own websites and checks every email with the mail
-        server. Only verified emails count toward your plan.
+      <p className="max-w-lg text-base text-pretty text-muted-foreground">
+        Give nvoke your website. It works out who buys from you and plans the searches that find them. Then it reads each
+        company’s own site and checks every email with the mail server. Only verified emails count toward your plan.
       </p>
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
-        {STARTERS.map(({ kind, icon: Icon, title, text }) => (
-          <Link
-            key={kind}
-            href={`/app/new?kind=${kind}`}
-            className="group flex items-start gap-4 rounded-[24px] bg-foreground/[0.035] p-5 outline-none transition-colors hover:bg-foreground/[0.06] focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Icon className="size-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block font-medium">{title}</span>
-              <span className="mt-1 block text-sm text-muted-foreground">{text}</span>
-            </span>
-          </Link>
-        ))}
-      </div>
       <div className="mt-8">
         <Button asChild size="lg">
-          <Link href="/app/new">
-            <Plus />
-            New search
+          <Link href={WEBSITE_PATH}>
+            <Sparkles />
+            Start from your website
           </Link>
         </Button>
       </div>
+      <nav aria-label="Set up a search by hand" className="mt-12 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+        <span className="mr-2 text-muted-foreground">Or by hand:</span>
+        {BY_HAND.map(({ kind, icon: Icon, title }) => (
+          <Link
+            key={kind}
+            href={`/app/new?kind=${kind}`}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-foreground/75 outline-none transition-colors hover:bg-foreground/[0.05] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          >
+            <Icon className="size-3.5 text-muted-foreground" />
+            {title}
+          </Link>
+        ))}
+      </nav>
     </section>
   );
 }

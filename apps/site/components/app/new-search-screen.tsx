@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type FormEvent, type Ref } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, ChevronDown, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { itemDomain, SEARCH_LIMIT_MAX } from '@nvoke/shared';
+import { itemDomain, SEARCH_LIMIT_MAX, type CreateSearchInput } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
 import { Line, Pill, SENTENCE, SentenceInput } from '@/components/app/sentence';
 import { BackLink } from '@/components/app/shell';
@@ -16,6 +16,7 @@ import { isQuotaError } from '@/lib/app/api';
 import { formatNumber, searchTitle, WINDOW_LABEL, type LaunchWindow } from '@/lib/app/desktop';
 import { BILLING_PATH, quotaState } from '@/lib/app/quota';
 import { useCreateSearch, useMe } from '@/lib/app/queries';
+import { WEBSITE_PATH } from '@/lib/app/site-profile';
 import {
   buildSearchInput,
   emptyForm,
@@ -34,13 +35,41 @@ const SOURCES: Record<FormKind, string> = {
   domains: 'Companies you already know. Domains are read as given, names are looked up on the web.',
 };
 
-export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
+/**
+ * Starts a search the way the form does: the same mutation and cache updates,
+ * a toast, then the search's page. Suggestions from the website step use it too.
+ */
+export function useStartSearch() {
   const router = useRouter();
+  const create = useCreateSearch();
+  const start = (input: CreateSearchInput): void => {
+    if (create.isPending) return;
+    create.mutate(input, {
+      onSuccess: (search) => {
+        toast.success('Search started', { description: searchTitle(search) });
+        router.replace(`/app/searches/${search.id}`);
+      },
+      onError: (err) => {
+        if (isQuotaError(err)) {
+          toast.error('This month’s verified emails are used up', {
+            description: 'Upgrade to keep searching now, or wait for the reset.',
+            action: { label: 'Upgrade', onClick: () => router.push(BILLING_PATH) },
+          });
+          return;
+        }
+        toast.error('Couldn’t start the search', { description: err.message });
+      },
+    });
+  };
+  return { start, isPending: create.isPending, pendingInput: create.isPending ? create.variables : undefined };
+}
+
+export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
   const [form, setForm] = useState<SearchForm>(() => emptyForm(initialKind));
   const [touched, setTouched] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
   const listField = useRef<HTMLTextAreaElement>(null);
-  const create = useCreateSearch();
+  const create = useStartSearch();
   const me = useMe();
 
   const set = <K extends keyof SearchForm>(key: K) => (value: SearchForm[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -58,23 +87,8 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
   function submit(event?: FormEvent): void {
     event?.preventDefault();
     setTouched(true);
-    if (!input || create.isPending) return;
-    create.mutate(input, {
-      onSuccess: (search) => {
-        toast.success('Search started', { description: searchTitle(search) });
-        router.replace(`/app/searches/${search.id}`);
-      },
-      onError: (err) => {
-        if (isQuotaError(err)) {
-          toast.error('This month’s verified emails are used up', {
-            description: 'Upgrade to keep searching now, or wait for the reset.',
-            action: { label: 'Upgrade', onClick: () => router.push(BILLING_PATH) },
-          });
-          return;
-        }
-        toast.error('Couldn’t start the search', { description: err.message });
-      },
-    });
+    if (!input) return;
+    create.start(input);
   }
 
   const invalid = (value: string): boolean => touched && !value.trim();
@@ -84,7 +98,16 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
   return (
     <main className="w-full px-4 pb-24 sm:px-8">
       <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]" noValidate>
-        <BackLink />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <BackLink />
+          <Link
+            href={WEBSITE_PATH}
+            className="-mr-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          >
+            <Sparkles className="size-3.5" />
+            Plan from your website
+          </Link>
+        </div>
         <h1 className="sr-only">New search</h1>
         <div className="mt-6 flex flex-col items-start gap-3">
           <div className="max-w-full overflow-x-auto pb-1">

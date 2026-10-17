@@ -115,9 +115,19 @@ export function pageText(html: string, url: string): SitePage {
   return { url, title, description, text };
 }
 
-export async function readSite(website: string, deps: CrawlDeps, now: () => number = Date.now): Promise<ReadSiteResult> {
+export async function readSite(website: string, deps: CrawlDeps, signal?: AbortSignal, now: () => number = Date.now): Promise<ReadSiteResult> {
+  try {
+    return await read(website, deps, signal, now);
+  } catch (err) {
+    // The caller hung up or the build ran out of time.
+    if (signal?.aborted) return { ok: false, reason: 'unreachable' };
+    throw err;
+  }
+}
+
+async function read(website: string, deps: CrawlDeps, signal: AbortSignal | undefined, now: () => number): Promise<ReadSiteResult> {
   const started = now();
-  const fetcher = new SiteFetcher(deps, SITE_MAX_BYTES);
+  const fetcher = new SiteFetcher(deps, SITE_MAX_BYTES, signal);
 
   let home = await fetcher.get(website);
   if (home.kind === 'error' && website.startsWith('https://')) home = await fetcher.get(`http://${website.slice('https://'.length)}`);

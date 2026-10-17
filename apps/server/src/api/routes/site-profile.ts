@@ -6,13 +6,15 @@ import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
 import type { Sql } from 'postgres';
 import { BuildSiteProfileRequest, UpdateSiteProfileRequest } from '@nvoke/shared';
 import type { Ai } from '../../ai/client.js';
-import type { FetchLike } from '../../leads/http.js';
 import { RateLimiter } from '../../leads/limits.js';
 import { RobotsCache } from '../../leads/robots.js';
+import { guardedFetch } from '../../profile/guarded-fetch.js';
 import { readSite } from '../../profile/read-site.js';
 import { buildSiteProfile, getSiteProfile, updateSiteProfile, type BuildDeps } from '../../profile/site-profile.js';
 import { requireUser } from '../user.js';
 import { resolvePublic, type Resolve, type UrlPolicy } from '../../webhooks/address.js';
+
+const BUILD_TIMEOUT_MS = 60_000;
 
 export interface SiteProfileRoutesOptions {
   getSql: () => Sql;
@@ -40,15 +42,12 @@ export async function siteProfileRoutes(app: FastifyInstance, opts: SiteProfileR
   const checkHost = async (host: string) => {
     await resolvePublic(host, opts.urlPolicy, opts.resolve);
   };
-  // Redirects are followed by hand in the fetcher, so checking each request's host covers every hop.
-  const guardedFetch: FetchLike = async (input, init) => {
-    await checkHost(new URL(input).hostname);
-    return fetch(input, init);
-  };
+  // Pages and robots.txt alike, every hop pinned to checked public addresses.
+  const fetch = guardedFetch(opts.urlPolicy, opts.resolve);
   // One request per second per host, like the worker's crawl.
   const limiter = new RateLimiter(1_000);
-  const crawl = { fetch: guardedFetch, limiter, robots: new RobotsCache({ fetch: guardedFetch, limiter }) };
-  const read = opts.read ?? ((website: string) => readSite(website, crawl));
+  const crawl = { fetch, limiter, robots: new RobotsCache({ fetch, limiter }) };
+  const read = opts.read ?? ((website: string, signal?: AbortSignal) => readSite(website, crawl, signal));
 
   app.get('/', async (req, reply) => {
     const profile = await getSiteProfile(opts.getSql(), req.userId!);
@@ -60,7 +59,13 @@ export async function siteProfileRoutes(app: FastifyInstance, opts: SiteProfileR
     const body = BuildSiteProfileRequest.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_request', details: body.error.issues });
     const sql = opts.getSql();
-    const result = await buildSiteProfile({ sql, ai: opts.getAi(), log: req.log, read, checkHost }, req.userId!, body.data.website);
+    // Stop reading when the caller hangs up, and never read for longer than a minute.
+    const hangUp = new AbortController();
+    reply.raw.on('close', () => {
+      if (!reply.raw.writableFinished) hangUp.abort();
+    });
+    const signal = AbortSignal.any([hangUp.signal, AbortSignal.timeout(BUILD_TIMEOUT_MS)]);
+    const result = await buildSiteProfile({ sql, ai: opts.getAi(), log: req.log, read, checkHost }, req.userId!, body.data.website, signal);
     if (result.ok) return result.profile;
     switch (result.error) {
       case 'invalid_request':

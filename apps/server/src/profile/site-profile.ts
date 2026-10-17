@@ -16,7 +16,7 @@ import {
   type UpdateSiteProfileRequest,
 } from '@nvoke/shared';
 import { normalizeWebsite } from '@nvoke/shared/crawl';
-import type { Ai } from '../ai/client.js';
+import { AiError, type Ai } from '../ai/client.js';
 import type { SitePage, readSite } from './read-site.js';
 
 /** Companies a suggested search looks at. The user's plan caps what gets verified, not this. */
@@ -42,7 +42,8 @@ export const ClaudeSiteProfile = z.object({
   suggestions: z
     .array(
       z.object({
-        kind: z.enum(['local', 'web', 'launches', 'domains']),
+        // A plain string: the strict tool schema drops enums. toSuggestions drops other kinds.
+        kind: z.string().describe('One of "local", "web", "launches", "domains".'),
         niche: z.string().nullable().describe('local only: the trade as people name it on a map, e.g. "dentist", in the local language.'),
         location: z.string().nullable().describe('local only: a city or region, e.g. "Aarhus".'),
         keyword: z.string().nullable().describe('web: required, a phrase a buyer\'s own website would contain. launches: optional topic.'),
@@ -87,7 +88,9 @@ export function toSuggestions(raw: ClaudeSiteProfile['suggestions']): SuggestedS
           ? { kind: 'web', params: { keyword: s.keyword, ...(country ? { country } : {}) }, limit: SUGGESTION_LIMIT }
           : s.kind === 'launches'
             ? { kind: 'launches', params: s.keyword ? { keyword: s.keyword } : {}, limit: SUGGESTION_LIMIT }
-            : { kind: 'domains', params: { items: s.items ?? [], ...(country ? { country } : {}) } };
+            : s.kind === 'domains'
+              ? { kind: 'domains', params: { items: s.items ?? [], ...(country ? { country } : {}) } }
+              : null;
     const search = CreateSearchRequest.safeParse(body);
     const why = s.why.trim().slice(0, 200);
     if (!search.success || !why) continue;
@@ -116,6 +119,10 @@ export function toFields(raw: ClaudeSiteProfile['profile'], domain: string): Sit
     language,
     country,
   });
+}
+
+function isDatabaseError(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'PostgresError' || err.message === 'DATABASE_URL is not set');
 }
 
 interface Row {
@@ -172,33 +179,41 @@ export type BuildResult =
 export interface BuildDeps {
   sql: Sql;
   ai: Ai;
-  log: Pick<Logger, 'warn'>;
-  read: (website: string) => ReturnType<typeof readSite>;
+  log: Pick<Logger, 'warn' | 'error'>;
+  read: (website: string, signal?: AbortSignal) => ReturnType<typeof readSite>;
   /** Throws when the host does not resolve to public addresses only. */
   checkHost: (host: string) => Promise<void>;
 }
 
 /** Reads the site, asks Claude and replaces the account's profile. */
-export async function buildSiteProfile(deps: BuildDeps, userId: string, input: string): Promise<BuildResult> {
+export async function buildSiteProfile(deps: BuildDeps, userId: string, input: string, signal?: AbortSignal): Promise<BuildResult> {
   const website = normalizeWebsite(/^https?:\/\//i.test(input) ? input : `https://${input}`);
   if (!website) return { ok: false, error: 'invalid_request' };
   const host = new URL(website).hostname;
 
   // Every attempt counts, read or not, so the limit also caps what we fetch for the account.
+  // Insert, then count: requests at once may refuse each other, but never all pass.
+  const [run] = await deps.sql<{ id: string }[]>`
+    insert into site_profile_runs (clerk_user_id, domain) values (${userId}, ${host}) returning id
+  `;
   const [counted] = await deps.sql<{ runs: number }[]>`
     select count(*)::int as runs from site_profile_runs
     where clerk_user_id = ${userId} and created_at > now() - interval '1 day'
   `;
-  if (counted!.runs >= SITE_PROFILE_RUNS_PER_DAY) return { ok: false, error: 'rate_limited' };
-  await deps.sql`insert into site_profile_runs (clerk_user_id, domain) values (${userId}, ${host})`;
+  if (counted!.runs > SITE_PROFILE_RUNS_PER_DAY) {
+    await deps.sql`delete from site_profile_runs where id = ${run!.id}`;
+    return { ok: false, error: 'rate_limited' };
+  }
 
   try {
     await deps.checkHost(host);
   } catch {
     return { ok: false, error: 'site_unreadable', detail: 'not_allowed' };
   }
-  const site = await deps.read(website);
+  const site = await deps.read(website, signal);
   if (!site.ok) return { ok: false, error: 'site_unreadable', detail: site.reason };
+  // Nobody is waiting for the answer: do not pay Claude for it.
+  if (signal?.aborted) return { ok: false, error: 'site_unreadable', detail: 'unreachable' };
 
   let answer: ClaudeSiteProfile;
   try {
@@ -216,11 +231,19 @@ export async function buildSiteProfile(deps: BuildDeps, userId: string, input: s
     });
     answer = res.data;
   } catch (err) {
-    deps.log.warn({ err, userId }, 'site profile: Claude failed');
+    // Our database failing is a 500, not Claude being away.
+    if (isDatabaseError(err)) throw err;
+    if (err instanceof AiError) deps.log.warn({ err, userId }, 'site profile: Claude failed');
+    else deps.log.error({ err, userId }, 'site profile: Claude call threw');
     return { ok: false, error: 'ai_unavailable' };
   }
 
   const suggestions = toSuggestions(answer.suggestions);
+  // Nothing usable: keep the old profile rather than replace it with no searches.
+  if (suggestions.length === 0) {
+    deps.log.warn({ userId, raw: answer.suggestions.length }, 'site profile: no usable suggestions');
+    return { ok: false, error: 'ai_unavailable' };
+  }
   const profile = toFields(answer.profile, site.domain);
   const pages = site.pages.map((p) => p.url);
   const [row] = await deps.sql<Row[]>`

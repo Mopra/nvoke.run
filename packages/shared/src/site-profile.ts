@@ -26,7 +26,11 @@ export const SiteProfileFields = z.object({
   /** Words and phrases the site uses about itself. */
   voice: z.array(line(80)).max(12),
   /** ISO 639-1 language of the site, for example "da". */
-  language: z.string().trim().regex(/^[a-z]{2}$/),
+  language: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{2}$/)
+    .transform((v) => v.toLowerCase()),
   /** ISO 3166-1 alpha-2 country the business sells in most, when the site says. */
   country: z
     .string()

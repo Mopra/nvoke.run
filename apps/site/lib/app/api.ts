@@ -8,6 +8,8 @@ import type {
   MeResponse,
   Search,
   SearchListResponse,
+  SiteProfile,
+  UpdateSiteProfileRequest,
 } from '@nvoke/shared';
 
 /**
@@ -29,13 +31,16 @@ export class ApiError extends Error {
   readonly code: string;
   /** Sent with `quota_exceeded`: where to upgrade. */
   readonly billingUrl: string | null;
+  /** Sent with some codes to say which case it was, like `site_unreadable`'s `blocked`. */
+  readonly detail: string | null;
 
-  constructor(status: number, code: string, billingUrl: string | null = null) {
+  constructor(status: number, code: string, billingUrl: string | null = null, detail: string | null = null) {
     super(describeError(status, code));
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.billingUrl = billingUrl;
+    this.detail = detail;
   }
 }
 
@@ -46,6 +51,8 @@ export function describeError(status: number, code: string): string {
   }
   if (code === 'claim_required') return 'This account needs to be claimed first. Check the email we sent.';
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
+  if (code === 'site_unreadable') return 'We couldn’t read that website.';
+  if (code === 'ai_unavailable') return 'Claude isn’t answering right now. Try again in a few minutes.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Your session expired. Sign in again.';
   if (status === 404) return 'That search is gone.';
@@ -69,18 +76,25 @@ export function buildQuery(params: Record<string, string | number | undefined>):
   return text ? `?${text}` : '';
 }
 
-/** Reads `{ error, billingUrl }` from an error answer. Anything else gives an empty code. */
-async function readError(res: Response): Promise<{ code: string; billingUrl: string | null }> {
+interface ErrorBody {
+  code: string;
+  billingUrl: string | null;
+  detail: string | null;
+}
+
+/** Reads `{ error, billingUrl, detail }` from an error answer. Anything else gives an empty code. */
+async function readError(res: Response): Promise<ErrorBody> {
+  const text = (v: unknown): string | null => (typeof v === 'string' ? v : null);
   try {
     const data: unknown = await res.json();
     if (data && typeof data === 'object') {
-      const { error, billingUrl } = data as { error?: unknown; billingUrl?: unknown };
-      return { code: typeof error === 'string' ? error : '', billingUrl: typeof billingUrl === 'string' ? billingUrl : null };
+      const { error, billingUrl, detail } = data as { error?: unknown; billingUrl?: unknown; detail?: unknown };
+      return { code: text(error) ?? '', billingUrl: text(billingUrl), detail: text(detail) };
     }
   } catch {
     // Not JSON: a proxy page or an empty body.
   }
-  return { code: '', billingUrl: null };
+  return { code: '', billingUrl: null, detail: null };
 }
 
 export interface WebApiOptions {
@@ -109,8 +123,8 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
       throw new ApiError(0, 'network');
     }
     if (!res.ok) {
-      const { code, billingUrl } = await readError(res);
-      throw new ApiError(res.status, code, billingUrl);
+      const { code, billingUrl, detail } = await readError(res);
+      throw new ApiError(res.status, code, billingUrl, detail);
     }
     return res;
   }
@@ -141,6 +155,18 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     revokeApiKey: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/api-keys/${enc(id)}`);
     },
+    /** The account's site profile, or null before the first one is built. */
+    getSiteProfile: async (): Promise<SiteProfile | null> => {
+      try {
+        return await call<SiteProfile>('GET', '/v1/site-profile');
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    /** Reads the site and plans searches. Takes 10 to 30 seconds. */
+    buildSiteProfile: (website: string): Promise<SiteProfile> => call('POST', '/v1/site-profile', { website }),
+    updateSiteProfile: (patch: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', patch),
   };
 }
 
