@@ -184,7 +184,15 @@ export function port25Open(connect: SmtpProbeOptions['connect'] | undefined, hos
  * mail server.
  */
 export function hasGlobalUnicastIpv6(): boolean {
-  for (const addrs of Object.values(networkInterfaces())) {
+  let interfaces: ReturnType<typeof networkInterfaces>;
+  try {
+    interfaces = networkInterfaces();
+  } catch {
+    // A systemd sandbox without netlink (RestrictAddressFamilies) cannot list
+    // interfaces. Try IPv6 then: a failed connect falls back to IPv4 anyway.
+    return true;
+  }
+  for (const addrs of Object.values(interfaces)) {
     for (const a of addrs ?? []) {
       if (a.internal || a.family !== 'IPv6') continue;
       const first = Number.parseInt(a.address.split(':')[0] || '0', 16);
