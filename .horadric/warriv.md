@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Free tool pages finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, check in one turn and merge newest main last.
 - 2026-10-17 Free tool pages stopped to wait for its own review (5da0c53, tests green); told it to finish the review, recheck and mark done in one turn.
 
 - 2026-10-17 Look back: the day was clean (1 done, 1 merged, nothing repeated); the day gave 3 lore notes (never send, worktree install and vitest root, ANTHROPIC_API_KEY on the VPS).
