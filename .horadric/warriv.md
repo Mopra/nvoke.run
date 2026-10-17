@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Hourly round: the human committed Search more (POST /v1/searches/:id/more), /vs pages and UX polish straight to main (4f69814 to 13b0a8f), unchecked. Filed 'Checks on main after Search more and UX polish' (sonnet).
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; no code commits past checked 4f69814). Nothing to do; shipping is the human's.
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; no code commits past checked 4f69814). Nothing to do; shipping is the human's.
 - 2026-10-17 Hourly round: unchanged (17 done, none open, no aim; main only memory commits past checked 4f69814). Nothing to do; shipping is the human's.
@@ -114,7 +115,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Checks on main landed 2026-10-17 with no report or fixes; main (4f69814 code) is ready for the human to ship.
+- Checks on main after Search more and UX polish filed 2026-10-17 for 13b0a8f; see it land before calling main ready to ship.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
