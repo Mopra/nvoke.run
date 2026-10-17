@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Round after a landing: main at b81c363 (the human's lead quality log c9e3ffa past checked d98544d); free search fallback and people work still uncommitted in the tree, so no checks filed. Brave and registry keys still with the human. Nothing to do.
 - 2026-10-18 Hourly round: the human committed hiring discovery and check people (ce485b3, 911950c) past checked d98544d, with people work still dirty in the tree, so no checks filed. Brave and registry keys still with the human. Nothing to do.
 - 2026-10-18 Brave top-up quest blocked (402, prepaid credit empty): spends money, left with the human. Web, by-name and icp searches down in production until then; the free fallback is the human's own mission, no quest filed.
 - 2026-10-17 Hourly round: the human committed role inboxes and a web app fix (2f5a03d, b69fc92) past checked d98544d, with 40 files still dirty (hiring, check policy, people work mid build), so no checks filed yet. Registry keys still with the human. Nothing to do.
