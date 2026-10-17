@@ -180,9 +180,15 @@ describe('lead routes', () => {
     // Not while it runs.
     expect((await more(odense)).json()).toEqual({ error: 'search_running' });
 
-    await seedCompany(search.id, 'alice', 'Tand A', 'tand-a.dk', []);
+    // A canceled run left one company uncrawled and one address unchecked.
+    await seedCompany(search.id, 'alice', 'Tand A', 'tand-a.dk', [['info@tand-a.dk', 'generic', null]]);
     await seedCompany(search.id, 'alice', 'Tand B', 'tand-b.dk', []);
-    await db.sql`update searches set status = 'done', error = null, finished_at = now(), companies_found = 2 where id = ${search.id}`;
+    await db.sql`update companies set crawl_status = 'done' where domain = 'tand-a.dk'`;
+    await db.sql`update searches set status = 'canceled', error = null, finished_at = now(), companies_found = 2 where id = ${search.id}`;
+    await db.sql`update jobs set status = 'running' where search_id = ${search.id}`;
+
+    // Not while the canceled run's find job is still stopping.
+    expect((await more(odense)).json()).toEqual({ error: 'search_running' });
     await db.sql`delete from jobs where search_id = ${search.id}`;
 
     const res = await more(odense);
@@ -194,8 +200,8 @@ describe('lead routes', () => {
       [{ niche: 'dentists', location: 'Aarhus' }, 20, 0],
       [odense.params, 50, 2],
     ]);
-    const jobs = await db.sql`select type from jobs where search_id = ${search.id}`;
-    expect(jobs).toEqual([{ type: 'find' }]);
+    const jobs = await db.sql`select type from jobs where search_id = ${search.id} order by type`;
+    expect(jobs).toEqual([{ type: 'crawl' }, { type: 'find' }, { type: 'verify' }]);
 
     // Its own kind only, its owner only.
     await db.sql`update searches set status = 'canceled' where id = ${search.id}`;

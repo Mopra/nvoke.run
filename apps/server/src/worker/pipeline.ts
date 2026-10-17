@@ -201,7 +201,8 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
   // Paid source calls, recorded even when the find fails, so cost per valid email can be measured.
   const usage = { request: 0, cache_hit: 0 };
   const onUsage = (event: keyof typeof usage) => void usage[event]++;
-  const iterator = abortable(adapter.find(params, { limit: search.limit - found, signal, log, onUsage }), signal);
+  // The whole limit, not what is left: a later run skips the companies the search holds, so it may need to see them all.
+  const iterator = abortable(adapter.find(params, { limit: search.limit, signal, log, onUsage }), signal);
   try {
     for await (const company of iterator) {
       seen++;

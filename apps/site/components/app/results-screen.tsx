@@ -466,6 +466,13 @@ export function ResultsScreen({ id }: { id: string }) {
   const [searchingMore, setSearchingMore] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
+
+  // A search that goes live again closes Search more, wherever the run came from.
+  const [wasLive, setWasLive] = useState(live);
+  if (live !== wasLive) {
+    setWasLive(live);
+    if (live) setSearchingMore(false);
+  }
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
   useRefreshWhenFinished(live, id);
   const cancel = useCancelSearch();

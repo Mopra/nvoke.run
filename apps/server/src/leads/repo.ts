@@ -122,6 +122,9 @@ export async function searchMore(
     if (!current) return null;
     if (current.kind !== req.kind) return 'kind';
     if (current.status === 'queued' || current.status === 'running') return 'running';
+    // A canceled search's find job stops only at its next status check: wait for it.
+    const [finding] = await tx`select 1 from jobs where search_id = ${id} and type = 'find' and status = 'running' limit 1`;
+    if (finding) return 'running';
     // No find job runs while the search is ended, so the count holds until the update.
     const [held] = await tx<{ n: number }[]>`select count(*)::int as n from companies where search_id = ${id}`;
     const foundBefore = held?.n ?? 0;
@@ -137,6 +140,27 @@ export async function searchMore(
     `;
     if (!row) throw new Error('update of searches returned nothing');
     await enqueue(tx, { type: 'find', payload: { searchId: id }, searchId: id });
+    // A cancel or a quota stop dropped the earlier runs' queued work: pick it up again.
+    const crawls = await tx<{ id: string }[]>`
+      select c.id from companies c
+      where c.search_id = ${id} and c.crawl_status = 'pending'
+        and not exists (
+          select 1 from jobs j where j.search_id = ${id} and j.type = 'crawl' and j.status in ('queued', 'running')
+            and j.payload->>'companyId' = c.id::text
+        )
+    `;
+    const verifies = await tx<{ id: string }[]>`
+      select e.id from emails e
+      where e.search_id = ${id} and e.verification is null
+        and not exists (
+          select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status in ('queued', 'running')
+            and j.payload->>'emailId' = e.id::text
+        )
+    `;
+    await enqueue(tx, [
+      ...crawls.map((c) => ({ type: 'crawl' as const, payload: { companyId: c.id }, searchId: id })),
+      ...verifies.map((e) => ({ type: 'verify' as const, payload: { emailId: e.id }, searchId: id })),
+    ]);
     return toSearch(row);
   });
 }
