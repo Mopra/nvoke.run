@@ -10,6 +10,8 @@
 
 ## Lately
 
+- 2026-10-17 Round as the human left: Dev DB UTF8 landed (bed77ad). Only crawl hit rate running; three blocks with the human (macOS test, Push leads, Turnstile secret). Aim waits on crawl hit rate. Nothing to do; 26 quests since the last ship, shipping is the human's.
+
 - 2026-10-17 Round after Journey check landed (2678983): openers fixed (thinking tokens), signed-in sign-up redirect, tool CTAs. Filed 'Dev DB: embedded Postgres in UTF8 on Windows' (sonnet) from its Not changed list. Crawl hit rate still running; aim stays open until it lands. 25 quests since the last ship, shipping is the human's.
 - 2026-10-17 Crawl hit rate stopped after an uncommitted sample retry fix with nothing running; told it to commit, rerun failed countries once, then freeze the sample (shortfall noted) and go on to baseline and improvements without stopping.
 - 2026-10-17 Round as the human left: journey check now running, crawl hit rate running, three blocks with the human. Nothing to do.
