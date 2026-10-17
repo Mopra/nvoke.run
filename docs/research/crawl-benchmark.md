@@ -157,7 +157,7 @@ script). That is what the next step is for.
 | jsonexlab.com | sitemap | support@jsonexlab.com on /privacy-policy/ |
 | takestakes.com | sitemap | hello@tomreinert.de on /imprint/ |
 | hjertingfysioterapi.dk | meta refresh to fysesbjerg.dk | fysesbjerg@fysesbjerg.dk |
-| ostomycure.com | redirect to ostomysecure.com, its contact pages | info@, graeme.smith@ostomysecure.com |
+| ostomycure.com | guessed paths after nothing: /contact and /about redirect to its real pages | info@, graeme.smith@ostomysecure.com |
 | landsecurities.co.uk | https www refused, the bare http variant redirects to landsec.com | enquiries@, shareholderenquiries@landsec.com |
 
 A first version without the slug rule also "gained" app.treechat.com with
