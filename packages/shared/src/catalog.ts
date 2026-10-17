@@ -533,7 +533,7 @@ export const ERROR_CODES: Record<string, string> = {
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
   account_exists: 'An account with this email exists. Ask the human for an API key.',
   email_not_accepted: 'Disposable inbox, an opted-out address, or a domain that receives no mail.',
-  rate_limited: 'Too many requests from this client, account or address. Try again later.',
+  rate_limited: 'Too many requests of this kind from this account or client. Try again later.',
   captcha_failed: 'The Turnstile token was missing or did not pass. Solve the challenge again.',
   busy: 'Too many free tool checks are running or today’s free allowance is used up. Try again later, or sign up.',
   site_unreadable: 'We could not read the website: it is down, robots.txt keeps us out, it refuses our servers or it needs JavaScript. `detail` says which.',
