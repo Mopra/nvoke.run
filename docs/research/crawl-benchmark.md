@@ -89,3 +89,21 @@ addresses, every one of them junk (`info@relatedcode.com.we` from
 "info@relatedcode.com. We"), so that rule was dropped and a test keeps it
 out. The rest stays: cheap, tested, and it costs nothing on pages that do
 not use it.
+
+### 2. Page picking: more languages, menus and footers, vCards
+
+`packages/shared/src/crawl/pages.ts`. Contact, imprint, team and about
+words in Dutch, French, Spanish, Italian, Portuguese, Polish and Finnish
+(`nous-contacter`, `over-ons`, `mentions-legales`, `ota-yhteytta`,
+`quienes-somos` and more), "find us" pages (`find-os`, `hitta-hit`,
+`anfahrt`), links to `.vcf` files, and 10 points for a link inside the
+site's header, nav, footer or menu, where sites put the pages they want
+found.
+
+| picking | sites | with email | deliverable | generic | personal | emails | done | failed | blocked | refused | js_only | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| all | 275 | 165 (60.0%) | 164 (59.6%) | 122 | 79 | 457 | 223 | 21 | 3 | 8 | 20 | 3.9 | 4.1 |
+
+No change in sites: 0 gained, 0 lost. A first version moved `/impressum`
+into the first three guessed paths in place of `/about` and lost
+tunedaway.com, whose only address is on `/about`; the order was put back.

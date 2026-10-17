@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { looksJsOnly, pageWall } from './pages.ts';
+import { fallbackPages, looksJsOnly, pageWall, pickFromSitemap, pickLikelyPages, planPages } from './pages.ts';
 
 const filler = `<p>${'We are a small studio in Aarhus making furniture by hand. '.repeat(20)}</p>`;
 
@@ -27,5 +27,61 @@ describe('pageWall', () => {
     expect(pageWall(`<body>${filler}<form><div class="g-recaptcha"></div></form></body>`)).toBeNull();
     expect(pageWall(`<body>${filler}<input type=password></body>`)).toBeNull();
     expect(pageWall(`<body>${filler}</body>`)).toBeNull();
+  });
+});
+
+describe('pickLikelyPages', () => {
+  it('reads contact paths in more languages', () => {
+    const html = `<body>
+      <a href="/nous-contacter">Nous contacter</a>
+      <a href="/over-ons">Over ons</a>
+      <a href="/ota-yhteytta">Ota yhteyttä</a>
+      <a href="/shop">Shop</a>
+    </body>`;
+    expect(pickLikelyPages(html, 'https://acme.fr/', 5)).toEqual([
+      'https://acme.fr/nous-contacter',
+      'https://acme.fr/ota-yhteytta',
+      'https://acme.fr/over-ons',
+    ]);
+  });
+
+  it('ranks a footer link above the same kind of link in the body', () => {
+    const html = `<body><p><a href="/about-the-founder">About the founder</a></p>
+      <div class="site-footer"><a href="/about">About</a></div></body>`;
+    expect(pickLikelyPages(html, 'https://acme.dk/', 2)[0]).toBe('https://acme.dk/about');
+  });
+
+  it('picks a vCard link', () => {
+    expect(pickLikelyPages('<a href="/files/acme.vcf">Save contact</a>', 'https://acme.dk/', 2)).toEqual(['https://acme.dk/files/acme.vcf']);
+  });
+});
+
+describe('planPages', () => {
+  it('adds likely sitemap pages after the linked ones', () => {
+    const html = '<a href="/kontakt">Kontakt</a>';
+    const sitemap = ['https://acme.dk/', 'https://acme.dk/produkter', 'https://acme.dk/om-os', 'https://acme.dk/kontakt'];
+    expect(planPages(html, 'https://acme.dk/', sitemap, 7)).toEqual(['https://acme.dk/kontakt', 'https://acme.dk/om-os']);
+  });
+
+  it('guesses paths when neither the links nor the sitemap help', () => {
+    expect(planPages('<p>hi</p>', 'https://acme.dk/', [], 7)).toEqual([
+      'https://acme.dk/contact',
+      'https://acme.dk/kontakt',
+      'https://acme.dk/about',
+    ]);
+  });
+});
+
+describe('pickFromSitemap and fallbackPages', () => {
+  it('scores sitemap pages like links, shallow first', () => {
+    expect(pickFromSitemap(['https://a.dk/blog/2020/contact-tips', 'https://a.dk/contact', 'https://a.dk/x.pdf'], 5)).toEqual([
+      'https://a.dk/contact',
+      'https://a.dk/blog/2020/contact-tips',
+    ]);
+  });
+
+  it('skips guessed paths already read', () => {
+    const seen = new Set(['https://a.dk/contact', 'https://a.dk/kontakt/']);
+    expect(fallbackPages('https://a.dk/', seen, 2)).toEqual(['https://a.dk/about', 'https://a.dk/impressum']);
   });
 });
