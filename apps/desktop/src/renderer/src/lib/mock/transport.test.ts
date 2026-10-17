@@ -4,7 +4,9 @@ import { createMockTransport } from './transport';
 
 function setup(seed = false) {
   let clock = Date.UTC(2026, 9, 13, 12, 0, 0);
-  const transport = createMockTransport({ now: () => clock, latency: 0, seed });
+  const store = new Map<string, string>();
+  const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+  const transport = createMockTransport({ now: () => clock, latency: 0, seed, storage });
   return {
     api: createApi(transport),
     advance: (ms: number) => {
@@ -138,5 +140,28 @@ describe('local copy', () => {
     expect((await api.listSearches()).map((s) => s.id)).toEqual(online.map((s) => s.id));
     expect((await api.localStatus()).online).toBe(false);
     await expect(api.getMe()).rejects.toMatchObject({ status: 0 });
+  });
+  it('builds, reads and edits the site profile', async () => {
+    const { api } = setup();
+    expect(await api.getSiteProfile()).toBeNull();
+    const built = await api.buildSiteProfile('https://www.acme-clinics.dk/about');
+    expect(built.domain).toBe('acme-clinics.dk');
+    expect(built.profile.name).toBe('Acme Clinics');
+    expect(built.profile.country).toBe('dk');
+    expect(built.suggestions.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(built.suggestions.map((s) => s.search.kind)).size).toBeGreaterThanOrEqual(3);
+    for (const s of built.suggestions) await expect(api.createSearch(s.search)).resolves.toMatchObject({ kind: s.search.kind });
+    expect(await api.getSiteProfile()).toEqual(built);
+    const edited = await api.updateSiteProfile({ audience: 'Clinics in Odense', country: null });
+    expect(edited.profile).toMatchObject({ audience: 'Clinics in Odense', country: null, name: 'Acme Clinics' });
+    expect(edited.suggestions).toEqual(built.suggestions);
+  });
+
+  it('answers an unreadable site with its reason', async () => {
+    const { api } = setup();
+    const err = await api.buildSiteProfile('nowhere.invalid').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 422, code: 'site_unreadable', detail: 'unreachable' });
+    await expect(api.updateSiteProfile({ name: 'X' })).rejects.toMatchObject({ status: 404 });
   });
 });

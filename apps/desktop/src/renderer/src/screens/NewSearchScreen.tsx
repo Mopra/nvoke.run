@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type Ref } from 'react';
-import { ArrowRight, ChevronDown, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
-import { toast } from 'sonner';
+import { ArrowLeft, ArrowRight, ChevronDown, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket } from 'lucide-react';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
@@ -8,11 +7,13 @@ import { CountryPicker } from '@/components/CountryPicker';
 import { Line, Pill, SENTENCE, SentenceInput } from '@/components/Sentence';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { itemDomain, SEARCH_LIMIT_MAX, splitList } from '@nvoke/shared';
-import { formatNumber, searchTitle, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
-import { useCreateSearch, useMe } from '@/lib/queries';
+import { formatNumber, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
+import { useMe } from '@/lib/queries';
+import { useStartSearch } from '@/lib/start-search';
 import { navigate } from '@/lib/router';
 import type { SearchInput, SearchKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { StartFromWebsite } from '@/screens/StartFromWebsite';
 
 const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
 
@@ -30,8 +31,17 @@ function isKind(value: string | null): value is FormKind {
   return value === 'local' || value === 'web' || value === 'launches' || value === 'domains';
 }
 
+/**
+ * New search. Plain `#/new` opens the website step (docs/desktop/site-profile.md);
+ * a kind in the route (`#/new?kind=domains`, from the command bar and the
+ * "by hand" link) opens the manual form on that tab.
+ */
 export function NewSearchScreen({ initialKind }: { initialKind: string | null }) {
-  const [kind, setKind] = useState<FormKind>(isKind(initialKind) ? initialKind : 'local');
+  return isKind(initialKind) ? <ManualSearch initialKind={initialKind} /> : <StartFromWebsite />;
+}
+
+function ManualSearch({ initialKind }: { initialKind: FormKind }) {
+  const [kind, setKind] = useState<FormKind>(initialKind);
   const [niche, setNiche] = useState('');
   const [location, setLocation] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -44,7 +54,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   const [touched, setTouched] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
   const listField = useRef<HTMLTextAreaElement>(null);
-  const create = useCreateSearch();
+  const create = useStartSearch();
   const me = useMe();
 
   useEffect(() => {
@@ -82,14 +92,8 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   function submit(event?: FormEvent): void {
     event?.preventDefault();
     setTouched(true);
-    if (!input || create.isPending) return;
-    create.mutate(input, {
-      onSuccess: (search) => {
-        toast.success('Search started', { description: searchTitle(search) });
-        navigate({ name: 'search', id: search.id }, { replace: true });
-      },
-      onError: (err) => toast.error('Couldn’t start the search', { description: err.message }),
-    });
+    if (!input) return;
+    create.start(input);
   }
 
   const invalid = (value: string): boolean => touched && !value.trim();
@@ -102,6 +106,10 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
         <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-rise" noValidate>
           <h1 className="sr-only">New search</h1>
+          <Pill onClick={() => navigate({ name: 'new', kind: null })} className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start">
+            <ArrowLeft className="size-3" />
+            Start from your website
+          </Pill>
           <div className="flex flex-col items-start gap-3">
             <Segmented
               label="Where to look"

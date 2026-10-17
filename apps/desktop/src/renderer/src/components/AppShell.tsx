@@ -38,8 +38,8 @@ export function AppShell({ route, children }: { route: Route; children: ReactNod
   );
 }
 
-/** Ambient iris light at the top of the canvas. Present only while a search runs. */
-function Aura({ on }: { on: boolean }) {
+/** Ambient iris light at the top of the canvas. Present only while nvoke works: a search runs or a site is read. */
+export function Aura({ on }: { on: boolean }) {
   return (
     <div
       aria-hidden

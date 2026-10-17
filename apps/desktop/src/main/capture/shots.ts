@@ -9,12 +9,14 @@ import { mcpShots } from './shots/mcp';
 import { newSearchShots } from './shots/new-search';
 import { resultsShots } from './shots/results';
 import { searchesShots } from './shots/searches';
+import { siteProfileShots } from './shots/site-profile';
 import { updatesShots } from './shots/updates';
 
 /** Run in this order for each theme. A feature adds its shots in `shots/<feature>.ts` and one line here. */
 export const CAPTURE_STEPS: CaptureStep[] = [
   searchesShots,
   commandBarShots,
+  siteProfileShots,
   newSearchShots,
   csvDropShots,
   resultsShots,

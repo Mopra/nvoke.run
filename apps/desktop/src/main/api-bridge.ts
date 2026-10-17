@@ -52,6 +52,12 @@ function errorOf(body: unknown, status: number): string {
   return `http_${status}`;
 }
 
+/** The server's `detail`, only when it is a short code like `blocked`, so free text never reaches the renderer as a code. */
+function detailOf(body: unknown): string | undefined {
+  const detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : undefined;
+  return typeof detail === 'string' && /^[a-z][a-z_]{0,39}$/.test(detail) ? detail : undefined;
+}
+
 /**
  * Runs one renderer request through the session. Always resolves: invalid
  * input and network failures come back as `ok: false` with status 0.
@@ -83,7 +89,8 @@ export async function bridgeRequest(client: ApiClient, method: unknown, path: un
     data = null;
   }
   if (res.ok) return { ok: true, status: res.status, data };
-  return { ok: false, status: res.status, error: errorOf(data, res.status) };
+  const detail = detailOf(data);
+  return { ok: false, status: res.status, error: errorOf(data, res.status), ...(detail ? { detail } : {}) };
 }
 
 /** The search a successful `DELETE /v1/searches/:id` removed, so the local copy can drop it too. */

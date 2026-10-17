@@ -35,6 +35,8 @@ import type {
   CreateWebhookRequest,
   CreateWebhookResponse,
   SearchListResponse,
+  SiteProfile,
+  UpdateSiteProfileRequest,
   UpdateWebhookRequest,
   Webhook,
   WebhookDelivery,
@@ -48,12 +50,15 @@ export type Transport = NvokeBridge;
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** The server's short `detail` code, for example `blocked` on `site_unreadable`. */
+  readonly detail: string | null;
 
-  constructor(status: number, code: string) {
+  constructor(status: number, code: string, detail: string | null = null) {
     super(describeError(status, code));
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -94,7 +99,7 @@ export function createApi(transport: Transport) {
     } catch {
       throw new ApiError(0, 'network');
     }
-    if (!res.ok) throw new ApiError(res.status, res.error);
+    if (!res.ok) throw new ApiError(res.status, res.error, res.detail ?? null);
     return res.data as T;
   }
 
@@ -171,6 +176,18 @@ export function createApi(transport: Transport) {
     deleteDrop: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/drops/${enc(id)}`);
     },
+    /** The account's site profile, or null before the first build. */
+    getSiteProfile: async (): Promise<SiteProfile | null> => {
+      try {
+        return await call<SiteProfile>('GET', '/v1/site-profile');
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    /** Reads the site and plans searches. Takes 10 to 30 seconds. */
+    buildSiteProfile: (website: string): Promise<SiteProfile> => call('POST', '/v1/site-profile', { website }),
+    updateSiteProfile: (update: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', update),
     listWebhooks: async (): Promise<Webhook[]> => (await call<WebhookListResponse>('GET', '/v1/webhooks')).webhooks,
     createWebhook: (input: CreateWebhookRequest): Promise<CreateWebhookResponse> => call('POST', '/v1/webhooks', input),
     updateWebhook: (id: string, update: UpdateWebhookRequest): Promise<Webhook> =>

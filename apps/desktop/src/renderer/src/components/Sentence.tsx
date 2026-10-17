@@ -28,8 +28,8 @@ export function Line({ lead, htmlFor, children }: { lead: string; htmlFor: strin
   );
 }
 
-export function SentenceInput(props: ComponentProps<'input'>) {
-  return <input autoComplete="off" spellCheck={false} {...props} className={cn(SENTENCE, 'w-full')} />;
+export function SentenceInput({ className, ...props }: ComponentProps<'input'>) {
+  return <input autoComplete="off" spellCheck={false} {...props} className={cn(SENTENCE, 'w-full', className)} />;
 }
 
 /** Small pills under a line: toggles and quick values with `pressed`, plain actions without. */

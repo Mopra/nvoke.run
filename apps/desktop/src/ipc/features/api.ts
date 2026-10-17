@@ -8,9 +8,13 @@ export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 /**
  * The answer to `request()`. It never rejects: `ok: true` with the parsed JSON
  * body (null for 204), or `ok: false` with the HTTP status and the server's
- * `error` string. Status 0 means the network failed or the call was refused.
+ * `error` string, plus its short machine readable `detail` when it sent one
+ * (for example `site_unreadable` with `detail: 'blocked'`). Status 0 means
+ * the network failed or the call was refused.
  */
-export type BridgeResponse = { ok: true; status: number; data: unknown } | { ok: false; status: number; error: string };
+export type BridgeResponse =
+  | { ok: true; status: number; data: unknown }
+  | { ok: false; status: number; error: string; detail?: string };
 
 export type ExportResult =
   /** Written to `filePath`. */

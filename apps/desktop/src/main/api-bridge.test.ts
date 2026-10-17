@@ -90,6 +90,18 @@ describe('bridgeRequest', () => {
     expect(await bridgeRequest(t.session, 'POST', '/v1/searches', {})).toEqual({ ok: false, status: 403, error: 'quota_exceeded' });
   });
 
+  it('passes a short detail code through and drops free text', async () => {
+    const t = await signedIn(() => Response.json({ error: 'site_unreadable', detail: 'blocked' }, { status: 422 }));
+    expect(await bridgeRequest(t.session, 'POST', '/v1/site-profile', { website: 'acme.dk' })).toEqual({
+      ok: false,
+      status: 422,
+      error: 'site_unreadable',
+      detail: 'blocked',
+    });
+    const u = await signedIn(() => Response.json({ error: 'invalid_request', detail: 'Expected string, got number' }, { status: 400 }));
+    expect(await bridgeRequest(u.session, 'POST', '/v1/site-profile', {})).toEqual({ ok: false, status: 400, error: 'invalid_request' });
+  });
+
   it('signs out on 401', async () => {
     const t = await signedIn(() => Response.json({ error: 'invalid token' }, { status: 401 }));
     const res = await bridgeRequest(t.session, 'GET', '/v1/searches');

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ArrowUpRight, Ban, Inbox, MoreHorizontal, Plus, Rows3, Trash2 } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Ban, Globe, Inbox, MoreHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DisplayTitle, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
@@ -195,16 +195,16 @@ export function SearchesScreen() {
             <ErrorState error={error} onRetry={() => void refetch()} />
           ) : data.length === 0 ? (
             <EmptyState
-              icon={Rows3}
-              title="No searches yet"
+              icon={Globe}
+              title="Start from your website"
               action={
                 <Button size="lg" onClick={() => navigate({ name: 'new', kind: null })}>
-                  <Plus />
-                  New search
+                  Read my site
+                  <ArrowRight />
                 </Button>
               }
             >
-              Start one. Companies show up here as nvoke finds them.
+              nvoke reads your site, works out who buys from you and plans the searches that find them.
             </EmptyState>
           ) : (
             <>

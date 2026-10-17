@@ -1,7 +1,7 @@
 import type { CaptureStep } from '../kit';
 
 export const newSearchShots: CaptureStep = async ({ win, js, go, sleep, shot }) => {
-  await go('#/new');
+  await go('#/new?kind=local');
   await shot('04-new-local');
   await go('#/new?kind=web');
   await shot('05-new-web');

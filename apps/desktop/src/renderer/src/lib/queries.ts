@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
 import { isActive } from './format';
-import type { ApiKey, CreateWebhookRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
+import type { ApiKey, CreateWebhookRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
 import type { CompaniesQuery, Drop, DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
@@ -18,7 +18,11 @@ export const keys = {
   webhooks: ['webhooks'] as const,
   local: ['local'] as const,
   findLeads: (q: string) => ['local-find', q] as const,
+  siteProfile: ['site-profile'] as const,
 };
+
+/** The build mutation's key, so any screen can see a build that is still running. */
+export const BUILD_SITE_PROFILE = ['site-profile', 'build'] as const;
 
 export function useSearches() {
   return useQuery({
@@ -308,4 +312,31 @@ export function useDeleteWebhook() {
 /** Sends a signed ping. The answer is shown, not cached. */
 export function useTestWebhook() {
   return useMutation({ mutationFn: (id: string) => api.testWebhook(id) });
+}
+
+/** The account's site profile; null before the first build. */
+export function useSiteProfile() {
+  return useQuery({ queryKey: keys.siteProfile, queryFn: api.getSiteProfile, staleTime: 5 * 60_000 });
+}
+
+/**
+ * Reads a website and plans searches (10 to 30 seconds). The result lands in
+ * the cache here, not in the caller, so it arrives even when the user left
+ * New search while it ran.
+ */
+export function useBuildSiteProfile() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: BUILD_SITE_PROFILE,
+    mutationFn: (website: string) => api.buildSiteProfile(website),
+    onSuccess: (profile) => client.setQueryData<SiteProfile | null>(keys.siteProfile, profile),
+  });
+}
+
+export function useUpdateSiteProfile() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (update: UpdateSiteProfileRequest) => api.updateSiteProfile(update),
+    onSuccess: (profile) => client.setQueryData<SiteProfile | null>(keys.siteProfile, profile),
+  });
 }

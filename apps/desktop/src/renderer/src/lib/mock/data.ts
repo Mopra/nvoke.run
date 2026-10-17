@@ -2,7 +2,7 @@
  * Deterministic fake companies and emails for the mock transport. Everything
  * derives from a seed, so a search shows the same leads on every poll.
  */
-import { itemDomain } from '@nvoke/shared';
+import { itemDomain, type SiteProfile } from '@nvoke/shared';
 import type { Company, Email, EmailKind, SearchInput, Verification } from '../types';
 
 /** mulberry32: small, fast, good enough for fake data. */
@@ -205,4 +205,70 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
 export function sourceYield(searchId: string, limit: number): number {
   const r = rng(hashString(`yield:${searchId}`));
   return Math.max(1, Math.round(limit * (0.72 + r() * 0.24)));
+}
+
+/** Country and language a TLD suggests, for the demo profile. */
+const TLD_LOCALE: Record<string, { country: string; language: string; city: string; city2: string }> = {
+  dk: { country: 'dk', language: 'da', city: 'Copenhagen', city2: 'Aarhus' },
+  se: { country: 'se', language: 'sv', city: 'Stockholm', city2: 'Gothenburg' },
+  no: { country: 'no', language: 'no', city: 'Oslo', city2: 'Bergen' },
+  de: { country: 'de', language: 'de', city: 'Berlin', city2: 'Hamburg' },
+  uk: { country: 'gb', language: 'en', city: 'London', city2: 'Manchester' },
+};
+
+/**
+ * A plausible profile for any site: a small studio that builds booking
+ * websites for clinics, named after the domain, with five suggestions across
+ * the search kinds. Each `search` is a valid `POST /v1/searches` body.
+ */
+export function mockSiteProfile(domain: string, at: string): SiteProfile {
+  const label = domain.split('.')[0] ?? domain;
+  const name = label
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+  const locale = TLD_LOCALE[domain.split('.').at(-1) ?? ''];
+  const city = locale?.city ?? 'Austin';
+  const city2 = locale?.city2 ?? 'Denver';
+  const country = locale?.country ?? null;
+  return {
+    website: `https://${domain}/`,
+    domain,
+    profile: {
+      name,
+      summary: `${name} designs and runs booking websites for dental and physio clinics.`,
+      offer: 'Fast clinic websites with online booking, reviews and local search set up, on a monthly plan with no lock-in.',
+      audience: `Owner run dental and physiotherapy clinics with 3 to 20 staff, mostly around ${city}.`,
+      proofPoints: ['42 clinics live', 'Bookings up 31% on average in the first year', 'Webflow Enterprise partner'],
+      voice: ['calm', 'no lock-in', 'booked solid', 'made for clinics'],
+      language: locale?.language ?? 'en',
+      country,
+    },
+    suggestions: [
+      {
+        why: `Your case studies are clinics like these, and ${city} is where most of them sit.`,
+        search: { kind: 'local', params: { niche: 'dental clinics', location: city }, limit: 100 },
+      },
+      {
+        why: 'Physio clinics book by the hour too, and your site already shows two of them.',
+        search: { kind: 'local', params: { niche: 'physiotherapists', location: city2 }, limit: 100 },
+      },
+      {
+        why: 'Private clinics that sell treatments online need booking that converts.',
+        search: { kind: 'web', params: { keyword: 'private dental clinic online booking', ...(country ? { country } : {}) }, limit: 100 },
+      },
+      {
+        why: 'New booking and practice tools launch every week and need a site that sells them.',
+        search: { kind: 'launches', params: { keyword: 'booking', days: 30 }, limit: 50 },
+      },
+      {
+        why: 'Groups your site names as partners. Each runs several clinics.',
+        search: { kind: 'domains', params: { items: ['colosseumdental.com', 'smile.dk', 'tandlaegen.dk', 'fysioterapeuten.dk'] } },
+      },
+    ],
+    pages: [`https://${domain}/`, `https://${domain}/about`, `https://${domain}/pricing`, `https://${domain}/cases`],
+    createdAt: at,
+    updatedAt: at,
+  };
 }

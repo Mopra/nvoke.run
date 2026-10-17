@@ -31,17 +31,24 @@ import {
   PLANS,
   SEARCH_LIMIT_MAX,
   CreateWebhookRequest,
+  BuildSiteProfileRequest,
   UpdateDropRequest,
+  UpdateSiteProfileRequest,
   UpdateWebhookRequest,
   WEBHOOK_EVENTS,
   WEBHOOK_SECRET_PREFIX,
   WEBHOOKS_MAX,
   type ApiKey,
+  type SiteProfile,
   type Webhook,
 } from '@nvoke/shared';
-import { generateCompany, sourceYield, type MockCompanySeed } from './data';
+import { generateCompany, mockSiteProfile, sourceYield, type MockCompanySeed } from './data';
 
 const QUEUE_MS = 1500;
+/** How long a mock site profile build takes, long enough to show the phases. */
+const SITE_PROFILE_MS = 5200;
+/** The built profile survives a reload in dev, like the server keeps it. */
+const SITE_PROFILE_KEY = 'nvoke.mock.site-profile';
 const PAGE_SIZE = 100;
 /** The mock user is on Pro: see PLANS in apps/server/src/leads/plans.ts. */
 const MAX_LIMIT = SEARCH_LIMIT_MAX;
@@ -357,6 +364,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       return json(200, me);
     }
 
+    if (parts[1] === 'site-profile' && parts.length === 2) return siteProfileRoute(method, body);
     if (parts[1] === 'api-keys') return apiKeyRoute(method, parts[2], body);
     if (parts[1] === 'drops') return dropRoute(method, parts[2], parts[3], body);
     if (parts[1] === 'webhooks') return webhookRoute(method, parts[2], parts[3], body);
@@ -393,6 +401,49 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       return json(200, toSearch(rec));
     }
     if (parts[3] === 'companies' && method === 'GET') return json(200, listCompanies(rec, url.searchParams));
+    return fail(404, 'not_found');
+  }
+
+  function storedSiteProfile(): SiteProfile | null {
+    try {
+      const raw = storage.getItem(SITE_PROFILE_KEY);
+      return raw ? (JSON.parse(raw) as SiteProfile) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * GET, POST and PATCH /v1/site-profile. Any site works except one under
+   * `.invalid`, which answers like a site that does not resolve.
+   */
+  function siteProfileRoute(method: HttpMethod, body: unknown): BridgeResponse {
+    const current = storedSiteProfile();
+    if (method === 'GET') return current ? json(200, current) : fail(404, 'not_found');
+    if (method === 'POST') {
+      const req = BuildSiteProfileRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      const text = req.data.website.trim();
+      let host: string;
+      try {
+        host = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`).hostname.toLowerCase().replace(/^www\./, '');
+      } catch {
+        return fail(400, 'invalid_request');
+      }
+      if (!host.includes('.')) return fail(400, 'invalid_request');
+      if (host.endsWith('.invalid')) return { ok: false, status: 422, error: 'site_unreadable', detail: 'unreachable' };
+      const profile = mockSiteProfile(host, new Date(now()).toISOString());
+      storage.setItem(SITE_PROFILE_KEY, JSON.stringify(profile));
+      return json(200, profile);
+    }
+    if (method === 'PATCH') {
+      if (!current) return fail(404, 'not_found');
+      const req = UpdateSiteProfileRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      const next: SiteProfile = { ...current, profile: { ...current.profile, ...req.data }, updatedAt: new Date(now()).toISOString() };
+      storage.setItem(SITE_PROFILE_KEY, JSON.stringify(next));
+      return json(200, next);
+    }
     return fail(404, 'not_found');
   }
 
@@ -650,6 +701,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   return {
     async request(method, path, body) {
       await sleep(jitter());
+      if (method === 'POST' && path === '/v1/site-profile' && latency > 0) await sleep(SITE_PROFILE_MS);
       return route(method, path, body);
     },
     async exportCsv(searchId, defaultFileName) {
