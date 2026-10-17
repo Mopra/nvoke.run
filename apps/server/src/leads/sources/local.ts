@@ -331,7 +331,8 @@ export function fallbackWebParams(params: LocalSearchParams, area: ResolvedArea 
  * the area's country, yielding those whose own site is among the results.
  * Names already yielded or looked up are skipped (a chain has one site), and
  * at most `maxPlaceLookups` requests are spent. Overpass failing here only
- * ends this step; a Brave refusal fails the search like any web search.
+ * ends this step, and a lookup that errors (5xx, timeout) only skips its
+ * place; a Brave refusal fails the search like any web search.
  */
 async function* placesLookedUp(
   params: LocalSearchParams,
@@ -364,7 +365,15 @@ async function* placesLookedUp(
     const city = el.tags?.['addr:city']?.trim() || params.location.trim();
     const { q, country } = braveQuery({ keyword: `${name} ${city}`, country: area.countryCode });
     lookups++;
-    const page = await brave.page({ q, country, page: 0 }, ctx);
+    let page: Awaited<ReturnType<BraveClient['page']>>;
+    try {
+      page = await brave.page({ q, country, page: 0 }, ctx);
+    } catch (err) {
+      // A refusal pauses Brave and fails the search; a 5xx or a timeout only skips this place.
+      if (ctx.signal.aborted || err instanceof PermanentError) throw err;
+      ctx.log.warn({ err: err instanceof Error ? err.message : String(err), name }, 'local: place lookup failed');
+      continue;
+    }
     const hit = pickPlaceSite(name, page.companies, [...generic, city]);
     const company = hit ? elementToCompany(el, hit.website) : null;
     if (!company) continue;
