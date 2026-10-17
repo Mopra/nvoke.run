@@ -133,6 +133,16 @@ export type CreateSearchInput = z.input<typeof CreateSearchRequest>;
 export const SearchMoreRequest = CreateSearchRequest;
 export type SearchMoreRequest = z.infer<typeof SearchMoreRequest>;
 
+/**
+ * `PATCH /v1/searches/:id`. ongoing: keep finding new companies after the
+ * search ends, a few a day, until it is switched off. Only plain words
+ * (`icp`) searches can be ongoing.
+ */
+export const UpdateSearchRequest = z.object({
+  ongoing: z.boolean(),
+});
+export type UpdateSearchRequest = z.infer<typeof UpdateSearchRequest>;
+
 const SearchBase = z.object({
   id: z.uuid(),
   limit: z.number().int().positive(),
