@@ -27,9 +27,27 @@ export function isDirectoryDomain(domain: string): boolean {
   return DIRECTORY_SET.has(registrableDomain(domain.toLowerCase()));
 }
 
-/** "Top 25 ...", "The 10 best ...", "15 lead generation agencies in London", "List of ...". */
+/**
+ * "Top 25 ...", "The 10 best ...", "15 lead generation agencies in London",
+ * "List of ...", "B2B SaaS startups in Berlin", "12 Belkins alternatives".
+ */
 const LIST_TITLE =
-  /\b(top|best)\s+\d{1,3}\b|\b\d{1,3}\+?\s+(best|top|leading|great|biggest)\b|^\s*\d{1,3}\+?\s+\p{L}[\p{L}\s-]{2,60}\b(agencies|companies|firms|consultants|consultancies|providers|services|studios|startups|tools|vendors)\b|\blist of\b|\b(top|best|leading)\s+[\p{L}\s-]{2,60}\b(agencies|companies|firms|consultancies|providers)\s+(in|for|near)\b/iu;
+  /\b(top|best)\s+\d{1,3}\b|\b\d{1,3}\+?\s+(best|top|leading|great|biggest)\b|^\s*\d{1,3}\+?\s+\p{L}[\p{L}\s-]{2,60}\b(agencies|companies|firms|consultants|consultancies|providers|services|studios|startups|tools|vendors)\b|\blist of\b|\b(top|best|leading)\s+[\p{L}\s-]{2,60}\b(agencies|companies|firms|consultancies|providers)\s+(in|for|near)\b|^\s*[\p{L}\p{N}\s&-]{2,60}\b(agencies|companies|firms|consultancies|startups)\s+(in|based in)\s+\p{Lu}|\b\d{1,3}\+?\s+(best\s+)?[\p{L}.\s-]{2,40}\b(alternatives|competitors)\b|\b(alternatives|competitors)\s+(to|of)\s+\p{Lu}/iu;
+
+/**
+ * Pages on a company's own site that name related companies: a tool's
+ * partner or agency directory ("/partners", "/agencies", "/experts") and
+ * alternatives or competitor pages. Read like any list.
+ */
+const LIST_PATH = /\/(partners?|partner-directory|find-a-partner|certified-partners|agencies|agency-partners|experts|alternatives?|competitors)(\/[^/]*)?\/?$/i;
+
+function pathOf(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return '';
+  }
+}
 
 /** Whether a search result is a page that lists many companies, by its address and title. */
 export function isListPage(url: string, title: string | undefined): boolean {
@@ -44,7 +62,7 @@ export function isListPage(url: string, title: string | undefined): boolean {
       return false;
     }
   }
-  return LIST_TITLE.test((title ?? '').replace(/<[^>]+>/g, ''));
+  return LIST_TITLE.test((title ?? '').replace(/<[^>]+>/g, '')) || LIST_PATH.test(pathOf(url));
 }
 
 export interface ListCandidate {
@@ -160,12 +178,76 @@ export function extractListCandidates(html: string, pageUrl: string, max = 200):
   return out;
 }
 
-export type MineResult =
-  | { status: 'ok'; title: string; candidates: ListCandidate[] }
-  | { status: 'skipped'; reason: 'robots' | 'error' | 'not_html' | 'wall' | 'status' };
+/** Page numbers in an address: `?page=2`, `?p=2`, `?paged=2` or `/page/2/`. */
+const PAGE_PARAMS = ['page', 'p', 'pg', 'paged'];
+function pageNumber(url: URL): number | null {
+  for (const key of PAGE_PARAMS) {
+    const v = url.searchParams.get(key);
+    if (v && /^\d{1,3}$/.test(v)) return Number(v);
+  }
+  const m = /\/page\/(\d{1,3})\/?$/.exec(url.pathname);
+  return m ? Number(m[1]) : null;
+}
 
-/** Bytes read of one list page. Directories are heavy; the companies sit in the first megabyte or two. */
-export const LIST_PAGE_MAX_BYTES = 2_500_000;
+/** Link texts of a "next page" link. */
+const NEXT_TEXT = /^(next|next page|weiter|nächste|suivant|volgende|næste|nästa|neste|siguiente|successivo|›|»|→|>)$/i;
+
+/** An address without its page number, to tell a next page from another list. */
+function withoutPage(u: URL): string {
+  const params = new URLSearchParams(u.search);
+  for (const key of PAGE_PARAMS) params.delete(key);
+  params.sort();
+  return `${u.hostname.replace(/^www\./, '')}${u.pathname.replace(/\/page\/\d{1,3}\/?$/, '').replace(/\/$/, '')}?${params.toString()}`;
+}
+
+/**
+ * The next page of a paginated list, when it is a plain link on the same
+ * site whose address only counts the page up (`?page=2`, `/page/2/`). Null
+ * otherwise: pages loaded by script, other filters, or another site.
+ */
+export function nextPageLink(html: string, pageUrl: string): string | null {
+  let base: URL;
+  try {
+    base = new URL(pageUrl);
+  } catch {
+    return null;
+  }
+  const current = pageNumber(base) ?? 1;
+  const $ = load(html);
+  const hrefs: string[] = [];
+  for (const sel of ['link[rel="next"]', 'a[rel="next"]']) {
+    const href = $(sel).first().attr('href');
+    if (href) hrefs.push(href);
+  }
+  $('a[href]').each((_i, el) => {
+    const a = $(el);
+    const text = cleanText(a.text());
+    if (NEXT_TEXT.test(text) || text === String(current + 1) || /\bnext\b/i.test(a.attr('aria-label') ?? '')) hrefs.push(a.attr('href')!);
+  });
+  for (const href of hrefs) {
+    let url: URL;
+    try {
+      url = new URL(href, base);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+    // Only the page number may change.
+    if (pageNumber(url) !== current + 1 || withoutPage(url) !== withoutPage(base)) continue;
+    url.hash = '';
+    return url.toString();
+  }
+  return null;
+}
+
+/** A list page read, with the bytes it took (redirect hops included), for the run's byte budget. */
+export type MineResult = (
+  | { status: 'ok'; title: string; candidates: ListCandidate[]; next?: string }
+  | { status: 'skipped'; reason: 'robots' | 'error' | 'not_html' | 'wall' | 'status' }
+) & { bytes: number };
+
+/** Bytes read of one list page: most lists fit in this much HTML, and reading stops at the cap. */
+export const LIST_PAGE_MAX_BYTES = 500_000;
 
 /**
  * The crawl deps for list pages: the crawler's rate limit, and a fetch that
@@ -205,12 +287,15 @@ export async function readHead(url: string, deps: CrawlDeps, signal?: AbortSigna
 export async function mineListPage(url: string, deps: CrawlDeps, signal?: AbortSignal): Promise<MineResult> {
   const fetcher = new SiteFetcher(deps, LIST_PAGE_MAX_BYTES, signal);
   const page = await fetcher.get(url);
-  if (page.kind === 'robots') return { status: 'skipped', reason: 'robots' };
-  if (page.kind === 'error') return { status: 'skipped', reason: 'error' };
-  if (page.status < 200 || page.status >= 300) return { status: 'skipped', reason: 'status' };
-  if (!isHtml(page.contentType)) return { status: 'skipped', reason: 'not_html' };
+  const bytes = fetcher.bytesUsed;
+  const skipped = (reason: 'robots' | 'error' | 'not_html' | 'wall' | 'status'): MineResult => ({ status: 'skipped', reason, bytes });
+  if (page.kind === 'robots') return skipped('robots');
+  if (page.kind === 'error') return skipped('error');
+  if (page.status < 200 || page.status >= 300) return skipped('status');
+  if (!isHtml(page.contentType)) return skipped('not_html');
   const html = decodeBody(page.body, page.contentType);
-  if (pageWall(html)) return { status: 'skipped', reason: 'wall' };
+  if (pageWall(html)) return skipped('wall');
   const title = cleanText(load(html)('title').first().text()).slice(0, 200);
-  return { status: 'ok', title, candidates: extractListCandidates(html, page.url) };
+  const next = nextPageLink(html, page.url);
+  return { status: 'ok', title, candidates: extractListCandidates(html, page.url), ...(next ? { next } : {}), bytes };
 }

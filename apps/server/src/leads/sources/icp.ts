@@ -6,27 +6,40 @@
 // Tier 1 runs the core queries, the directory and list page queries and the
 // local pairs, interleaved so the first companies arrive within seconds.
 // Tier 2 widens to synonyms and adjacent niches, tier 3 to more countries or
-// cities, tier 4 reads further result pages of the queries that paid off.
+// cities, then job posts for sales roles (when the plan has them), and tier 4
+// reads further result pages of the queries that paid off.
 // A result that is a list page ("Top 25 ... agencies", a directory category)
-// is read for the companies it links to (listicle.ts): one free page instead
-// of many paid requests. Every step says what it does through ctx.onStage.
+// is read for the companies it links to, and its next pages when it is
+// paginated (listicle.ts): free pages instead of many paid requests. A
+// result that is a job post for a sales role on a public job board is
+// mapped to the company's own site (hiring.ts): that company is building an
+// outbound team now. Every step says what it does through ctx.onStage.
 
 import type { Sql } from 'postgres';
 import type { IcpSearchParams, LocalSearchParams } from '@nvoke/shared';
 import { AiError, type Ai } from '../../ai/client.js';
 import { normalizeDomain, registrableDomain } from '../domain.js';
 import { FIT_BATCH, FIT_THRESHOLD, isObviousNonCompany, scoreCandidates, type FitVerdict } from '../fit.js';
+import { hiringSnippet, postingFromResult, resolvePosting, type HiringPosting } from '../hiring.js';
 import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
-import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead } from '../listicle.js';
+import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead, type MineResult } from '../listicle.js';
 import { makePlan, savePlan, storedPlan, type IcpPlan, type LocalPair, type PlanQuery } from '../planner.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import { braveQuery, type BraveClient } from './web.js';
 
-/** List pages tried per run. Each is free but takes a few seconds. */
-export const MAX_LIST_PAGES = 40;
+/** List pages tried per run, next pages included. Each is free but takes a few seconds. */
+export const MAX_LIST_PAGES = 400;
 /** List pages read at once, on different hosts. */
-const LIST_CONCURRENCY = 4;
+const LIST_CONCURRENCY = 6;
+/** Bytes all list pages of one run may read, with LIST_PAGE_MAX_BYTES a page: about 200 full pages. */
+export const LIST_BYTES_BUDGET = 100_000_000;
+/** Time one run may spend reading list pages, so they never crowd out the find job's timeout. */
+export const LIST_TIME_BUDGET_MS = 12 * 60_000;
+/** Next pages read of one paginated list. */
+const MAX_LIST_FOLLOW = 3;
+/** Job boards read at once while mapping postings to companies; one host is still read one page at a time. */
+const BOARD_CONCURRENCY = 8;
 /** Fit calls in flight while the next queries run. */
 const FIT_IN_FLIGHT = 3;
 /** Companies one local pair may add, so one city cannot fill the search. */
@@ -184,6 +197,9 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       const brands = new Set<string>();
       const heads = { left: MAX_HEADS };
       const mined = new Set<string>();
+      // Job boards already mapped this run ("lever:acme"): one company, however many postings.
+      const boards = new Set<string>();
+      let postingsRead = 0;
       const stats = new Map<string, QueryStats>();
       let yielded = 0;
       let listPagesRead = 0;
@@ -275,50 +291,124 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       }
 
       const hostOf = (url: string) => registrableDomain(normalizeDomain(url) ?? url);
+      // What all list pages of this run took, against LIST_BYTES_BUDGET and LIST_TIME_BUDGET_MS.
+      let listBytes = 0;
+      let listMs = 0;
+      let listBudgetLogged = false;
+      /**
+       * Reads list pages through a small pool: up to LIST_CONCURRENCY at once,
+       * one per host at a time (a host that refuses us costs one try), the
+       * next page starting as soon as any finishes. Plain next pages of lists
+       * that named companies join the queue. Stops starting pages once the
+       * run's list page bytes or time are spent.
+       */
       const readLists = async (urls: string[]): Promise<Pending[]> => {
         const out: Pending[] = [];
-        let left = urls.filter((u) => !deadHosts.has(hostOf(u)));
-        while (left.length > 0) {
-          // One page per host at a time, so a host that refuses us costs one try, not four.
-          const batch: string[] = [];
-          for (const url of left) {
-            if (batch.length < LIST_CONCURRENCY && !batch.some((b) => hostOf(b) === hostOf(url))) batch.push(url);
+        const started = Date.now();
+        const spent = () => listBytes >= LIST_BYTES_BUDGET || listMs + (Date.now() - started) >= LIST_TIME_BUDGET_MS;
+        // How deep into a paginated list each address is: 0 for the page the search found.
+        const depth = new Map(urls.map((u) => [u, 0]));
+        let queue = urls.filter((u) => !deadHosts.has(hostOf(u)));
+        const busy = new Set<string>();
+        const running = new Set<Promise<void>>();
+        const handle = (url: string, r: MineResult | null) => {
+          if (r) listBytes += r.bytes;
+          // A host that refuses us, walls us off or links to nothing but itself is not read again.
+          if (!r || r.status !== 'ok' || r.candidates.length === 0) deadHosts.add(hostOf(url));
+          if (!r || r.status !== 'ok') {
+            ctx.log.info({ url, reason: r?.status === 'skipped' ? r.reason : 'error' }, 'icp: list page skipped');
+            return;
           }
-          left = left.filter((u) => !batch.includes(u));
-          listPagesTried += batch.length;
-          const results = await Promise.all(
-            batch.map((url) =>
-              mineListPage(url, crawl, ctx.signal).catch((err: unknown) => {
-                if (ctx.signal.aborted) throw err;
-                ctx.log.warn({ err, url }, 'icp: list page failed');
-                return null;
-              }),
-            ),
-          );
-          results.forEach((r, j) => {
-            const url = batch[j]!;
-            // A host that refuses us, walls us off or links to nothing but itself is not read again.
-            if (!r || r.status !== 'ok' || r.candidates.length === 0) deadHosts.add(hostOf(url));
-            if (!r || r.status !== 'ok') {
-              ctx.log.info({ url, reason: r?.status === 'skipped' ? r.reason : 'error' }, 'icp: list page skipped');
-              return;
+          listPagesRead++;
+          ctx.log.info({ url, candidates: r.candidates.length, next: r.next }, 'icp: list page read');
+          // A plain next page of a list that named companies is read too, a few pages deep.
+          const d = depth.get(url) ?? 0;
+          if (r.next && r.candidates.length > 0 && d < MAX_LIST_FOLLOW && !mined.has(r.next) && listPagesTried + queue.length < MAX_LIST_PAGES) {
+            mined.add(r.next);
+            depth.set(r.next, d + 1);
+            queue.push(r.next);
+          }
+          for (const c of r.candidates) {
+            const company = admit({
+              name: c.name,
+              website: c.website,
+              source: 'list_page',
+              sourceRef: url,
+              title: r.title ? `Listed on: ${r.title}` : undefined,
+              snippet: c.context || undefined,
+            });
+            if (company) out.push({ company });
+          }
+        };
+        const start = (url: string) => {
+          const host = hostOf(url);
+          busy.add(host);
+          listPagesTried++;
+          const task: Promise<void> = mineListPage(url, crawl, ctx.signal)
+            .catch((err: unknown) => {
+              if (ctx.signal.aborted) return null;
+              ctx.log.warn({ err, url }, 'icp: list page failed');
+              return null;
+            })
+            .then((r) => handle(url, r))
+            .finally(() => {
+              busy.delete(host);
+              running.delete(task);
+            });
+          running.add(task);
+        };
+        try {
+          while (!ctx.signal.aborted) {
+            queue = queue.filter((u) => !deadHosts.has(hostOf(u)));
+            if (spent() && queue.length > 0) {
+              if (!listBudgetLogged) {
+                listBudgetLogged = true;
+                ctx.log.info({ listBytes, listMs: listMs + (Date.now() - started), left: queue.length }, 'icp: list page budget spent');
+              }
+              queue = [];
             }
-            listPagesRead++;
-            ctx.log.info({ url, candidates: r.candidates.length }, 'icp: list page read');
-            for (const c of r.candidates) {
-              const company = admit({
-                name: c.name,
-                website: c.website,
-                source: 'list_page',
-                sourceRef: url,
-                title: r.title ? `Listed on: ${r.title}` : undefined,
-                snippet: c.context || undefined,
-              });
-              if (company) out.push({ company });
+            while (running.size < LIST_CONCURRENCY) {
+              const i = queue.findIndex((u) => !busy.has(hostOf(u)));
+              if (i < 0) break;
+              start(queue.splice(i, 1)[0]!);
             }
-          });
-          left = left.filter((u) => !deadHosts.has(hostOf(u)));
+            if (running.size === 0) break;
+            await Promise.race(running);
+          }
+          // A canceled search waits only for the pages already in flight.
+          await Promise.allSettled([...running]);
+        } finally {
+          listMs += Date.now() - started;
         }
+        return out;
+      };
+
+      /** Maps job posts to the companies behind them, a few boards at a time; a board that does not say is skipped. */
+      const readPostings = async (postings: HiringPosting[], key: string): Promise<Pending[]> => {
+        const out: Pending[] = [];
+        let next = 0;
+        const worker = async () => {
+          while (next < postings.length && !ctx.signal.aborted) {
+            const posting = postings[next++]!;
+            postingsRead++;
+            const found = await resolvePosting(posting, crawl, ctx.signal).catch((err: unknown) => {
+              if (ctx.signal.aborted) throw err;
+              ctx.log.warn({ err, url: posting.url }, 'icp: job board failed');
+              return null;
+            });
+            if (!found) continue;
+            const company = admit({
+              name: found.name,
+              website: found.website,
+              source: 'hiring',
+              sourceRef: posting.url,
+              title: `Hiring: ${posting.role}`,
+              snippet: hiringSnippet(found),
+            });
+            if (company) out.push({ company, key });
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(BOARD_CONCURRENCY, postings.length) }, worker));
         return out;
       };
 
@@ -345,9 +435,19 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         const { q, country } = braveQuery({ keyword: unit.query.q, country: unit.query.country });
         const page = await opts.brave.page({ q, country, page: unit.page }, braveCtx);
         const lists: string[] = [];
+        const postings: HiringPosting[] = [];
         const out: Pending[] = [];
         for (const c of page.companies) {
           const url = c.sourceRef ?? c.website;
+          const posting = postingFromResult(url, c.title);
+          if (posting) {
+            const board = `${posting.ats}:${posting.slug.toLowerCase()}`;
+            if (!boards.has(board)) {
+              boards.add(board);
+              postings.push(posting);
+            }
+            continue;
+          }
           if (isListPage(url, c.title)) {
             if (!mined.has(url) && !deadHosts.has(hostOf(url)) && listPagesTried + lists.length < MAX_LIST_PAGES) {
               mined.add(url);
@@ -359,6 +459,11 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           }
           const company = admit(c);
           if (company) out.push({ company, key: unit.key });
+        }
+        if (postings.length > 0) {
+          await stage('hiring', note(`Reading ${plural(postings.length, 'job post', 'job posts')} for sales roles`));
+          out.push(...(await readPostings(postings, unit.key)));
+          if (phrase) await stage(phraseStage, note(phrase));
         }
         stats.set(unit.key, { query: unit.query, page: unit.page, more: page.more, candidates: out.length, fits: 0 });
         if (lists.length > 0) {
@@ -436,6 +541,13 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         yield* run(webUnits(plan.wider));
       }
 
+      // Tier 3b: job posts for sales roles. Many companies a request, but most are larger or out of reach of a
+      // homepage check, so they come after the queries that land on fitting companies' own words.
+      if (more() && plan.hiring?.length) {
+        await setPhrase('hiring', 'Looking for companies hiring salespeople');
+        yield* run(webUnits(plan.hiring));
+      }
+
       // Tier 4: further pages of the queries whose results fit.
       for (let page = 1; page <= MAX_DEEP_PAGE && more(); page++) {
         const worth = [...stats.entries()]
@@ -447,7 +559,10 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       }
 
       if (ctx.signal.aborted) return;
-      ctx.log.info({ yielded, paid, candidates: seen.size, listPagesRead, listPagesTried, deadHosts: [...deadHosts] }, 'icp: finished');
+      ctx.log.info(
+        { yielded, paid, candidates: seen.size, listPagesRead, listPagesTried, listBytes, listMs, postingsRead, boards: boards.size, deadHosts: [...deadHosts] },
+        'icp: finished',
+      );
       if (!enough()) {
         const why = budgetSpent() ? `This search used its ${budget} web searches` : 'Every planned search is done';
         await stage(

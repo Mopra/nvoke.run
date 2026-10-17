@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fakeFetch } from '../testing/fakes.js';
 import { RateLimiter } from './limits.js';
-import { extractListCandidates, isListPage, isSkippedHost, listPageDeps, mineListPage, nameText, unwrapLink } from './listicle.js';
+import { LIST_PAGE_MAX_BYTES, extractListCandidates, isListPage, isSkippedHost, listPageDeps, mineListPage, nameText, nextPageLink, unwrapLink } from './listicle.js';
 import { RobotsCache } from './robots.js';
 
 describe('isListPage', () => {
@@ -12,6 +12,35 @@ describe('isListPage', () => {
     expect(isListPage('https://clutch.co/call-centers/lead-generation', 'Lead Generation Companies')).toBe(true);
     expect(isListPage('https://clutch.co/profile/acme', 'Acme')).toBe(false);
     expect(isListPage('https://acme.com/', 'Acme | B2B lead generation agency')).toBe(false);
+  });
+
+  it('knows city lists and alternatives pages', () => {
+    expect(isListPage('https://acme.com/x', 'B2B SaaS startups in Berlin')).toBe(true);
+    expect(isListPage('https://acme.com/x', 'Lead generation companies in London (2026)')).toBe(true);
+    expect(isListPage('https://acme.com/x', '12 Belkins alternatives for B2B lead generation')).toBe(true);
+    expect(isListPage('https://acme.com/x', 'The best alternatives to Belkins')).toBe(true);
+    expect(isListPage('https://acme.com/', 'Acme, a lead generation agency in London')).toBe(false);
+    expect(isListPage('https://www.lemlist.com/partners', 'lemlist Partners')).toBe(true);
+    expect(isListPage('https://tool.io/alternatives/belkins', 'Belkins vs Tool')).toBe(true);
+    expect(isListPage('https://acme.com/partners/acme-corp/case-study', 'Acme Corp')).toBe(false);
+  });
+});
+
+describe('nextPageLink', () => {
+  const wrap = (links: string) => `<html><body><main>${links}</main></body></html>`;
+  it('finds a plain next page that only counts the page up', () => {
+    expect(nextPageLink(wrap('<a href="?page=2">Next</a>'), 'https://dir.example/list')).toBe('https://dir.example/list?page=2');
+    expect(nextPageLink(wrap('<a href="/list?sort=top&page=3">3</a>'), 'https://dir.example/list?sort=top&page=2')).toBe('https://dir.example/list?sort=top&page=3');
+    expect(nextPageLink(wrap('<a href="/blog/top-agencies/page/2/">»</a>'), 'https://dir.example/blog/top-agencies/')).toBe('https://dir.example/blog/top-agencies/page/2/');
+    expect(nextPageLink('<link rel="next" href="https://www.dir.example/list?p=2">', 'https://dir.example/list')).toBe('https://www.dir.example/list?p=2');
+  });
+
+  it('ignores other lists, other sites, skipped pages and script pagination', () => {
+    expect(nextPageLink(wrap('<a href="/other?page=2">Next</a>'), 'https://dir.example/list')).toBeNull();
+    expect(nextPageLink(wrap('<a href="https://elsewhere.com/list?page=2">Next</a>'), 'https://dir.example/list')).toBeNull();
+    expect(nextPageLink(wrap('<a href="?page=5">Next</a>'), 'https://dir.example/list')).toBeNull();
+    expect(nextPageLink(wrap('<a href="?page=2&amp;city=paris">Next</a>'), 'https://dir.example/list')).toBeNull();
+    expect(nextPageLink(wrap('<button>Load more</button>'), 'https://dir.example/list')).toBeNull();
   });
 });
 
@@ -73,6 +102,20 @@ describe('mineListPage', () => {
       expect(res.title).toBe('Top 5 lead generation agencies');
       expect(res.candidates).toHaveLength(2);
     }
+    expect(res.bytes).toBe(Buffer.byteLength(PAGE));
+  });
+
+  it('stops reading a page at the byte cap and says what it read', async () => {
+    const limiter = new RateLimiter(0);
+    const big = PAGE.replace('</main>', `<p>${'x'.repeat(LIST_PAGE_MAX_BYTES)}</p></main>`);
+    const fetch = fakeFetch({
+      'https://blog.example.com/robots.txt': { status: 404, body: '' },
+      'https://blog.example.com/top-5': { body: big },
+    });
+    const res = await mineListPage('https://blog.example.com/top-5', { fetch, limiter, robots: new RobotsCache({ fetch, limiter }) });
+    expect(res.status).toBe('ok');
+    expect(res.bytes).toBeLessThanOrEqual(LIST_PAGE_MAX_BYTES);
+    if (res.status === 'ok') expect(res.candidates).toHaveLength(2);
   });
 
   it('stays out where robots.txt says so', async () => {
@@ -82,7 +125,7 @@ describe('mineListPage', () => {
       'https://dir.example/list': { body: PAGE },
     });
     const res = await mineListPage('https://dir.example/list', { fetch, limiter, robots: new RobotsCache({ fetch, limiter }) });
-    expect(res).toEqual({ status: 'skipped', reason: 'robots' });
+    expect(res).toMatchObject({ status: 'skipped', reason: 'robots' });
   });
 });
 
@@ -100,7 +143,7 @@ describe('listPageDeps', () => {
   it('refuses private, loopback, link-local and metadata addresses by default', async () => {
     const deps = listPageDeps(new RateLimiter(0));
     for (const url of ['http://127.0.0.1/list', 'http://169.254.169.254/latest/meta-data/', 'http://10.0.0.5/list', 'http://[::1]/list']) {
-      expect(await mineListPage(url, deps)).toEqual({ status: 'skipped', reason: 'error' });
+      expect(await mineListPage(url, deps)).toMatchObject({ status: 'skipped', reason: 'error' });
     }
   });
 });

@@ -4,7 +4,8 @@
 // sites, directory and list page queries, local trade and city pairs when the
 // customer is a local business, and the fit criteria the candidates are
 // scored against. The icp adapter (sources/icp.ts) runs it tier by tier:
-// core queries, adjacent niches, wider geography, then deeper pages. When a
+// core queries and job posts for sales roles (hiring.ts), adjacent niches,
+// wider geography, then deeper pages. When a
 // search comes up short, replan asks for a fresh round that repeats nothing
 // (ongoing.ts runs it).
 
@@ -12,14 +13,16 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 import type { IcpSearchParams } from '@nvoke/shared';
 import type { Ai } from '../ai/client.js';
+import { DEFAULT_HIRING_ROLES, atsFor, hiringQuery, impliesSalesTeams } from './hiring.js';
 
 export const PLAN_VERSION = 1;
 
 /** Caps per part of the plan, so one answer cannot run up the Brave bill. */
-export const PLAN_CAPS = { core: 18, directories: 8, adjacent: 14, wider: 14, local: 24, fit: 8, disqualifiers: 12, segments: 6 } as const;
+export const PLAN_CAPS = { core: 18, directories: 14, adjacent: 14, wider: 14, local: 24, fit: 8, disqualifiers: 12, segments: 6, hiring: 8, hiringRoles: 4 } as const;
 
 const PlanQuery = z.object({
-  q: z.string().min(2).max(200),
+  // Job post queries name several boards: `"account executive" (site:jobs.lever.co OR ...)`.
+  q: z.string().min(2).max(300),
   /** ISO 3166-1 alpha-2, lower case. Absent: no country. */
   country: z.string().regex(/^[a-z]{2}$/).optional(),
 });
@@ -50,6 +53,10 @@ export const IcpPlan = z.object({
   wider: z.array(PlanQuery),
   /** Tier 1 when the customer is a local business: a trade in a city, from OpenStreetMap. */
   local: z.array(LocalPair),
+  /** Tier 1 when the customer runs its own sales: job posts for these roles on public job boards. Absent on older plans. */
+  hiringRoles: z.array(z.string()).optional(),
+  /** The Brave queries for those job posts, one per role and country. Absent on older plans. */
+  hiring: z.array(PlanQuery).optional(),
   /** Which fresh round this is: absent for the first plan, 1 for the first replan. */
   round: z.number().int().positive().optional(),
   /** Every query and local pair earlier plans ran (`ranKeys`), so a replan repeats none of them. */
@@ -67,10 +74,14 @@ export const ClaudePlan = z.object({
   disqualifiers: z.array(z.string()).describe('3 to 10 short reasons a result is not a fit, e.g. "a consumer brand", "a job board", "a marketplace or directory", "a competitor of the user".'),
   countries: z.array(z.string()).describe('ISO 3166-1 alpha-2 codes of the core countries, most important first.'),
   core: z.array(z.object({ q: z.string(), country: z.string().nullable() })).describe('12 to 18 queries in the words such companies use about themselves on their homepage, spread over every segment.'),
-  directories: z.array(z.object({ q: z.string(), country: z.string().nullable() })).describe('4 to 8 queries for list pages and directories that name many such companies.'),
+  directories: z.array(z.object({ q: z.string(), country: z.string().nullable() })).describe('6 to 14 queries for list pages and directories that name many such companies.'),
   adjacent: z.array(z.object({ q: z.string(), country: z.string().nullable() })).describe('8 to 14 queries for synonyms and adjacent niches of the same buyer.'),
   wider: z.array(z.object({ q: z.string(), country: z.string().nullable() })).describe('8 to 14 core style queries in further countries or cities.'),
   local: z.array(z.object({ niche: z.string(), location: z.string() })).describe('Trade and city pairs, only when the customers are local businesses with a shop or office people visit. Otherwise empty.'),
+  hiringRoles: z
+    .array(z.string())
+    .describe('0 to 4 job titles a fitting company advertises when it builds the sales team the user sells to, in English as job boards write them ("sales development representative", "account executive", "founding account executive"). Only when the customers include companies that sell through their own team or founders who sell; otherwise empty.')
+    .default([]),
 });
 /** The input side, so plans written before segments existed still type check. */
 export type ClaudePlan = z.input<typeof ClaudePlan>;
@@ -81,9 +92,10 @@ First list the segments: every distinct kind of customer the description names. 
 
 Rules for queries:
 - core: phrase each query the way a fitting company describes itself on its own homepage or services page ("B2B appointment setting agency", "cold email agency", "sales automation software for small businesses", "freelance B2B sales consultant"), not the way a buyer searches and not listicle words ("best", "top"). Vary the wording: services, outcomes, the people they serve. 2 to 6 words each. Write in the language of the country when its companies use their own language on their sites (German for de, Danish for dk), else English.
-- directories: queries that find articles and list pages naming many such companies with links to their sites: "top B2B lead generation agencies in London", "best cold email agencies 2026", "B2B SaaS startups in Berlin", "beste Leadgenerierung Agenturen Deutschland". These pages are read for the companies they link to. Big directories (clutch.co, sortlist, designrush) mostly refuse to be read, so at most one query names one.
+- directories: queries that find articles and list pages naming many such companies with links to their sites: "top B2B lead generation agencies in London", "best cold email agencies 2026", "B2B SaaS startups in Berlin", "beste Leadgenerierung Agenturen Deutschland". Partner and agency directories of the tools such companies use name many of them too ("lemlist partner agencies", "Instantly agency partners"). These pages are read for the companies they link to. Big directories (clutch.co, sortlist, designrush) mostly refuse to be read, so at most one query names one.
 - adjacent: synonyms and other names for the same segments, and niches whose companies do the same thing (appointment setting, sales development outsourcing and telemarketing when the customer runs outbound). Not neighbouring trades that do something else: no general marketing, SEO, ads, web design or CRM consultancies unless the user asks for them.
 - wider: the best core queries again for further countries (when the user named no countries) or further big cities in the user's countries (put the city in the query).
+- hiringRoles: when the customers include companies that run their own sales or outbound (founders of B2B companies, small sales teams, SDRs), the job titles such a company posts when it hires for it. A company advertising a sales development or account executive role is doing outbound now; nvoke finds those posts on public job boards. Leave it empty for agencies only, local businesses and consumers.
 - local: only when the customer is a local business people visit (clinics, restaurants, workshops, shops). The trade as a map would tag it, in the local language, and a real city.
 - Every query has a country (ISO 3166-1 alpha-2) unless it is truly global.
 - When the user named countries, stay inside them. When they named none, pick the countries where such companies are most common and most reachable, at most 8.
@@ -156,6 +168,44 @@ function cleanLocal(items: ClaudePlan['local'], max: number, seen: Set<string>):
   return out;
 }
 
+/** Roles cleaned: trimmed, deduplicated, at most PLAN_CAPS.hiringRoles. */
+function cleanRoles(roles: string[]): string[] {
+  const out = new Map<string, string>();
+  for (const r of roles) {
+    const role = r.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (role.length >= 3 && !out.has(role.toLowerCase())) out.set(role.toLowerCase(), role);
+  }
+  return [...out.values()].slice(0, PLAN_CAPS.hiringRoles);
+}
+
+/**
+ * Job post queries: each role on the job boards a country's companies use,
+ * every country for the first role before the second, at most `max`, none
+ * whose key is in `seen` (which it fills).
+ */
+export function hiringQueries(roles: string[], countries: string[], max: number, seen: Set<string>): PlanQuery[] {
+  const out: PlanQuery[] = [];
+  const where = countries.length ? countries : [undefined];
+  for (const role of roles) {
+    for (const country of where) {
+      if (out.length >= max) return out;
+      const query = country ? { q: hiringQuery(role, atsFor(country)), country } : { q: hiringQuery(role, atsFor(undefined)) };
+      const key = queryKey(query);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(query);
+    }
+  }
+  return out;
+}
+
+/** The roles a plan searches job posts for: Sonnet's, else the defaults when the words name sales teams or outbound. */
+export function planRoles(raw: Pick<ClaudePlan, 'hiringRoles' | 'segments'>, params: IcpSearchParams): string[] {
+  const roles = cleanRoles(raw.hiringRoles ?? []);
+  if (roles.length) return roles;
+  return impliesSalesTeams([params.description, ...(raw.segments ?? [])].join(' ')) ? [...DEFAULT_HIRING_ROLES] : [];
+}
+
 /** Sonnet's answer cut to the stored plan: trimmed, deduplicated, capped, outside countries dropped. */
 export function toPlan(raw: ClaudePlan, params: IcpSearchParams): IcpPlan {
   const allowed = params.countries?.length ? new Set(params.countries) : null;
@@ -165,6 +215,8 @@ export function toPlan(raw: ClaudePlan, params: IcpSearchParams): IcpPlan {
     items.map((i) => i.replace(/\s+/g, ' ').trim().slice(0, 160)).filter(Boolean).slice(0, max);
   const local = cleanLocal(raw.local, PLAN_CAPS.local, new Set());
   const countries = [...new Set(raw.countries.map(cleanCountry).filter((c): c is string => !!c && (!allowed || allowed.has(c))))];
+  const planCountries = countries.length ? countries : [...(params.countries ?? [])];
+  const roles = planRoles(raw, params);
   return IcpPlan.parse({
     version: PLAN_VERSION,
     key: planKey(params),
@@ -172,18 +224,24 @@ export function toPlan(raw: ClaudePlan, params: IcpSearchParams): IcpPlan {
     segments: list(raw.segments ?? [], PLAN_CAPS.segments),
     fit: list(raw.fit, PLAN_CAPS.fit),
     disqualifiers: list(raw.disqualifiers, PLAN_CAPS.disqualifiers),
-    countries: countries.length ? countries : [...(params.countries ?? [])],
+    countries: planCountries,
     core: queries(raw.core, PLAN_CAPS.core),
     directories: queries(raw.directories, PLAN_CAPS.directories),
     adjacent: queries(raw.adjacent, PLAN_CAPS.adjacent),
     wider: queries(raw.wider, PLAN_CAPS.wider),
     local,
+    ...(roles.length ? { hiringRoles: roles, hiring: hiringQueries(roles, planCountries, PLAN_CAPS.hiring, seen) } : {}),
   });
 }
 
 /** Web queries in the plan, all tiers. */
 export function planQueryCount(plan: IcpPlan): number {
-  return plan.core.length + plan.directories.length + plan.adjacent.length + plan.wider.length;
+  return plan.core.length + plan.directories.length + plan.adjacent.length + plan.wider.length + (plan.hiring?.length ?? 0);
+}
+
+/** Every web query of a plan, all tiers. */
+export function planQueries(plan: IcpPlan): PlanQuery[] {
+  return [...plan.core, ...plan.directories, ...plan.adjacent, ...plan.wider, ...(plan.hiring ?? [])];
 }
 
 export interface PlanResult {
@@ -232,7 +290,7 @@ const RAN_IN_PROMPT = 250;
 export function ranKeys(plan: IcpPlan): string[] {
   const keys = [
     ...(plan.ran ?? []),
-    ...[...plan.core, ...plan.directories, ...plan.adjacent, ...plan.wider].map(queryKey),
+    ...planQueries(plan).map(queryKey),
     ...plan.local.map(localKey),
   ];
   return [...new Set(keys)].slice(-MAX_RAN);
@@ -241,7 +299,7 @@ export function ranKeys(plan: IcpPlan): string[] {
 /** Countries this plan and the ones before it searched (stored plans keep the union in `countries`). */
 export function usedCountries(plan: IcpPlan): Set<string> {
   const out = new Set(plan.countries);
-  for (const q of [...plan.core, ...plan.directories, ...plan.adjacent, ...plan.wider]) if (q.country) out.add(q.country);
+  for (const q of planQueries(plan)) if (q.country) out.add(q.country);
   return out;
 }
 
@@ -292,9 +350,10 @@ export function replanPrompt(params: IcpSearchParams, previous: IcpPlan, stats: 
 /**
  * Sonnet's fresh round cut to a plan: nothing an earlier plan ran, inside the
  * user's countries, at most `maxQueries` web queries taken in turn from the
- * directories, the adjacent niches and the wider geography. The round runs
- * them as tier 1 (directories and local pairs), tier 2 and tier 3. Null when
- * nothing new is left.
+ * directories, the adjacent niches, the wider geography and job posts for
+ * the plan's sales roles in countries no earlier plan searched. The round
+ * runs them as tier 1 (directories, job posts and local pairs), tier 2 and
+ * tier 3. Null when nothing new is left.
  */
 export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: IcpPlan, maxQueries: number): IcpPlan | null {
   const allowed = params.countries?.length ? new Set(params.countries) : null;
@@ -303,12 +362,15 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
   const directories = cleanQueries(raw.directories, PLAN_CAPS.directories, allowed, seen);
   const adjacent = cleanQueries(raw.adjacent, PLAN_CAPS.adjacent, allowed, seen);
   const wider = cleanQueries(raw.wider, PLAN_CAPS.wider, allowed, seen);
+  const used = usedCountries(previous);
+  const fresh = [...new Set(wider.map((q) => q.country).filter((c): c is string => !!c && !used.has(c)))];
+  const hiring = previous.hiringRoles?.length && fresh.length ? hiringQueries(previous.hiringRoles, fresh, PLAN_CAPS.hiring, seen) : [];
   // Taken in turn, so a small budget still gets some of each.
-  const take = { directories: 0, adjacent: 0, wider: 0 };
+  const take = { directories: 0, adjacent: 0, hiring: 0, wider: 0 };
   for (let left = Math.max(0, Math.floor(maxQueries)); left > 0; ) {
     let took = false;
-    for (const tier of ['directories', 'adjacent', 'wider'] as const) {
-      const pool = { directories, adjacent, wider }[tier];
+    for (const tier of ['directories', 'adjacent', 'hiring', 'wider'] as const) {
+      const pool = { directories, hiring, adjacent, wider }[tier];
       if (left > 0 && take[tier] < pool.length) {
         take[tier]++;
         left--;
@@ -331,6 +393,7 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
     adjacent: adjacent.slice(0, take.adjacent),
     wider: wider.slice(0, take.wider),
     local,
+    ...(previous.hiringRoles?.length ? { hiringRoles: previous.hiringRoles, hiring: hiring.slice(0, take.hiring) } : {}),
     round: (previous.round ?? 0) + 1,
     ran,
   };
@@ -342,7 +405,7 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
 /** Countries a fresh round searches that no earlier plan did. */
 export function freshCountries(previous: IcpPlan, plan: IcpPlan): string[] {
   const used = usedCountries(previous);
-  return [...new Set([...plan.directories, ...plan.adjacent, ...plan.wider].map((q) => q.country).filter((c): c is string => !!c && !used.has(c)))];
+  return [...new Set([...plan.directories, ...plan.adjacent, ...plan.wider, ...(plan.hiring ?? [])].map((q) => q.country).filter((c): c is string => !!c && !used.has(c)))];
 }
 
 /**

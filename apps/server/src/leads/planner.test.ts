@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Ai } from '../ai/client.js';
+import { DEFAULT_HIRING_ROLES } from './hiring.js';
 import {
   PLAN_CAPS,
   freshCountries,
+  hiringQueries,
   makePlan,
   planKey,
   planPrompt,
+  planQueries,
   ranKeys,
   replan,
   replanPrompt,
@@ -69,6 +72,45 @@ describe('toPlan', () => {
     const many = Array.from({ length: 40 }, (_, i) => ({ q: `query ${i}`, country: 'us' }));
     const plan = toPlan(raw({ core: many }), { description: 'x y' });
     expect(plan.core).toHaveLength(PLAN_CAPS.core);
+  });
+});
+
+describe('job post queries', () => {
+  it('adds job posts for the roles Sonnet names, every country for one role before the next', () => {
+    const plan = toPlan(raw({ hiringRoles: [' Founding Account Executive ', 'founding account executive', 'SDR'] }), { description: 'Founders of B2B companies' });
+    expect(plan.hiringRoles).toEqual(['Founding Account Executive', 'SDR']);
+    expect(plan.hiring?.map((q) => [q.q.split(' (')[0], q.country])).toEqual([
+      ['"Founding Account Executive"', 'us'],
+      ['"Founding Account Executive"', 'gb'],
+      ['"SDR"', 'us'],
+      ['"SDR"', 'gb'],
+    ]);
+    expect(plan.hiring?.[1]?.q).toContain('site:teamtailor.com');
+    expect(planQueries(plan)).toEqual(expect.arrayContaining(plan.hiring!));
+    expect(ranKeys(plan)).toEqual(expect.arrayContaining(plan.hiring!.map((q) => `${q.q.toLowerCase()}|${q.country}`)));
+  });
+
+  it('falls back to the usual sales roles when the words name sales teams, and adds none otherwise', () => {
+    expect(toPlan(raw(), { description: 'Small sales teams doing outbound' }).hiringRoles).toEqual(DEFAULT_HIRING_ROLES);
+    const local = toPlan(raw(), { description: 'Dentists in Aarhus' });
+    expect(local.hiring).toBeUndefined();
+    expect(hiringQueries(['account executive'], ['de'], 5, new Set())).toEqual([
+      { q: '"account executive" (site:jobs.personio.de OR site:jobs.personio.com OR site:jobs.ashbyhq.com OR site:job-boards.greenhouse.io OR site:boards.greenhouse.io OR site:recruitee.com OR site:jobs.lever.co)', country: 'de' },
+    ]);
+  });
+
+  it('caps the job post queries', () => {
+    const plan = toPlan(raw({ countries: ['us', 'gb', 'de', 'nl', 'fr', 'es', 'se', 'dk'], hiringRoles: ['a role one', 'a role two', 'a role three'] }), { description: 'Founders' });
+    expect(plan.hiring).toHaveLength(PLAN_CAPS.hiring);
+  });
+
+  it('searches job posts in the new countries of a fresh round only', () => {
+    const params = { description: 'Founders of B2B companies' };
+    const first = toPlan(raw({ hiringRoles: ['account executive'] }), params);
+    const next = toReplan({ directories: [], adjacent: [], wider: [{ q: 'b2b startup', country: 'nl' }, { q: 'b2b startup', country: 'us' }], local: [] }, params, first, 30)!;
+    expect(next.hiring?.map((q) => q.country)).toEqual(['nl']);
+    expect(next.hiringRoles).toEqual(['account executive']);
+    expect(freshCountries(first, next)).toEqual(['nl']);
   });
 });
 

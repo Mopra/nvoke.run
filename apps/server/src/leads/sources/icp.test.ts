@@ -178,7 +178,9 @@ describe('icp adapter', () => {
       },
     };
     const plan: ClaudePlan = { ...PLAN, core: [], directories: [], adjacent: [], wider: [], local: [{ niche: 'tandlæge', location: 'Aarhus' }] };
-    const { out, stages } = await run(icpAdapter({ readHeads: false, brave: fakeBrave({}), ai: fakeAi(plan), local }), 10);
+    const { out, stages } = await run(icpAdapter({ readHeads: false, brave: fakeBrave({}), ai: fakeAi(plan), local }), 10, {
+      params: { description: 'Dentists in Aarhus' },
+    });
     expect(asked).toEqual([{ niche: 'tandlæge', location: 'Aarhus' }]);
     expect(out.map((c) => c.website)).toEqual(['https://smile.dk']);
     expect(stages[1]).toEqual(['core', 'Searching 1 place on the map']);
@@ -285,5 +287,81 @@ describe('icp adapter fit', () => {
   it('tells brands apart only on labels long enough', () => {
     expect(brandOf('acme.co.uk')).toBe('acme');
     expect(brandOf('ab.de')).toBeNull();
+  });
+});
+
+describe('icp adapter: job posts and paginated lists', () => {
+  it('maps a job post for a sales role to the company behind it, once per board', async () => {
+    const hiringPlan: ClaudePlan = { ...PLAN, core: [{ q: 'sdr jobs', country: 'us' }], directories: [], adjacent: [], wider: [], hiringRoles: [] };
+    const posting = (id: string) =>
+      result('jobs.lever.co', { sourceRef: `https://jobs.lever.co/belkins/${id}`, title: 'Belkins - Sales Development Representative' });
+    const brave = fakeBrave({
+      'sdr jobs|0': { companies: [posting('a1'), posting('a2'), result('jobs.lever.co', { sourceRef: 'https://jobs.lever.co/acme/b1', title: 'Acme - Backend Engineer' })] },
+    });
+    const listFetch = fakeFetch({
+      'https://jobs.lever.co/robots.txt': { body: 'User-agent: *\nAllow: /' },
+      'https://jobs.lever.co/belkins': { body: '<a href="https://belkins.io/">Belkins Home Page</a>' },
+    });
+    const { out, stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(hiringPlan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
+      params: { description: 'Agencies' },
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      name: 'Belkins',
+      website: 'https://belkins.io',
+      source: 'hiring',
+      sourceRef: 'https://jobs.lever.co/belkins/a1',
+      title: 'Hiring: Sales Development Representative',
+      fit: 80,
+    });
+    expect(stages.some(([s, n]) => s === 'hiring' && n.includes('Reading 1 job post'))).toBe(true);
+    // The other role is no signal: its board is never read.
+    expect(listFetch.calls.some((c) => c.url.includes('/acme'))).toBe(false);
+  });
+
+  it('runs the plan job post queries after the wider geography, while the search is short', async () => {
+    const brave = fakeBrave({});
+    const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi({ ...PLAN, hiringRoles: ['founding account executive'] }), listFetch: listFetch() }), 10, {
+      params: { description: 'Founders of B2B startups' },
+    });
+    const asked = brave.asked.filter((r) => r.page === 0).map((r) => r.q);
+    const job = '"founding account executive" (site:jobs.lever.co OR site:job-boards.greenhouse.io OR site:boards.greenhouse.io OR site:jobs.ashbyhq.com OR site:apply.workable.com)';
+    expect(asked.indexOf(job)).toBeGreaterThan(asked.indexOf('cold email agency'));
+    expect(asked.indexOf(job)).toBeGreaterThan(asked.indexOf('sdr outsourcing'));
+    expect(stages.some(([s, n]) => s === 'hiring' && n === 'Looking for companies hiring salespeople')).toBe(true);
+  });
+
+  it('admits a company whose own partners page it mines, and the partners it names', async () => {
+    const listFetch = fakeFetch({
+      'https://acme-tool.com/robots.txt': { status: 404, body: '' },
+      'https://acme-tool.com/partners': { body: '<html><body><main><a href="https://partner-one.com">Partner One</a></main></body></html>' },
+    });
+    const brave = fakeBrave({
+      'nothing here|0': { companies: [result('acme-tool.com', { sourceRef: 'https://acme-tool.com/partners', title: 'Acme Tool partners' })] },
+    });
+    const plan: ClaudePlan = { ...PLAN, core: [{ q: 'nothing here', country: 'us' }], directories: [], adjacent: [], wider: [] };
+    const { out } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
+      params: { description: 'Agencies' },
+    });
+    expect(out.map((c) => c.website).sort()).toEqual(['https://acme-tool.com', 'https://partner-one.com']);
+  });
+
+  it('follows a plain next page of a list that named companies', async () => {
+    const page = (n: number, links: string) =>
+      `<html><head><title>Top 20 cold email agencies</title></head><body><main><ol>${links}</ol>${n < 3 ? `<a href="/top-20?page=${n + 1}">Next</a>` : ''}</main></body></html>`;
+    const listFetch = fakeFetch({
+      'https://blog.example.com/robots.txt': { status: 404, body: '' },
+      'https://blog.example.com/top-20': { body: page(1, '<li><a href="https://one.com">One</a></li>') },
+      'https://blog.example.com/top-20?page=2': { body: page(2, '<li><a href="https://two.com">Two</a></li>') },
+      'https://blog.example.com/top-20?page=3': { body: page(3, '<li><a href="https://three.com">Three</a></li>') },
+    });
+    const brave = fakeBrave({
+      'top cold email agencies|0': { companies: [result('blog.example.com', { sourceRef: 'https://blog.example.com/top-20', title: 'Top 20 cold email agencies' })] },
+    });
+    const plan: ClaudePlan = { ...PLAN, core: [{ q: 'nothing here', country: 'us' }], adjacent: [], wider: [] };
+    const { out } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
+      params: { description: 'Agencies' },
+    });
+    expect(out.map((c) => c.website)).toEqual(['https://one.com', 'https://two.com', 'https://three.com']);
   });
 });

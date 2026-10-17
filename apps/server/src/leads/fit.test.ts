@@ -37,6 +37,12 @@ describe('isObviousNonCompany', () => {
     }
     expect(isObviousNonCompany('https://www.acmeleads.com')).toBe(false);
   });
+
+  it('drops job board hosts, whose postings are mapped to the company instead', () => {
+    for (const url of ['https://acme.jobs.personio.de/job/1', 'https://acme.teamtailor.com/jobs/1', 'https://apply.workable.com/acme/', 'https://boards.greenhouse.io/acme']) {
+      expect(isObviousNonCompany(url)).toBe(true);
+    }
+  });
 });
 
 describe('scoreBatch', () => {
