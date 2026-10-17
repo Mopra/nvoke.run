@@ -7,7 +7,7 @@ import { ArrowUpRight, Check, Copy, Download, Loader2, LogOut, Plus } from 'luci
 import { toast } from 'sonner';
 import { FREE_PLAN, PLANS, type ApiKey, type MeResponse } from '@nvoke/shared';
 import { Avatar } from '@/components/app/avatar';
-import { APP_COLUMN, APP_FRAME, APP_INSET, DisplayTitle } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, DisplayTitle } from '@/components/app/shell';
 import { ErrorState } from '@/components/app/states';
 import {
   AlertDialog,
@@ -367,7 +367,7 @@ export function AccountScreen() {
 
   return (
     <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className={cn(APP_INSET, APP_COLUMN, 'motion-safe:animate-rise')}>
+      <div className={cn(APP_INSET, 'motion-safe:animate-rise')}>
         <DisplayTitle>Account</DisplayTitle>
         {error ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
