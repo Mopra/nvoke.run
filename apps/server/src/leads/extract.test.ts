@@ -290,3 +290,34 @@ describe('selectForCompany', () => {
     expect(picked.map((x) => x.address)).toEqual(['info@acme.co.uk']);
   });
 });
+
+describe('more obfuscations', () => {
+  it('reads (a), zero width characters and full width at signs', () => {
+    expect(addresses('<p>info(a)acme.dk</p>')).toEqual(['info@acme.dk']);
+    expect(addresses('<p>info​@acme­.dk</p>')).toEqual(['info@acme.dk']);
+    expect(addresses('<p>info＠acme.dk</p>')).toEqual(['info@acme.dk']);
+    expect(addresses('<p>biuro [at] acme [kropka] pl</p>')).toEqual(['biuro@acme.pl']);
+  });
+
+  it('leaves a sentence after an address alone', () => {
+    expect(addresses('<p>Write to info@acme.dk. Next we open at nine.</p>')).toEqual(['info@acme.dk']);
+    expect(addresses('<p><a href="#">info@acme.dk</a>. We answer fast.</p>')).toEqual(['info@acme.dk']);
+  });
+
+  it('joins data-user and data-domain, and reverses right to left text', () => {
+    expect(addresses('<span class="mail" data-user="hej" data-domain="acme.dk"></span>')).toEqual(['hej@acme.dk']);
+    expect(addresses('<span style="unicode-bidi: bidi-override; direction: rtl">kd.emca@ofni</span>')).toEqual(['info@acme.dk']);
+  });
+
+  it('reads schema.org microdata and hCard', () => {
+    const html = '<div itemscope><meta itemprop="email" content="sales@acme.dk"><span class="u-email">lars [at] acme.dk</span></div>';
+    expect(extractEmails(html).map((e) => [e.address, e.via])).toEqual([
+      ['sales@acme.dk', 'microdata'],
+      ['lars@acme.dk', 'microdata'],
+    ]);
+  });
+
+  it('reads a vCard', () => {
+    expect(addresses('BEGIN:VCARD\nVERSION:3.0\nFN:Lars Hansen\nEMAIL;TYPE=work:lars@acme.dk\nEND:VCARD')).toEqual(['lars@acme.dk']);
+  });
+});

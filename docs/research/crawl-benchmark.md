@@ -60,3 +60,32 @@ What the misses are:
   local render crawl can read these.
 - **done without an email (58)**: the homepage linked no page we recognise,
   or the address is hidden in a way the extractor does not undo.
+
+## Changes, one at a time
+
+Each run reads the cached pages of the runs before it and fetches only the
+pages it newly asks for. Gained and lost are sites that went from no email
+to some, or back, against the run before (`--compare`).
+
+### 1. Extraction: obfuscations, microdata, hCard
+
+`packages/shared/src/crawl/extract.ts`. Cloudflare email protection
+(`data-cfemail` and `/cdn-cgi/l/email-protection#`) and JSON-LD `email`
+were already decoded, so this step adds what was missing: `(a)` as the at
+sign inside brackets, Polish, Finnish and Portuguese words for dot, zero
+width characters and soft hyphens inside an address, full width at signs,
+`data-user` plus `data-domain` attributes, text reversed with CSS
+(`direction: rtl` with `bidi-override`), `aria-label`, schema.org
+`itemprop="email"` and hCard `.email` / `.u-email`.
+
+| extraction | sites | with email | deliverable | generic | personal | emails | done | failed | blocked | refused | js_only | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| all | 275 | 165 (60.0%) | 164 (59.6%) | 122 | 81 | 455 | 223 | 21 | 3 | 8 | 20 | 3.9 | 4.0 |
+
+No change: 0 gained, 0 lost, the same 455 addresses. None of the 1,534
+pages the baseline read hides an address in these ways. The first version
+also joined a dot padded with spaces ("info@acme . dk") and found 18 more
+addresses, every one of them junk (`info@relatedcode.com.we` from
+"info@relatedcode.com. We"), so that rule was dropped and a test keeps it
+out. The rest stays: cheap, tested, and it costs nothing on pages that do
+not use it.

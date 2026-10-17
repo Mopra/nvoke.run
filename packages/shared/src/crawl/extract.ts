@@ -11,7 +11,7 @@
 import { load, type CheerioAPI } from 'cheerio';
 import { isWebmailDomain, registrableDomain, sameSite } from './domain.ts';
 
-export type FoundVia = 'mailto' | 'text' | 'obfuscated' | 'cfemail' | 'jsonld' | 'script';
+export type FoundVia = 'mailto' | 'text' | 'obfuscated' | 'cfemail' | 'jsonld' | 'microdata' | 'script';
 
 export interface EmailCandidate {
   /** Raw address as found, before normalization. */
@@ -191,9 +191,14 @@ export function deobfuscate(input: string): string {
   out = out.replace(/&#0*64;|&commat;|&#x0*40;/gi, '@');
   out = out.replace(/&#0*46;|&period;|&#x0*2e;/gi, '.');
   out = out.replace(/\\u0040/gi, '@').replace(/\\u002e/gi, '.');
+  // Zero width characters and soft hyphens split an address without showing.
+  out = out.replace(/[​-‍⁠﻿­]/g, '');
+  // Full width and small commercial at signs.
+  out = out.replace(/[＠﹫]/g, '@');
 
-  const AT = '(?:at|@|ät|snabel-?a|arroba|chez|klammeraffe)';
-  const DOT = '(?:dot|punkt|punktum|prik|point|punto|\\.)';
+  // "(a)" is the usual German and Nordic short form; only ever inside brackets.
+  const AT = '(?:at|a|@|ät|snabel-?a|arroba|chez|klammeraffe|apenstaartje|malpa)';
+  const DOT = '(?:dot|punkt|punktum|prik|point|punto|piste|kropka|ponto|\\.)';
   // Bracketed forms are unambiguous and safe to replace anywhere.
   out = out.replace(new RegExp(`\\s*[\\[({<]\\s*${AT}\\s*[\\])}>]\\s*`, 'gi'), '@');
   out = out.replace(new RegExp(`\\s*[\\[({<]\\s*${DOT}\\s*[\\])}>]\\s*`, 'gi'), '.');
@@ -208,6 +213,7 @@ export function deobfuscate(input: string): string {
   out = out.replace(/\s+@\s+/g, '@');
   out = out.replace(/([A-Za-z0-9._%+-])@\s+(?=[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}\b)/g, '$1@');
   out = out.replace(/(\b[A-Za-z0-9._%+-]{1,64})\s+@(?=[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}\b)/g, '$1@');
+  // A dot padded with spaces is never joined: tags flatten to "info@acme.dk . We" all the time.
   return out;
 }
 
@@ -311,12 +317,31 @@ function collectFromDom($: CheerioAPI): { candidates: EmailCandidate[]; text: st
     const code = $(el).text();
     if (code.length < 200_000 && /["']\s*\+\s*["']/.test(code)) candidates.push(...scriptEmails(code));
   });
+  // schema.org microdata and hCard / vCard markup.
+  $('[itemprop="email"], .u-email, .email').each((_i, el) => {
+    const v = ($(el).attr('content') ?? $(el).attr('href') ?? $(el).text()).replace(/^mailto:/i, '');
+    for (const c of extractFromText(v)) candidates.push({ email: c.email, via: 'microdata' });
+  });
   // Visible text plus attribute values people put addresses in.
-  $('[title], [data-email], [content]').each((_i, el) => {
-    for (const attr of ['title', 'data-email', 'content']) {
+  $('[title], [data-email], [content], [aria-label]').each((_i, el) => {
+    for (const attr of ['title', 'data-email', 'content', 'aria-label']) {
       const v = $(el).attr(attr);
       if (v && v.includes('@')) candidates.push(...matchesIn(cleanText(v), 'text'));
     }
+  });
+  // An address split into attributes that a script joins: data-user + data-domain.
+  $('[data-user][data-domain], [data-name][data-domain], [data-local][data-domain]').each((_i, el) => {
+    const local = $(el).attr('data-user') ?? $(el).attr('data-name') ?? $(el).attr('data-local') ?? '';
+    const domain = $(el).attr('data-domain') ?? '';
+    const tld = $(el).attr('data-tld');
+    candidates.push({ email: `${local}@${domain}${tld ? `.${tld}` : ''}`, via: 'obfuscated' });
+  });
+  // Text written backwards and turned around with CSS (direction: rtl with bidi-override).
+  $('[style*="rtl" i], [dir="rtl"], [class*="reverse"]').each((_i, el) => {
+    const style = ($(el).attr('style') ?? '').toLowerCase();
+    if (!style.includes('bidi-override') && !/reverse/.test($(el).attr('class') ?? '')) return;
+    const reversed = [...$(el).text().trim()].reverse().join('');
+    for (const c of matchesIn(reversed, 'obfuscated')) candidates.push(c);
   });
 
   $('script, style, noscript, svg, template').remove();
