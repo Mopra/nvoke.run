@@ -144,7 +144,7 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     name = `${pick(r, LAUNCH_STEMS)}${r() < 0.3 ? ` ${pick(r, ['AI', 'App', 'Pro'])}` : ''}`;
     tld = pick(r, ['com', 'app', 'ai', 'io', 'so']);
     source = r() < 0.6 ? 'product_hunt' : 'show_hn';
-    category = input.params.keyword ?? null;
+    category = input.kind === 'launches' ? (input.params.keyword ?? null) : null;
   }
 
   const listed = input.kind === 'domains' ? itemDomain(input.params.items[index % input.params.items.length] ?? '') : null;

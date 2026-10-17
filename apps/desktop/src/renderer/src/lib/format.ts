@@ -6,6 +6,7 @@ export const KIND_LABEL: Record<SearchKind, string> = {
   launches: 'New launches',
   domains: 'Your list',
   drop: 'Daily drop',
+  icp: 'Describe your customer',
 };
 
 export const FEED_SOURCE_LABEL: Record<FeedSource, string> = {
@@ -120,6 +121,8 @@ export function runTitle(search: Pick<Search, 'kind' | 'params'> | Search): stri
       return listTitle(s.params.items);
     case 'drop':
       return s.params.dropName;
+    case 'icp':
+      return s.params.description.length > 80 ? `${s.params.description.slice(0, 79).trimEnd()}…` : s.params.description;
   }
 }
 

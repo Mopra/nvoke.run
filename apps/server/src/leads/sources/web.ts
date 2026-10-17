@@ -69,6 +69,12 @@ export function nameFromTitle(title: string | undefined, domain: string): string
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+/** A result's text without Brave's highlight tags, collapsed and capped. */
+function plain(text: string | undefined, max: number): string | undefined {
+  const clean = (text ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return clean || undefined;
+}
+
 export function resultToCompany(r: BraveResult): FoundCompany | null {
   if (!r.url) return null;
   const domain = normalizeDomain(r.url);
@@ -85,6 +91,8 @@ export function resultToCompany(r: BraveResult): FoundCompany | null {
     source: 'brave',
     sourceRef: r.url,
     category: undefined,
+    ...(plain(r.title, 200) ? { title: plain(r.title, 200) } : {}),
+    ...(plain(r.description, 400) ? { snippet: plain(r.description, 400) } : {}),
   };
 }
 

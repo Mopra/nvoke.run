@@ -6,8 +6,8 @@ import { isActive, searchRuns, WINDOW_DAYS, type LaunchWindow } from './desktop'
  * make. The same rules as the desktop app's New search screen.
  */
 
-/** Drop searches come from drops, never from the form. */
-export type FormKind = Exclude<SearchKind, 'drop'>;
+/** Drop searches come from drops, never from the form. Describe your customer (`icp`) has a form of its own. */
+export type FormKind = Exclude<SearchKind, 'drop' | 'icp'>;
 
 export const FORM_KINDS: readonly FormKind[] = ['local', 'web', 'launches', 'domains'];
 

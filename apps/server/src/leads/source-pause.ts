@@ -10,7 +10,7 @@ import { itemDomain, type CreateSearchRequest, type SearchKind } from '@nvoke/sh
 export const SOURCE_PAUSE_MS = 10 * 60_000;
 
 /** The source behind each search kind that can be paused. */
-export const PAUSABLE_SOURCE: Partial<Record<SearchKind, string>> = { web: 'brave', domains: 'brave' };
+export const PAUSABLE_SOURCE: Partial<Record<SearchKind, string>> = { web: 'brave', domains: 'brave', icp: 'brave' };
 
 /** False for a search that never calls its kind's source: a list of only domains. */
 export function requestNeedsSource(req: CreateSearchRequest): boolean {

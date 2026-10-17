@@ -12,6 +12,12 @@ export interface FoundCompany {
   location?: string;
   phone?: string;
   category?: string;
+  /** 0 to 100: how well it fits what the user asked for, when the adapter scored it. */
+  fit?: number;
+  fitReason?: string;
+  /** The search result's title and description, when a web search found it: read by fit scoring, not stored. */
+  title?: string;
+  snippet?: string;
 }
 
 export interface SourceContext {
@@ -21,6 +27,12 @@ export interface SourceContext {
   log: Logger;
   /** Called for each request to a paid source, and for each page a cache served instead. */
   onUsage?: (event: 'request' | 'cache_hit') => void;
+  /** The account the search belongs to, for metered calls such as Claude. */
+  userId?: string;
+  /** The search, for adapters that keep state on it. */
+  searchId?: string;
+  /** Reports what the adapter is doing now, shown to the user as the live progress line. */
+  onStage?: (stage: string, note: string) => Promise<void>;
 }
 
 export interface SourceAdapter<P> {

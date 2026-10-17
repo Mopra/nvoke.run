@@ -124,6 +124,7 @@ const SUGGESTION_KIND: Record<CreateSearchInput['kind'], string> = {
   web: KIND_LABEL.web,
   launches: KIND_LABEL.launches,
   domains: 'Named companies',
+  icp: KIND_LABEL.icp,
 };
 
 /** A suggestion's title, the same words the searches list will use once it runs. */

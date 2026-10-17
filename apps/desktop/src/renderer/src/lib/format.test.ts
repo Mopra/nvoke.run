@@ -92,8 +92,8 @@ describe('csv', () => {
     };
     const lines = companiesToCsv([company]).trim().split('\r\n');
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toBe('company,domain,website,email,kind,verification,source_url,location,phone,opener');
-    expect(lines[1]).toBe('"Smith, Jones & ""Co""",sj.com,https://sj.com,info@sj.com,generic,valid,,,,');
+    expect(lines[0]).toBe('company,domain,website,email,first_name,last_name,title,seniority,kind,verification,source_url,found_via,confidence,location,phone,opener');
+    expect(lines[1]).toBe('"Smith, Jones & ""Co""",sj.com,https://sj.com,info@sj.com,,,,,generic,valid,,,,,,');
   });
 });
 

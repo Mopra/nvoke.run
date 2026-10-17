@@ -44,7 +44,9 @@ function searchBody(a: McpToolArgs): unknown {
         ? { keyword: a['keyword'], country: a['country'] }
         : kind === 'domains'
           ? { items: a['items'], country: a['country'] }
-          : { keyword: a['keyword'], days: a['days'] };
+          : kind === 'icp'
+            ? { description: a['description'], product: a['product'], countries: a['countries'], locations: a['locations'] }
+            : { keyword: a['keyword'], days: a['days'] };
   return { kind, params, limit: a['limit'] };
 }
 

@@ -47,6 +47,8 @@ const EnvSchema = z.object({
   BRAVE_REQUESTS_PER_SECOND: z.coerce.number().positive().max(1_000).default(1),
   BRAVE_MONTHLY_BUDGET_USD: z.coerce.number().positive().optional(),
   BRAVE_COST_PER_1000_USD: z.coerce.number().positive().default(5),
+  /** Paid Brave requests one Describe your customer search may make (cache hits are free). */
+  ICP_BRAVE_BUDGET: z.coerce.number().int().positive().default(120),
   // Operator alerts by email through Day3.
   DAY3_API_KEY: optional,
   ALERT_EMAIL_TO: list,
@@ -79,9 +81,19 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
-  // SMTP connections per minute across the worker. Hostinger cuts port 25 off
-  // after bursts past about 5 a minute. 0 means no limit.
+  // SMTP sessions per minute over IPv4, across the worker. Hostinger cuts
+  // IPv4 port 25 off after bursts past about 5 a minute (IPv6 is not
+  // throttled). 0 means no limit.
   SMTP_PROBES_PER_MINUTE: z.coerce.number().int().min(0).default(5),
+  // SMTP sessions per minute in all (IPv4 and IPv6), and to any one mail
+  // provider (Google, Microsoft 365, else the MX domain). 0 means no limit.
+  SMTP_SESSIONS_PER_MINUTE: z.coerce.number().int().min(0).default(60),
+  SMTP_SESSIONS_PER_PROVIDER_PER_MINUTE: z.coerce.number().int().min(0).default(20),
+  // Probe over IPv6 when the MX host has an AAAA record, IPv4 otherwise or on failure.
+  SMTP_PREFER_IPV6: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   // The free email verifier's share of those, probed from the API and taken
   // off the worker's budget. 0 keeps the free verifier on DNS only.
   TOOLS_SMTP_PROBES_PER_MINUTE: z.coerce.number().int().min(0).default(1),

@@ -10,8 +10,8 @@ import { navigate } from '@/lib/router';
 import type { Search, SearchInput, SearchKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-/** Drop searches come from drops, never from this form. */
-export type FormKind = Exclude<SearchKind, 'drop'>;
+/** Drop searches come from drops, never from this form. Describe your customer (`icp`) has a form of its own. */
+export type FormKind = Exclude<SearchKind, 'drop' | 'icp'>;
 
 const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
 

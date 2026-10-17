@@ -17,9 +17,9 @@ const WIDEN: Record<FormKind, string> = {
   domains: 'paste more companies and they join this list.',
 };
 
-/** A search can take another run once it ended, unless a drop made it. */
-export function canSearchMore(search: Search): search is Exclude<Search, { kind: 'drop' }> {
-  return search.kind !== 'drop' && search.status !== 'queued' && search.status !== 'running';
+/** A search can take another run once it ended, unless a drop made it. Describe your customer keeps pushing on its own. */
+export function canSearchMore(search: Search): search is Exclude<Search, { kind: 'drop' | 'icp' }> {
+  return search.kind !== 'drop' && search.kind !== 'icp' && search.status !== 'queued' && search.status !== 'running';
 }
 
 /**
@@ -56,7 +56,7 @@ export function RunsLine({ search }: { search: Search }) {
  * filled with the latest run's words (a list starts empty, for what is new).
  * On success the search is live again and the editor closes.
  */
-export function SearchMoreEditor({ search, onClose }: { search: Exclude<Search, { kind: 'drop' }>; onClose: () => void }) {
+export function SearchMoreEditor({ search, onClose }: { search: Exclude<Search, { kind: 'drop' | 'icp' }>; onClose: () => void }) {
   const last = searchRuns(search).at(-1);
   const form = useSearchForm(search.kind, { params: search.params, limit: last?.limit ?? 100 });
   const more = useSearchMore(search.id);
