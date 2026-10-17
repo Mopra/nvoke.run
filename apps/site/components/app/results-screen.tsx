@@ -249,7 +249,7 @@ function OpenerLine({ opener }: { opener: Opener }) {
     );
   }
   if (opener.status === 'none') return <span className={cn(quiet, 'text-muted-foreground/70')}>No fact on the site to build on</span>;
-  if (opener.status === 'failed' || !opener.line) return <span className={cn(quiet, 'text-muted-foreground/70')}>Opener failed</span>;
+  if (opener.status === 'failed' || !opener.line) return <span className={cn(quiet, 'text-muted-foreground/70')}>Opener failed, draft it again</span>;
   const line = opener.line;
   return (
     <div className="group/opener flex min-w-0 max-w-[68ch] items-start gap-2">

@@ -207,8 +207,10 @@ export async function buildSiteProfile(deps: BuildDeps, userId: string, input: s
 
   try {
     await deps.checkHost(host);
-  } catch {
-    return { ok: false, error: 'site_unreadable', detail: 'not_allowed' };
+  } catch (err) {
+    // A typo in the domain is not a private address: say the site did not answer.
+    const unresolved = err instanceof Error && /does not resolve/.test(err.message);
+    return { ok: false, error: 'site_unreadable', detail: unresolved ? 'unreachable' : 'not_allowed' };
   }
   const site = await deps.read(website, signal);
   if (!site.ok) return { ok: false, error: 'site_unreadable', detail: site.reason };

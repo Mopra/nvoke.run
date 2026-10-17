@@ -84,7 +84,7 @@ function cta(result: ToolVerifyEmailResponse): { title: string; body: string } {
     case 'valid':
       return {
         title: 'This one works. nvoke finds hundreds like it.',
-        body: 'Name a trade and a place. nvoke reads each company’s website and keeps the addresses that pass this check.',
+        body: 'Paste your own site. nvoke finds who buys from you, reads each company’s website and keeps the addresses that pass this check.',
       };
     case 'invalid':
       return {

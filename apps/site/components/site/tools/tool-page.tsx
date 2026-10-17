@@ -29,8 +29,8 @@ export function ToolsCtaBand({ campaign }: { campaign: ToolSlug | 'tools' }) {
       <Container className="relative flex flex-col items-center gap-6 text-center">
         <h2 className="max-w-4xl text-headline font-semibold text-balance">One check is a toy. A list is a pipeline.</h2>
         <p className="max-w-xl text-lede text-pretty text-muted-foreground">
-          nvoke finds the companies, reads their websites and checks every address. {freeEmails} verified emails a
-          month, free.
+          Paste your site. nvoke finds the companies that buy from you, reads their websites, checks every address and
+          drafts an opener for each. {freeEmails} verified emails a month, free.
         </p>
         <div className="mt-6 flex flex-col items-center gap-5">
           <Button asChild size="xl">

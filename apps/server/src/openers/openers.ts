@@ -230,7 +230,9 @@ export async function runOpener(deps: OpenerDeps, job: Job): Promise<void> {
       schema: ClaudeOpeners,
       toolName: 'save_openers',
       toolDescription: 'Saves one opener per company key.',
-      maxTokens: 300 * companies.length + 200,
+      // Haiku thinks before it answers and thinking counts against the limit: a cap near the answer's size cuts it off.
+      effort: 'low',
+      maxTokens: 1000 * companies.length + 2000,
     });
     answer = res.data;
   } catch (err) {

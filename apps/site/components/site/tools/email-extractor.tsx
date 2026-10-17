@@ -83,12 +83,12 @@ function cta(result: ToolExtractEmailsResponse): { title: string; body: string }
   if (result.status === 'done' && result.emails.length > 0) {
     return {
       title: 'Now do it for a hundred companies at once.',
-      body: 'Name a trade and a place. nvoke finds the companies, reads each website and checks every address.',
+      body: 'Paste your own site. nvoke works out who buys from you, finds them, reads each website and checks every address.',
     };
   }
   return {
     title: 'One site came up empty. nvoke reads hundreds.',
-    body: 'Search a trade and a place. nvoke keeps the companies that publish an address that works.',
+    body: 'Paste your own site. nvoke finds the companies that buy from you and keeps the ones that publish an address that works.',
   };
 }
 
