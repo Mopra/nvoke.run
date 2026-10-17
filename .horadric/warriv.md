@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round as the human left: log dry, no aim. Main unchecked after 29 landings, so filed 'Checks on main before the next ship' (sonnet). The human dropped the macOS Grab test (fix on bug reports).
 - 2026-10-17 Round after the place lookup merge landed: nothing new since the last wake (all 16 done, no aim open). Nothing to do; 29 quests since the last ship, shipping is the human's.
 - 2026-10-17 Woke on a dry log: local leads merge landed (6984c31 to 4f69814), so every part of Go public is on main. Marked the aim reached. Filed nothing; it still needs a ship to reach nvoke.run, which is the human's.
 - 2026-10-17 Local leads (38% to 56% per OSM place) conflicted on merge in cli.ts; told its fix-up to keep both sides, check in one turn and merge newest main last.
@@ -108,7 +109,8 @@
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
-- OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
+- OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
+- 'Checks on main before the next ship' filed 2026-10-17; when it lands, main is ready for the human to ship.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
