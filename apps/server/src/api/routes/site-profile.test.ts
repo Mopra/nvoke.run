@@ -1,19 +1,17 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SITE_PROFILE_RUNS_PER_DAY, SiteProfile } from '@nvoke/shared';
-import { createAi, type MessagesClient } from '../../ai/client.js';
-import { MODELS } from '../../ai/models.js';
+import { AiError, type Ai, type StructuredRequest } from '../../ai/client.js';
 import type { ReadSiteResult } from '../../profile/read-site.js';
 import { createTestDb, type TestDb } from '../../testing/db.js';
-import { silentLog } from '../../testing/fakes.js';
 import { siteProfileRoutes } from './site-profile.js';
 
 let db: TestDb;
 let app: FastifyInstance;
 let reply: unknown;
 let site: ReadSiteResult;
-const requests: Anthropic.MessageCreateParamsNonStreaming[] = [];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const requests: StructuredRequest<any>[] = [];
 
 const claudeAnswer = {
   profile: {
@@ -36,27 +34,12 @@ const claudeAnswer = {
   ],
 };
 
-function message(input: unknown): Anthropic.Message {
-  return {
-    id: 'msg_1',
-    type: 'message',
-    role: 'assistant',
-    model: MODELS.quality,
-    content: [{ type: 'tool_use', id: 'toolu_1', name: 'save_site_profile', input }],
-    stop_reason: 'tool_use',
-    stop_sequence: null,
-    stop_details: null,
-    usage: { input_tokens: 5_000, output_tokens: 800, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
-  } as unknown as Anthropic.Message;
-}
-
-const client: MessagesClient = {
-  messages: {
-    async create(body) {
-      requests.push(body);
-      if (reply instanceof Error) throw reply;
-      return message(reply);
-    },
+/** Claude behind the src/ai interface: answers with `reply`, or throws it when it is an error. */
+const ai: Ai = {
+  async structured(req) {
+    requests.push(req);
+    if (reply instanceof Error) throw reply;
+    return { data: req.schema.parse(reply), model: 'fake', usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, costUsd: 0 };
   },
 };
 
@@ -70,7 +53,7 @@ beforeAll(async () => {
       const user = req.headers['x-test-user'];
       if (typeof user === 'string') req.userId = user;
     },
-    getAi: () => createAi({ sql: db.sql, log: silentLog, client, budget: { floorUsd: 1, priceShare: 0.25 } }),
+    getAi: () => ai,
     urlPolicy: { allowPrivate: false },
     read: async () => site,
     resolve: async (host) => [{ address: host === 'intranet.example' ? '10.0.0.5' : '93.184.216.34', family: 4 }],
@@ -124,11 +107,9 @@ describe('site profile routes', () => {
     });
     expect(profile.suggestions[3]!.search).toEqual({ kind: 'domains', params: { items: ['tandlaegen.dk', 'Colosseum Klinikken'], country: 'dk' } });
 
-    // The pages went to Claude on the quality tier.
-    expect(requests[0]!.model).toBe(MODELS.quality);
-    expect(JSON.stringify(requests[0]!.messages)).toContain('We sell chairs to clinics.');
-    const [usage] = await db.sql`select task from ai_usage where clerk_user_id = 'alice'`;
-    expect(usage!.task).toBe('site-profile');
+    // The pages went to Claude on the quality tier, billed to the account.
+    expect(requests[0]).toMatchObject({ userId: 'alice', task: 'site-profile', tier: 'quality' });
+    expect(JSON.stringify(requests[0]!.prompt)).toContain('We sell chairs to clinics.');
 
     const got = await app.inject({ method: 'GET', url: '/v1/site-profile', headers: as('alice') });
     expect(SiteProfile.parse(got.json())).toEqual(profile);
@@ -171,7 +152,7 @@ describe('site profile routes', () => {
 
   it('answers ai_unavailable when Claude fails, and keeps the old profile', async () => {
     await build('alice', 'acme.dk');
-    reply = new Error('overloaded');
+    reply = new AiError('budget_exceeded', 'spent');
     const res = await build('alice', 'other.dk');
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ error: 'ai_unavailable' });

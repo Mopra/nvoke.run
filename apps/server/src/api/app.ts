@@ -28,7 +28,7 @@ import { toolsRoutes, type ToolsRoutesOptions } from './routes/tools.js';
 import { createToolsDeps } from '../tools/deps.js';
 import type { Resolve } from '../webhooks/address.js';
 import { httpSender, type WebhookSender } from '../webhooks/send.js';
-import { createAi, type Ai } from '../ai/client.js';
+import { createAiFromEnv, type Ai } from '../ai/client.js';
 import { siteProfileRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
@@ -158,13 +158,8 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     getSql,
     authenticate: app.requireAuth,
     getAi: () =>
-      (ai ??= createAi({
-        sql: getSql(),
-        // Fastify's logger is pino underneath; its type only leaves out a few members.
-        log: app.log as unknown as Logger,
-        apiKey: env.OPENROUTER_API_KEY,
-        budget: { floorUsd: env.AI_MONTHLY_BUDGET_FLOOR_USD, priceShare: env.AI_MONTHLY_BUDGET_PRICE_SHARE },
-      })),
+      // Fastify's logger is pino underneath; its type only leaves out a few members.
+      (ai ??= createAiFromEnv(getSql(), app.log as unknown as Logger)),
     urlPolicy,
     read: overrides.readSite,
     resolve: overrides.webhookResolve,
