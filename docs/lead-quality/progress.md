@@ -105,3 +105,27 @@ round, the eval runs the ongoing tick.
 Next: fit precision (agent running), desktop UI (agent running), then a
 60 minute run of the full suite in icp mode, then deploy and dogfood on the
 VPS where Google and Microsoft mail go over IPv6 at 20 sessions a minute.
+
+### 2026-10-17 vps-icp1 (deployed pipeline on the VPS, nvoke-customers, 60 min, IPv4 2/min plus IPv6)
+
+236 companies, 498 emails, **274 verified** (baseline 47), 146 personal,
+88 named, 135 decision makers found, 61 verified from the pattern.
+Clear fit 84% (baseline 40%). Would email 8 of 30: the sample took every
+verified address, so info@, hr@ and dpo@ inboxes and HR or customer
+success staff filled it. Brave 95 requests ($0.475), AI $0.125, $0.0022
+per verified email. Verification is no longer the wall on the VPS: IPv6
+carried it (4 pending at the end). Discovery is: companies stalled at 236
+from minute 25 and the never-short round did not add any.
+
+Decisions:
+- The would-email judge now samples what the results show by default
+  (personal addresses, a role inbox only for a company with no valid
+  personal one). That is the list a user reviews. Earlier would-email
+  numbers sampled every address and are not directly comparable.
+- The eval records each search's stage, stage note and number of runs.
+
+Running now: verification policy (do not check or charge role inboxes and
+irrelevant staff when the company has a decision maker), up to 5 people
+per company, names from first.last addresses, the escalation that did not
+fire; and discovery yield (hiring signals from public ATS boards, fuller
+list page mining, fit for small B2B companies that show outbound).

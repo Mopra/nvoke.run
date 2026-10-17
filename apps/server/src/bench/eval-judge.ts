@@ -73,13 +73,21 @@ export async function icpSample(sql: Sql, searchIds: string[], rng: () => number
   );
 }
 
-/** The would-email sample: valid addresses first, any others to fill it up. */
+/**
+ * The would-email sample: what the results show by default (personal
+ * addresses, and a role inbox only for a company with no personal one),
+ * valid addresses first, any others to fill it up.
+ */
 export async function emailSample(sql: Sql, searchIds: string[], personColumns: PersonColumns, rng: () => number): Promise<JudgeEmail[]> {
   const rows = await sql<JudgeEmail[]>`
     select e.id, e.address, e.kind, e.verification, c.name as company, c.domain,
       ${sql.unsafe(personColumns.name)} as name, ${sql.unsafe(personColumns.title)} as title
     from emails e join companies c on c.id = e.company_id
-    where e.search_id in ${sql(searchIds)} order by e.id
+    where e.search_id in ${sql(searchIds)}
+      and (e.kind = 'personal' or not exists (
+        select 1 from emails p where p.company_id = e.company_id and p.kind = 'personal' and p.verification = 'valid'
+      ))
+    order by e.id
   `;
   return samplePreferring(rows, EMAIL_SAMPLE, rng, (e) => e.verification === 'valid');
 }

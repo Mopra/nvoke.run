@@ -278,8 +278,24 @@ export async function runEval(opts: EvalOptions): Promise<{ run: EvalRun; file: 
     await saveBrave();
 
     for (const { entry, searchIds } of entrySearches) {
-      const rows = await sql<{ id: string; kind: string; params: unknown; limit: number; status: string; error: string | null }[]>`
-        select id, kind, params, "limit", status, error from searches where id in ${sql(searchIds)} order by created_at
+      // Stage and runs through jsonb, so a run against an older schema still works.
+      const rows = await sql<
+        {
+          id: string;
+          kind: string;
+          params: unknown;
+          limit: number;
+          status: string;
+          error: string | null;
+          stage: string | null;
+          stageNote: string | null;
+          runs: number;
+        }[]
+      >`
+        select id, kind, params, "limit", status, error,
+          to_jsonb(s) ->> 'stage' as stage, to_jsonb(s) ->> 'stage_note' as "stageNote",
+          jsonb_array_length(coalesce(to_jsonb(s) -> 'runs', '[]'::jsonb))::int as runs
+        from searches s where id in ${sql(searchIds)} order by created_at
       `;
       searchRecords.push({ id: entry.id, intent: entry.intent, searches: rows });
     }
