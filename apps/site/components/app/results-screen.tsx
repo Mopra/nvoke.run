@@ -211,7 +211,7 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
         type="button"
         onClick={() => void copy(email.address, email.address)}
         className="flex min-w-0 items-center gap-1.5 rounded-sm text-left font-mono text-xs text-foreground/80 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50 dark:text-foreground/65 dark:hover:text-primary"
-        title="Copy email"
+        title={`Copy ${email.address}`}
       >
         <span className="truncate">{email.address}</span>
         <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/email:opacity-60" />
@@ -292,7 +292,7 @@ function OpenerLine({ opener }: { opener: Opener }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="-my-0.5 size-6 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/opener:opacity-100 focus-visible:opacity-100"
+            className="-my-0.5 size-6 shrink-0 text-muted-foreground transition-opacity pointer-fine:opacity-0 group-hover/opener:opacity-100 focus-visible:opacity-100"
             aria-label="Copy opener"
             onClick={() => void copy(line, 'the opener')}
           >
@@ -324,11 +324,14 @@ function CompanyRow({
       className={cn(COLUMNS, 'group flex flex-col gap-2 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start sm:px-6')}
     >
       <div className="min-w-0 leading-5">
-        <div className="truncate text-[14px] font-medium">{company.name}</div>
+        <div className="truncate text-[14px] font-medium" title={company.name}>
+          {company.name}
+        </div>
         <a
           href={company.website}
           target="_blank"
           rel="noreferrer"
+          title={company.domain}
           className="block max-w-full truncate rounded-sm font-mono text-2xs text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {company.domain}
@@ -336,10 +339,12 @@ function CompanyRow({
       </div>
       <EmailsCell company={company} live={live} />
       <div className="min-w-0 text-xs leading-5 text-muted-foreground">
-        <div className="truncate">{company.location ?? source}</div>
+        <div className="truncate" title={company.location ?? source}>
+          {company.location ?? source}
+        </div>
         {company.phone && <div className="truncate tabular-nums">{company.phone}</div>}
       </div>
-      <div className="-my-0.5 hidden justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 md:flex">
+      <div className="-my-0.5 hidden justify-end gap-0.5 transition-opacity duration-150 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 md:flex">
         {company.emails.length > 1 && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -780,6 +785,8 @@ export function ResultsScreen({ id }: { id: string }) {
               }}
               placeholder="Filter companies and emails"
               aria-label="Filter companies and emails"
+              autoComplete="off"
+              spellCheck={false}
               className="h-9 w-full rounded-full bg-foreground/[0.045] pr-9 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
             />
             {text && (
@@ -787,7 +794,7 @@ export function ResultsScreen({ id }: { id: string }) {
                 type="button"
                 aria-label="Clear filter"
                 onClick={() => setText('')}
-                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background hover:bg-muted-foreground/60"
+                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background outline-none hover:bg-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <X className="size-2.5" strokeWidth={3} />
               </button>

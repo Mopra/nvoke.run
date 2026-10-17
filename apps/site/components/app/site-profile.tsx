@@ -318,7 +318,9 @@ function Building({
         aria-hidden
         className="aura pointer-events-none absolute -top-48 left-1/2 -z-10 h-[460px] w-[760px] max-w-[150vw] -translate-x-1/2 rounded-full motion-safe:animate-breathe"
       />
-      <h1 className="truncate font-mono text-[26px]/[34px] tracking-tight sm:text-4xl">{domain}</h1>
+      <h1 className="truncate font-mono text-[26px]/[34px] tracking-tight sm:text-4xl" title={domain}>
+        {domain}
+      </h1>
       <div className="mt-6 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07]">
         <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate" />
       </div>

@@ -181,6 +181,13 @@ function ListField({
       ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        // Enter is a new line here, so Ctrl or Cmd with Enter starts the search.
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          e.currentTarget.form?.requestSubmit();
+        }
+      }}
       rows={lines}
       spellCheck={false}
       autoComplete="off"
@@ -215,7 +222,7 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
           {shown.map((item) => {
             const domain = itemDomain(item);
             return (
-              <span key={item} className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5', domain && 'font-mono')}>
+              <span key={item} title={domain ?? item} className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5', domain && 'font-mono')}>
                 {domain ?? item}
               </span>
             );

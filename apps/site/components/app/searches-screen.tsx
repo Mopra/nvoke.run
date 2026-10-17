@@ -37,7 +37,7 @@ function RowMenu({ search }: { search: Search }) {
             variant="ghost"
             size="icon-sm"
             aria-label={`Actions for ${searchTitle(search)}`}
-            className="pointer-events-auto text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
+            className="pointer-events-auto text-muted-foreground sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
           >
             <MoreHorizontal />
           </Button>
@@ -83,6 +83,7 @@ function SearchRow({ search }: { search: Search }) {
         href={href(search)}
         data-search-status={search.status}
         aria-label={searchTitle(search)}
+        title={searchTitle(search)}
         className="absolute inset-0 rounded-[24px] outline-none"
       />
       <div className="pointer-events-none relative flex items-center gap-4 px-4 py-5 sm:gap-8 sm:px-6">

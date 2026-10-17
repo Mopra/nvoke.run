@@ -163,7 +163,7 @@ export function CountryPicker({
                   onMouseMove={() => setActive(index)}
                   onClick={() => pick(option.code)}
                   className={cn(
-                    'relative flex h-9 cursor-default items-center gap-3 rounded-[14px] pr-9 pl-3 text-sm',
+                    'relative flex h-9 cursor-pointer items-center gap-3 rounded-[14px] pr-9 pl-3 text-sm',
                     index === active && 'bg-foreground/[0.07]',
                   )}
                 >

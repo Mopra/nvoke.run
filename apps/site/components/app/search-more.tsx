@@ -32,7 +32,9 @@ export function RunsLine({ search }: { search: Search }) {
     <ol className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" aria-label="Runs of this search">
       {runs.map((run, i) => (
         <li key={`${run.createdAt}-${i}`} className="flex items-center gap-1.5 rounded-full bg-foreground/[0.045] py-0.5 pr-1 pl-2.5">
-          <span className="max-w-64 truncate">{runTitle({ kind: search.kind, params: run.params } as Search)}</span>
+          <span className="max-w-64 truncate" title={runTitle({ kind: search.kind, params: run.params } as Search)}>
+            {runTitle({ kind: search.kind, params: run.params } as Search)}
+          </span>
           <span className="rounded-full bg-foreground/[0.06] px-1.5 tabular-nums text-foreground/80">
             {i === runs.length - 1 && search.status === 'queued' ? '…' : `+${formatNumber(Math.max(0, added[i] ?? 0))}`}
           </span>
@@ -107,7 +109,8 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
       <form
         onSubmit={submit}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose();
+          // Not when Escape just closed a picker or menu inside the form.
+          if (e.key === 'Escape' && !e.nativeEvent.defaultPrevented) onClose();
         }}
         noValidate
       >

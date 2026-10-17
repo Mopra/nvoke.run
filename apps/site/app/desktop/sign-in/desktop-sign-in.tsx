@@ -63,7 +63,7 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
   }, [isLoaded, isSignedIn, authorize]);
 
   if (!isLoaded) {
-    return <p className="text-sm text-muted-foreground">Loading...</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   if (!isSignedIn) {
@@ -103,7 +103,7 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
       )}
       <CardFooter className="flex flex-col gap-2">
         <Button className="w-full" disabled={phase.kind === 'working'} onClick={() => void authorize()}>
-          {phase.kind === 'working' ? 'Opening nvoke...' : phase.kind === 'error' ? 'Try again' : 'Continue'}
+          {phase.kind === 'working' ? 'Opening nvoke…' : phase.kind === 'error' ? 'Try again' : 'Continue'}
         </Button>
         <Button
           variant="ghost"

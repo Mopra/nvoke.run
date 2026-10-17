@@ -56,14 +56,14 @@ export function ExportNoticeDialog({
             <ArrowUpRight className="size-3.5" />
           </a>
         </AlertDialogHeader>
-        <label className="flex w-fit items-center gap-2 text-sm text-muted-foreground select-none">
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
           <input
             type="checkbox"
             checked={skip}
             onChange={(e) => setSkip(e.target.checked)}
             className="size-3.5 accent-primary"
           />
-          Don't show this again
+          Don’t show this again
         </label>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

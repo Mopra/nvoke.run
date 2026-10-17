@@ -66,8 +66,10 @@ function AppToaster() {
           content: 'flex min-w-0 flex-1 flex-col gap-0.5',
           title: 'font-medium',
           description: 'text-xs text-muted-foreground',
-          actionButton: 'ml-auto h-6 shrink-0 rounded-full bg-primary px-2.5 text-xs font-medium text-primary-foreground',
-          cancelButton: 'ml-auto h-6 shrink-0 rounded-full bg-muted px-2.5 text-xs font-medium',
+          actionButton:
+            'ml-auto h-6 shrink-0 rounded-full bg-primary px-2.5 text-xs font-medium text-primary-foreground outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/50',
+          cancelButton:
+            'ml-auto h-6 shrink-0 rounded-full bg-muted px-2.5 text-xs font-medium outline-none hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring/50',
         },
       }}
     />

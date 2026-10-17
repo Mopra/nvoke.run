@@ -34,7 +34,7 @@ function DropdownMenuContent({
 
 // Highlighted items lift with a quiet fill; the accent stays for the primary action.
 const itemClass =
-  "relative flex h-8 cursor-default select-none items-center gap-2.5 rounded-[14px] px-2.5 text-sm outline-none data-[highlighted]:bg-foreground/[0.07] data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
+  "relative flex h-8 cursor-pointer select-none items-center gap-2.5 rounded-[14px] px-2.5 text-sm outline-none data-[highlighted]:bg-foreground/[0.07] data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
 
 function DropdownMenuItem({
   className,

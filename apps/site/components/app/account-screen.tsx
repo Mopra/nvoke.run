@@ -129,7 +129,9 @@ function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: () => void }) 
     <li className="flex items-center gap-6 py-4" data-api-key={apiKey.prefix}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[15px] font-medium">{apiKey.name}</span>
+          <span className="truncate text-[15px] font-medium" title={apiKey.name}>
+            {apiKey.name}
+          </span>
           {apiKey.origin === 'agent_signup' && <Badge>agent</Badge>}
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -209,6 +211,7 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
+              autoComplete="off"
               placeholder="CRM sync, Claude, a script"
               aria-label="Key name"
               className="h-10 rounded-full px-4"
@@ -283,7 +286,11 @@ function ApiKeys() {
         ) : error ? (
           <p className="py-4 text-sm text-muted-foreground">
             Couldn’t load your keys.{' '}
-            <button type="button" className="text-foreground underline-offset-4 hover:underline" onClick={() => void refetch()}>
+            <button
+              type="button"
+              className="rounded-sm text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+              onClick={() => void refetch()}
+            >
               Try again
             </button>
           </p>
@@ -301,7 +308,12 @@ function ApiKeys() {
         <div>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
             <span className="text-sm font-medium">MCP server, for Claude, Cursor and other agents</span>
-            <a href="/docs/mcp" target="_blank" rel="noreferrer" className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+            <a
+              href="/docs/mcp"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-sm text-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
               Setup
             </a>
           </div>
@@ -382,8 +394,14 @@ export function AccountScreen() {
             <div className="flex items-center gap-4">
               <Avatar user={me.user} className="size-11" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-medium">{me.user.name ?? me.user.email ?? 'Signed in'}</div>
-                {me.user.name && me.user.email && <div className="truncate text-sm text-muted-foreground">{me.user.email}</div>}
+                <div className="truncate text-[15px] font-medium" title={me.user.name ?? me.user.email ?? undefined}>
+                  {me.user.name ?? me.user.email ?? 'Signed in'}
+                </div>
+                {me.user.name && me.user.email && (
+                  <div className="truncate text-sm text-muted-foreground" title={me.user.email}>
+                    {me.user.email}
+                  </div>
+                )}
               </div>
               <Button variant="ghost" className="-mr-4" onClick={() => void signOut({ redirectUrl: '/' })}>
                 <LogOut />

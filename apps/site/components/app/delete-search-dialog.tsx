@@ -44,8 +44,8 @@ export function DeleteSearchDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {searchTitle(search)}?</AlertDialogTitle>
           <AlertDialogDescription>
-            {formatNumber(search.companiesFound)} companies and {formatNumber(search.emailsFound)} emails, gone for
-            good. Emails already counted against your plan stay counted.
+            {formatNumber(search.companiesFound)} {search.companiesFound === 1 ? 'company' : 'companies'} and{' '}
+            {formatNumber(search.emailsFound)} {search.emailsFound === 1 ? 'email' : 'emails'}, gone for good. Emails already counted against your plan stay counted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

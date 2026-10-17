@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { SignIn, useAuth, useClerk, useSignIn, useUser } from '@clerk/nextjs';
-import { ClaimResponse, ClaimStatusResponse, type AccountOrigin } from '@nvoke/shared';
+import { ClaimResponse, ClaimStatusResponse, PLANS, type AccountOrigin } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
@@ -115,9 +115,9 @@ export function Claim() {
   );
 
   if (phase.kind === 'start' || phase.kind === 'signing-in' || !isLoaded) {
-    return <p className="text-sm text-muted-foreground">Signing you in...</p>;
+    return <p className="text-sm text-muted-foreground">Signing you in…</p>;
   }
-  if (phase.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your account...</p>;
+  if (phase.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your account…</p>;
 
   if (phase.kind === 'load-failed') {
     return (
@@ -231,7 +231,7 @@ function Choose({
           />
           <span>
             I accept the{' '}
-            <Link href="/terms" target="_blank" className="underline underline-offset-4">
+            <Link href="/terms" target="_blank" rel="noreferrer" className="underline underline-offset-4">
               terms
             </Link>
             , for me and for what my agent does with nvoke.
@@ -241,10 +241,10 @@ function Choose({
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
         <Button className="w-full sm:flex-1" disabled={!accepted || busy} onClick={() => onClaim(true)}>
-          {busy && phase.keep ? 'Claiming...' : 'Keep the agent’s key'}
+          {busy && phase.keep ? 'Claiming…' : 'Keep the agent’s key'}
         </Button>
         <Button variant="secondary" className="w-full sm:flex-1" disabled={!accepted || busy} onClick={() => onClaim(false)}>
-          {busy && !phase.keep ? 'Revoking...' : 'Revoke it'}
+          {busy && !phase.keep ? 'Revoking…' : 'Revoke it'}
         </Button>
       </CardFooter>
     </Card>
@@ -268,7 +268,7 @@ function Done({ phase }: { phase: Extract<Phase, { kind: 'done' }> }) {
         <CardDescription className="text-pretty">{what}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-        <p>Free plan: 50 verified emails a month. Upgrade when you need more.</p>
+        <p>Free plan: {PLANS.free.emailsPerMonth} verified emails a month. Upgrade when you need more.</p>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
         <Button asChild className="w-full sm:flex-1">

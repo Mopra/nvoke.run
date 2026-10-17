@@ -35,7 +35,7 @@ export function DesktopBilling({
   title = true,
 }: BillingProps) {
   const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <p className="text-sm text-muted-foreground">Loading...</p>;
+  if (!isLoaded) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!isSignedIn) {
     return <SignIn routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
@@ -67,7 +67,7 @@ function Billing({
     };
   }, [getToken, version]);
 
-  if (load.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your plan...</p>;
+  if (load.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your plan…</p>;
   if (load.kind === 'error') {
     return (
       <Card className="w-full max-w-md">
@@ -268,14 +268,12 @@ function PlanAction({
   const label: ReactNode = `${direction === 'up' ? 'Upgrade' : 'Switch'} to ${planLabel(plan)}`;
   if (!planId) {
     return (
-      <Button
-        size="lg"
-        className={wide}
-        disabled
-        title={`This plan is not available for checkout: no Clerk plan matches "${plan}".`}
-      >
-        {label}
-      </Button>
+      // A disabled button takes no pointer events, so the reason sits on a wrapper.
+      <span title={`This plan is not available for checkout: no Clerk plan matches "${plan}".`} className={cn('inline-flex', wide)}>
+        <Button size="lg" className="w-full" disabled>
+          {label}
+        </Button>
+      </span>
     );
   }
   return (
