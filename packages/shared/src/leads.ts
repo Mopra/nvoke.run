@@ -107,6 +107,14 @@ export type CreateSearchRequest = z.infer<typeof CreateSearchRequest>;
 /** What a client sends: `limit` and `days` may be left out for the defaults. */
 export type CreateSearchInput = z.input<typeof CreateSearchRequest>;
 
+/**
+ * Another run in a finished search, with the same kind and new params:
+ * `limit` more companies at most. Companies the search already holds are
+ * skipped, so the list only grows by what is new.
+ */
+export const SearchMoreRequest = CreateSearchRequest;
+export type SearchMoreRequest = z.infer<typeof SearchMoreRequest>;
+
 const SearchBase = z.object({
   id: z.uuid(),
   limit: z.number().int().positive(),
@@ -122,11 +130,34 @@ const SearchBase = z.object({
   finishedAt: z.iso.datetime({ offset: true }).nullable(),
 });
 
+/**
+ * One run of a search: the params it ran with, how many more companies it
+ * asked for and how many the search held when it started, so the next run's
+ * `foundBefore` (or `companiesFound` for the last run) says what it added.
+ */
+function runs<P extends z.ZodType>(params: P) {
+  return z
+    .array(
+      z.object({
+        params,
+        limit: z.number().int().positive(),
+        foundBefore: z.number().int().nonnegative(),
+        createdAt: z.iso.datetime({ offset: true }),
+      }),
+    )
+    .optional();
+}
+
+/**
+ * `params` and `limit` are the latest run's: `limit` is the total the search
+ * may hold once it ends. `runs` lists every run in order, the first one too;
+ * a drop's searches have none.
+ */
 export const Search = z.discriminatedUnion('kind', [
-  SearchBase.extend({ kind: z.literal('local'), params: LocalSearchParams }),
-  SearchBase.extend({ kind: z.literal('web'), params: WebSearchParams }),
-  SearchBase.extend({ kind: z.literal('launches'), params: LaunchesSearchParams }),
-  SearchBase.extend({ kind: z.literal('domains'), params: DomainsSearchParams }),
+  SearchBase.extend({ kind: z.literal('local'), params: LocalSearchParams, runs: runs(LocalSearchParams) }),
+  SearchBase.extend({ kind: z.literal('web'), params: WebSearchParams, runs: runs(WebSearchParams) }),
+  SearchBase.extend({ kind: z.literal('launches'), params: LaunchesSearchParams, runs: runs(LaunchesSearchParams) }),
+  SearchBase.extend({ kind: z.literal('domains'), params: DomainsSearchParams, runs: runs(DomainsSearchParams) }),
   SearchBase.extend({ kind: z.literal('drop'), params: DropRunParams }),
 ]);
 export type Search = z.infer<typeof Search>;
@@ -286,6 +317,8 @@ export const LeadsErrorCode = z.enum([
   'invalid_request',
   'quota_exceeded',
   'not_cancelable',
+  'search_running',
+  'kind_mismatch',
   'not_claimed',
   'database_unavailable',
   'source_unavailable',

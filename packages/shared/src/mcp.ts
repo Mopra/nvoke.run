@@ -34,6 +34,20 @@ function qs(values: McpToolArgs): string {
   return s ? `?${s}` : '';
 }
 
+/** The search body of start_search and search_more from the flat tool arguments. */
+function searchBody(a: McpToolArgs): unknown {
+  const kind = a['kind'];
+  const params =
+    kind === 'local'
+      ? { niche: a['niche'], location: a['location'] }
+      : kind === 'web'
+        ? { keyword: a['keyword'], country: a['country'] }
+        : kind === 'domains'
+          ? { items: a['items'], country: a['country'] }
+          : { keyword: a['keyword'], days: a['days'] };
+  return { kind, params, limit: a['limit'] };
+}
+
 /** Maps a tool call to the REST route it stands for. */
 export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
   const id = encodeURIComponent(String(a['searchId'] ?? ''));
@@ -58,18 +72,10 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
       return { method: 'GET', url: `/v1/searches/${id}/export.csv${qs({ verification: a['verification'], kind: a['kind'], q: a['q'] })}` };
     case 'draft_openers':
       return { method: 'POST', url: `/v1/searches/${id}/openers`, body: { companyIds: a['companyIds'], redo: a['redo'] } };
-    case 'start_search': {
-      const kind = a['kind'];
-      const params =
-        kind === 'local'
-          ? { niche: a['niche'], location: a['location'] }
-          : kind === 'web'
-            ? { keyword: a['keyword'], country: a['country'] }
-            : kind === 'domains'
-              ? { items: a['items'], country: a['country'] }
-              : { keyword: a['keyword'], days: a['days'] };
-      return { method: 'POST', url: '/v1/searches', body: { kind, params, limit: a['limit'] } };
-    }
+    case 'start_search':
+      return { method: 'POST', url: '/v1/searches', body: searchBody(a) };
+    case 'search_more':
+      return { method: 'POST', url: `/v1/searches/${id}/more`, body: searchBody(a) };
     case 'list_webhooks':
       return { method: 'GET', url: '/v1/webhooks' };
     case 'create_webhook':

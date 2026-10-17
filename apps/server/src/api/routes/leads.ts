@@ -15,6 +15,7 @@ import {
   LocalCrawlResultRequest,
   SEARCH_LIMIT_DEFAULT,
   SearchIdParams,
+  SearchMoreRequest,
   type CompaniesPage,
   type DraftOpenersResponse,
   type LeadsErrorCode,
@@ -31,6 +32,7 @@ import { kindPaused, requestNeedsSource } from '../../leads/source-pause.js';
 import {
   cancelSearch,
   createSearch,
+  searchMore,
   deleteSearch,
   exportRows,
   getSearch,
@@ -61,6 +63,13 @@ function parse<T extends z.ZodType>(schema: T, value: unknown): { ok: true; data
   return result.success ? { ok: true, data: result.data } : { ok: false, issues: result.error.issues };
 }
 
+/** The request with its limit settled: a list is as long as it is, the limit only cuts it. */
+function withLimit(request: CreateSearchRequest): { request: CreateSearchRequest; limit: number } {
+  if (request.kind !== 'domains') return { request, limit: Math.min(request.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT) };
+  const items = request.params.items.slice(0, Math.min(request.limit ?? MAX_SEARCH_LIMIT, MAX_SEARCH_LIMIT));
+  return { request: { ...request, params: { ...request.params, items } }, limit: items.length };
+}
+
 export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, opts) => {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof Error && err.message === 'DATABASE_URL is not set') {
@@ -83,17 +92,30 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     if (await quotaExhausted(sql, userId)) {
       return reply.code(403).send({ error: 'quota_exceeded', ...(opts.billingUrl ? { billingUrl: opts.billingUrl } : {}) });
     }
-    let request = body.data;
-    let limit = Math.min(request.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT);
-    if (request.kind === 'domains') {
-      // A list is as long as it is: the limit only cuts it, taking the first items.
-      const items = request.params.items.slice(0, Math.min(request.limit ?? MAX_SEARCH_LIMIT, MAX_SEARCH_LIMIT));
-      request = { ...request, params: { ...request.params, items } };
-      limit = items.length;
-    }
+    const { request, limit } = withLimit(body.data);
     if (await kindPaused(sql, request.kind, requestNeedsSource(request))) return sendError(reply, 503, 'source_unavailable');
     const search = await createSearch(sql, userId, request, limit);
     return reply.code(201).send(search);
+  });
+
+  app.post('/searches/:id/more', async (req, reply): Promise<Search | void> => {
+    const params = parse(SearchIdParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    const body = parse(SearchMoreRequest, req.body);
+    if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
+    const sql = opts.getSql();
+    const userId = req.userId!;
+    await ensureAccount(sql, userId);
+    if (await quotaExhausted(sql, userId)) {
+      return reply.code(403).send({ error: 'quota_exceeded', ...(opts.billingUrl ? { billingUrl: opts.billingUrl } : {}) });
+    }
+    const { request, limit } = withLimit(body.data);
+    if (await kindPaused(sql, request.kind, requestNeedsSource(request))) return sendError(reply, 503, 'source_unavailable');
+    const result = await searchMore(sql, userId, params.data.id, request, limit);
+    if (result === null) return sendError(reply, 404, 'not_found');
+    if (result === 'running') return sendError(reply, 409, 'search_running');
+    if (result === 'kind') return sendError(reply, 400, 'kind_mismatch');
+    return result;
   });
 
   app.get('/searches', async (req): Promise<SearchListResponse> => {

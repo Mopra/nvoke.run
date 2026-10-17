@@ -27,6 +27,8 @@ interface SearchRow {
   kind: SearchKind;
   params: Record<string, unknown>;
   limit: number;
+  /** Left out by readers that do not need it, such as the webhook payload. */
+  runs?: { params: unknown; limit: number; foundBefore: number; createdAt: string }[];
   status: SearchStatus;
   error: string | null;
   companies_found: number;
@@ -46,6 +48,7 @@ export function toSearch(r: SearchRow): Search {
     kind: r.kind,
     params: r.params,
     limit: r.limit,
+    ...(r.runs && r.runs.length > 0 ? { runs: r.runs.map((run) => ({ ...run, createdAt: iso(run.createdAt)! })) } : {}),
     status: r.status,
     error: r.error,
     companiesFound: r.companies_found,
@@ -58,7 +61,7 @@ export function toSearch(r: SearchRow): Search {
   } as Search;
 }
 
-const SEARCH_COLUMNS = `id, kind, params, "limit", status, error, companies_found, companies_crawled,
+const SEARCH_COLUMNS = `id, kind, params, "limit", runs, status, error, companies_found, companies_crawled,
   emails_found, emails_valid, created_at, started_at, finished_at`;
 
 /** Inserts the search and its find job in one transaction. */
@@ -69,9 +72,10 @@ export async function createSearch(
   limit: number,
 ): Promise<Search> {
   return sql.begin(async (tx) => {
+    const run = { params: req.params, limit, foundBefore: 0, createdAt: new Date().toISOString() };
     const [row] = await tx<SearchRow[]>`
-      insert into searches (clerk_user_id, kind, params, "limit")
-      values (${userId}, ${req.kind}, ${tx.json(req.params)}, ${limit})
+      insert into searches (clerk_user_id, kind, params, "limit", runs)
+      values (${userId}, ${req.kind}, ${tx.json(req.params)}, ${limit}, ${tx.json([run])})
       returning ${tx.unsafe(SEARCH_COLUMNS)}
     `;
     if (!row) throw new Error('insert into searches returned nothing');
@@ -95,6 +99,46 @@ export async function getSearch(sql: Sql, userId: string, id: string): Promise<S
     select ${sql.unsafe(SEARCH_COLUMNS)} from searches where id = ${id} and clerk_user_id = ${userId}
   `;
   return row ? toSearch(row) : null;
+}
+
+/**
+ * Starts another run in a finished search: the new params become the
+ * search's, it may hold `limit` more companies than it does now, and a find
+ * job goes in the queue. The unique `(search_id, domain)` keeps companies it
+ * already holds out. Null when the search does not exist, `running` while
+ * it has not ended, `kind` when the request is of another kind.
+ */
+export async function searchMore(
+  sql: Sql,
+  userId: string,
+  id: string,
+  req: CreateSearchRequest,
+  limit: number,
+): Promise<Search | null | 'running' | 'kind'> {
+  return sql.begin(async (tx) => {
+    const [current] = await tx<{ kind: SearchKind; status: SearchStatus }[]>`
+      select kind, status from searches where id = ${id} and clerk_user_id = ${userId} for update
+    `;
+    if (!current) return null;
+    if (current.kind !== req.kind) return 'kind';
+    if (current.status === 'queued' || current.status === 'running') return 'running';
+    // No find job runs while the search is ended, so the count holds until the update.
+    const [held] = await tx<{ n: number }[]>`select count(*)::int as n from companies where search_id = ${id}`;
+    const foundBefore = held?.n ?? 0;
+    const run = { params: req.params, limit, foundBefore, createdAt: new Date().toISOString() };
+    const [row] = await tx<SearchRow[]>`
+      update searches set
+        params = ${tx.json(req.params)},
+        "limit" = ${foundBefore + limit},
+        runs = runs || ${tx.json([run])},
+        status = 'queued', error = null, finished_at = null
+      where id = ${id}
+      returning ${tx.unsafe(SEARCH_COLUMNS)}
+    `;
+    if (!row) throw new Error('update of searches returned nothing');
+    await enqueue(tx, { type: 'find', payload: { searchId: id }, searchId: id });
+    return toSearch(row);
+  });
 }
 
 /** Cancels a queued or running search. Null when it does not exist, false when it already ended. */

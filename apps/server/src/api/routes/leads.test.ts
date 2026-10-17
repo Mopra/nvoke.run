@@ -170,6 +170,38 @@ describe('lead routes', () => {
     expect((await app.inject({ method: 'POST', url: `/v1/searches/${a.id}/cancel`, headers: as('mallory') })).statusCode).toBe(404);
   });
 
+  it('runs a finished search again into the same list', async () => {
+    const search = Search.parse((await createSearch('alice', { kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 20 })).json());
+    expect(search.runs).toEqual([{ params: { niche: 'dentists', location: 'Aarhus' }, limit: 20, foundBefore: 0, createdAt: expect.any(String) }]);
+    const more = (body: object) => app.inject({ method: 'POST', url: `/v1/searches/${search.id}/more`, headers: as('alice'), payload: body });
+    const odense = { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 50 };
+
+    // Not while it runs.
+    expect((await more(odense)).json()).toEqual({ error: 'search_running' });
+
+    await seedCompany(search.id, 'alice', 'Tand A', 'tand-a.dk', []);
+    await seedCompany(search.id, 'alice', 'Tand B', 'tand-b.dk', []);
+    await db.sql`update searches set status = 'done', error = null, finished_at = now(), companies_found = 2 where id = ${search.id}`;
+    await db.sql`delete from jobs where search_id = ${search.id}`;
+
+    const res = await more(odense);
+    expect(res.statusCode).toBe(200);
+    const again = Search.parse(res.json());
+    expect(again).toMatchObject({ id: search.id, status: 'queued', params: odense.params, limit: 52, companiesFound: 2, finishedAt: null });
+    expect(again.runs?.map((r) => [r.params, r.limit, r.foundBefore])).toEqual([
+      [{ niche: 'dentists', location: 'Aarhus' }, 20, 0],
+      [odense.params, 50, 2],
+    ]);
+    const jobs = await db.sql`select type from jobs where search_id = ${search.id}`;
+    expect(jobs).toEqual([{ type: 'find' }]);
+
+    // Its own kind only, its owner only.
+    await db.sql`update searches set status = 'canceled' where id = ${search.id}`;
+    expect((await more({ kind: 'web', params: { keyword: 'dentists' } })).json()).toEqual({ error: 'kind_mismatch' });
+    const other = await app.inject({ method: 'POST', url: `/v1/searches/${search.id}/more`, headers: as('mallory'), payload: odense });
+    expect(other.statusCode).toBe(404);
+  });
+
   it('deletes a search with its companies, emails and jobs', async () => {
     const a = Search.parse((await createSearch('alice')).json());
     await seedCompany(a.id, 'alice', 'Acme', 'acme.dk', [['info@acme.dk', 'generic', 'valid']]);
