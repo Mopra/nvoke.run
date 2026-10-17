@@ -20,8 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
-import { useCancelSearch, useRefreshWhenFinished, useSearches } from '@/lib/app/queries';
-import { WEBSITE_PATH } from '@/lib/app/site-profile';
+import { useCancelSearch, useLatestProfileBuild, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
+import { displayDomain, WEBSITE_PATH } from '@/lib/app/site-profile';
 
 const href = (search: Search): string => `/app/searches/${search.id}`;
 
@@ -155,19 +155,37 @@ const BY_HAND = [
   { kind: 'launches', icon: Rocket, title: 'New launches' },
 ] as const;
 
+/** Where the website step stands, so the first visit picks up a read that is running or done. */
+function useWebsiteStep(): { lead: string; action: string } {
+  const profile = useSiteProfile();
+  const latest = useLatestProfileBuild();
+  if (latest?.status === 'pending') {
+    return { lead: `nvoke is reading ${latest.build.domain} and planning your searches.`, action: 'See how it’s going' };
+  }
+  if (profile.data) {
+    return {
+      lead: `Your searches for ${displayDomain(profile.data.website)} are planned. Pick one to start, or read another site.`,
+      action: 'Pick a search',
+    };
+  }
+  return {
+    lead:
+      'Give nvoke your website. It works out who buys from you and plans the searches that find them. Then it reads each company’s own site and checks every email with the mail server. Only verified emails count toward your plan.',
+    action: 'Start from your website',
+  };
+}
+
 /** The first visit: one obvious action, the website step, and the search kinds for those who know what they want. */
 function FirstSearch() {
+  const step = useWebsiteStep();
   return (
     <section className="px-2 pb-10 sm:px-6">
-      <p className="max-w-lg text-base text-pretty text-muted-foreground">
-        Give nvoke your website. It works out who buys from you and plans the searches that find them. Then it reads each
-        company’s own site and checks every email with the mail server. Only verified emails count toward your plan.
-      </p>
+      <p className="max-w-lg text-base text-pretty text-muted-foreground">{step.lead}</p>
       <div className="mt-8">
         <Button asChild size="lg">
           <Link href={WEBSITE_PATH}>
             <Sparkles />
-            Start from your website
+            {step.action}
           </Link>
         </Button>
       </div>

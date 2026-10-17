@@ -80,6 +80,11 @@ export function buildPhase(elapsed: number): number {
   return index;
 }
 
+/** The user stopped the build. Not a failure: no error line for it. */
+export function isCancelled(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'cancelled';
+}
+
 /** One short line for a failed build, naming the site where it helps. */
 export function buildProblem(error: unknown, domain: string): string {
   if (!(error instanceof ApiError)) return 'Something broke on our side. Try again.';

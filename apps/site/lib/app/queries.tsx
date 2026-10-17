@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiKey, CreateSearchInput, DraftOpenersInput, Search, SiteProfile, UpdateSiteProfileRequest } from '@nvoke/shared';
 import { ApiError, type CompaniesQuery, type WebApi } from './api';
 import { companiesPollInterval } from './openers';
@@ -31,6 +31,7 @@ export const keys = {
   me: ['me'] as const,
   apiKeys: ['api-keys'] as const,
   siteProfile: ['site-profile'] as const,
+  siteProfileBuild: ['site-profile', 'build'] as const,
 };
 
 export function useSearches() {
@@ -197,14 +198,71 @@ export function useSiteProfile() {
   return useQuery({ queryKey: keys.siteProfile, queryFn: api.getSiteProfile, staleTime: 5 * 60_000 });
 }
 
-/** Reads the website and plans searches (10 to 30 seconds), replacing the stored profile. */
+/** One build of the site profile, as the screens start it. */
+export interface ProfileBuild {
+  /** What the server gets, from readWebsite. */
+  website: string;
+  /** What the screen shows. */
+  domain: string;
+  /** What the user typed, back in the field if the build fails. */
+  typed: string;
+  /** Where Cancel goes back to: the field, or the profile on file (Read again). */
+  from: 'form' | 'profile';
+  /** Aborting it hangs up, and the server stops reading. */
+  controller: AbortController;
+}
+
+/**
+ * Reads the website and plans searches (10 to 30 seconds), replacing the
+ * stored profile. The fixed key lets New search find a build again after the
+ * user left it (useLatestProfileBuild); the result lands in the cache either way.
+ */
 export function useBuildSiteProfile() {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (website: string) => api.buildSiteProfile(website),
+    mutationKey: keys.siteProfileBuild,
+    // Offline it fails at once with the network line, rather than waiting paused where Cancel cannot reach it.
+    networkMode: 'always',
+    // Kept for an hour once the screen is left, so its outcome is still there on the way back.
+    gcTime: 60 * 60_000,
+    mutationFn: (build: ProfileBuild) => api.buildSiteProfile(build.website, build.controller.signal),
     onSuccess: (profile) => client.setQueryData<SiteProfile | null>(keys.siteProfile, profile),
   });
+}
+
+export interface LatestProfileBuild {
+  id: number;
+  status: 'idle' | 'pending' | 'success' | 'error';
+  build: ProfileBuild;
+  error: unknown;
+  /** When it was sent, so the phases pick up where they were. */
+  startedAt: number;
+}
+
+/** The last build started this session, from any screen, running or not. */
+export function useLatestProfileBuild(): LatestProfileBuild | undefined {
+  return useMutationState({
+    filters: { mutationKey: keys.siteProfileBuild },
+    select: (m): LatestProfileBuild => ({
+      id: m.mutationId,
+      status: m.state.status,
+      build: m.state.variables as ProfileBuild,
+      error: m.state.error,
+      startedAt: m.state.submittedAt,
+    }),
+  }).at(-1);
+}
+
+/** Drops the finished builds once the screen has taken their outcome, so coming back does not show it again. */
+export function useForgetProfileBuilds(): () => void {
+  const client = useQueryClient();
+  return useCallback(() => {
+    const cache = client.getMutationCache();
+    for (const m of cache.findAll({ mutationKey: keys.siteProfileBuild })) {
+      if (m.state.status !== 'pending') cache.remove(m);
+    }
+  }, [client]);
 }
 
 export function useUpdateSiteProfile() {

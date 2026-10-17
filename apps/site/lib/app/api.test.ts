@@ -173,6 +173,23 @@ describe('site profile', () => {
     expect(error.detail).toBe('blocked');
   });
 
+  it('reports a build stopped by its signal as cancelled, not as the network', async () => {
+    const fetch = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          const stop = () => reject(new DOMException('aborted', 'AbortError'));
+          if (init?.signal?.aborted) stop();
+          init?.signal?.addEventListener('abort', stop);
+        }),
+    ) as unknown as typeof globalThis.fetch;
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    const controller = new AbortController();
+    const pending = api.buildSiteProfile('acme.dk', controller.signal).catch((e: unknown) => e);
+    controller.abort();
+    const error = (await pending) as ApiError;
+    expect(error.code).toBe('cancelled');
+  });
+
   it('patches only the fields sent', async () => {
     const { fetch, calls } = fakeFetch(json({ website: 'https://acme.dk/' }));
     const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });

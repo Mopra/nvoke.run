@@ -55,6 +55,7 @@ export function describeError(status: number, code: string): string {
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
   if (code === 'site_unreadable') return 'We couldn’t read that website.';
   if (code === 'ai_unavailable') return 'Claude isn’t answering right now. Try again in a few minutes.';
+  if (code === 'cancelled') return 'Stopped.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Your session expired. Sign in again.';
   if (status === 404) return 'That search is gone.';
@@ -109,7 +110,7 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
   const base = baseUrl.replace(/\/+$/, '');
   const enc = encodeURIComponent;
 
-  async function send(method: HttpMethod, path: string, body?: unknown): Promise<Response> {
+  async function send(method: HttpMethod, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
     const token = await getToken().catch(() => null);
     if (!token) throw new ApiError(401, 'unauthorized');
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -120,20 +121,27 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal,
       });
     } catch {
-      throw new ApiError(0, 'network');
+      throw new ApiError(0, signal?.aborted ? 'cancelled' : 'network');
     }
     if (!res.ok) {
       const { code, billingUrl, detail } = await readError(res);
+      if (signal?.aborted) throw new ApiError(0, 'cancelled');
       throw new ApiError(res.status, code, billingUrl, detail);
     }
     return res;
   }
 
-  async function call<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
-    const res = await send(method, path, body);
-    const text = await res.text();
+  async function call<T>(method: HttpMethod, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+    const res = await send(method, path, body, signal);
+    let text: string;
+    try {
+      text = await res.text();
+    } catch {
+      throw new ApiError(0, signal?.aborted ? 'cancelled' : 'network');
+    }
     return (text ? JSON.parse(text) : null) as T;
   }
 
@@ -169,8 +177,9 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
         throw error;
       }
     },
-    /** Reads the site and plans searches. Takes 10 to 30 seconds. */
-    buildSiteProfile: (website: string): Promise<SiteProfile> => call('POST', '/v1/site-profile', { website }),
+    /** Reads the site and plans searches. Takes 10 to 30 seconds. Aborting `signal` hangs up, and the server stops reading. */
+    buildSiteProfile: (website: string, signal?: AbortSignal): Promise<SiteProfile> =>
+      call('POST', '/v1/site-profile', { website }, signal),
     updateSiteProfile: (patch: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', patch),
   };
 }

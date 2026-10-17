@@ -13,7 +13,14 @@ import { ErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useBuildSiteProfile, useSiteProfile, useUpdateSiteProfile } from '@/lib/app/queries';
+import {
+  useBuildSiteProfile,
+  useForgetProfileBuilds,
+  useLatestProfileBuild,
+  useSiteProfile,
+  useUpdateSiteProfile,
+  type ProfileBuild,
+} from '@/lib/app/queries';
 import {
   BUILD_PHASES,
   BUILD_RUNOUT_MS,
@@ -21,6 +28,7 @@ import {
   buildPhase,
   buildProblem,
   displayDomain,
+  isCancelled,
   MANUAL_PATH,
   profileForm,
   profilePatch,
@@ -39,38 +47,53 @@ import { cn } from '@/lib/utils';
 export function WebsiteScreen() {
   const profile = useSiteProfile();
   const build = useBuildSiteProfile();
+  const latest = useLatestProfileBuild();
+  const forgetBuilds = useForgetProfileBuilds();
   const [value, setValue] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const [domain, setDomain] = useState('');
   // With a profile on file: typing another site, or editing the profile.
   const [entering, setEntering] = useState(false);
   const [editing, setEditing] = useState(false);
-  // The build screen outlives the request until its phases have played out.
-  const [building, setBuilding] = useState<'off' | 'reading' | 'read'>('off');
-  const finishBuilding = useCallback(() => setBuilding('off'), []);
+  // The build watched while it ran: its screen outlives the request until the phases have played out.
+  const [following, setFollowing] = useState<number | null>(null);
+  const finishBuilding = useCallback(() => setFollowing(null), []);
 
-  function run(raw: string): void {
+  // React to the build's outcome while rendering, once per status it reaches. That
+  // includes a build that ended while the user was away: back to the field and why.
+  const [seen, setSeen] = useState<string | null>(null);
+  const outcome = latest ? `${latest.id}:${latest.status}` : null;
+  if (latest && outcome !== seen) {
+    setSeen(outcome);
+    if (latest.status === 'pending') {
+      setFollowing(latest.id);
+    } else if (latest.status === 'success') {
+      setEntering(false);
+      setEditing(false);
+    } else if (latest.status === 'error') {
+      setFollowing(null);
+      setValue(latest.build.typed);
+      if (isCancelled(latest.error)) {
+        // Back where the build started: the field, or the profile it would have replaced.
+        setEntering(latest.build.from === 'form');
+      } else {
+        setProblem(buildProblem(latest.error, latest.build.domain));
+        setEntering(true);
+      }
+    }
+  }
+  // Taken: coming back later should not show it again.
+  useEffect(() => {
+    if (latest?.status === 'error') forgetBuilds();
+  }, [latest, forgetBuilds]);
+
+  function run(raw: string, from: ProfileBuild['from']): void {
     const read = readWebsite(raw);
     if (!read.ok) {
       setProblem(read.problem);
       return;
     }
     setProblem(null);
-    setDomain(read.domain);
-    setBuilding('reading');
-    build.mutate(read.website, {
-      onSuccess: () => {
-        setBuilding('read');
-        setEntering(false);
-        setEditing(false);
-      },
-      onError: () => {
-        setBuilding('off');
-        // Back to the field with what was read, so the error sits under it.
-        setValue(raw);
-        setEntering(true);
-      },
-    });
+    build.mutate({ website: read.website, domain: read.domain, typed: raw, from, controller: new AbortController() });
   }
 
   let body: ReactNode;
@@ -78,8 +101,16 @@ export function WebsiteScreen() {
     body = <ProfileSkeleton />;
   } else if (profile.error) {
     body = <ErrorState error={profile.error} onRetry={() => void profile.refetch()} />;
-  } else if (building !== 'off') {
-    body = <Building domain={domain} done={building === 'read'} onFinished={finishBuilding} />;
+  } else if (latest && (latest.status === 'pending' || (latest.status === 'success' && following === latest.id))) {
+    body = (
+      <Building
+        domain={latest.build.domain}
+        startedAt={latest.startedAt}
+        done={latest.status === 'success'}
+        onFinished={finishBuilding}
+        onCancel={() => latest.build.controller.abort()}
+      />
+    );
   } else if (!profile.data || entering) {
     body = (
       <WebsiteForm
@@ -88,13 +119,13 @@ export function WebsiteScreen() {
           setValue(v);
           setProblem(null);
         }}
-        onSubmit={() => run(value)}
-        problem={problem ?? (build.error ? buildProblem(build.error, domain) : null)}
+        onSubmit={() => run(value, 'form')}
+        problem={problem}
         onCancel={
           profile.data
             ? () => {
                 setEntering(false);
-                build.reset();
+                setProblem(null);
               }
             : undefined
         }
@@ -107,10 +138,10 @@ export function WebsiteScreen() {
         profile={current}
         editing={editing}
         onEdit={setEditing}
-        onReadAgain={() => run(current.website)}
+        onReadAgain={() => run(current.website, 'profile')}
         onAnother={() => {
           setValue('');
-          build.reset();
+          setProblem(null);
           setEntering(true);
         }}
       />
@@ -217,12 +248,24 @@ function WebsiteForm({
 
 /**
  * While the server reads the site: the phases one after another, no fake
- * percentage, and the aura. Once `done`, the phases left tick by quickly and
- * then `onFinished` shows the result.
+ * percentage, and the aura. Timed from `startedAt`, so coming back to a build
+ * picks up where it was. Cancel (or Escape) stops it. Once `done`, the phases
+ * left tick by quickly and then `onFinished` shows the result.
  */
-function Building({ domain, done, onFinished }: { domain: string; done: boolean; onFinished: () => void }) {
-  const [started] = useState(() => Date.now());
-  const [elapsed, setElapsed] = useState(0);
+function Building({
+  domain,
+  startedAt: started,
+  done,
+  onFinished,
+  onCancel,
+}: {
+  domain: string;
+  startedAt: number;
+  done: boolean;
+  onFinished: () => void;
+  onCancel: () => void;
+}) {
+  const [elapsed, setElapsed] = useState(() => Date.now() - started);
   const [runout, setRunout] = useState<number | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setElapsed(Date.now() - started), 500);
@@ -243,6 +286,15 @@ function Building({ domain, done, onFinished }: { domain: string; done: boolean;
     }, BUILD_RUNOUT_MS);
     return () => clearInterval(timer);
   }, [done, started, onFinished]);
+  useEffect(() => {
+    if (done) return;
+    const onKey = (event: KeyboardEvent) => {
+      // Not when Escape already closed something, like a tooltip or a menu.
+      if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing) onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [done, onCancel]);
   const current = runout ?? buildPhase(elapsed);
 
   return (
@@ -282,9 +334,18 @@ function Building({ domain, done, onFinished }: { domain: string; done: boolean;
           </li>
         ))}
       </ol>
-      <p className="mt-10 text-sm text-muted-foreground">
-        {elapsed >= BUILD_SLOW_MS && runout === null ? 'Big sites take a little longer. Still on it.' : 'Keep this tab open. It takes about 20 seconds.'}
-      </p>
+      <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <p className="text-sm text-muted-foreground">
+          {elapsed >= BUILD_SLOW_MS && runout === null
+            ? 'Big sites take a little longer. Still on it.'
+            : 'About 20 seconds. You can leave this page while it reads.'}
+        </p>
+        {!done && (
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} className="-ml-3 sm:ml-0">
+            Cancel
+          </Button>
+        )}
+      </div>
     </section>
   );
 }
