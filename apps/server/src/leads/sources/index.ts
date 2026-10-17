@@ -36,6 +36,8 @@ export function createAdapters(
       fetch: fetchImpl,
       // Overpass mirrors go down often: a web search fills in, when one is configured.
       webFallback: brave.configured ? web : undefined,
+      // Places that list no website are looked up by name and city.
+      placeLookup: brave.configured ? brave : undefined,
     }) as SourceAdapter<unknown>,
     web: web as SourceAdapter<unknown>,
     domains: domainsAdapter(brave) as SourceAdapter<unknown>,

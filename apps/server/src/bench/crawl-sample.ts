@@ -5,6 +5,7 @@
 // sells to), which is free and stable. Built once and committed, so every
 // benchmark run crawls the same sites.
 
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pino } from 'pino';
@@ -13,7 +14,7 @@ import type { Env } from '../env.js';
 import { fetchJson } from '../leads/http.js';
 import { sleep } from '../leads/limits.js';
 import { createAdapters } from '../leads/sources/index.js';
-import { nicheTags, placeEmail, queryOverpass, resolveArea } from '../leads/sources/local.js';
+import { nicheTags, placeEmail, placesWithoutWebsiteQuery, queryOverpass, resolveArea } from '../leads/sources/local.js';
 import type { FoundCompany, SourceAdapter } from '../leads/sources/types.js';
 import type { SampleSite, SampleSource } from './crawl-bench.js';
 
@@ -207,6 +208,70 @@ export async function localFillRate(env: Env): Promise<FillRate[]> {
     } catch (err) {
       console.error(`${query}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+  return out;
+}
+
+export interface PlaceSample {
+  /** The local search, for example "dentist in Aarhus". */
+  query: string;
+  niche: string;
+  location: string;
+  /** ISO 3166-1 alpha-2, lowercase, from Nominatim. */
+  country?: string;
+  name: string;
+  /** The place's addr:city, else the search location. */
+  city: string;
+  osmRef: string;
+}
+
+/** Places per query in the places sample. */
+const PLACES_PER_QUERY = 10;
+
+/**
+ * The places benchmark's sample (apps/server/bench/place-sample.json): OSM
+ * places that match a local sample query's niche by tag and have no website,
+ * ten per query, picked by a hash of their id so a rebuild picks the same
+ * ones. Every finished query is kept in `cacheDir`.
+ */
+export async function buildPlaceSample(env: Env, cacheDir: string): Promise<PlaceSample[]> {
+  const opts = { nominatimUrl: env.NOMINATIM_URL, overpassUrls: env.OVERPASS_URL };
+  mkdirSync(cacheDir, { recursive: true });
+  const out: PlaceSample[] = [];
+  const deadline = Date.now() + LOCAL_BUDGET_MS;
+  for (const [niche, location] of LOCAL_QUERIES) {
+    const query = `${niche} in ${location}`;
+    const file = join(cacheDir, `${query.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`);
+    let places: PlaceSample[] | null = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as PlaceSample[]) : null;
+    if (!places && Date.now() < deadline) {
+      try {
+        const area = await resolveArea(location, opts);
+        if (!area) continue;
+        const ql = placesWithoutWebsiteQuery(niche, area, 500);
+        if (!ql) continue;
+        const res = await queryOverpass(opts, ql, AbortSignal.timeout(5 * 60_000));
+        const hash = (s: string) => createHash('sha1').update(s).digest('hex');
+        places = (res.elements ?? [])
+          .filter((el) => el.tags?.name)
+          .map((el) => ({ el, key: hash(`${el.type}/${el.id}`) }))
+          .sort((a, b) => a.key.localeCompare(b.key))
+          .slice(0, PLACES_PER_QUERY)
+          .map(({ el }) => ({
+            query,
+            niche,
+            location,
+            ...(area.countryCode ? { country: area.countryCode } : {}),
+            name: el.tags!.name!,
+            city: el.tags!['addr:city'] ?? location,
+            osmRef: `${el.type}/${el.id}`,
+          }));
+        writeFileSync(file, JSON.stringify(places, null, 1));
+      } catch (err) {
+        console.error(`${query}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    console.error(`${query}: ${places ? places.length : 'failed'}`);
+    out.push(...(places ?? []));
   }
   return out;
 }

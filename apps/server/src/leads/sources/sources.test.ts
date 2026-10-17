@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { fakeFetch, fixture, silentLog } from '../../testing/fakes.js';
 import type { FoundCompany, SourceAdapter } from './types.js';
-import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, type ResolvedArea } from './local.js';
-import { braveQuery, braveRetryAfter, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
+import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, placesWithoutWebsiteQuery, type ResolvedArea } from './local.js';
+import { braveClient, braveQuery, braveRetryAfter, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
 import { ALGOLIA_SEARCH, PRODUCT_HUNT_GRAPHQL, hitToCompany, launchesAdapter, parseShowHnTitle, phMatches } from './launches.js';
 import { PermanentError, SourceUnavailableError } from './types.js';
 import type { CachedWebPage, WebPageKey, WebSearchCache } from '../web-cache.js';
@@ -174,6 +174,54 @@ describe('local adapter (Nominatim + Overpass)', () => {
     const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, webFallback: web.adapter });
     await expect(collect(adapter, { niche: 'dentists', location: 'Nowhere at all (web)' })).rejects.toBeInstanceOf(PermanentError);
     expect(web.asked).toEqual([]);
+  });
+
+  it('asks for named places without a website by tag only', () => {
+    const area: ResolvedArea = { displayName: 'X', areaId: 3600012345, bbox: [1, 2, 3, 4] };
+    expect(placesWithoutWebsiteQuery('dentists', area, 40)).toContain(
+      'nwr["amenity"="dentist"]["name"][!"website"][!"contact:website"][!"url"](area.a);',
+    );
+    expect(placesWithoutWebsiteQuery('quantum widgets', area, 40)).toBeNull();
+  });
+
+  it('looks up places without a website by name and city, and keeps only their own sites', async () => {
+    const place = (id: number, name: string, extra: Record<string, string> = {}) => ({ type: 'node', id, tags: { name, amenity: 'dentist', ...extra } });
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: austin },
+      [overpass]: (_url, init) =>
+        new URLSearchParams(String(init?.body)).get('data')?.includes('[!"website"]')
+          ? {
+              body: JSON.stringify({
+                elements: [
+                  place(2, 'Tandlæge Jensen', { 'addr:city': 'Round Rock' }),
+                  place(3, 'Tandlæge Jensen'),
+                  place(4, 'Smile'),
+                  place(5, 'Ghost Dental'),
+                  place(6, 'Bright Teeth'),
+                ],
+              }),
+            }
+          : { body: JSON.stringify({ elements: [place(1, 'Smile', { website: 'https://smile.example' })] }) },
+      [BRAVE_ENDPOINT]: (url) => {
+        const urls: Record<string, string[]> = {
+          'Tandlæge Jensen Round Rock': ['https://www.yelp.com/biz/jensen', 'https://www.tandlaege-jensen.com/kontakt'],
+          'Ghost Dental Austin, Texas': ['https://www.facebook.com/ghost', 'https://dentistdirectory.example/ghost-dental'],
+          'Bright Teeth Austin, Texas': ['https://brightteeth.example/'],
+        };
+        return { body: JSON.stringify({ web: { results: (urls[url.searchParams.get('q') ?? ''] ?? []).map((u) => ({ url: u, title: u })) } }) };
+      },
+    });
+    const brave = braveClient({ apiKey: 'k', fetch, requestsPerSecond: 1_000 });
+    const adapter = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, placeLookup: brave, maxPlaceLookups: 2 });
+    const found = await collect(adapter, { niche: 'dentists', location: 'Austin, Texas' });
+    expect(found.map((c) => [c.name, c.website, c.sourceRef])).toEqual([
+      ['Smile', 'https://smile.example', 'node/1'],
+      ['Tandlæge Jensen', 'https://www.tandlaege-jensen.com', 'node/2'],
+    ]);
+    const asked = fetch.calls.filter((c) => c.url.startsWith(BRAVE_ENDPOINT)).map((c) => new URL(c.url));
+    // The repeat and the name already found are skipped, and the cap of 2 leaves Bright Teeth out.
+    expect(asked.map((u) => u.searchParams.get('q'))).toEqual(['Tandlæge Jensen Round Rock', 'Ghost Dental Austin, Texas']);
+    expect(asked[0]!.searchParams.get('country')).toBe('us');
   });
 
   it('tops up from the web search only after OpenStreetMap ran out', async () => {

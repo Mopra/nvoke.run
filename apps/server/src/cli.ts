@@ -64,6 +64,10 @@
  * fixed sample (apps/server/bench/crawl-sample.json); `bench crawl` crawls
  * it and prints a markdown table for docs/research/crawl-benchmark.md, with
  * the sites that gained or lost every email against --compare LABEL.
+ * `bench place-sample` rebuilds the places sample (OSM places without a
+ * website, apps/server/bench/place-sample.json); `bench places` looks each
+ * one up on Brave (needs BRAVE_SEARCH_API_KEY, pages cached on disk), picks
+ * its own site and crawls it.
  *   --label L           name of the run, saved in apps/server/.bench/results
  *   --concurrency N     sites at once (default 24)
  *   --only SOURCE       local, web or launches
@@ -90,7 +94,8 @@ import {
   type SampleSite,
   type SiteResult,
 } from './bench/crawl-bench.js';
-import { buildSample, localFillRate } from './bench/crawl-sample.js';
+import { buildPlaceSample, buildSample, localFillRate, type PlaceSample } from './bench/crawl-sample.js';
+import { placeTable, runPlaceBench } from './bench/place-bench.js';
 import { createAlerter } from './alerts.js';
 import { collectDue } from './feed/collect.js';
 import { createCollectors, sourceAvailability } from './feed/collectors.js';
@@ -149,7 +154,8 @@ function usage(): never {
       '  cli sources resume <source> [--prod]',
       '  cli alert test [--prod]',
       '  cli feed [collect] [--prod]',
-      '  cli bench sample | fill',
+      '  cli bench sample | fill | place-sample',
+      '  cli bench places [--label L]',
       '  cli bench crawl [--label L] [--compare L] [--concurrency N] [--only SOURCE] [--no-cache]',
       '  cli bench render --from L',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
@@ -375,6 +381,7 @@ async function feed(args: Args): Promise<void> {
 
 const BENCH_DIR = join(SERVER_DIR, '.bench');
 const SAMPLE_PATH = join(SERVER_DIR, 'bench', 'crawl-sample.json');
+const PLACE_SAMPLE_PATH = join(SERVER_DIR, 'bench', 'place-sample.json');
 
 /** `cli bench sample | crawl`: the crawl benchmark (docs/research/crawl-benchmark.md). */
 async function bench(args: Args): Promise<void> {
@@ -399,6 +406,26 @@ async function bench(args: Args): Promise<void> {
     return;
   }
   if (action === 'render') return benchRender(flag('from'));
+  if (action === 'place-sample') {
+    const sample = await buildPlaceSample(loadEnv(), join(BENCH_DIR, 'place-queries'));
+    writeFileSync(PLACE_SAMPLE_PATH, `${JSON.stringify(sample, null, 1)}
+`);
+    console.log(`wrote ${sample.length} places to ${PLACE_SAMPLE_PATH}`);
+    return;
+  }
+  if (action === 'places') {
+    const sample = JSON.parse(readFileSync(PLACE_SAMPLE_PATH, 'utf8')) as PlaceSample[];
+    const label = flag('label') ?? 'places';
+    const cache = cachingFetch(join(BENCH_DIR, 'http'));
+    const run = await runPlaceBench(sample, { apiKey: process.env.BRAVE_SEARCH_API_KEY, braveDir: join(BENCH_DIR, 'brave'), fetch: cache.fetch });
+    mkdirSync(join(BENCH_DIR, 'results'), { recursive: true });
+    writeFileSync(join(BENCH_DIR, 'results', `${label}.json`), JSON.stringify(run.places, null, 1));
+    console.log(`
+${placeTable(label, run.places)}
+`);
+    console.log(`${run.requests} Brave requests, ${run.cacheHits} from the cache`);
+    return;
+  }
   if (action !== 'crawl') usage();
   let sample = JSON.parse(readFileSync(SAMPLE_PATH, 'utf8')) as SampleSite[];
   const only = flag('only');
