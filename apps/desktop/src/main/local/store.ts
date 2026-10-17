@@ -52,6 +52,10 @@ export function fingerprintOf(search: Search): string {
   ].join('|');
 }
 
+function runCount(search: Search): number {
+  return search.kind === 'drop' ? 0 : (search.runs?.length ?? 0);
+}
+
 export function isActiveSearch(search: Pick<Search, 'status'>): boolean {
   return search.status === 'queued' || search.status === 'running';
 }
@@ -135,11 +139,18 @@ export class LocalStore {
         insert into searches (id, created_at, json, fingerprint) values (?, ?, ?, ?)
         on conflict (id) do update set json = excluded.json, fingerprint = excluded.fingerprint
       `);
+      // A search that runs again (POST /v1/searches/:id/more) holds companies the copy
+      // never fetched: forget the copy's, so the API serves them until the next fetch.
+      const unsync = db.prepare('update searches set synced_fingerprint = null where id = ?');
       let changed = removed.length > 0;
       for (const search of searches) {
         const json = JSON.stringify(search);
-        if (existing.get(search.id) === json) continue;
+        const before = existing.get(search.id);
+        if (before === json) continue;
         upsert.run(search.id, search.createdAt, json, fingerprintOf(search));
+        if (before !== undefined && (isActiveSearch(search) || runCount(JSON.parse(before) as Search) !== runCount(search))) {
+          unsync.run(search.id);
+        }
         changed = true;
       }
       return { changed, removed };

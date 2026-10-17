@@ -46,6 +46,30 @@ describe('mock transport', () => {
     expect(done.finishedAt).not.toBeNull();
   });
 
+  it('runs an ended search again on top of what it holds', async () => {
+    const { api, advance } = setup();
+    const s = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 20 });
+    await expect(api.searchMore(s.id, { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 30 })).rejects.toMatchObject({
+      code: 'search_running',
+    });
+    advance(120_000);
+    const first = await api.getSearch(s.id);
+    expect(first.status).toBe('done');
+
+    await expect(api.searchMore(s.id, { kind: 'web', params: { keyword: 'dentists' } })).rejects.toMatchObject({ code: 'kind_mismatch' });
+    const again = await api.searchMore(s.id, { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 30 });
+    expect(again).toMatchObject({ status: 'queued', companiesFound: first.companiesFound, limit: first.companiesFound + 30 });
+    expect(again.params).toEqual({ niche: 'dentists', location: 'Odense' });
+    expect(again.kind !== 'drop' && again.runs?.map((r) => r.foundBefore)).toEqual([0, first.companiesFound]);
+
+    advance(120_000);
+    const done = await api.getSearch(s.id);
+    expect(done.status).toBe('done');
+    expect(done.companiesFound).toBeGreaterThan(first.companiesFound);
+    const page = await api.listCompanies(s.id, {}, true);
+    expect(page.total).toBe(done.companiesFound);
+  });
+
   it('freezes counters when canceled', async () => {
     const { api, advance } = setup();
     const s = await api.createSearch({ kind: 'web', params: { keyword: 'cms' }, limit: 200 });

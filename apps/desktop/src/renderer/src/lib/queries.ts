@@ -192,6 +192,19 @@ export function useCreateSearch() {
   });
 }
 
+/** Another run in an ended search. The search goes live again in place, in the list too. */
+export function useSearchMore(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SearchInput) => api.searchMore(id, input),
+    onSuccess: (search) => {
+      client.setQueryData(keys.search(search.id), search);
+      client.setQueryData<Search[]>(keys.searches, (list) => list?.map((s) => (s.id === search.id ? search : s)));
+      void client.invalidateQueries({ queryKey: [...keys.search(search.id), 'companies'] });
+    },
+  });
+}
+
 export function useCancelSearch() {
   const client = useQueryClient();
   return useMutation({

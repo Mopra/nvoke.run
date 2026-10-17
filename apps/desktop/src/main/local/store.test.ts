@@ -114,6 +114,20 @@ describe('LocalStore', () => {
     expect(store.queryCompanies(uuid(1), {})).toBeNull();
   });
 
+  it('forgets the companies of a search that runs again, even one that finished between passes', () => {
+    const store = seeded();
+    store.replaceSearches([search(1, { status: 'running' })]);
+    store.replaceSearches([search(1, { companiesFound: 9 })]);
+    expect(store.queryCompanies(uuid(1), {})).toBeNull();
+
+    const quick = seeded();
+    const run = { params: { niche: 'dentists', location: 'Aarhus' }, limit: 50, foundBefore: 0, createdAt: '2026-10-13T10:00:00.000Z' };
+    quick.replaceSearches([search(1, { runs: [run] } as never)]);
+    quick.replaceCompanies(uuid(1), [company(1, 'Smile Aarhus', [])], 'fp', 2);
+    quick.replaceSearches([search(1, { runs: [run, { ...run, foundBefore: 1 }], companiesFound: 4 } as never)]);
+    expect(quick.queryCompanies(uuid(1), {})).toBeNull();
+  });
+
   it('deletes searches the API stops returning, with their companies', () => {
     const store = seeded();
     store.replaceSearches([search(2)]);

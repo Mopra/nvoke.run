@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  ListPlus,
   Inbox,
   Info,
   Loader2,
@@ -26,6 +27,7 @@ import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
+import { canSearchMore, fewFoundLine, RunsLine, SearchMoreEditor } from '@/components/SearchMore';
 import { EmptyState, ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
 import {
@@ -125,13 +127,21 @@ function Overview({
   timing,
   onRunAgain,
   starting,
+  editing,
+  onSearchMore,
+  onCloseMore,
 }: {
   search: Search;
   timing: string;
   onRunAgain: () => void;
   starting: boolean;
+  /** Search more is open in place of the numbers. */
+  editing: boolean;
+  onSearchMore: () => void;
+  onCloseMore: () => void;
 }) {
   const active = isActive(search.status);
+  const few = fewFoundLine(search);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
     <section className="px-6 pt-8 pb-10">
@@ -142,33 +152,55 @@ function Overview({
           {searchSubtitle(search)}, {timing}
         </span>
       </div>
-      <div className="mt-10 grid grid-cols-4 gap-8">
-        <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
-        <Stat label="Websites crawled" value={search.companiesCrawled} />
-        <Stat label="Emails found" value={search.emailsFound} />
-        <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
-      </div>
-      {active && (
-        <div className="mt-8 flex items-center gap-5">
-          <SearchProgress search={search} className="h-[3px] flex-1" />
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
-        </div>
-      )}
-      {search.status === 'failed' && (
-        <div className="mt-8 flex items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
-          <TriangleAlert className="size-4 shrink-0 text-destructive" />
-          <span className="flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
-          {search.error === 'quota_exceeded' ? (
-            <Button size="sm" variant="outline" onClick={() => void api.openExternal(BILLING_URL)}>
-              Upgrade
-            </Button>
-          ) : search.kind === 'drop' ? null : (
-            <Button size="sm" variant="outline" onClick={onRunAgain} disabled={starting}>
-              <RotateCw />
-              Run again
-            </Button>
+      <RunsLine search={search} />
+      {editing && canSearchMore(search) ? (
+        <SearchMoreEditor search={search} onClose={onCloseMore} />
+      ) : (
+        <>
+          <div className="mt-10 grid grid-cols-4 gap-8">
+            <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
+            <Stat label="Websites crawled" value={search.companiesCrawled} />
+            <Stat label="Emails found" value={search.emailsFound} />
+            <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
+          </div>
+          {active && (
+            <div className="mt-8 flex items-center gap-5">
+              <SearchProgress search={search} className="h-[3px] flex-1" />
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
+            </div>
           )}
-        </div>
+          {canSearchMore(search) && search.status !== 'failed' && (
+            <div className="mt-8 flex items-center gap-4">
+              <Button variant="glass" size="sm" className="h-9 px-4" onClick={onSearchMore}>
+                <ListPlus />
+                Search more
+              </Button>
+              {few && <span className="text-sm text-muted-foreground">{few}</span>}
+            </div>
+          )}
+          {search.status === 'failed' && (
+            <div className="mt-8 flex items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
+              <TriangleAlert className="size-4 shrink-0 text-destructive" />
+              <span className="flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
+              {search.error === 'quota_exceeded' ? (
+                <Button size="sm" variant="outline" onClick={() => void api.openExternal(BILLING_URL)}>
+                  Upgrade
+                </Button>
+              ) : search.kind === 'drop' ? null : (
+                <>
+                  <Button size="sm" variant="ghost" onClick={onRunAgain} disabled={starting}>
+                    <RotateCw />
+                    Run again
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onSearchMore}>
+                    <ListPlus />
+                    Search more
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
@@ -515,6 +547,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState(false);
+  const [editingMore, setEditingMore] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
@@ -699,6 +732,17 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
     });
   }
 
+  /** Opens Search more in place, at the top where the editor sits. */
+  function openSearchMore(): void {
+    setEditingMore(true);
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // A search that goes live again closes the editor, wherever the run came from.
+  useEffect(() => {
+    if (live) setEditingMore(false);
+  }, [live]);
+
   /** Starts a fresh search with the same parameters and opens it. */
   function runAgain(): void {
     if (!search || create.isPending) return;
@@ -790,10 +834,16 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                     Open drop
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onSelect={runAgain} disabled={live || create.isPending}>
-                    <RotateCw />
-                    Run again
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onSelect={openSearchMore} disabled={live}>
+                      <ListPlus />
+                      Search more
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={runAgain} disabled={live || create.isPending}>
+                      <RotateCw />
+                      Run again
+                    </DropdownMenuItem>
+                  </>
                 )}
                 <DropdownMenuItem onSelect={requestExport} disabled={search.emailsFound === 0}>
                   <Download />
@@ -828,7 +878,15 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
         }}
         className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-[1120px]">
-          <Overview search={search} timing={timing} onRunAgain={runAgain} starting={create.isPending} />
+          <Overview
+            search={search}
+            timing={timing}
+            onRunAgain={runAgain}
+            starting={create.isPending}
+            editing={editingMore}
+            onSearchMore={openSearchMore}
+            onCloseMore={() => setEditingMore(false)}
+          />
 
           <div>
             <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground')}>
@@ -883,13 +941,20 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                 <EmptyState icon={Radar} title="Looking for companies">
                   They show up here the moment we find them.
                 </EmptyState>
-              ) : search.status === 'failed' ? (
-                <EmptyState icon={Inbox} title="No companies found">
-                  It stopped before finding any.
-                </EmptyState>
-              ) : (
-                <EmptyState icon={Inbox} title="No companies found">
-                  Try a broader keyword or a bigger area.
+              ) : editingMore ? null : (
+                <EmptyState
+                  icon={Inbox}
+                  title="No companies found"
+                  action={
+                    canSearchMore(search) ? (
+                      <Button variant="outline" onClick={openSearchMore}>
+                        <ListPlus />
+                        Search more
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  {search.status === 'failed' ? 'It stopped before finding any.' : 'Widen it and search again: what it finds lands here.'}
                 </EmptyState>
               )
             ) : (

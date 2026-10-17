@@ -8,6 +8,7 @@ import { localCopyShots } from './shots/local-copy';
 import { mcpShots } from './shots/mcp';
 import { newSearchShots } from './shots/new-search';
 import { resultsShots } from './shots/results';
+import { searchMoreShots } from './shots/search-more';
 import { searchesShots } from './shots/searches';
 import { siteProfileShots } from './shots/site-profile';
 import { updatesShots } from './shots/updates';
@@ -26,4 +27,5 @@ export const CAPTURE_STEPS: CaptureStep[] = [
   apiKeysShots,
   updatesShots,
   grabShots,
+  searchMoreShots,
 ];

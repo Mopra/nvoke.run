@@ -78,6 +78,18 @@ interface SearchRecord {
   dropRun?: DropRunParams;
   /** When each company's opener was queued, by company id. */
   openers?: Map<string, number>;
+  /** Every run, as `Search.runs` lists them. */
+  runs: RunRecord[];
+  /** Companies held before the current run, and when that run was queued. */
+  base: number;
+  runAt: number;
+}
+
+interface RunRecord {
+  input: SearchInput;
+  limit: number;
+  foundBefore: number;
+  createdAt: number;
 }
 
 interface Progress {
@@ -127,19 +139,21 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     return Math.floor(clamp(t / findDuration(total), 0, 1) * total);
   }
 
+  /** The current run counts from `runAt` on top of the `base` companies earlier runs found. */
   function progress(rec: SearchRecord): Progress {
     const clock = rec.frozenAt === null ? now() : Math.min(now(), rec.frozenAt);
-    const t = (clock - rec.createdAt - QUEUE_MS) / 1000;
-    const startedAt = t >= 0 ? rec.createdAt + QUEUE_MS : null;
-    const found = foundAt(rec.total, t);
-    const crawled = foundAt(rec.total, (t - 2) / 1.2);
-    const verified = foundAt(rec.total, (t - 3.5) / 1.2);
-    const doneAfter = 3.5 + 1.2 * findDuration(rec.total);
+    const t = (clock - rec.runAt - QUEUE_MS) / 1000;
+    const startedAt = rec.base > 0 || t >= 0 ? rec.createdAt + QUEUE_MS : null;
+    const fresh = rec.total - rec.base;
+    const found = rec.base + foundAt(fresh, t);
+    const crawled = rec.base + foundAt(fresh, (t - 2) / 1.2);
+    const verified = rec.base + foundAt(fresh, (t - 3.5) / 1.2);
+    const doneAfter = 3.5 + 1.2 * findDuration(fresh);
 
     if (rec.terminal) {
       return { status: rec.terminal.status, found, crawled, verified, startedAt, finishedAt: rec.frozenAt };
     }
-    if (t < 0) return { status: 'queued', found: 0, crawled: 0, verified: 0, startedAt: null, finishedAt: null };
+    if (t < 0) return { status: 'queued', found: rec.base, crawled: rec.base, verified: rec.base, startedAt, finishedAt: null };
     if (t >= doneAfter) {
       return {
         status: 'done',
@@ -147,17 +161,19 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         crawled: rec.total,
         verified: rec.total,
         startedAt,
-        finishedAt: rec.createdAt + QUEUE_MS + doneAfter * 1000,
+        finishedAt: rec.runAt + QUEUE_MS + doneAfter * 1000,
       };
     }
     return { status: 'running', found, crawled, verified, startedAt, finishedAt: null };
   }
 
+  /** Each company is made from the input of the run that found it. */
   function seeds(rec: SearchRecord): MockCompanySeed[] {
     let list = seedCache.get(rec.id);
-    if (!list) {
-      list = Array.from({ length: rec.total }, (_, i) => generateCompany(rec.id, rec.input, i));
-      seedCache.set(rec.id, list);
+    if (!list) seedCache.set(rec.id, (list = []));
+    for (let i = list.length; i < rec.total; i++) {
+      const run = rec.runs.findLast((r) => r.foundBefore <= i);
+      list.push(generateCompany(rec.id, run?.input ?? rec.input, i));
     }
     return list;
   }
@@ -238,9 +254,9 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     const search = {
       id: rec.id,
       kind: rec.input.kind,
-      // The server fills in the launches default, so the mock does too.
-      params: rec.input.kind === 'launches' ? ({ days: 7, ...rec.input.params } satisfies LaunchesParams) : rec.input.params,
+      params: paramsOf(rec.input),
       limit: rec.limit,
+      runs: rec.runs.map((r) => ({ params: paramsOf(r.input), limit: r.limit, foundBefore: r.foundBefore, createdAt: iso(r.createdAt)! })),
       status: p.status,
       error: rec.terminal?.error ?? null,
       companiesFound: p.found,
@@ -251,15 +267,54 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       startedAt: iso(p.startedAt),
       finishedAt: iso(p.finishedAt),
     } as Search;
-    return rec.dropRun ? ({ ...search, kind: 'drop', params: rec.dropRun } as Search) : search;
+    if (!rec.dropRun) return search;
+    const { runs: _runs, ...rest } = search as Search & { runs?: unknown };
+    return { ...rest, kind: 'drop', params: rec.dropRun } as Search;
+  }
+
+  /** The server fills in the launches default, so the mock does too. */
+  function paramsOf(input: SearchInput): Search['params'] {
+    return input.kind === 'launches' ? ({ days: 7, ...input.params } satisfies LaunchesParams) : input.params;
+  }
+
+  /** A list is as long as it is, like on the server: the limit only cuts it. */
+  function settle(input: SearchInput): { input: SearchInput; limit: number } {
+    if (input.kind !== 'domains') return { input, limit: clamp(input.limit ?? 100, 1, MAX_LIMIT) };
+    const items = input.params.items.slice(0, clamp(input.limit ?? MAX_LIMIT, 1, MAX_LIMIT));
+    return { input: { ...input, params: { ...input.params, items } }, limit: items.length };
+  }
+
+  /** How many companies a run finds: every domain, and most of what a source is asked for. */
+  function yieldOf(id: string, input: SearchInput, limit: number): number {
+    return input.kind === 'domains' ? Math.max(1, limit - Math.floor(limit / 9)) : sourceYield(id, limit);
+  }
+
+  /** POST /v1/searches/:id/more: another run on top of what the search holds. */
+  function searchMore(rec: SearchRecord, body: unknown): BridgeResponse {
+    const valid = validInput(body);
+    if (!valid) return fail(400, 'invalid_request');
+    if (rec.dropRun || valid.kind !== rec.input.kind) return fail(400, 'kind_mismatch');
+    const p = progress(rec);
+    if (p.status === 'queued' || p.status === 'running') return fail(409, 'search_running');
+    const { input, limit } = settle(valid);
+    const base = p.found;
+    rec.input = input;
+    rec.base = base;
+    rec.runAt = now();
+    rec.limit = base + limit;
+    rec.total = base + yieldOf(`${rec.id}:${rec.runs.length}`, input, limit);
+    rec.frozenAt = null;
+    rec.terminal = null;
+    rec.runs.push({ input, limit, foundBefore: base, createdAt: rec.runAt });
+    return json(200, toSearch(rec));
   }
 
   function add(input: SearchInput, createdAt: number, extra: Partial<SearchRecord> = {}): SearchRecord {
     counter += 1;
     const id = `mock-${counter.toString().padStart(4, '0')}`;
-    // A list is as long as it is, like on the server.
-    if (input.kind === 'domains') input = { ...input, params: { ...input.params, items: input.params.items.slice(0, clamp(input.limit ?? MAX_LIMIT, 1, MAX_LIMIT)) } };
-    const limit = input.kind === 'domains' ? input.params.items.length : clamp(input.limit ?? 100, 1, MAX_LIMIT);
+    const settled = settle(input);
+    input = settled.input;
+    const limit = settled.limit;
     const rec: SearchRecord = {
       id,
       input,
@@ -267,8 +322,10 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       createdAt,
       frozenAt: null,
       terminal: null,
-      // Every domain is found; a name now and then has no website.
-      total: input.kind === 'domains' ? Math.max(1, limit - Math.floor(limit / 9)) : sourceYield(id, limit),
+      total: yieldOf(id, input, limit),
+      runs: [{ input, limit, foundBefore: 0, createdAt }],
+      base: 0,
+      runAt: createdAt,
       ...extra,
     };
     searches.set(id, rec);
@@ -446,6 +503,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     }
     if (parts[3] === 'companies' && method === 'GET') return json(200, listCompanies(rec, url.searchParams));
     if (parts[3] === 'openers' && method === 'POST') return draftOpeners(rec, body);
+    if (parts[3] === 'more' && method === 'POST') return searchMore(rec, body);
     return fail(404, 'not_found');
   }
 

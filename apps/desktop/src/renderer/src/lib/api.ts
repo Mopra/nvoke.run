@@ -67,6 +67,8 @@ export class ApiError extends Error {
 function describeError(status: number, code: string): string {
   if (code === 'quota_exceeded') return 'You’re out of verified emails this month. Upgrade or wait for the reset.';
   if (code === 'source_unavailable') return 'Web search is paused on our side. We know and we’re on it. Local and launch searches still work.';
+  if (code === 'search_running') return 'This search is still running. Let it finish, or stop it, then search more.';
+  if (code === 'kind_mismatch') return 'A search runs again with its own kind. Start a new search for another kind.';
   if (code === 'ai_unavailable') return 'Claude is not answering right now. Try again in a minute.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Session expired. Sign in again.';
@@ -147,6 +149,8 @@ export function createApi(transport: Transport) {
       orLocal(() => call('GET', `/v1/searches/${enc(id)}`), () => local.search(id)),
     createSearch: (input: SearchInput): Promise<Search> => call('POST', '/v1/searches', input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
+    /** Runs an ended search again with new params of its kind; what it finds joins the same list. */
+    searchMore: (id: string, input: SearchInput): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/more`, input),
     deleteSearch: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/searches/${enc(id)}`);
     },
