@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { APP_COLUMN, APP_FRAME, APP_INSET, BackLink, DisplayTitle } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, BackLink, DisplayTitle } from '@/components/app/shell';
 import { DesktopBilling } from '@/app/desktop/billing/desktop-billing';
 import { BILLING_PATH } from '@/lib/app/quota';
 import { keys } from '@/lib/app/queries';
@@ -14,7 +14,7 @@ export function AppBilling() {
   const onPlanChange = useCallback(() => void client.invalidateQueries({ queryKey: keys.me }), [client]);
   return (
     <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className={cn(APP_INSET, APP_COLUMN, 'pt-8 motion-safe:animate-rise')}>
+      <div className={cn(APP_INSET, 'pt-8 motion-safe:animate-rise')}>
         <BackLink href="/app/account" label="Account" />
         <DisplayTitle className="pt-6">Your plan</DisplayTitle>
         <DesktopBilling

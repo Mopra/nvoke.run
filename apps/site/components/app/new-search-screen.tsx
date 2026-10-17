@@ -7,7 +7,7 @@ import { ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Ro
 import { toast } from 'sonner';
 import { SEARCH_LIMIT_MAX, type CreateSearchInput } from '@nvoke/shared';
 import { SearchFields } from '@/components/app/search-fields';
-import { APP_COLUMN, APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { isQuotaError } from '@/lib/app/api';
@@ -90,7 +90,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
 
   return (
     <main className={cn(APP_FRAME, 'pb-24')}>
-      <form onSubmit={submit} className={cn(APP_INSET, APP_COLUMN, 'flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')} noValidate>
+      <form onSubmit={submit} className={cn(APP_INSET, 'flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')} noValidate>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <BackLink />
           <Link

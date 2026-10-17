@@ -8,7 +8,7 @@ import type { CreateSearchInput, SiteProfile, SuggestedSearch } from '@nvoke/sha
 import { CountryPicker } from '@/components/app/country-picker';
 import { useStartSearch } from '@/components/app/new-search-screen';
 import { Pill, SENTENCE } from '@/components/app/sentence';
-import { APP_COLUMN, APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { ErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,7 +150,7 @@ export function WebsiteScreen() {
 
   return (
     <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className={cn(APP_INSET, APP_COLUMN, 'relative flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')}>
+      <div className={cn(APP_INSET, 'relative flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')}>
         <BackLink />
         <div className="mt-6">{body}</div>
       </div>

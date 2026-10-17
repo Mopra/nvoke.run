@@ -51,12 +51,10 @@ const navLink =
 
 /**
  * One frame for the bar and every screen, the same box as the site's
- * Container, so all edges line up. Lists, results and Account fill it;
- * forms sit in `APP_COLUMN` on the same left edge. `APP_INSET` is the
+ * Container, so all edges line up. Every screen fills it. `APP_INSET` is the
  * text inset inside the frame, matching the list rows and the bar's logo.
  */
 export const APP_FRAME = 'mx-auto w-full max-w-6xl px-4 sm:px-6';
-export const APP_COLUMN = 'max-w-3xl';
 export const APP_INSET = 'px-4 sm:px-6';
 
 function TopBar() {
