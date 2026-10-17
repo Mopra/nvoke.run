@@ -28,6 +28,15 @@ const LOCAL_QUERIES: Array<[niche: string, location: string]> = [
   ['electrician', 'Oslo'],
   ['restaurant', 'Austin'],
   ['estate agent', 'Dublin'],
+  // Smaller areas, for when the public Overpass mirrors time out on the cities above.
+  ['dentist', 'Odense'],
+  ['restaurant', 'Aalborg'],
+  ['hairdresser', 'Aarhus'],
+  ['physiotherapist', 'Esbjerg'],
+  ['car repair', 'Vejle'],
+  ['cafe', 'Malmö'],
+  ['bakery', 'Bergen'],
+  ['optician', 'Utrecht'],
 ];
 
 const WEB_KEYWORDS: Array<[keyword: string, country: string]> = [
@@ -51,6 +60,8 @@ const WIKIDATA_COUNTRIES: Array<[code: string, qid: string]> = [
 ];
 
 const PER_SOURCE = 100;
+/** Time spent on new local queries per run. The public Overpass mirrors are often down. */
+const LOCAL_BUDGET_MS = 25 * 60_000;
 
 interface WikidataResponse {
   results: { bindings: Array<{ itemLabel?: { value: string }; website?: { value: string } }> };
@@ -63,7 +74,7 @@ async function* wikidataBusinesses(country: string, qid: string): AsyncGenerator
       ?item wdt:P31 ?type; wdt:P17 wd:${qid}; wdt:P856 ?website.
       FILTER NOT EXISTS { ?item wdt:P576 ?dissolved }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en,da,sv,nb,de,nl". }
-    } ORDER BY MD5(STR(?item)) LIMIT 60`;
+    } LIMIT 60`;
   const url = `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`;
   const res = await fetchJson<WikidataResponse>(url, { timeoutMs: 60_000, headers: { accept: 'application/sparql-results+json' } });
   for (const b of res.results.bindings) {
@@ -87,7 +98,7 @@ export async function buildSample(env: Env, cacheDir: string, log = pino({ level
   /** The companies a query found, from the cache or fetched (with retries) and cached. */
   const found = async (query: string, fetchAll: () => AsyncIterable<FoundCompany>, max: number): Promise<FoundCompany[] | null> => {
     const file = join(cacheDir, `${query.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`);
-    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')) as FoundCompany[];
+    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')) as FoundCompany[] | null;
     for (let attempt = 0; attempt <= QUERY_RETRY_DELAYS_MS.length; attempt++) {
       if (attempt > 0) await sleep(QUERY_RETRY_DELAYS_MS[attempt - 1]!);
       const companies: FoundCompany[] = [];
@@ -102,6 +113,8 @@ export async function buildSample(env: Env, cacheDir: string, log = pino({ level
         log.warn({ query, attempt, err: err instanceof Error ? err.message : String(err) }, 'sample: query failed');
       }
     }
+    // Kept as failed too, so the next run does not spend another quarter hour on it.
+    writeFileSync(file, 'null');
     return null;
   };
 
@@ -117,14 +130,11 @@ export async function buildSample(env: Env, cacheDir: string, log = pino({ level
       if (++n >= max) break;
     }
     console.error(`${source.padEnd(8)} ${query}: ${companies ? n : 'failed'}`);
+    return n;
   };
   const ctx = (limit: number) => ({ limit, signal: AbortSignal.timeout(10 * 60_000), log });
 
-  const perLocal = Math.ceil(PER_SOURCE / LOCAL_QUERIES.length);
-  for (const [niche, location] of LOCAL_QUERIES) {
-    await take('local', `${niche} in ${location}`, () => adapters.local.find({ niche, location }, ctx(perLocal * 4)), perLocal);
-  }
-
+  // Launches and web first: they are quick, while Overpass can take a quarter hour per query.
   await take('launches', 'show hn, last 30 days', () => adapters.launches.find({ days: 30, sources: ['show_hn'] }, ctx(PER_SOURCE * 4)), PER_SOURCE);
 
   if (env.BRAVE_SEARCH_API_KEY) {
@@ -138,6 +148,14 @@ export async function buildSample(env: Env, cacheDir: string, log = pino({ level
     for (const [code, qid] of WIKIDATA_COUNTRIES) {
       await take('web', `wikidata business (${code})`, () => wikidataBusinesses(code, qid), perCountry);
     }
+  }
+
+  // Ten places per query, until the local share is full or the time is up.
+  let local = 0;
+  const localDeadline = Date.now() + LOCAL_BUDGET_MS;
+  for (const [niche, location] of LOCAL_QUERIES) {
+    if (local >= PER_SOURCE || Date.now() > localDeadline) break;
+    local += await take('local', `${niche} in ${location}`, () => adapters.local.find({ niche, location }, ctx(40)), Math.min(10, PER_SOURCE - local));
   }
   return out;
 }
