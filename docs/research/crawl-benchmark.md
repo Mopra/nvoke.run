@@ -253,7 +253,7 @@ That is less than "much better", and the reading of the misses says why:
   form the extractor misses, except the one form fix. Cloudflare and
   JSON-LD were already decoded before this work.
 - **The rest is out of reach of a polite HTTP crawl.** 20 sites are gone
-  (no DNS), 19 are JavaScript app shells and 8 refuse datacenter requests.
+  or failing (16 without DNS on any variant), 19 are JavaScript app shells and 8 refuse datacenter requests.
   Those 27 are what the desktop's local render crawl exists for, and it
   now shares every rule above. Many launches and one page sites simply
   publish no address: a contact form only, or nothing.
