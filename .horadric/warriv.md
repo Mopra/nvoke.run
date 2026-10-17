@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Openers per company stopped again, only waiting for its own review agent (8a6cfc1, tests green); noted, no message sent.
 - 2026-10-17 Openers per company stopped only to wait for its own desktop agent; noted, no message sent. Its Assumed lines (domain_pages text cache, verbatim quote guard, no separate opener cap) stand.
 - 2026-10-17 Crawl hit rate stopped again, only waiting on its own Hamburg Overpass retry; noted, no message sent.
 - 2026-10-17 Round after Start from your website landed (85efa14): Openers now running (opus), crawl hit rate running, Push leads waits on Openers, Turnstile and macOS test with the human. Nothing to file; 23 quests since the last ship, left shipping to the human.
