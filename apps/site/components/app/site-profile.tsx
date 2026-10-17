@@ -293,7 +293,7 @@ function ProfileSkeleton() {
   return (
     <div className="flex flex-col gap-4">
       <Skeleton className="h-3 w-32" />
-      <Skeleton className="h-10 w-72 max-w-full" />
+      <Skeleton className="h-14 w-72 max-w-full" />
       <Skeleton className="h-4 w-full max-w-lg" />
       <div className="mt-12 flex flex-col gap-8">
         {Array.from({ length: 3 }, (_, i) => (
@@ -346,18 +346,20 @@ function ProfileView({
       {editing ? (
         <ProfileEditor profile={profile} onDone={() => onEdit(false)} />
       ) : (
-        <section aria-label="Your profile" className="mt-4">
-          <h1 className="font-display text-4xl font-semibold tracking-[-0.035em] text-balance sm:text-5xl">{fields.name}</h1>
-          <p className="mt-3 max-w-2xl text-lg text-pretty text-muted-foreground">{fields.summary}</p>
-          <dl className="mt-6 grid max-w-2xl gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
-            <dt className="text-muted-foreground">Sells to</dt>
-            <dd className="text-pretty">{fields.audience}</dd>
+        <section aria-label="Your profile" className="mt-6">
+          <h1 className="font-display text-5xl/[1.02] font-semibold tracking-[-0.045em] text-balance sm:text-7xl/[1]">{fields.name}</h1>
+          <p className="mt-6 max-w-[34ch] font-display text-2xl/[1.3] tracking-[-0.015em] text-pretty text-foreground/75 sm:text-[28px]/[1.3]">
+            {fields.summary}
+          </p>
+          <dl className="mt-10">
+            <dt className="text-sm text-muted-foreground">Sells to</dt>
+            <dd className="mt-2 max-w-[56ch] text-lg/relaxed text-pretty text-foreground/90">{fields.audience}</dd>
           </dl>
         </section>
       )}
 
-      <section aria-labelledby="suggestions" className="mt-16">
-        <h2 id="suggestions" className="text-sm font-medium text-muted-foreground">
+      <section aria-labelledby="suggestions" className="mt-20">
+        <h2 id="suggestions" className="font-display text-3xl font-semibold tracking-[-0.03em] text-balance">
           Searches that find your buyers
         </h2>
         {profile.suggestions.length === 0 ? (
@@ -365,10 +367,11 @@ function ProfileView({
             No searches came out of this site. Read it again, or <ManualLink>set one up by hand</ManualLink>.
           </p>
         ) : (
-          <div className="-mx-4 mt-3 flex flex-col gap-1 sm:-mx-6">
+          <div className="-mx-4 mt-6 flex flex-col gap-1 sm:-mx-6">
             {profile.suggestions.map((suggestion, i) => (
               <SuggestionRow
                 key={i}
+                index={i}
                 suggestion={suggestion}
                 onStart={() => start.start(suggestion.search)}
                 disabled={start.isPending}
@@ -386,12 +389,19 @@ function ProfileView({
   );
 }
 
+/** Typographic quotes for the keyword in a title: "x" reads as “x”. */
+function curlyQuotes(text: string): string {
+  return text.replace(/"([^"]*)"/g, '“$1”');
+}
+
 function SuggestionRow({
+  index,
   suggestion,
   onStart,
   disabled,
   pending,
 }: {
+  index: number;
   suggestion: SuggestedSearch;
   onStart: () => void;
   disabled: boolean;
@@ -402,14 +412,17 @@ function SuggestionRow({
   return (
     <div
       data-suggestion-kind={search.kind}
-      className="flex items-center gap-4 rounded-[24px] px-4 py-5 transition-colors duration-200 hover:bg-foreground/[0.035] sm:gap-8 sm:px-6"
+      className="flex items-start gap-4 rounded-[24px] px-4 py-6 transition-colors duration-200 hover:bg-foreground/[0.035] sm:gap-6 sm:px-6"
     >
+      <span aria-hidden className="hidden w-8 shrink-0 pt-1 font-display text-xl font-extralight tabular-nums text-muted-foreground/60 sm:block">
+        {String(index + 1).padStart(2, '0')}
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-display text-lg font-medium">{title}</div>
-        <p className="mt-1 text-sm text-pretty text-muted-foreground">{suggestion.why}</p>
-        <div className="mt-1.5 text-xs text-muted-foreground/80">{suggestionCaption(search)}</div>
+        <div className="font-display text-xl/snug font-medium tracking-[-0.02em] text-balance sm:text-2xl/snug">{curlyQuotes(title)}</div>
+        <p className="mt-2 max-w-[60ch] text-base/relaxed text-pretty text-muted-foreground">{suggestion.why}</p>
+        <div className="mt-2 text-sm text-muted-foreground/70">{suggestionCaption(search)}</div>
       </div>
-      <Button variant="outline" size="sm" onClick={onStart} disabled={disabled} aria-label={`Start ${title}`}>
+      <Button variant="outline" onClick={onStart} disabled={disabled} aria-label={`Start ${title}`} className="mt-0.5 shrink-0">
         {pending ? <Loader2 className="motion-safe:animate-spin" /> : <Play className="size-3.5" />}
         Start
       </Button>
