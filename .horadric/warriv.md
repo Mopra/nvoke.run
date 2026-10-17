@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Hourly round: the human committed role inboxes and a web app fix (2f5a03d, b69fc92) past checked d98544d, with 40 files still dirty (hiring, check policy, people work mid build), so no checks filed yet. Registry keys still with the human. Nothing to do.
 - 2026-10-17 Hourly round: only the human's small eval commit (5ee6a4e, bench files) past checked d98544d, and the human has people/patterns work dirty in the tree, so no checks filed yet. Registry keys still with the human. Nothing to do.
 - 2026-10-17 Round after 'Checks on main after lead quality and ongoing searches' landed: done with no fix commits, read as green at d98544d. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
 - 2026-10-17 Round as the human left: tree clean, the human committed never short, Who do you sell to? and the verifier fix (4c3b405 to d98544d) unchecked, so filed 'Checks on main after lead quality and ongoing searches' (sonnet). Registry keys still with the human.
