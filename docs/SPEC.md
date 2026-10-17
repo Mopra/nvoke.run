@@ -56,6 +56,7 @@ Everything is a row in a Postgres `jobs` table claimed with `FOR UPDATE SKIP LOC
 - `drops`: `id`, `clerk_user_id`, `name`, `keyword`, `sources`, `daily_limit`, `enabled`, `cursor` (highest `feed_items.id` already considered), `next_run_at`, `last_delivered_at`, `created_at`. `searches.drop_id` points at the drop that made a search (set null when the drop is deleted).
 - `webhooks`: `id`, `clerk_user_id`, `url`, `secret`, `events`, `scope` (`all` | `drops`), `drop_id` (cascade), `enabled`, `disabled_reason`, `last_success_at`, `last_failure_at`, `last_error`, `created_at`. See "Webhooks".
 - `webhook_deliveries`: `id` (the `webhook-id` header), `webhook_id` (cascade), `event`, `search_id` (cascade), `company_id` (cascade, `lead.ready` only), `status` (`pending` | `delivered` | `failed` | `skipped`), `attempts`, `next_attempt_at`, `locked_until`, `last_status`, `last_error`, `created_at`, `delivered_at`. Unique `(webhook_id, event, search_id, company_id)`.
+- `ai_usage`: one row per Claude call: `id`, `clerk_user_id` (cascade), `task`, `model`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_usd`, `created_at`. No prompt or response text. See "Claude".
 
 Auth tables (`device_sessions`, `desktop_auth_codes`) are owned by the auth work.
 
@@ -163,6 +164,14 @@ Brave Search bills every request, while users pay only for valid emails. A web s
 - **Alerts.** Operator alerts are emailed through the Day3 API (`DAY3_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM`), each key at most once an hour (`alerts_sent`). Without a key they are only logged. Alerts: a source refusing us, and Brave spend this calendar month passing 80% and 100% of `BRAVE_MONTHLY_BUDGET_USD` (requests counted in `source_requests` times `BRAVE_COST_PER_1000_USD`). `cli alert test --prod` sends a test.
 - **Names.** A `domains` search pays only for names: one request each, none for domains, and none for a name looked up in the last 7 days. Its requests count toward the Brave budget like `web`.
 - **Measure.** Each search counts its paid requests (`source_requests`) and pages served from the cache (`source_cache_hits`). `cli stats --days 30 --prod` on the VPS prints them per kind next to valid emails, with valid emails per paid request.
+
+## Claude
+
+Features that need judgment on text (the site profile, openers) call Claude through `apps/server/src/ai`, never the SDK directly.
+
+- **Models.** `MODELS` in `src/ai/models.ts`: `bulk` is `claude-haiku-5-5` for many small calls, `quality` is `claude-sonnet-5-5` where the answer matters. Prices sit next to them.
+- **Structured output.** `createAi(...).structured({ userId, task, tier, system, prompt, schema, toolName, toolDescription })` gives Claude one strict tool whose input schema comes from the zod schema, and validates the tool input with it. Errors are `AiError` with a code: `unavailable` (no `ANTHROPIC_API_KEY`), `budget_exceeded`, `refusal`, `no_output`, `invalid_output`.
+- **Cost.** Every call is a row in `ai_usage` (user, task, model, tokens, `cost_usd`, no prompt or response text) and a log line with the user id. Before a call, the account's spend this calendar month (UTC) is checked against its budget: `AI_MONTHLY_BUDGET_PRICE_SHARE` (default 0.25) of the plan's price, never below `AI_MONTHLY_BUDGET_FLOOR_USD` (default 1). The check is not locked, so calls running at once may overshoot by their own cost.
 
 ## Desktop screens
 

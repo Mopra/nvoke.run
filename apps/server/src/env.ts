@@ -82,6 +82,12 @@ const EnvSchema = z.object({
   // SMTP connections per minute across the worker. Hostinger cuts port 25 off
   // after bursts past about 5 a minute. 0 means no limit.
   SMTP_PROBES_PER_MINUTE: z.coerce.number().int().min(0).default(5),
+
+  // Claude (src/ai). Without the key, features that need it answer unavailable.
+  ANTHROPIC_API_KEY: optional,
+  // Monthly Claude budget per account: this share of the plan's price, never below the floor.
+  AI_MONTHLY_BUDGET_FLOOR_USD: z.coerce.number().min(0).default(1),
+  AI_MONTHLY_BUDGET_PRICE_SHARE: z.coerce.number().min(0).max(1).default(0.25),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
