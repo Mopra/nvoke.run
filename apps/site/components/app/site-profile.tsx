@@ -408,7 +408,10 @@ function ProfileView({
         <ProfileEditor profile={profile} onDone={() => onEdit(false)} />
       ) : (
         <section aria-label="Your profile" className="mt-6">
-          <h1 className="font-display text-5xl/[1.02] font-semibold tracking-[-0.045em] text-balance sm:text-7xl/[1]">{fields.name}</h1>
+          <div className="flex items-center gap-4 sm:gap-6">
+            {profile.icon && <SiteIcon key={profile.icon} src={profile.icon} />}
+            <h1 className="min-w-0 font-display text-5xl/[1.02] font-semibold tracking-[-0.045em] text-balance sm:text-7xl/[1]">{fields.name}</h1>
+          </div>
           <p className="mt-6 max-w-[34ch] font-display text-2xl/[1.3] tracking-[-0.015em] text-pretty text-foreground/75 sm:text-[28px]/[1.3]">
             {fields.summary}
           </p>
@@ -416,6 +419,7 @@ function ProfileView({
             <dt className="text-sm text-muted-foreground">Sells to</dt>
             <dd className="mt-2 max-w-[56ch] text-lg/relaxed text-pretty text-foreground/90">{fields.audience}</dd>
           </dl>
+          <SitePicture key={profile.image ?? profile.updatedAt} profile={profile} />
         </section>
       )}
 
@@ -447,6 +451,80 @@ function ProfileView({
         <ManualLink />
       </div>
     </>
+  );
+}
+
+/** The site's icon as an app tile. A small favicon sits centered rather than blown up. */
+function SiteIcon({ src }: { src: string }) {
+  const [state, setState] = useState<'loading' | 'large' | 'small' | 'failed'>('loading');
+  if (state === 'failed') return null;
+  return (
+    <span
+      className={cn(
+        'flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[16px] bg-card shadow-sm ring-1 ring-border/70 sm:size-[72px] sm:rounded-[20px]',
+        state === 'loading' && 'opacity-0',
+      )}
+    >
+      <img
+        src={src}
+        alt=""
+        referrerPolicy="no-referrer"
+        onLoad={(e) => setState(e.currentTarget.naturalWidth >= 96 || src.includes('.svg') ? 'large' : 'small')}
+        onError={() => setState('failed')}
+        className={state === 'small' ? 'size-8' : 'size-full object-cover'}
+      />
+    </span>
+  );
+}
+
+/**
+ * The site's share image, or the screenshot nvoke took, with the pages that
+ * were read under it: proof the site was really read, and links to check.
+ */
+function SitePicture({ profile }: { profile: SiteProfile }) {
+  const [failed, setFailed] = useState(false);
+  const pages = profile.pages.map((url) => {
+    try {
+      const path = new URL(url).pathname.replace(/\/$/, '');
+      return { url, label: path || '/' };
+    } catch {
+      return { url, label: url };
+    }
+  });
+  const picture = profile.image && !failed;
+  if (!picture && pages.length === 0) return null;
+  return (
+    <figure className="mt-12">
+      {picture && (
+        <div className="overflow-hidden rounded-[24px] bg-card shadow-sm ring-1 ring-border/70">
+          <img
+            src={profile.image!}
+            alt={`${profile.domain}, as nvoke read it`}
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+            className="block max-h-[440px] w-full object-cover object-top"
+          />
+        </div>
+      )}
+      {pages.length > 0 && (
+        <figcaption className={cn('flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-muted-foreground', picture && 'mt-4')}>
+          <span>
+            Read {pages.length} {pages.length === 1 ? 'page' : 'pages'} on {profile.domain}
+          </span>
+          {pages.map((page) => (
+            <a
+              key={page.url}
+              href={page.url}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full font-mono text-xs text-muted-foreground/80 underline-offset-4 outline-none transition-colors hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            >
+              {page.label}
+            </a>
+          ))}
+        </figcaption>
+      )}
+    </figure>
   );
 }
 
