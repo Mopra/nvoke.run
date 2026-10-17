@@ -179,7 +179,9 @@ export interface FillRate {
 export async function localFillRate(env: Env): Promise<FillRate[]> {
   const opts = { nominatimUrl: env.NOMINATIM_URL, overpassUrls: env.OVERPASS_URL };
   const out: FillRate[] = [];
+  const deadline = Date.now() + LOCAL_BUDGET_MS;
   for (const [niche, location] of LOCAL_QUERIES) {
+    if (Date.now() > deadline) break;
     const query = `${niche} in ${location}`;
     try {
       const area = await resolveArea(location, opts);

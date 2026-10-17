@@ -43,6 +43,12 @@ describe('clientRedirect', () => {
     expect(clientRedirect(html, 'https://acme.dk/')).toBeNull();
   });
 
+  it('ignores a refresh in noscript, an onclick and a platform target', () => {
+    expect(clientRedirect('<noscript><meta http-equiv="refresh" content="0;url=/nojs"></noscript><p>x</p>', 'https://acme.dk/')).toBeNull();
+    expect(clientRedirect(`<button onclick="window.location.href='/booking'">Book</button>`, 'https://acme.dk/')).toBeNull();
+    expect(clientRedirect('<meta http-equiv="refresh" content="0;url=https://www.booking.com/hotel/acme">', 'https://acme.dk/')).toBeNull();
+  });
+
   it('ignores non-http targets and pages without a redirect', () => {
     expect(clientRedirect('<meta http-equiv="refresh" content="0;url=javascript:alert(1)">', 'https://acme.dk/')).toBeNull();
     expect(clientRedirect('<p>hi</p>', 'https://acme.dk/')).toBeNull();

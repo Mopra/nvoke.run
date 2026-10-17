@@ -3,7 +3,7 @@
 // sitemap lists. Shared by the server crawl and the desktop's local crawl.
 
 import { load } from 'cheerio';
-import { hostToDomain, sameSite } from './domain.ts';
+import { hostToDomain, isPlatformDomain, sameSite } from './domain.ts';
 
 /**
  * The homepage addresses to try, in order: the one given, then plain http,
@@ -40,27 +40,30 @@ const REDIRECT_PAGE_TEXT = 400;
 /**
  * Where a page sends the browser without an HTTP redirect: a meta refresh,
  * or a script that sets `location` on a page with next to no content. Null
- * when it does neither, or the target is not http(s).
+ * when it does neither, or the target is not http(s) or is a platform
+ * (a booking site, a domain parking lander's host), never the company's own.
+ * A refresh inside <noscript> and a `location` in an onclick are not redirects.
  */
 export function clientRedirect(html: string, pageUrl: string): string | null {
-  const head = html.slice(0, 100_000);
-  let target: string | undefined;
-  const meta = /<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]*>/i.exec(head)?.[0];
-  if (meta) {
-    const content = /content\s*=\s*(["'])(.*?)\1/i.exec(meta)?.[2] ?? /content\s*=\s*([^\s>]+)/i.exec(meta)?.[1] ?? '';
-    target = /url\s*=\s*['"]?([^'"\s;]+)/i.exec(content)?.[1];
+  let $;
+  try {
+    $ = load(html.slice(0, 100_000));
+  } catch {
+    return null;
   }
+  $('noscript').remove();
+  let target: string | undefined;
+  const content = $('meta[http-equiv="refresh" i]').first().attr('content') ?? '';
+  target = /url\s*=\s*['"]?([^'"\s;]+)/i.exec(content)?.[1];
   if (!target) {
-    const script = /(?:window\.|document\.|top\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']|location\.(?:replace|assign)\(\s*["']([^"']+)["']\s*\)/i.exec(head);
+    const code = $('script:not([src])')
+      .map((_i, el) => $(el).text())
+      .get()
+      .join('\n');
+    const script = /(?:window\.|document\.|top\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']|location\.(?:replace|assign)\(\s*["']([^"']+)["']\s*\)/i.exec(code);
     if (script) {
-      let text = '';
-      try {
-        const $ = load(head);
-        $('script, style, noscript').remove();
-        text = $('body').text().replace(/\s+/g, ' ').trim();
-      } catch {
-        return null;
-      }
+      $('script, style').remove();
+      const text = $('body').text().replace(/\s+/g, ' ').trim();
       if (text.length < REDIRECT_PAGE_TEXT) target = script[1] ?? script[2];
     }
   }
@@ -68,6 +71,8 @@ export function clientRedirect(html: string, pageUrl: string): string | null {
   try {
     const url = new URL(target, pageUrl);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    const host = hostToDomain(url.hostname);
+    if (!host || isPlatformDomain(host)) return null;
     url.hash = '';
     return url.toString() === new URL(pageUrl).toString() ? null : url.toString();
   } catch {
@@ -100,6 +105,8 @@ export function parseSitemap(xml: string, siteUrl: string): { pages: string[]; s
     if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
     const host = hostToDomain(url.hostname);
     if (!host || !sameSite(host, siteHost)) continue;
+    // Compressed sitemaps cannot be read without inflating them; skip rather than fetch.
+    if (/\.gz$/i.test(url.pathname)) continue;
     if (isIndex || /\.xml(\.gz)?$/i.test(url.pathname)) sitemaps.push(url.toString());
     else pages.push(url.toString());
     if (pages.length + sitemaps.length >= 50_000) break;

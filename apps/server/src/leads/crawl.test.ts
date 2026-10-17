@@ -268,6 +268,16 @@ describe('crawlSite', () => {
     expect(fetch.calls.map((c) => c.url)).not.toContain('https://map.dk/post-sitemap.xml');
   });
 
+  it('tries the usual contact paths when the linked pages only hold an address on another domain', async () => {
+    const fetch = fakeFetch({
+      'https://studio.dk/': page('<a href="/about">About</a><p>Site by <a href="mailto:hello@webagency.dk">Web Agency</a></p>'),
+      'https://studio.dk/about': page('<p>We make chairs.</p>'),
+      'https://studio.dk/kontakt': page('<p>stol@studio.dk</p>'),
+    });
+    const result = await crawlSite('https://studio.dk/', 'studio.dk', deps(fetch));
+    expect(result.emails.map((e) => e.address)).toEqual(['stol@studio.dk']);
+  });
+
   it('tries the usual contact paths when the linked pages hold no address', async () => {
     const fetch = fakeFetch({
       'https://quiet.dk/': page('<a href="/about">About</a>'),

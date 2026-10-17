@@ -338,9 +338,7 @@ function collectFromDom($: CheerioAPI): { candidates: EmailCandidate[]; text: st
     candidates.push({ email: `${local}@${domain}${tld ? `.${tld}` : ''}`, via: 'obfuscated' });
   });
   // Text written backwards and turned around with CSS (direction: rtl with bidi-override).
-  $('[style*="rtl" i], [dir="rtl"], [class*="reverse"]').each((_i, el) => {
-    const style = ($(el).attr('style') ?? '').toLowerCase();
-    if (!style.includes('bidi-override') && !/reverse/.test($(el).attr('class') ?? '')) return;
+  $('[style*="bidi-override" i]').each((_i, el) => {
     const reversed = [...$(el).text().trim()].reverse().join('');
     for (const c of matchesIn(reversed, 'obfuscated')) candidates.push(c);
   });
@@ -383,6 +381,12 @@ export function extractEmails(html: string, sourceUrl: string | null = null): Ex
     out.set(address, { address, kind: classifyAddress(address), via: candidate.via, sourceUrl });
   }
   return [...out.values()];
+}
+
+/** True when any address is on one of the company's own domains. */
+export function hasOwnAddress(found: ExtractedEmail[], companyDomains: string[]): boolean {
+  const sites = companyDomains.map(registrableDomain);
+  return found.some((e) => sites.some((site) => sameSite(domainOf(e.address), site)));
 }
 
 /**

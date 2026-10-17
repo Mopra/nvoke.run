@@ -3,6 +3,7 @@ import {
   clientRedirect,
   extractEmails,
   fallbackPages,
+  hasOwnAddress,
   homepageVariants,
   hostToDomain,
   isPlatformDomain,
@@ -42,8 +43,10 @@ export async function readSite(
 
   // The address given, then plain http and the www twin, when one fails.
   let home: PageLoad = { kind: 'error', error: 'no homepage' };
+  let attempts = 0;
   for (const url of homepageVariants(task.website)) {
     home = await loader.load(url);
+    attempts++;
     if (home.kind !== 'error') break;
   }
   if (home.kind === 'robots') return { outcome: 'blocked', emails: [], pages: 0 };
@@ -52,11 +55,10 @@ export async function readSite(
   if (pageWall(home.html)) return { outcome: 'blocked', emails: [], pages: 1 };
 
   let pages = 1;
-  let attempts = 1;
   const found: ExtractedEmail[] = [...extractEmails(home.html, home.url)];
   // The browser follows a meta refresh by itself only when it gets the time; follow it here.
   const target = clientRedirect(home.html, home.url);
-  if (target) {
+  if (target && attempts < maxPages) {
     const next = await loader.load(target);
     attempts++;
     if (next.kind === 'ok' && !pageWall(next.html)) {
@@ -67,7 +69,7 @@ export async function readSite(
   }
   const homeUrl = home.url;
   const landed = hostToDomain(new URL(homeUrl).hostname);
-  const own = landed && landed !== task.domain ? [task.domain, landed] : [task.domain];
+  const own = landed && landed !== task.domain && !isPlatformDomain(landed) ? [task.domain, landed] : [task.domain];
 
   const seen = new Set([task.website, homeUrl]);
   const read = async (url: string): Promise<void> => {
@@ -81,8 +83,8 @@ export async function readSite(
     found.push(...extractEmails(page.html, page.url));
   };
   for (const url of planPages(home.html, homeUrl, [], maxPages - 1)) await read(url);
-  // Nothing on the linked pages: the usual contact paths, while pages are left.
-  if (selectForCompany(found, own).length === 0) {
+  // No address on the company's own domain yet: the usual contact paths, while pages are left.
+  if (!hasOwnAddress(found, own)) {
     for (const url of fallbackPages(homeUrl, seen, maxPages)) await read(url);
   }
 

@@ -15,8 +15,10 @@ import {
   clientRedirect,
   extractEmails,
   fallbackPages,
+  hasOwnAddress,
   homepageVariants,
   hostToDomain,
+  isPlatformDomain,
   looksJsOnly,
   pageWall,
   parseSitemap,
@@ -204,7 +206,7 @@ export async function crawlSite(
 
   let homeHtml = isHtml(home.contentType) ? decodeBody(home.body, home.contentType) : '';
   // A meta refresh or script redirect, often to a new domain or a language folder.
-  for (let hop = 0; hop < 2; hop++) {
+  for (let hop = 0; hop < 2 && fetcher.budgetLeft > 0; hop++) {
     const target = clientRedirect(homeHtml, home.url);
     if (!target) break;
     const next = await fetcher.get(target);
@@ -218,9 +220,9 @@ export async function crawlSite(
   found.push(...extractEmails(homeHtml, home.url));
   const texts: SitePage[] = homeHtml ? [openerText(homeHtml, home.url)] : [];
 
-  // A homepage that redirects to a new brand domain makes that domain "own site" too.
+  // A homepage that redirects to a new brand domain makes that domain "own site" too, unless it is a platform.
   const landed = hostToDomain(new URL(home.url).hostname);
-  const own = landed && landed !== companyDomain ? [companyDomain, landed] : [companyDomain];
+  const own = landed && landed !== companyDomain && !isPlatformDomain(landed) ? [companyDomain, landed] : [companyDomain];
 
   // The sitemap only when the homepage links to few likely pages: a menu built by script, or a one page site.
   let sitemapPages: string[] = [];
@@ -230,10 +232,14 @@ export async function crawlSite(
   const queue = planPages(homeHtml, home.url, sitemapPages, maxPages - 1);
 
   const seen = new Set([website, home.url]);
+  let outOfBudget = false;
+  /** Reads one page; false once no more may be read. */
   const read = async (url: string): Promise<boolean> => {
-    if (fetched() >= maxPages || seen.has(url)) return fetched() < maxPages;
+    if (outOfBudget || fetched() >= maxPages) return false;
+    if (seen.has(url)) return true;
     seen.add(url);
     if (fetcher.budgetLeft <= 0) {
+      outOfBudget = true;
       pages.push({ url, status: 0, bytes: 0, note: 'budget' });
       return false;
     }
@@ -249,8 +255,8 @@ export async function crawlSite(
     return true;
   };
   for (const url of queue) if (!(await read(url))) break;
-  // Nothing on the linked pages: the usual contact paths, while pages are left.
-  if (selectForCompany(found, own).length === 0) {
+  // No address on the company's own domain yet: the usual contact paths, while pages are left.
+  if (!hasOwnAddress(found, own)) {
     for (const url of fallbackPages(home.url, seen, maxPages)) if (!(await read(url))) break;
   }
 
@@ -274,7 +280,7 @@ async function readSitemaps(fetcher: SiteFetcher, homeUrl: string, pages: PageVi
   });
   const queue = declared.length > 0 ? declared : [`${origin}/sitemap.xml`];
   const out: string[] = [];
-  for (let i = 0; i < maxFiles && queue.length > 0; i++) {
+  for (let i = 0; i < maxFiles && queue.length > 0 && fetcher.budgetLeft > 0; i++) {
     const url = queue.shift()!;
     const res = await fetcher.get(url, SITEMAP_MAX_BYTES);
     pages.push(visit(res));

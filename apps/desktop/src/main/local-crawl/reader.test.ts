@@ -60,7 +60,7 @@ describe('readSite', () => {
       'https://www.twin.dk/kontakt': ok('https://www.twin.dk/kontakt', '<p>stol@twin.dk</p>'),
     });
     const result = await readSite({ website: 'https://twin.dk/', domain: 'twin.dk' }, l);
-    expect(result.emails.map((e) => e.address)).toEqual(['stol@twin.dk']);
+    expect(result.emails).toEqual([{ address: 'stol@twin.dk', sourceUrl: 'https://www.twin.dk/kontakt' }]);
     expect(l.calls.length).toBeLessThanOrEqual(8 + 3);
   });
 });

@@ -71,7 +71,9 @@ export function cachingFetch(dir: string, live: FetchLike = fetch): { fetch: Fet
   const replay = (cached: CachedResponse): Response => {
     if (cached.error) throw new TypeError(`fetch failed: ${cached.error}`);
     const body = cached.status === 204 || cached.status === 304 ? null : Buffer.from(cached.body, 'base64');
-    return new Response(body, { status: cached.status, headers: cached.headers });
+    // Response only takes 200 to 599; a server answering 999 is still a refusal.
+    const status = cached.status >= 200 && cached.status <= 599 ? cached.status : 599;
+    return new Response(body, { status, headers: cached.headers });
   };
 
   const cachedFetch: FetchLike = async (input, init) => {
@@ -95,6 +97,7 @@ export function cachingFetch(dir: string, live: FetchLike = fetch): { fetch: Fet
       }
       entry = { status: res.status, headers, body: body.toString('base64') };
     } catch (err) {
+      // A page timeout is the site's answer and is kept; the bench's own per site deadline is not.
       if (init?.signal?.aborted && !(init.signal.reason instanceof DOMException && init.signal.reason.name === 'TimeoutError')) {
         throw err;
       }
@@ -141,10 +144,15 @@ export async function runCrawlBench(sample: SampleSite[], opts: BenchOptions = {
       const site = sample[i]!;
       const started = Date.now();
       let result: CrawlResult;
+      // Not AbortSignal.timeout: its TimeoutError would look like a page timeout to cachingFetch.
+      const deadline = new AbortController();
+      const timer = setTimeout(() => deadline.abort(new Error('site deadline')), 180_000);
       try {
-        result = await crawlSite(site.website, site.domain, deps, { signal: AbortSignal.timeout(180_000) });
+        result = await crawlSite(site.website, site.domain, deps, { signal: deadline.signal });
       } catch (err) {
         result = { status: 'failed', emails: [], pages: [], error: err instanceof Error ? err.message : String(err) };
+      } finally {
+        clearTimeout(timer);
       }
       const ms = Date.now() - started;
       const deliverable =

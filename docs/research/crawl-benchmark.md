@@ -173,3 +173,94 @@ The desktop's local crawl (`apps/desktop/src/main/local-crawl/reader.ts`)
 gains the variants, the meta refresh and the guessed paths through the same
 shared rules. It reads no sitemap: its loader renders pages in a browser
 window, which is not made for XML.
+
+### 5. Local fill rate: OSM places without a website
+
+`cli bench fill` counts, for each local sample query, the OSM places that
+match the niche by tag, how many have a website, and how many have no
+website but an email (on the business's own domain, or on webmail). The
+idea was to take the domain of an own domain email as the website.
+
+| query | places | website | own email only | webmail only |
+|---|--:|--:|--:|--:|
+| dentist in Aarhus | 20 | 12 | 0 | 0 |
+| accountant in Copenhagen | 7 | 2 | 0 | 0 |
+| lawyer in Odense | 4 | 2 | 0 | 0 |
+| physiotherapist in Amsterdam | 62 | 33 | 0 | 0 |
+| car repair in Stockholm | 156 | 51 | 1 | 0 |
+| electrician in Oslo | 6 | 2 | 0 | 0 |
+| restaurant in Austin | 1114 | 573 | 0 | 1 |
+| estate agent in Dublin | 116 | 66 | 1 | 0 |
+| restaurant in Aalborg | 101 | 84 | 1 | 0 |
+| physiotherapist in Esbjerg | 9 | 9 | 0 | 0 |
+| car repair in Vejle | 9 | 5 | 0 | 0 |
+| cafe in Malmö | 0 | 0 | 0 | 0 |
+| bakery in Bergen | 38 | 20 | 1 | 0 |
+| all | 1642 | 859 | 4 | 1 |
+
+Five queries did not answer (every public Overpass mirror failed). Of
+1,642 places, 859 (52%) have a website and 4 (0.2%) have only an own domain
+email: the change would add half a percent of local companies. Not shipped.
+It makes every Overpass query twice as long on mirrors that already time
+out, and an email on an ISP domain (`kapper@ziggo.nl`) would turn the ISP's
+homepage into the "company website". The other 48% of places have neither
+a website nor an email in OSM; filling those means a web search per place
+by name and address, which is the Brave fallback the local search already
+has when OSM falls short.
+
+### 6. Review fixes
+
+A review of the changes found ways the new reach could pick up the wrong
+site. Fixed before shipping, with tests:
+
+- A refresh inside `<noscript>`, or `location` set in an `onclick`, is not
+  a redirect. Only `<meta http-equiv="refresh">` outside `<noscript>` and
+  `location` in an inline `<script>` count.
+- A redirect to a platform (booking sites, parking landers' hosts, every
+  domain in `isPlatformDomain`) is not followed, and a homepage that lands
+  on one does not make it the company's own domain.
+- The guessed paths run when there is no address on the company's own
+  domain, not when there is no address at all: a page that only shows the
+  web agency's address no longer stops the search.
+- The desktop counts every homepage variant it loads against the 8 page
+  limit.
+- Compressed sitemaps (`.xml.gz`) are skipped instead of fetched and not
+  read, and no redirect or sitemap is fetched once the 2 MB budget is spent.
+
+| final | sites | with email | deliverable | generic | personal | emails | done | failed | blocked | refused | js_only | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| local | 100 | 73 (73.0%) | 73 (73.0%) | 45 | 37 | 209 | 86 | 11 | 0 | 1 | 2 | 5.1 | 5.1 |
+| web | 75 | 48 (64.0%) | 47 (62.7%) | 38 | 34 | 194 | 56 | 7 | 2 | 6 | 4 | 5.6 | 8.2 |
+| launches | 100 | 50 (50.0%) | 50 (50.0%) | 43 | 12 | 66 | 83 | 2 | 1 | 1 | 13 | 6.3 | 8.1 |
+| all | 275 | 171 (62.2%) | 170 (61.8%) | 126 | 83 | 469 | 225 | 20 | 3 | 8 | 19 | 5.7 | 8.0 |
+
+0 gained, 0 lost. The guessed paths now also run on sites whose only
+addresses are someone else's, which costs 0.4 pages per site on average and
+found nothing more on this sample.
+
+## Before and after
+
+| | sites with email | deliverable | emails | pages per site | median s |
+|---|--:|--:|--:|--:|--:|
+| baseline | 165 of 275 (60.0%) | 164 (59.6%) | 455 | 3.9 | 4.3 |
+| after | 171 of 275 (62.2%) | 170 (61.8%) | 469 | 5.7 | 8.0 |
+
+Six more companies end with an email, a 3.6% relative gain, none lost.
+That is less than "much better", and the reading of the misses says why:
+
+- **The server crawl already reads what is there.** Of the 57 sites crawled
+  without an email after step 3, the pages fetched hold no address in any
+  form the extractor misses, except the one form fix. Cloudflare and
+  JSON-LD were already decoded before this work.
+- **The rest is out of reach of a polite HTTP crawl.** 20 sites are gone
+  (no DNS), 19 are JavaScript app shells and 8 refuse datacenter requests.
+  Those 27 are what the desktop's local render crawl exists for, and it
+  now shares every rule above. Many launches and one page sites simply
+  publish no address: a contact form only, or nothing.
+- **Bigger levers, not built here**: the desktop render crawl on more
+  companies (it reads js_only and refused sites today, 27 of the 104 misses
+  here), and a web search fallback per local place without a website.
+
+Where the time goes: sitemaps and guessed paths add pages, so a site takes
+about twice as long. With one request per second per host and many sites
+crawled at once, that is throughput the worker has to spare.
