@@ -72,7 +72,7 @@ describe('crawlSite', () => {
       'https://acme.dk/': page(`${HOME.replace('<p>Welcome.</p>', '<h1>Acme Tandklinik</h1><p>Open on Saturdays.</p>')}`),
       'https://acme.dk/kontakt': page('<p>info@acme.dk</p>'),
       'https://acme.dk/team/': page('<p>Mette Hansen</p>'),
-      'https://www.acme.dk/om-os': page('<title>Om os</title><p>Since 1998 in Aarhus. Ask jens@acme.dk or ole [at] acme [dot] dk.</p><footer>Cookies</footer>'),
+      'https://www.acme.dk/om-os': page('<title>Om os</title><p>Since 1998 in Aarhus. Ask søren@acme.dk or ole [at] acme [dot] dk.</p><footer>Cookies</footer>'),
       'https://acme.dk/privatlivspolitik': page('<p>Dataansvarlig</p>'),
     });
     const result = await crawlSite('https://acme.dk/', 'acme.dk', deps(fetch));

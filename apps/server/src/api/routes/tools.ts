@@ -166,7 +166,7 @@ export const toolsRoutes: FastifyPluginAsync<ToolsRoutesOptions> = async (app, o
     const hiddenPersonal = found.length - generic.length;
     // Same cache the pipeline fills, so the next search of this domain is free.
     await sql
-      .begin((tx) => recordCrawl(tx, domain, { status: result.status, hasPersonal: hiddenPersonal > 0, generic }, now()))
+      .begin((tx) => recordCrawl(tx, domain, { status: result.status, hasPersonal: hiddenPersonal > 0, generic, texts: result.texts }, now()))
       .catch((err: unknown) => req.log.warn({ err, domain }, 'tools: crawl cache write failed'));
     return { ...empty, status: result.status, emails: generic, hiddenPersonal };
   });

@@ -84,6 +84,13 @@ export async function erase(sql: Sql, input: PrivacyTarget, source: SuppressionS
     if (isAddress) {
       emailChecks = (await tx`delete from email_checks where address = ${target.address}`).count;
       billedEmails = (await tx`delete from billed_emails where address = ${target.address}`).count;
+      // Kept page text and openers are stripped of addresses, but one written oddly may slip through.
+      const like = `%${target.address.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      await tx`delete from domain_pages where text ilike ${like} or title ilike ${like} or description ilike ${like}`;
+      await tx`
+        update companies set opener_status = null, opener = null, opener_quote = null, opener_source_url = null, opener_at = null
+        where opener ilike ${like} or opener_quote ilike ${like}
+      `;
     } else {
       // Cached addresses on this domain that a different domain's site listed.
       await tx`delete from domain_emails

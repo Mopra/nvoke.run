@@ -76,7 +76,7 @@ export function openerPrompt(profile: SiteProfileFields | null, companies: Opene
     if (c.category) meta.push(`category="${attr(c.category)}"`);
     if (c.location) meta.push(`location="${attr(c.location)}"`);
     const pages = c.pages.map(
-      (p) => `<page url="${attr(p.url)}">\n<title>${p.title}</title>\n<description>${p.description}</description>\n${p.text}\n</page>`,
+      (p) => `<page url="${attr(p.url)}">\n<title>${attr(p.title)}</title>\n<description>${attr(p.description)}</description>\n${p.text.replace(/<\/?(page|company|sender|title|description)\b[^>]*>/gi, ' ')}\n</page>`,
     );
     return `<company ${meta.join(' ')}>\n${pages.join('\n')}\n</company>`;
   });

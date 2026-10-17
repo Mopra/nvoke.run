@@ -32,7 +32,7 @@ const PAGE_TIMEOUT_MS = 15_000;
 export const OPENER_PAGES = 3;
 export const OPENER_PAGE_TEXT_MAX = 3_000;
 /** Email addresses, plain or written out ("ole [at] acme [dot] dk"). Kept text never holds them: the shared cache stores no personal address. */
-const ADDRESS_IN_TEXT = /[\w.+-]+(@|\s*[[(]\s*(at|snabel-?a)\s*[\])]\s*)[\w-]+((\.|\s*[[(]\s*(dot|punktum)\s*[\])]\s*)[\w-]+)+/gi;
+const ADDRESS_IN_TEXT = /[\p{L}\p{N}_.+-]+(@|\s*[[(]\s*(at|snabel-?a)\s*[\])]\s*)[\p{L}\p{N}_-]+((\.|\s*[[(]\s*(dot|punktum)\s*[\])]\s*)[\p{L}\p{N}_-]+)+/giu;
 
 /** The opener text of a page, without email addresses. */
 function openerText(html: string, url: string): SitePage {
