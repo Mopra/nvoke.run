@@ -322,9 +322,10 @@ function collectFromDom($: CheerioAPI): { candidates: EmailCandidate[]; text: st
     const v = ($(el).attr('content') ?? $(el).attr('href') ?? $(el).text()).replace(/^mailto:/i, '');
     for (const c of extractFromText(v)) candidates.push({ email: c.email, via: 'microdata' });
   });
-  // Visible text plus attribute values people put addresses in.
-  $('[title], [data-email], [content], [aria-label]').each((_i, el) => {
-    for (const attr of ['title', 'data-email', 'content', 'aria-label']) {
+  // Visible text plus attribute values people put addresses in, including a
+  // contact form's recipients (<option value>, a hidden recipient <input>).
+  $('[title], [data-email], [content], [aria-label], option[value], input[type="hidden"][value]').each((_i, el) => {
+    for (const attr of ['title', 'data-email', 'content', 'aria-label', 'value']) {
       const v = $(el).attr(attr);
       if (v && v.includes('@')) candidates.push(...matchesIn(cleanText(v), 'text'));
     }

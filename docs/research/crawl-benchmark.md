@@ -107,3 +107,20 @@ found.
 No change in sites: 0 gained, 0 lost. A first version moved `/impressum`
 into the first three guessed paths in place of `/about` and lost
 tunedaway.com, whose only address is on `/about`; the order was put back.
+
+### 3. Contact form recipients
+
+Reading the pages of the 58 sites that were crawled without an email showed
+one address the extractor skipped: ukcdogs.com lists its mailboxes as the
+`<option value>` of its contact form's recipient select. Form recipients
+(`option[value]`, hidden `input[value]`) are now read like `title` and
+`content`.
+
+| forms | sites | with email | deliverable | generic | personal | emails | done | failed | blocked | refused | js_only | pages | median s |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| all | 275 | 166 (60.4%) | 165 (60.0%) | 122 | 80 | 461 | 223 | 21 | 3 | 8 | 20 | 3.9 | 4.1 |
+
+1 gained (ukcdogs.com, 3 addresses), 0 lost. The same reading showed what
+holds the rest back: 33 of the 58 were read as the homepage alone, because
+it links to no page with a contact word (one page sites, menus built by
+script). That is what the next step is for.

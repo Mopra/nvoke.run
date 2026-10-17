@@ -317,6 +317,12 @@ describe('more obfuscations', () => {
     ]);
   });
 
+  it('reads the recipients of a contact form', () => {
+    const html = `<form><select name="to"><option value="registration@kennel.dk">General</option></select>
+      <input type="hidden" name="recipient" value="sales@kennel.dk"><input type="email" value="you@yours.com"></form>`;
+    expect(addresses(html)).toEqual(['registration@kennel.dk', 'sales@kennel.dk']);
+  });
+
   it('reads a vCard', () => {
     expect(addresses('BEGIN:VCARD\nVERSION:3.0\nFN:Lars Hansen\nEMAIL;TYPE=work:lars@acme.dk\nEND:VCARD')).toEqual(['lars@acme.dk']);
   });
