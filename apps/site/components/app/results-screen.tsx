@@ -494,6 +494,22 @@ type View = 'people' | 'companies';
 
 /* Screen */
 
+/** The page before its search loads: the route's loading state, and the screen's own while the first answer comes. */
+export function ResultsLoading() {
+  return (
+    <main className={APP_FRAME}>
+      <div className={cn(APP_INSET, 'flex items-center gap-2 pt-8')}>
+        <BackLink />
+      </div>
+      <div className={cn(APP_INSET, 'pt-6 pb-10')}>
+        <Skeleton className="h-8 w-80 max-w-full" />
+        <Skeleton className="mt-3 h-3.5 w-56" />
+      </div>
+      <PeopleSkeleton />
+    </main>
+  );
+}
+
 export function ResultsScreen({ id }: { id: string }) {
   const router = useRouter();
   const api = useApi();
@@ -508,6 +524,12 @@ export function ResultsScreen({ id }: { id: string }) {
   const [searchingMore, setSearchingMore] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
+
+  // The route's metadata can't know the search, and a client navigation keeps the last page's title: name it here.
+  const title = search ? searchTitle(search) : null;
+  useEffect(() => {
+    if (title) document.title = `${title} | nvoke`;
+  }, [title]);
 
   // A search that goes live again closes Search more, wherever the run came from.
   const [wasLive, setWasLive] = useState(live);

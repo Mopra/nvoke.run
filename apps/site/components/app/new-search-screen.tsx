@@ -11,6 +11,7 @@ import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { isQuotaError } from '@/lib/app/api';
+import { OPEN_FALLBACK_MS, searchPath, stillOpening } from '@/lib/app/navigation';
 import { formatNumber, searchTitle } from '@/lib/app/desktop';
 import { BILLING_PATH, quotaState } from '@/lib/app/quota';
 import { useCreateSearch, useMe } from '@/lib/app/queries';
@@ -44,18 +45,33 @@ const KINDS: { value: FormKind; label: string; icon: typeof MapPin }[] = [
 /**
  * Starts a search the way the form does: the same mutation and cache updates,
  * a toast, then the search's page. Suggestions from the website step use it too.
+ * The form stays pending until that page is open: a client navigation that
+ * stalls (a cold route, a slow chunk) falls back to a full page load, so the
+ * user never sits on a filled form with the search already running.
  */
 export function useStartSearch() {
   const router = useRouter();
   const create = useCreateSearch();
+  const [opening, setOpening] = useState<{ path: string; input: CreateSearchInput } | null>(null);
+
+  useEffect(() => {
+    if (!opening) return;
+    const timer = setTimeout(() => {
+      if (stillOpening(window.location.pathname, opening.path)) window.location.assign(opening.path);
+    }, OPEN_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [opening]);
+
   /** `onStarted` runs before the search's page opens, for a follow up such as switching ongoing on. */
   const start = (input: CreateSearchInput, onStarted?: (search: Search) => void): void => {
-    if (create.isPending) return;
+    if (create.isPending || opening) return;
     create.mutate(input, {
       onSuccess: (search) => {
         onStarted?.(search);
         toast.success('Search started', { description: searchTitle(search) });
-        router.replace(`/app/searches/${search.id}`);
+        const path = searchPath(search.id);
+        setOpening({ path, input });
+        router.replace(path);
       },
       onError: (err) => {
         if (isQuotaError(err)) {
@@ -69,7 +85,8 @@ export function useStartSearch() {
       },
     });
   };
-  return { start, isPending: create.isPending, pendingInput: create.isPending ? create.variables : undefined };
+  const pendingInput = create.isPending ? create.variables : opening?.input;
+  return { start, isPending: create.isPending || opening !== null, pendingInput };
 }
 
 export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
