@@ -22,7 +22,7 @@ const SOURCES: Record<FormKind, string> = {
  * "by hand" link) opens the manual form on that tab.
  */
 export function NewSearchScreen({ initialKind }: { initialKind: string | null }) {
-  return isFormKind(initialKind) ? <ManualSearch initialKind={initialKind} /> : <StartFromWebsite />;
+  return isFormKind(initialKind) ? <ManualSearch initialKind={initialKind} /> : <StartFromWebsite fresh />;
 }
 
 function ManualSearch({ initialKind }: { initialKind: FormKind }) {

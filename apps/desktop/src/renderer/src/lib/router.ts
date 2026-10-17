@@ -8,6 +8,8 @@ import { useSyncExternalStore } from 'react';
 export type Route =
   | { name: 'searches' }
   | { name: 'new'; kind: string | null }
+  /** The website read on file (or running) and the searches it planned. New search always starts fresh. */
+  | { name: 'website' }
   /** A search's results, optionally opened with the text filter set to `q`. */
   | { name: 'search'; id: string; q?: string | null }
   | { name: 'account' }
@@ -24,6 +26,7 @@ export function parseRoute(hash: string): Route {
     const q = new URLSearchParams(query).get('q');
     return q ? { name: 'search', id: decodeURIComponent(parts[1]), q } : { name: 'search', id: decodeURIComponent(parts[1]) };
   }
+  if (parts[0] === 'website') return { name: 'website' };
   if (parts[0] === 'account') return { name: 'account' };
   if (parts[0] === 'drops' && parts[1] === 'new') return { name: 'drop', id: null, keyword: new URLSearchParams(query).get('keyword') };
   if (parts[0] === 'drops' && parts[1]) return { name: 'drop', id: decodeURIComponent(parts[1]) };
@@ -39,6 +42,8 @@ export function routeHref(route: Route): string {
       return route.kind ? `#/new?kind=${encodeURIComponent(route.kind)}` : '#/new';
     case 'search':
       return `#/searches/${encodeURIComponent(route.id)}${route.q ? `?q=${encodeURIComponent(route.q)}` : ''}`;
+    case 'website':
+      return '#/website';
     case 'account':
       return '#/account';
     case 'drops':

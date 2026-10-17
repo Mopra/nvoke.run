@@ -28,18 +28,27 @@ import type { SiteProfile, SuggestedSearch } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
 
 /**
- * Step one of New search: paste your website, nvoke reads it and plans the
- * searches that find your buyers. With a profile on the account the screen
- * opens straight on those suggestions. docs/desktop/site-profile.md.
+ * Start from your website: paste your website, nvoke reads it and plans the
+ * searches that find your buyers. `fresh` is New search: always the blank
+ * field, following only the read it starts, then on to `#/website`. Without
+ * it, the read on file (or running) and its suggestions, as listed on
+ * Searches. docs/desktop/site-profile.md.
  */
-export function StartFromWebsite() {
+export function StartFromWebsite({ fresh = false }: { fresh?: boolean }) {
   const profile = useSiteProfile();
   const build = useBuildSiteProfile();
   // Read from the mutation cache, so a build started before the user left and came back still shows.
-  const running = useMutationState({
+  const cached = useMutationState({
     filters: { mutationKey: BUILD_SITE_PROFILE, status: 'pending' },
     select: (m) => ({ website: String(m.state.variables ?? ''), at: m.state.submittedAt }),
   }).at(-1);
+  // New search ignores reads started before it opened: those are on Searches.
+  const running = !fresh ? cached : build.isPending ? { website: build.variables ?? '', at: build.submittedAt } : undefined;
+  // Nothing on file and nothing running: nothing to show here, so New search.
+  const empty = !fresh && profile.data === null && !cached && !build.isError;
+  useEffect(() => {
+    if (empty) navigate({ name: 'new', kind: null }, { replace: true });
+  }, [empty]);
   const [site, setSite] = useState('');
   // True while the user reads another site (or again) over an existing profile.
   const [reading, setReading] = useState(false);
@@ -49,6 +58,7 @@ export function StartFromWebsite() {
       onSuccess: () => {
         setReading(false);
         setSite('');
+        if (fresh) navigate({ name: 'website' }, { replace: true });
       },
       onError: () => {
         setSite(website);
@@ -60,25 +70,21 @@ export function StartFromWebsite() {
   let body: ReactNode;
   if (running) {
     body = <Building website={running.website} startedAt={running.at} />;
-  } else if (profile.isPending) {
+  } else if (!fresh && (profile.isPending || empty)) {
     body = <ProfileSkeleton />;
-  } else if (profile.error) {
+  } else if (!fresh && profile.error) {
     body = (
       <div className="flex flex-col items-center">
         <ErrorState error={profile.error} onRetry={() => void profile.refetch()} />
         <ByHand />
       </div>
     );
-  } else if (profile.data && !reading) {
+  } else if (!fresh && profile.data && !reading) {
     body = (
       <Suggestions
         profile={profile.data}
         onReadAgain={() => read(profile.data!.website)}
-        onReadAnother={() => {
-          build.reset();
-          setSite('');
-          setReading(true);
-        }}
+        onReadAnother={() => navigate({ name: 'new', kind: null })}
       />
     );
   } else {
@@ -90,7 +96,7 @@ export function StartFromWebsite() {
         error={build.isError ? build.error : null}
         failedSite={build.isError ? (build.variables ?? '') : ''}
         onBack={
-          profile.data
+          !fresh && profile.data
             ? () => {
                 build.reset();
                 setReading(false);

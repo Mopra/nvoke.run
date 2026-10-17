@@ -18,6 +18,7 @@ import { NewSearchScreen } from '@/screens/NewSearchScreen';
 import { SearchesScreen } from '@/screens/SearchesScreen';
 import { SearchResultsScreen } from '@/screens/SearchResultsScreen';
 import { SignedOutScreen } from '@/screens/SignedOutScreen';
+import { StartFromWebsite } from '@/screens/StartFromWebsite';
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -25,6 +26,8 @@ function Screen({ route }: { route: Route }) {
       return <SearchesScreen />;
     case 'new':
       return <NewSearchScreen key={route.kind ?? 'default'} initialKind={route.kind} />;
+    case 'website':
+      return <StartFromWebsite />;
     case 'search':
       return <SearchResultsScreen key={`${route.id}?${route.q ?? ''}`} id={route.id} initialFilter={route.q ?? ''} />;
     case 'account':

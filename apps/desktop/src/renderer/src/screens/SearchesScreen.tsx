@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useMutationState } from '@tanstack/react-query';
 import { ArrowRight, ArrowUpRight, Ban, Globe, Inbox, MoreHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DisplayTitle, PageHeader } from '@/components/AppShell';
@@ -25,9 +26,11 @@ import {
   searchTitle,
   STATUS_LABEL,
 } from '@/lib/format';
-import { useCancelSearch, useLocalStatus, useRefreshWhenFinished, useSearches } from '@/lib/queries';
+import { BUILD_SITE_PROFILE, useCancelSearch, useLocalStatus, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/queries';
+import { parseWebsite } from '@/lib/site-profile';
 import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 function RowMenu({ search }: { search: Search }) {
   const [confirm, setConfirm] = useState(false);
@@ -121,6 +124,57 @@ function SearchRow({ search }: { search: Search }) {
   );
 }
 
+/**
+ * The website read sits on the list like a search: running while nvoke reads
+ * the site, then planned until the user picks its searches. New search always
+ * starts fresh, so this row is the way back to it.
+ */
+function WebsiteRow() {
+  const profile = useSiteProfile();
+  const running = useMutationState({
+    filters: { mutationKey: BUILD_SITE_PROFILE, status: 'pending' },
+    select: (m) => String(m.state.variables ?? ''),
+  }).at(-1);
+  const reading = running === undefined ? null : (parseWebsite(running)?.domain ?? running);
+  if (reading === null && !profile.data) return null;
+  const planned = profile.data?.suggestions.length ?? 0;
+  const title = reading ?? profile.data!.profile.name;
+  return (
+    <section className="flex flex-col gap-1 [&+&]:mt-10">
+      <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+        <a href={routeHref({ name: 'website' })} aria-label={title} className="absolute inset-0 rounded-[24px] outline-none" />
+        <div className="pointer-events-none relative flex items-center gap-8 px-6 py-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              {reading !== null && <StatusDot status="running" />}
+              <span className={cn('truncate font-display text-lg font-medium', reading !== null && 'font-mono font-normal tracking-tight')}>
+                {title}
+              </span>
+            </div>
+            <div className="mt-1 truncate text-sm text-muted-foreground">
+              {reading !== null
+                ? 'Reading your website, planning searches'
+                : `Your website, ${profile.data!.domain}, ${relativeTime(profile.data!.updatedAt)}`}
+            </div>
+            {reading !== null && (
+              <div className="mt-4 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07]">
+                <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate" />
+              </div>
+            )}
+          </div>
+          {reading === null && (
+            <div className="shrink-0 text-right">
+              <div className="font-display text-3xl font-light tabular-nums">{formatNumber(planned)}</div>
+              <div className="text-xs tabular-nums text-muted-foreground">{planned === 1 ? 'search planned' : 'searches planned'}</div>
+            </div>
+          )}
+          <div className="-mr-2 w-7" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ListSkeleton() {
   return (
     <div className="flex flex-col gap-2">
@@ -194,20 +248,24 @@ export function SearchesScreen() {
           ) : error ? (
             <ErrorState error={error} onRetry={() => void refetch()} />
           ) : data.length === 0 ? (
-            <EmptyState
-              icon={Globe}
-              title="Start from your website"
-              action={
-                <Button size="lg" onClick={() => navigate({ name: 'new', kind: null })}>
-                  Read my site
-                  <ArrowRight />
-                </Button>
-              }
-            >
-              nvoke reads your site, works out who buys from you and plans the searches that find them.
-            </EmptyState>
+            <>
+              <WebsiteRow />
+              <EmptyState
+                icon={Globe}
+                title="Start from your website"
+                action={
+                  <Button size="lg" onClick={() => navigate({ name: 'new', kind: null })}>
+                    Read my site
+                    <ArrowRight />
+                  </Button>
+                }
+              >
+                nvoke reads your site, works out who buys from you and plans the searches that find them.
+              </EmptyState>
+            </>
           ) : (
             <>
+              <WebsiteRow />
               <Section searches={active} />
               <Section searches={earlier} />
             </>
