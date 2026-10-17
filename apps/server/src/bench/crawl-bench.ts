@@ -155,7 +155,7 @@ export async function runCrawlBench(sample: SampleSite[], opts: BenchOptions = {
       try {
         result = await crawlSite(site.website, site.domain, deps, { signal: deadline.signal });
       } catch (err) {
-        result = { status: 'failed', emails: [], pages: [], texts: [], error: err instanceof Error ? err.message : String(err) };
+        result = { status: 'failed', emails: [], pages: [], texts: [], people: [], peopleTexts: [], error: err instanceof Error ? err.message : String(err) };
       } finally {
         clearTimeout(timer);
       }

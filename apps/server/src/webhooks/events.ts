@@ -45,6 +45,11 @@ export async function leadSettled(sql: Db, companyId: string): Promise<number> {
     where c.id = ${companyId}
       and c.crawl_status <> 'pending'
       and not exists (select 1 from emails e where e.company_id = c.id and e.verification is null)
+      -- A people job still to run may add this company's personal addresses, so the lead is not settled yet.
+      and not exists (
+        select 1 from jobs j
+        where j.type = 'people' and j.status in ('queued', 'running') and j.payload->>'companyId' = c.id::text
+      )
       and ${hasValidLead(sql)}
     on conflict do nothing
     returning id

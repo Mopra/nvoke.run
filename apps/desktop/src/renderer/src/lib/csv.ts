@@ -30,11 +30,30 @@ function rowsOf(companies: Company[], { includeEmpty }: { includeEmpty: boolean 
   for (const c of companies) {
     const opener = openerOf(c);
     if (c.emails.length === 0) {
-      if (includeEmpty) rows.push([c.name, c.domain, c.website, null, null, null, null, c.location, c.phone, opener]);
+      if (includeEmpty) rows.push([c.name, c.domain, c.website, null, null, null, null, null, null, null, null, null, null, c.location, c.phone, opener]);
       continue;
     }
     for (const e of c.emails) {
-      rows.push([c.name, c.domain, c.website, e.address, e.kind, e.verification, e.sourceUrl, c.location, c.phone, opener]);
+      // Older local copies have no person, foundVia or confidence.
+      const p = e.person ?? null;
+      rows.push([
+        c.name,
+        c.domain,
+        c.website,
+        e.address,
+        p?.firstName ?? null,
+        p?.lastName ?? null,
+        p?.title ?? null,
+        p?.seniority ?? null,
+        e.kind,
+        e.verification,
+        e.sourceUrl,
+        e.foundVia ?? null,
+        e.confidence == null ? null : String(e.confidence),
+        c.location,
+        c.phone,
+        opener,
+      ]);
     }
   }
   return rows;

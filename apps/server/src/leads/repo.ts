@@ -13,9 +13,11 @@ import type {
   Opener,
   OpenerStatus,
   LeadFilters,
+  FoundVia,
   Search,
   SearchKind,
   SearchStatus,
+  Seniority,
   Verification,
 } from '@nvoke/shared';
 import { cancelSearchJobs, enqueue } from '../worker/queue.js';
@@ -38,6 +40,10 @@ interface SearchRow {
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
+  /** Left out by readers that do not need them, such as the webhook payload. */
+  stage?: string | null;
+  stage_note?: string | null;
+  ongoing?: boolean;
 }
 
 const iso = (d: Date | string | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -58,11 +64,14 @@ export function toSearch(r: SearchRow): Search {
     createdAt: iso(r.created_at)!,
     startedAt: iso(r.started_at),
     finishedAt: iso(r.finished_at),
+    stage: r.stage ?? null,
+    stageNote: r.stage_note ?? null,
+    ongoing: r.ongoing ?? null,
   } as Search;
 }
 
 const SEARCH_COLUMNS = `id, kind, params, "limit", runs, status, error, companies_found, companies_crawled,
-  emails_found, emails_valid, created_at, started_at, finished_at`;
+  emails_found, emails_valid, created_at, started_at, finished_at, stage, stage_note, ongoing`;
 
 /** Inserts the search and its find job in one transaction. */
 export async function createSearch(
@@ -192,7 +201,21 @@ interface EmailJson {
   source_url: string | null;
   verification: Verification | null;
   checked_at: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  seniority: Seniority | null;
+  found_via: FoundVia | null;
+  confidence: number | null;
 }
+
+/**
+ * The order of a company's emails, as SQL over alias `e`: decision makers
+ * (founders, then executives, then directors), other named people,
+ * personal addresses, role inboxes.
+ */
+const EMAIL_ORDER = `case e.seniority when 'founder' then 0 when 'executive' then 1 when 'director' then 2
+  else case when e.first_name is not null then 3 when e.kind = 'personal' then 4 else 5 end end, e.address`;
 
 interface CompanyRow extends OpenerColumns {
   id: string;
@@ -204,6 +227,7 @@ interface CompanyRow extends OpenerColumns {
   location: string | null;
   phone: string | null;
   category: string | null;
+  fit: number | null;
   crawl_status: CrawlStatus;
   crawled_at: Date | null;
   local_crawl: LocalCrawlStatus | null;
@@ -260,14 +284,16 @@ export async function listCompanies(
   const like = query.q ? likePattern(query.q) : null;
 
   const rows = await sql<CompanyRow[]>`
-    select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category,
+    select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category, c.fit,
            c.crawl_status, c.crawled_at, c.local_crawl, c.created_at::text as created_at_text,
            c.opener_status, c.opener, c.opener_source_url, c.opener_quote, c.opener_at,
            coalesce(
              json_agg(json_build_object(
                'id', e.id, 'address', e.address, 'kind', e.kind, 'source_url', e.source_url,
-               'verification', e.verification, 'checked_at', e.checked_at
-             ) order by e.kind, e.address) filter (where e.id is not null),
+               'verification', e.verification, 'checked_at', e.checked_at,
+               'first_name', e.first_name, 'last_name', e.last_name, 'title', e.title, 'seniority', e.seniority,
+               'found_via', e.found_via, 'confidence', e.confidence
+             ) order by ${sql.unsafe(EMAIL_ORDER)}) filter (where e.id is not null),
              '[]'::json
            ) as emails
     from companies c
@@ -330,7 +356,11 @@ export async function listCompanies(
       sourceUrl: e.source_url,
       verification: e.verification,
       checkedAt: iso(e.checked_at),
+      person: e.first_name ? { firstName: e.first_name, lastName: e.last_name ?? '', title: e.title, seniority: e.seniority } : null,
+      foundVia: e.found_via,
+      confidence: e.confidence,
     })),
+    fit: r.fit,
     opener: toOpener(r),
   }));
   return {
@@ -369,15 +399,22 @@ export async function exportRows(sql: Sql, userId: string, searchId: string, f: 
       domain: string;
       website: string;
       address: string;
+      first_name: string | null;
+      last_name: string | null;
+      title: string | null;
+      seniority: string | null;
       kind: string;
       verification: string | null;
       source_url: string | null;
+      found_via: string | null;
+      confidence: number | null;
       location: string | null;
       phone: string | null;
       opener: string | null;
     }[]
   >`
-    select c.name, c.domain, c.website, e.address, e.kind, e.verification, e.source_url, c.location, c.phone,
+    select c.name, c.domain, c.website, e.address, e.first_name, e.last_name, e.title, e.seniority, e.kind, e.verification,
+           e.source_url, e.found_via, e.confidence, c.location, c.phone,
            case when c.opener_status = 'done' then c.opener end as opener
     from emails e
     join companies c on c.id = e.company_id
@@ -385,16 +422,22 @@ export async function exportRows(sql: Sql, userId: string, searchId: string, f: 
       and not ${domainSuppressedSql(sql, 'c.domain')}
       ${emailFilter(sql, f)}
       ${like ? sql`and (c.name ilike ${like} or c.domain ilike ${like} or e.address ilike ${like})` : sql``}
-    order by c.created_at, c.id, e.kind, e.address
+    order by c.created_at, c.id, ${sql.unsafe(EMAIL_ORDER)}
   `;
   return rows.map((r) => ({
     company: r.name,
     domain: r.domain,
     website: r.website,
     email: r.address,
+    first_name: r.first_name,
+    last_name: r.last_name,
+    title: r.title,
+    seniority: r.seniority,
     kind: r.kind,
     verification: r.verification,
     source_url: r.source_url,
+    found_via: r.found_via,
+    confidence: r.confidence === null ? null : String(r.confidence),
     location: r.location,
     phone: r.phone,
     opener: r.opener,

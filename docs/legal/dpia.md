@@ -29,7 +29,7 @@ Two criteria are met (5 and 6) and a third partly (9). CNIL also recommends a DP
 ## 2. Description
 
 - **Data subjects:** people whose work email address appears on a company's public website, mostly owners and employees of small and medium businesses; sole traders whose business details identify them.
-- **Data:** email address, `generic` or `personal` label, source URL, first and last seen, verification result, MX host. Company name, website, location, phone and category from the listing. No names, titles or social profiles are extracted.
+- **Data:** email address, `generic` or `personal` label, source URL, first and last seen, verification result, MX host. Company name, website, location, phone and category from the listing. Since 2026-10-17 also the names and job titles of people a company publishes on its own site (team, about, imprint pages), with the page they came from, and business addresses built for those people from the domain's address pattern and confirmed by an SMTP RCPT probe (`found_via` = `pattern`, with a confidence). No social profiles, no private or consumer data, nothing behind a login.
 - **Sources:** OpenStreetMap (Nominatim, Overpass), Brave Search API, Product Hunt, Hacker News Show HN (through Algolia), and the companies' own websites.
 - **Recipients:** the customer who ran the search (in the app and as CSV). Generic addresses can be served to any customer whose search finds that company. Sub-processors listed in `ropa.md`.
 - **Storage:** Supabase Postgres (EU region, TODO confirm), worker on a VPS (host and region TODO).
@@ -56,7 +56,7 @@ Scale: likelihood and severity are each Low, Medium or High. "Before" is without
 
 ## 4. Overall residual risk
 
-**Medium.** The architecture choices (split cache, suppression before collection, fixed retention, robots.txt, no names extracted) bring most risks down to low. Two risks stay medium and are mostly outside our technical control: customers sending unlawful marketing email (R1) and transparency towards owners of personal addresses (R2). R4 and R10 were lowered by code changes (webmail always personal, `billed_emails` expires after 12 months).
+**Medium.** The architecture choices (split cache, suppression before collection, fixed retention, robots.txt, names only as the company itself publishes them for business contact) bring most risks down to low. Two risks stay medium and are mostly outside our technical control: customers sending unlawful marketing email (R1) and transparency towards owners of personal addresses (R2). R4 and R10 were lowered by code changes (webmail always personal, `billed_emails` expires after 12 months).
 
 ## 5. Actions
 

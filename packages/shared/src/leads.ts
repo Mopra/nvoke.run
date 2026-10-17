@@ -11,7 +11,7 @@ import { Plan } from './plans.ts';
  */
 
 /** `drop` searches are made by drops (drops.ts), never by a client. */
-export const SearchKind = z.enum(['local', 'web', 'launches', 'domains', 'drop']);
+export const SearchKind = z.enum(['local', 'web', 'launches', 'domains', 'drop', 'icp']);
 export type SearchKind = z.infer<typeof SearchKind>;
 
 export const SearchStatus = z.enum(['queued', 'running', 'done', 'failed', 'canceled']);
@@ -94,6 +94,23 @@ export const DomainsSearchParams = z.object({
   country: country.optional(),
 });
 export type DomainsSearchParams = z.infer<typeof DomainsSearchParams>;
+
+/**
+ * "Describe your customer": who the user sells to in plain words. nvoke plans
+ * the queries (docs/SPEC.md, "Describe your customer"), mines agency
+ * directories and list pages, and keeps the companies that fit.
+ */
+export const IcpSearchParams = z.object({
+  /** Who they sell to, in plain words. */
+  description: text(2000),
+  /** What the user sells, so the plan can tell a buyer from a competitor. */
+  product: text(1000).optional(),
+  /** Where to look, ISO 3166-1 alpha-2. Empty or absent: the planner picks. */
+  countries: z.array(country).max(30).optional(),
+  /** Cities or regions to favour, for customers that are local businesses. */
+  locations: z.array(text(200)).max(30).optional(),
+});
+export type IcpSearchParams = z.infer<typeof IcpSearchParams>;
 const limit = z.number().int().min(1).max(SEARCH_LIMIT_MAX).optional();
 
 export const CreateSearchRequest = z.discriminatedUnion('kind', [
@@ -102,6 +119,7 @@ export const CreateSearchRequest = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('launches'), params: LaunchesSearchParams, limit }),
   /** `limit` defaults to the number of items; a smaller one takes the first ones. */
   z.object({ kind: z.literal('domains'), params: DomainsSearchParams, limit }),
+  z.object({ kind: z.literal('icp'), params: IcpSearchParams, limit }),
 ]);
 export type CreateSearchRequest = z.infer<typeof CreateSearchRequest>;
 /** What a client sends: `limit` and `days` may be left out for the defaults. */
@@ -128,6 +146,12 @@ const SearchBase = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   startedAt: z.iso.datetime({ offset: true }).nullable(),
   finishedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** What the search is doing now, for example `widen_geo`. Absent on kinds that do not report it. */
+  stage: z.string().nullish(),
+  /** The live progress line for people, for example "Looking in 12 more cities". */
+  stageNote: z.string().nullish(),
+  /** Keeps finding new companies after the first run ends. */
+  ongoing: z.boolean().nullish(),
 });
 
 /**
@@ -159,6 +183,7 @@ export const Search = z.discriminatedUnion('kind', [
   SearchBase.extend({ kind: z.literal('launches'), params: LaunchesSearchParams, runs: runs(LaunchesSearchParams) }),
   SearchBase.extend({ kind: z.literal('domains'), params: DomainsSearchParams, runs: runs(DomainsSearchParams) }),
   SearchBase.extend({ kind: z.literal('drop'), params: DropRunParams }),
+  SearchBase.extend({ kind: z.literal('icp'), params: IcpSearchParams, runs: runs(IcpSearchParams) }),
 ]);
 export type Search = z.infer<typeof Search>;
 
@@ -166,6 +191,37 @@ export const SearchListResponse = z.object({
   searches: z.array(Search),
 });
 export type SearchListResponse = z.infer<typeof SearchListResponse>;
+
+/**
+ * How senior a person is, from their title. founder: founder, owner, CEO,
+ * managing director, partner. executive: other C level, VP. director: head
+ * of, director. The first three are decision makers.
+ */
+export const Seniority = z.enum(['founder', 'executive', 'director', 'manager', 'staff']);
+export type Seniority = z.infer<typeof Seniority>;
+
+export const DECISION_MAKERS: readonly Seniority[] = ['founder', 'executive', 'director'];
+
+export function isDecisionMaker(seniority: Seniority | null | undefined): boolean {
+  return seniority != null && DECISION_MAKERS.includes(seniority);
+}
+
+/** The person an address belongs to, when nvoke knows. */
+export const Person = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  title: z.string().nullable(),
+  seniority: Seniority.nullable(),
+});
+export type Person = z.infer<typeof Person>;
+
+/**
+ * page: printed on the company's site. pattern: built from the domain's
+ * address pattern for a named person and accepted by the mail server.
+ * cache: from the shared crawl cache of an earlier search.
+ */
+export const FoundVia = z.enum(['page', 'pattern', 'cache']);
+export type FoundVia = z.infer<typeof FoundVia>;
 
 export const Email = z.object({
   id: z.uuid(),
@@ -175,6 +231,11 @@ export const Email = z.object({
   /** Null until the address has been checked. */
   verification: Verification.nullable(),
   checkedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Who the address reaches. Absent for role inboxes and older copies. */
+  person: Person.nullish(),
+  foundVia: FoundVia.nullish(),
+  /** 0 to 100: how sure nvoke is the address reaches a real person or inbox. */
+  confidence: z.number().int().min(0).max(100).nullish(),
 });
 export type Email = z.infer<typeof Email>;
 
@@ -216,6 +277,8 @@ export const Company = z.object({
   /** Null unless the desktop app took up a refused or JS-only site. */
   localCrawl: LocalCrawlStatus.nullable(),
   emails: z.array(Email),
+  /** 0 to 100: how well the company fits the search, judged from its own words. Absent when not scored. */
+  fit: z.number().int().min(0).max(100).nullish(),
   /** Null until openers are drafted for it (`POST /v1/searches/:id/openers`). Older local copies lack it. */
   opener: Opener.nullable().default(null),
 });
@@ -259,9 +322,15 @@ export const CSV_COLUMNS = [
   'domain',
   'website',
   'email',
+  'first_name',
+  'last_name',
+  'title',
+  'seniority',
   'kind',
   'verification',
   'source_url',
+  'found_via',
+  'confidence',
   'location',
   'phone',
   'opener',

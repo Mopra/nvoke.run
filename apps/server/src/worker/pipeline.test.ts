@@ -10,6 +10,7 @@ import { domainsAdapter } from '../leads/sources/domains.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import { BRAVE_ENDPOINT, braveClient } from '../leads/sources/web.js';
 import { PermanentError, SourceUnavailableError, type FoundCompany, type SourceAdapter } from '../leads/sources/types.js';
+import type { Ai } from '../ai/client.js';
 import type { Alert } from '../alerts.js';
 import { addressHash, domainHash, suppress } from '../leads/suppression.js';
 import type { Verifier } from '../leads/verify/index.js';
@@ -53,6 +54,12 @@ const sites = fakeFetch({
   'https://optedout.dk/': { body: '<p>info@optedout.dk</p>' },
   'https://freemail.dk/': { body: '<p>Skriv til info@gmail.com</p>' },
   'https://agencyonly.dk/': { body: '<p>Site by hello@webagency.dk</p>' },
+  'https://people.dk/': { body: '<a href="/team">Team</a><p>info@people.dk</p>' },
+  'https://staff.dk/': { body: '<a href="/team">Team</a>' },
+  'https://staff.dk/team': { body: '<div><h3>Sofie Lund</h3><p>Designer</p><a href="mailto:sofie@staff.dk">Mail</a></div>' },
+  'https://people.dk/team': {
+    body: '<div><h3>Mette Hansen</h3><p>CEO</p><a href="mailto:mette@people.dk">Mail</a></div><div><h3>Jonas Berg</h3><p>Designer</p></div>',
+  },
 });
 
 /** info@ addresses are valid, everything else invalid. */
@@ -62,6 +69,15 @@ const stubVerifier = {
     verification: address.startsWith('info@') ? ('valid' as const) : ('invalid' as const),
     mxHost: 'mx.test',
     reason: 'stub',
+  }),
+  /** The people job's pattern probe: no candidate is accepted. */
+  probeDomain: async (domain: string, groups: unknown[][]) => ({
+    domain,
+    mxHost: 'mx.test',
+    catchAll: false,
+    accepted: groups.map(() => null),
+    results: [],
+    reason: null,
   }),
 } as unknown as Verifier;
 
@@ -415,6 +431,83 @@ async function cacheEmail(domain: string, address: string, firstSeen = '2026-01-
     values (${domain}, ${address}, ${`https://${domain}/kontakt`}, ${firstSeen}, ${firstSeen})
   `;
 }
+
+describe('people', () => {
+  it('stores the people a site names, links their printed addresses and queues a people job', async () => {
+    const final = await run(adapterOf([{ name: 'People', website: 'https://people.dk', source: 'test' }]));
+    const people = await db.sql`select first_name, last_name, title, seniority, source, source_url from people where search_id = ${final.id} order by first_name`;
+    expect(people).toEqual([
+      { first_name: 'Jonas', last_name: 'Berg', title: 'Designer', seniority: 'staff', source: 'page', source_url: 'https://people.dk/team' },
+      { first_name: 'Mette', last_name: 'Hansen', title: 'CEO', seniority: 'founder', source: 'page', source_url: 'https://people.dk/team' },
+    ]);
+    const emails = await db.sql`
+      select address, first_name, last_name, title, seniority, found_via, confidence, person_id is not null as linked
+      from emails where search_id = ${final.id} order by address`;
+    expect(emails).toEqual([
+      { address: 'info@people.dk', first_name: null, last_name: null, title: null, seniority: null, found_via: 'page', confidence: 60, linked: false },
+      { address: 'mette@people.dk', first_name: 'Mette', last_name: 'Hansen', title: 'CEO', seniority: 'founder', found_via: 'page', confidence: 90, linked: true },
+    ]);
+    // The API shows the person on the address, decision makers first.
+    const page = await listCompanies(db.sql, 'u1', final.id, { limit: 10 });
+    expect(page?.companies[0]?.emails.map((e) => [e.address, e.person?.title ?? null, e.foundVia, e.confidence])).toEqual([
+      ['mette@people.dk', 'CEO', 'page', 90],
+      ['info@people.dk', null, 'page', 60],
+    ]);
+    const csv = await exportRows(db.sql, 'u1', final.id, {});
+    expect(csv.map((r) => [r.email, r.first_name, r.seniority, r.found_via, r.confidence])).toEqual([
+      ['mette@people.dk', 'Mette', 'founder', 'page', '90'],
+      ['info@people.dk', null, null, 'page', '60'],
+    ]);
+    const jobs = await db.sql`select type from jobs where search_id = ${final.id} and type = 'people'`;
+    expect(jobs).toHaveLength(1);
+    // The cache keeps the names for the next search, never the personal address.
+    const cached = await db.sql`select first_name, last_name, seniority from domain_people where domain = 'people.dk' order by position`;
+    expect(cached).toEqual([
+      { first_name: 'Mette', last_name: 'Hansen', seniority: 'founder' },
+      { first_name: 'Jonas', last_name: 'Berg', seniority: 'staff' },
+    ]);
+  });
+
+  it('serves the people of a cached domain, and classifies cached addresses', async () => {
+    await cacheRow('cached.dk', { recheckInDays: 30 });
+    await cacheEmail('cached.dk', 'info@cached.dk');
+    await db.sql`
+      insert into domain_people (domain, first_name, last_name, title, seniority, source_url, position)
+      values ('cached.dk', 'Ole', 'Berg', 'Partner', 'founder', 'https://cached.dk/team', 0)
+    `;
+    const final = await run(adapterOf([{ name: 'Cached', website: 'https://cached.dk', source: 'test' }]));
+    const emails = await db.sql`select address, kind, found_via, confidence from emails where search_id = ${final.id}`;
+    expect(emails).toEqual([{ address: 'info@cached.dk', kind: 'generic', found_via: 'cache', confidence: 60 }]);
+    const people = await db.sql`select first_name, last_name, title, seniority from people where search_id = ${final.id}`;
+    expect(people).toEqual([{ first_name: 'Ole', last_name: 'Berg', title: 'Partner', seniority: 'founder' }]);
+  });
+});
+
+describe('people step', () => {
+  it('asks Claude about a domain without decision makers once in 90 days', async () => {
+    let calls = 0;
+    const ai: Ai = {
+      ready: async () => true,
+      async structured(req) {
+        calls++;
+        return { data: req.schema.parse({ people: [] }), model: 'fake', usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, costUsd: 0 };
+      },
+    };
+    await ensureAccount(db.sql, 'u1');
+    // A personal address on the page sends every search back to the site, so both searches crawl it.
+    for (let n = 0; n < 2; n++) {
+      const search = await createSearch(db.sql, 'u1', LOCAL, 10);
+      const runner = new Runner({ ...deps(adapterOf([{ name: 'Staff', website: 'https://staff.dk', source: 'test' }])), ai }, { concurrency: 4, pollMs: 20 });
+      runner.start();
+      try {
+        await waitFor(search.id, ['done', 'failed']);
+      } finally {
+        await runner.stop(5_000);
+      }
+    }
+    expect(calls).toBe(1);
+  });
+});
 
 describe('crawl cache', () => {
   it('serves a fresh domain without personal addresses from the cache', async () => {

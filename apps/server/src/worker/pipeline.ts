@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import {
   DomainsSearchParams,
+  IcpSearchParams,
   LaunchesSearchParams,
   LocalSearchParams,
   WebSearchParams,
@@ -13,9 +14,11 @@ import {
 } from '@nvoke/shared';
 import { DropRunInternal } from '../feed/drops.js';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
-import { cachedCrawl, isCacheable, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
+import { cachedCrawl, isCacheable, recentPeopleRead, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
 import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
+import { classifyAddress, mergePeople, personForAddress, type FoundPerson } from '../leads/extract.js';
 import type { SitePage } from '../leads/page-text.js';
+import { needsPeopleLlm, peopleFromText } from '../leads/people-llm.js';
 import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import type { Ai } from '../ai/client.js';
@@ -71,7 +74,7 @@ async function checkBraveBudget(deps: PipelineDeps): Promise<void> {
   const now = deps.now?.() ?? new Date();
   const [row] = await deps.sql<{ requests: number }[]>`
     select coalesce(sum(source_requests), 0)::int as requests from searches
-    where kind in ('web', 'domains') and created_at >= date_trunc('month', ${now.toISOString()}::timestamptz)
+    where kind in ('web', 'domains', 'local', 'icp') and created_at >= date_trunc('month', ${now.toISOString()}::timestamptz)
   `;
   const spent = ((row?.requests ?? 0) / 1_000) * budget.costPer1000Usd;
   const share = spent / budget.monthlyUsd;
@@ -100,6 +103,7 @@ const PARAMS = {
   launches: LaunchesSearchParams,
   domains: DomainsSearchParams,
   drop: DropRunInternal,
+  icp: IcpSearchParams,
 } as const;
 
 interface SearchRow {
@@ -202,7 +206,15 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
   const usage = { request: 0, cache_hit: 0 };
   const onUsage = (event: keyof typeof usage) => void usage[event]++;
   // The whole limit, not what is left: a later run skips the companies the search holds, so it may need to see them all.
-  const iterator = abortable(adapter.find(params, { limit: search.limit, signal, log, onUsage }), signal);
+  const onStage = async (stage: string, note: string): Promise<void> => {
+    await sql`update searches set stage = ${stage}, stage_note = ${note} where id = ${searchId}`.catch((err: unknown) =>
+      log.warn({ err }, 'find: could not record stage'),
+    );
+  };
+  const iterator = abortable(
+    adapter.find(params, { limit: search.limit, signal, log, onUsage, userId: search.clerk_user_id, searchId, onStage }),
+    signal,
+  );
   try {
     for await (const company of iterator) {
       seen++;
@@ -225,6 +237,8 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
             location: company.location ?? null,
             phone: company.phone ?? null,
             category: company.category ?? null,
+            fit: company.fit ?? null,
+            fit_reason: company.fitReason ?? null,
           })}
           on conflict (search_id, domain) do nothing
           returning id
@@ -290,41 +304,72 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
     const blocked = await suppressedAddresses(sql, cached.emails.map((e) => e.address));
     const emails = cached.emails
       .filter((e) => !blocked.has(e.address))
-      .map((e) => ({ address: e.address, kind: 'generic' as const, sourceUrl: e.sourceUrl }));
-    deps.log.debug({ companyId, domain: company.domain, status: cached.crawlStatus, emails: emails.length }, 'crawl: cache hit');
-    await finishCrawl(deps, company, cached.crawlStatus, emails);
+      .map((e) => ({ address: e.address, kind: classifyAddress(e.address), sourceUrl: e.sourceUrl, foundVia: 'cache' as const }));
+    deps.log.debug(
+      { companyId, domain: company.domain, status: cached.crawlStatus, emails: emails.length, people: cached.people.length },
+      'crawl: cache hit',
+    );
+    await finishCrawl(deps, company, cached.crawlStatus, emails, { people: cached.people });
     return;
   }
 
   const result = await crawlSite(company.website, company.domain, deps.crawl, { signal });
+  let people = result.people;
+  let peopleRead = false;
+  // No decision maker among the names the pages gave away: Claude reads the
+  // people pages, once per domain in 90 days (the cache keeps what it found).
+  if (deps.ai && needsPeopleLlm(people, result.peopleTexts)) {
+    const recent = await recentPeopleRead(sql, company.domain, now);
+    const read =
+      recent ??
+      (await peopleFromText({ ai: deps.ai, log: deps.log }, { userId: company.clerk_user_id, domain: company.domain, texts: result.peopleTexts }));
+    peopleRead = recent === null && read !== null;
+    people = mergePeople([...people, ...(read ?? [])]);
+  }
   deps.log.debug(
-    { companyId, domain: company.domain, status: result.status, pages: result.pages.length, emails: result.emails.length },
+    { companyId, domain: company.domain, status: result.status, pages: result.pages.length, emails: result.emails.length, people: people.length },
     'crawl: site done',
   );
   const blocked = await suppressedAddresses(sql, result.emails.map((e) => e.address));
   const emails = result.emails
     .filter((e) => !blocked.has(e.address))
-    .map((e) => ({ address: e.address, kind: e.kind, sourceUrl: e.sourceUrl }));
-  await finishCrawl(deps, company, result.status, emails, now, result.texts);
+    .map((e) => ({ address: e.address, kind: e.kind, sourceUrl: e.sourceUrl, foundVia: 'page' as const }));
+  await finishCrawl(deps, company, result.status, emails, { crawledAt: now, texts: result.texts, people, peopleRead });
 }
 
 interface FoundEmail {
   address: string;
   kind: 'generic' | 'personal';
   sourceUrl: string | null;
+  /** page: printed on the site in this crawl. cache: from the shared cache of an earlier one. */
+  foundVia: 'page' | 'cache';
+}
+
+/** How sure nvoke is that a printed address reaches a person or an inbox (emails.confidence). */
+export const PAGE_CONFIDENCE = { personal: 90, generic: 60 } as const;
+
+interface FinishOptions {
+  /** Set for a real crawl, which also refreshes the shared cache. */
+  crawledAt?: Date;
+  texts?: SitePage[];
+  /** The people the site names, best first. */
+  people?: FoundPerson[];
+  /** Claude read the people pages in this crawl. */
+  peopleRead?: boolean;
 }
 
 /**
- * Stores a crawl outcome for a company and queues a check per new address.
- * `crawledAt` is set for a real crawl, which also refreshes the shared cache.
+ * Stores a crawl outcome for a company: its people, its addresses (linked to
+ * the person whose name an address is made from) and a check per new
+ * address, then a people job when it named anyone. `crawledAt` is set for a
+ * real crawl, which also refreshes the shared cache.
  */
 async function finishCrawl(
   deps: PipelineDeps,
   company: CompanyRow,
   status: CrawlOutcome,
   emails: FoundEmail[],
-  crawledAt?: Date,
-  texts?: SitePage[],
+  { crawledAt, texts, people = [], peopleRead = false }: FinishOptions = {},
 ): Promise<void> {
   const { sql } = deps;
   const stored = await sql.begin(async (tx) => {
@@ -345,25 +390,75 @@ async function finishCrawl(
           hasPersonal: emails.some((e) => !isCacheable(e, company.domain)),
           generic: emails.filter((e) => isCacheable(e, company.domain)),
           texts,
+          people,
+          peopleRead,
         },
         crawledAt,
       );
+    }
+
+    let named: PersonRow[] = [];
+    if (people.length > 0) {
+      const rows = mergePeople(people).map((p) => ({
+        company_id: company.id,
+        search_id: company.search_id,
+        first_name: p.firstName,
+        last_name: p.lastName,
+        title: p.title,
+        seniority: p.seniority,
+        source: 'page',
+        source_url: p.sourceUrl,
+      }));
+      await tx`
+        insert into people ${tx(rows, 'company_id', 'search_id', 'first_name', 'last_name', 'title', 'seniority', 'source', 'source_url')}
+        on conflict do nothing
+      `;
+      named = await tx<PersonRow[]>`
+        select id, first_name, last_name, title, seniority from people where company_id = ${company.id} order by created_at, id
+      `;
+      await enqueue(tx, { type: 'people', payload: { companyId: company.id }, searchId: company.search_id });
     }
 
     let stored = 0;
     if (emails.length > 0) {
       // Storing costs nothing: the user is charged only when a check comes
       // back valid (runVerify), and unchecked addresses are never shown.
-      const rows = emails.map((e) => ({
-        company_id: company.id,
-        search_id: company.search_id,
-        clerk_user_id: company.clerk_user_id,
-        address: e.address,
-        kind: e.kind,
-        source_url: e.sourceUrl,
-      }));
+      const owners = named.map((p) => ({ firstName: p.first_name, lastName: p.last_name, row: p }));
+      const rows = emails.map((e) => {
+        const owner = e.kind === 'personal' ? personForAddress(e.address, owners)?.row : undefined;
+        return {
+          company_id: company.id,
+          search_id: company.search_id,
+          clerk_user_id: company.clerk_user_id,
+          address: e.address,
+          kind: e.kind,
+          source_url: e.sourceUrl,
+          person_id: owner?.id ?? null,
+          first_name: owner?.first_name ?? null,
+          last_name: owner?.last_name ?? null,
+          title: owner?.title ?? null,
+          seniority: owner?.seniority ?? null,
+          found_via: e.foundVia,
+          confidence: PAGE_CONFIDENCE[e.kind],
+        };
+      });
       const inserted = await tx<{ id: string }[]>`
-        insert into emails ${tx(rows, 'company_id', 'search_id', 'clerk_user_id', 'address', 'kind', 'source_url')}
+        insert into emails ${tx(
+          rows,
+          'company_id',
+          'search_id',
+          'clerk_user_id',
+          'address',
+          'kind',
+          'source_url',
+          'person_id',
+          'first_name',
+          'last_name',
+          'title',
+          'seniority',
+          'found_via',
+          'confidence',
+        )}
         on conflict (company_id, address) do nothing
         returning id
       `;
@@ -381,6 +476,14 @@ async function finishCrawl(
     return stored;
   });
   deps.log.debug({ companyId: company.id, stored }, 'crawl: stored');
+}
+
+interface PersonRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  title: string | null;
+  seniority: FoundPerson['seniority'];
 }
 
 /** A crawl job that ran out of attempts still counts as crawled, with status failed. */

@@ -14,6 +14,15 @@ export const BOT_TOKEN = 'nvokebot';
 export const CRAWL_MAX_PAGES = 8;
 export const CRAWL_MAX_BYTES = 2_000_000;
 
+/** Pages that name the company's people: team, leadership, founders. */
+const TEAM_HINT =
+  /\bteam\b|medarbejder|employees|our-people|\bpeople\b|staff|personale|ansatte|mitarbeiter|medarbetare|medewerkers|equipe|equipo|squadra|henkilokunta|zespol|vores-folk|leadership|(^|\/)management(\/|$)|ledelse|bestyrelse|founders|grundlaeggere|gruender|geschaeftsfuehrung|geschaftsfuhrung|vorstand|direktion|\bboard\b|wer-wir-sind|who-we-are|hvem-er-vi|vem-ar-vi|wie-we-zijn|qui-sommes-nous|our-story|vores-historie/i;
+/** Imprints: the legal page that names the managing director. */
+const IMPRINT_HINT = /impressum|imprint|mentions-legales|aviso-legal|note-legali|colofon|colophon/i;
+/** About pages, which often name the founders. */
+const ABOUT_HINT =
+  /about|om-os|omos|om-oss|ueber-uns|uber-uns|über|qui-sommes|a-propos|chi-siamo|sobre|over-ons|wie-zijn-wij|quienes-somos|quem-somos|o-nas|meista|tietoa|virksomheden|firmaet|unternehmen/i;
+
 /**
  * Path and link text keywords, strongest first. English, the Nordic
  * languages, German, Dutch, French, Spanish, Italian, Portuguese, Polish and
@@ -24,15 +33,9 @@ const PAGE_HINTS: Array<{ re: RegExp; score: number }> = [
     re: /kontakt|contact|kontakta|contatt|contacto|contato|yhteystiedot|ota-yhteytt|fale-conosco|nous-joindre|get-in-touch|reach-us|write-us|skriv-til-os|find-os|find-us|hitta-hit|anfahrt|ansprechpartner|\.vcf$/i,
     score: 100,
   },
-  { re: /impressum|imprint|mentions-legales|aviso-legal|note-legali|colofon|colophon/i, score: 90 },
-  {
-    re: /\bteam\b|medarbejder|employees|our-people|\bpeople\b|staff|personale|ansatte|mitarbeiter|medarbetare|medewerkers|equipe|equipo|squadra|henkilokunta|zespol|vores-folk/i,
-    score: 80,
-  },
-  {
-    re: /about|om-os|omos|om-oss|ueber-uns|uber-uns|über|qui-sommes|a-propos|chi-siamo|sobre|over-ons|wie-zijn-wij|quienes-somos|quem-somos|o-nas|meista|tietoa|virksomheden|firmaet|unternehmen/i,
-    score: 70,
-  },
+  { re: IMPRINT_HINT, score: 90 },
+  { re: TEAM_HINT, score: 80 },
+  { re: ABOUT_HINT, score: 70 },
   { re: /privacy|privatliv|persondata|datenschutz|gdpr|personvern|integritet|privacidad|confidentialite|tietosuoja|rodo/i, score: 50 },
   { re: /legal|juridisk|vilkaar|terms|agb|cvr|handelsbetingelser|salgsbetingelser/i, score: 40 },
 ];
@@ -57,6 +60,51 @@ export function pageScore(url: URL, linkText = ''): number {
   return score;
 }
 
+/**
+ * Whether a page likely names the company's people (team, leadership,
+ * about, imprint), from its path. Their text goes to the people step, not
+ * to openers.
+ */
+export function isPeoplePage(url: string | URL): boolean {
+  return peoplePageKind(url) !== null;
+}
+
+/** Which kind of people page a page is, from its path: the team page says the most, the imprint the least. */
+export function peoplePageKind(url: string | URL): 'team' | 'about' | 'imprint' | null {
+  let path: string;
+  try {
+    path = safeDecode(new URL(url).pathname);
+  } catch {
+    return null;
+  }
+  if (TEAM_HINT.test(path)) return 'team';
+  if (ABOUT_HINT.test(path)) return 'about';
+  if (IMPRINT_HINT.test(path)) return 'imprint';
+  return null;
+}
+
+/** People pages a plan keeps room for, even when contact pages alone would fill it. */
+export const PEOPLE_PAGES_MIN = 3;
+
+/**
+ * The first `max` of a ranked list, with room made for up to
+ * PEOPLE_PAGES_MIN people pages by dropping the weakest other pages. The
+ * ranking's order is kept.
+ */
+function withPeoplePages(ranked: string[], max: number): string[] {
+  const picked = ranked.slice(0, max);
+  let want = Math.min(PEOPLE_PAGES_MIN, max) - picked.filter((u) => isPeoplePage(u)).length;
+  for (const url of ranked.slice(max)) {
+    if (want <= 0) break;
+    if (!isPeoplePage(url)) continue;
+    const drop = picked.findLastIndex((u) => !isPeoplePage(u));
+    if (drop < 0) break;
+    picked.splice(drop, 1, url);
+    want--;
+  }
+  return ranked.filter((u) => picked.includes(u));
+}
+
 function safeDecode(s: string): string {
   try {
     return decodeURIComponent(s);
@@ -68,7 +116,10 @@ function safeDecode(s: string): string {
 /** The site's menus and footer, by element, role or the usual class and id names. */
 const SITE_CHROME = 'header, nav, footer, [role="navigation"], [role="contentinfo"], [class*="footer"], [id*="footer"], [class*="menu"], [id*="menu"]';
 
-/** Same-site links that look like they lead to contact details, best first. */
+/**
+ * Same-site links that look like they lead to contact details or name the
+ * company's people, best first. A few people pages always make the cut.
+ */
 export function pickLikelyPages(html: string, pageUrl: string, max: number): string[] {
   const base = new URL(pageUrl);
   const scored = new Map<string, number>();
@@ -101,10 +152,10 @@ export function pickLikelyPages(html: string, pageUrl: string, max: number): str
     if ($(el).closest(SITE_CHROME).length > 0) score += 10;
     scored.set(key, Math.max(scored.get(key) ?? -Infinity, score));
   });
-  return [...scored.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, max)
-    .map(([url]) => url);
+  return withPeoplePages(
+    [...scored.entries()].sort((a, b) => b[1] - a[1]).map(([url]) => url),
+    max,
+  );
 }
 
 /** Longest last path segment a sitemap page may have. Contact pages have short names. */
@@ -127,10 +178,10 @@ export function pickFromSitemap(urls: string[], max: number): string[] {
     const score = pageScore(url);
     if (score > 0) scored.push([url.toString(), score]);
   }
-  return scored
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, max)
-    .map(([url]) => url);
+  return withPeoplePages(
+    scored.sort((a, b) => b[1] - a[1]).map(([url]) => url),
+    max,
+  );
 }
 
 /**

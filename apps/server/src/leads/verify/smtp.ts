@@ -12,11 +12,22 @@ export interface SmtpReply {
 }
 
 export interface SmtpProbeOptions {
+  /** A host name, or an IP address (an IPv6 address of the MX host, say). */
   host: string;
   port?: number;
+  /** Address family for a host name: 4 forces IPv4. Default lets the OS pick. */
+  family?: 4 | 6;
   heloName: string;
   mailFrom: string;
   recipients: string[];
+  /**
+   * Picks each next recipient from the replies so far, instead of
+   * `recipients`: null ends the session. Lets a caller stop at the first
+   * accepted address or skip ahead after a catch-all answer. `answered` is
+   * one array for the whole session, so a caller that keeps it also sees a
+   * last reply that ended the session (421) or replies before a failure.
+   */
+  nextRecipient?: (answered: SmtpProbeResult['recipients']) => string | null;
   connectTimeoutMs?: number;
   commandTimeoutMs?: number;
   signal?: AbortSignal;
@@ -121,7 +132,7 @@ class ReplyReader {
 
 function connectSocket(opts: SmtpProbeOptions, port: number, timeoutMs: number): Promise<net.Socket> {
   return new Promise((resolve, reject) => {
-    const socket = (opts.connect ?? ((p, h) => net.connect({ port: p, host: h })))(port, opts.host);
+    const socket = (opts.connect ?? ((p, h) => net.connect({ port: p, host: h, family: opts.family })))(port, opts.host);
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new SmtpProbeError('connect', `connect to ${opts.host}:${port} timed out`));
@@ -147,6 +158,8 @@ function safeAddress(address: string): string {
 export async function smtpProbe(opts: SmtpProbeOptions): Promise<SmtpProbeResult> {
   const port = opts.port ?? 25;
   const commandTimeout = opts.commandTimeoutMs ?? 15_000;
+  // A job aborted while waiting for its turn opens no connection at all.
+  if (opts.signal?.aborted) throw new SmtpProbeError('connect', 'aborted before connect');
   const socket = await connectSocket(opts, port, opts.connectTimeoutMs ?? 10_000);
   const onAbort = () => socket.destroy(new Error('aborted'));
   opts.signal?.addEventListener('abort', onAbort, { once: true });
@@ -178,7 +191,10 @@ export async function smtpProbe(opts: SmtpProbeOptions): Promise<SmtpProbeResult
     if (mail.code !== 250) throw new SmtpProbeError('mail', `MAIL FROM rejected: ${mail.code} ${mail.message}`, mail);
 
     const recipients: SmtpProbeResult['recipients'] = [];
-    for (const address of opts.recipients) {
+    const queue = [...opts.recipients];
+    for (;;) {
+      const address = opts.nextRecipient ? opts.nextRecipient(recipients) : queue.shift();
+      if (address == null) break;
       const reply = await send(`RCPT TO:<${safeAddress(address)}>`, 'rcpt');
       recipients.push({ address, reply });
       // A server that hangs up mid-session (421) has answered everything it will.

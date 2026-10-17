@@ -1,5 +1,6 @@
 import * as net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
+import { mailProvider, registrableDomain } from './pacing.js';
 import { classifyRcpt, isDisposableDomain, isParkedMx, isTempfail, isTypoDomain, mxProvider, Verifier, ttlFor, type VerifyCache, type VerifyResult } from './index.js';
 import { lookupMx, type DnsLike } from './mx.js';
 import { smtpProbe } from './smtp.js';
@@ -104,7 +105,7 @@ async function fakeSmtp(opts: FakeSmtpOptions = {}): Promise<FakeSmtp> {
 }
 
 /** DNS where every listed domain has the given MX hosts, all served by 127.0.0.1. */
-function fakeDns(records: Record<string, string[] | 'nxdomain' | 'null' | 'servfail' | 'a-only'>): DnsLike {
+function fakeDns(records: Record<string, string[] | 'nxdomain' | 'null' | 'servfail' | 'a-only'>, aaaa: Record<string, string> = {}): DnsLike {
   const err = (code: string) => Object.assign(new Error(code), { code });
   return {
     async resolveMx(domain) {
@@ -119,7 +120,8 @@ function fakeDns(records: Record<string, string[] | 'nxdomain' | 'null' | 'servf
       if (records[domain] === 'a-only') return ['127.0.0.1'];
       throw err('ENODATA');
     },
-    async resolve6() {
+    async resolve6(host) {
+      if (aaaa[host]) return [aaaa[host]];
       throw err('ENODATA');
     },
   };
@@ -240,9 +242,11 @@ describe('Verifier', () => {
     expect(await v.verify('Info@Acme.dk')).toEqual({ address: 'info@acme.dk', verification: 'valid', mxHost: 'mx1.acme.dk', reason: 'rcpt_accepted' });
     const rcpts = smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'));
     expect(rcpts).toHaveLength(3);
+    // The two decoys go first, then the real address.
+    expect(rcpts[0]).toMatch(/^RCPT TO:<nvoke-[0-9a-f]{12}-nx@acme\.dk>$/);
     expect(rcpts[1]).toMatch(/^RCPT TO:<nvoke-[0-9a-f]{12}-nx@acme\.dk>$/);
-    expect(rcpts[2]).toMatch(/^RCPT TO:<nvoke-[0-9a-f]{12}-nx@acme\.dk>$/);
-    expect(rcpts[2]).not.toBe(rcpts[1]);
+    expect(rcpts[0]).not.toBe(rcpts[1]);
+    expect(rcpts[2]).toBe('RCPT TO:<info@acme.dk>');
   });
 
   it('marks a rejected mailbox invalid', async () => {
@@ -281,11 +285,30 @@ describe('Verifier', () => {
 
   it('opens one connection per MX host at a time', async () => {
     const smtp = await fakeSmtp({ delayMs: 20, rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
-    const v = new Verifier({ ...base, dns: fakeDns({ 'acme.dk': ['mx.shared.test'] }), connect: connectTo(smtp.port) });
-    const results = await Promise.all(['a@acme.dk', 'b@acme.dk', 'c@acme.dk', 'd@acme.dk'].map((a) => v.verify(a)));
+    const domains = ['a.dk', 'b.dk', 'c.dk', 'd.dk'];
+    const v = new Verifier({ ...base, dns: fakeDns(Object.fromEntries(domains.map((d) => [d, ['mx.shared.test']]))), connect: connectTo(smtp.port) });
+    const results = await Promise.all(domains.map((d) => v.verify(`x@${d}`)));
     expect(results.every((r) => r.verification === 'valid')).toBe(true);
     expect(smtp.sessions).toHaveLength(4);
     expect(smtp.maxConcurrent).toBe(1);
+  });
+
+  it('checks addresses of one domain that arrive together in one session', async () => {
+    const smtp = await fakeSmtp({ delayMs: 10, rcpt: (a) => (a.startsWith('nvoke-') || a.startsWith('gone') ? '550 5.1.1 no' : '250 ok') });
+    const v = new Verifier({ ...base, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }), connect: connectTo(smtp.port) });
+    const results = await Promise.all(['a@acme.dk', 'b@acme.dk', 'gone@acme.dk', 'a@acme.dk'].map((a) => v.verify(a)));
+    expect(results.map((r) => r.verification)).toEqual(['valid', 'valid', 'invalid', 'valid']);
+    expect(smtp.sessions).toHaveLength(1);
+    // Three addresses and two decoys.
+    expect(smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'))).toHaveLength(5);
+  });
+
+  it('skips the decoys while the domain refused a random address within the hour', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const v = new Verifier({ ...base, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }), connect: connectTo(smtp.port) });
+    await v.verify('a@acme.dk');
+    expect(await v.verify('b@acme.dk')).toMatchObject({ verification: 'valid', reason: 'rcpt_accepted' });
+    expect(smtp.sessions[1]!.filter((l) => l.startsWith('RCPT'))).toEqual(['RCPT TO:<b@acme.dk>']);
   });
 
   it('falls back to MX only when port 25 looks blocked, and when probing is disabled', async () => {
@@ -432,6 +455,250 @@ describe('Verifier', () => {
     });
     const v = new Verifier({ ...base, dns: fakeDns({ 'odd.dk': ['mx.odd.dk'] }), connect: connectTo(smtp.port) });
     expect(await v.verify('info@odd.dk')).toMatchObject({ verification: 'catch_all', reason: 'accepts_any_recipient' });
-    expect(smtp.sessions[0]?.filter((l) => l.startsWith('RCPT'))).toHaveLength(3);
+    // Decoys go first, so the second one lands as catch-all and the real address is not asked.
+    expect(smtp.sessions[0]?.filter((l) => l.startsWith('RCPT'))).toHaveLength(2);
+  });
+});
+
+describe('Verifier.probeDomain', () => {
+  const accepts = (list: string[]) => (a: string) => (list.includes(a) ? '250 2.1.5 Ok' : '550 5.1.1 User unknown');
+
+  it('sends one decoy, then candidates in order, and stops at the first accepted one', async () => {
+    const smtp = await fakeSmtp({ rcpt: accepts(['anna.berg@acme.dk']) });
+    const cache = memoryCache();
+    const v = new Verifier({ ...base, cache, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }), connect: connectTo(smtp.port) });
+    const probe = await v.probeDomain('acme.dk', [
+      [{ address: 'anna@acme.dk' }, { address: 'anna.berg@acme.dk' }, { address: 'annaberg@acme.dk' }],
+    ]);
+    expect(probe).toMatchObject({ catchAll: false, accepted: ['anna.berg@acme.dk'], reason: null, mxHost: 'mx.acme.dk' });
+    const rcpts = smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'));
+    expect(rcpts).toHaveLength(3);
+    expect(rcpts[0]).toMatch(/^RCPT TO:<nvoke-[0-9a-f]{12}-nx@acme\.dk>$/);
+    expect(rcpts.slice(1)).toEqual(['RCPT TO:<anna@acme.dk>', 'RCPT TO:<anna.berg@acme.dk>']);
+    expect(cache.store.get('anna.berg@acme.dk')).toMatchObject({ verification: 'valid', reason: 'rcpt_accepted' });
+    expect(cache.store.get('anna@acme.dk')).toMatchObject({ verification: 'invalid' });
+
+    // The verify job that follows is answered from the cache.
+    expect(await v.verify('anna.berg@acme.dk')).toMatchObject({ verification: 'valid' });
+    expect(smtp.sessions).toHaveLength(1);
+  });
+
+  it('ends after the decoy on a catch-all domain and remembers it', async () => {
+    const smtp = await fakeSmtp();
+    const v = new Verifier({ ...base, dns: fakeDns({ 'any.dk': ['mx.any.dk'] }), connect: connectTo(smtp.port) });
+    const probe = await v.probeDomain('any.dk', [[{ address: 'anna@any.dk' }, { address: 'anna.berg@any.dk' }]]);
+    expect(probe).toMatchObject({ catchAll: true, accepted: [null], reason: 'accepts_any_recipient' });
+    expect(smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'))).toHaveLength(1);
+    expect(v.knownCatchAll('any.dk')).toBe(true);
+    expect(await v.verify('anna@any.dk')).toMatchObject({ verification: 'catch_all', reason: 'domain_catch_all' });
+    expect(smtp.sessions).toHaveLength(1);
+  });
+
+  it('tries the pattern that worked for a colleague first and keeps to the RCPT budget', async () => {
+    const smtp = await fakeSmtp({ rcpt: accepts(['aberg@acme.dk', 'oholm@acme.dk']) });
+    const v = new Verifier({ ...base, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }), connect: connectTo(smtp.port) });
+    const probe = await v.probeDomain('acme.dk', [
+      [
+        { address: 'anna@acme.dk', tag: 'first' },
+        { address: 'anna.berg@acme.dk', tag: 'first.last' },
+        { address: 'aberg@acme.dk', tag: 'flast' },
+      ],
+      [
+        { address: 'ole@acme.dk', tag: 'first' },
+        { address: 'oholm@acme.dk', tag: 'flast' },
+      ],
+      [
+        { address: 'mia@acme.dk', tag: 'first' },
+        { address: 'mkro@acme.dk', tag: 'flast' },
+      ],
+    ]);
+    expect(probe.accepted).toEqual(['aberg@acme.dk', 'oholm@acme.dk', null]);
+    const rcpts = smtp.sessions[0]!.filter((l) => l.startsWith('RCPT')).slice(1);
+    expect(rcpts).toEqual([
+      'RCPT TO:<anna@acme.dk>',
+      'RCPT TO:<anna.berg@acme.dk>',
+      'RCPT TO:<aberg@acme.dk>',
+      'RCPT TO:<oholm@acme.dk>',
+      'RCPT TO:<mkro@acme.dk>',
+    ]);
+  });
+
+  it('answers from the cache without a session, and says when it was paced', async () => {
+    const smtp = await fakeSmtp({ rcpt: accepts(['ole@acme.dk']) });
+    const cache = memoryCache();
+    cache.store.set('anna@acme.dk', { address: 'anna@acme.dk', verification: 'valid', mxHost: 'mx.acme.dk', reason: 'rcpt_accepted' });
+    let t = 1_000_000;
+    const v = new Verifier({
+      ...base,
+      cache,
+      now: () => t,
+      probesPerMinute: 1,
+      dns: fakeDns({ 'acme.dk': ['mx.acme.dk'], 'b.dk': ['mx.b.dk'] }),
+      connect: connectTo(smtp.port),
+    });
+    expect(await v.probeDomain('acme.dk', [[{ address: 'anna@acme.dk' }]])).toMatchObject({ accepted: ['anna@acme.dk'], reason: null });
+    expect(smtp.sessions).toHaveLength(0);
+    await v.probeDomain('acme.dk', [[{ address: 'nobody@acme.dk' }]]);
+    expect(await v.probeDomain('b.dk', [[{ address: 'ole@b.dk' }]])).toMatchObject({ accepted: [null], reason: 'smtp_paced', retryAfterMs: 60_000 });
+    t += 60_000;
+    expect(await v.probeDomain('acme.dk', [[{ address: 'ole@acme.dk' }]])).toMatchObject({ accepted: ['ole@acme.dk'] });
+  });
+
+  it('stops on greylisting and caches nothing it learned from it', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '451 4.7.1 try later') });
+    const cache = memoryCache();
+    const v = new Verifier({ ...base, cache, dns: fakeDns({ 'grey.dk': ['mx.grey.dk'] }), connect: connectTo(smtp.port) });
+    const probe = await v.probeDomain('grey.dk', [[{ address: 'anna@grey.dk' }, { address: 'anna.berg@grey.dk' }]]);
+    expect(probe).toMatchObject({ accepted: [null], reason: 'rcpt_tempfail_451' });
+    expect(smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'))).toHaveLength(2);
+    expect(cache.store.size).toBe(0);
+  });
+
+  it('gives the gate reason for domains without mail', async () => {
+    const v = new Verifier({ ...base, dns: fakeDns({ 'nomx.dk': 'nxdomain' }) });
+    expect(await v.probeDomain('nomx.dk', [[{ address: 'a@nomx.dk' }]])).toMatchObject({ reason: 'no_mx', accepted: [null] });
+  });
+});
+
+describe('IPv6 and pacing per provider', () => {
+  it('connects over IPv6 when the MX host has an AAAA record and falls back to IPv4', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const tried: string[] = [];
+    const connect = (port: number, host: string) => {
+      tried.push(host);
+      return connectTo(smtp.port, ['2001:db8::dead'])(port, host);
+    };
+    const dns = fakeDns(
+      { 'six.dk': ['mx.six.dk'], 'dead6.dk': ['mx.dead6.dk'] },
+      { 'mx.six.dk': '2001:db8::1', 'mx.dead6.dk': '2001:db8::dead' },
+    );
+    const v = new Verifier({ ...base, dns, connect, probesPerMinute: 1, ipv6Available: () => true });
+    expect(await v.verify('a@six.dk')).toMatchObject({ verification: 'valid' });
+    expect(tried).toEqual(['2001:db8::1']);
+    // IPv6 sessions leave the IPv4 cap alone.
+    expect(await v.verify('b@six.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('a@dead6.dk')).toMatchObject({ verification: 'valid' });
+    expect(tried.slice(2)).toEqual(['2001:db8::dead', 'mx.dead6.dk']);
+
+    const off = new Verifier({ ...base, dns, connect, preferIpv6: false });
+    tried.length = 0;
+    await off.verify('c@six.dk');
+    expect(tried).toEqual(['mx.six.dk']);
+  });
+
+  it('never tries IPv6 on a machine with no global IPv6 address', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const tried: string[] = [];
+    const connect = (port: number, host: string) => {
+      tried.push(host);
+      return connectTo(smtp.port)(port, host);
+    };
+    const dns = fakeDns({ 'six.dk': ['mx.six.dk'] }, { 'mx.six.dk': '2001:db8::1' });
+    const v = new Verifier({ ...base, dns, connect, ipv6Available: () => false });
+    expect(await v.verify('a@six.dk')).toMatchObject({ verification: 'valid' });
+    expect(tried).toEqual(['mx.six.dk']);
+  });
+
+  it('does not blame port 25 for IPv6 connect failures when IPv4 works', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    // Every host has an AAAA, and every IPv6 address refuses connections; the host names (IPv4) answer.
+    const hosts = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7'];
+    const dns = fakeDns(
+      Object.fromEntries(hosts.map((h) => [`${h}.dk`, [`mx.${h}.test`]])),
+      Object.fromEntries(hosts.map((h, i) => [`mx.${h}.test`, `2001:db8::${i + 1}`])),
+    );
+    const v6down = hosts.map((_, i) => `2001:db8::${i + 1}`);
+    let canaryAsked = 0;
+    const v = new Verifier({
+      ...base,
+      dns,
+      connect: connectTo(smtp.port, v6down),
+      ipv6Available: () => true,
+      port25Works: async () => {
+        canaryAsked++;
+        return false;
+      },
+    });
+    for (const h of hosts) {
+      expect(await v.verify(`a@${h}.dk`)).toMatchObject({ verification: 'valid' });
+    }
+    expect(canaryAsked).toBe(0);
+    expect(v.smtpBlocked).toBe(false);
+  });
+
+  it('retries over IPv4 when the server blocks the IPv6 source on policy', async () => {
+    const smtp = await fakeSmtp({
+      // The IPv6 side is blocked by policy, IPv4 answers normally.
+      rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok'),
+      mail: '250 2.1.0 Ok',
+    });
+    // A server reached over IPv6 refuses with a policy 5xx; over IPv4 it accepts.
+    const tried: string[] = [];
+    const policy = await fakeSmtp({ rcpt: () => '550 5.7.1 Service unavailable; client host blocked using Spamhaus' });
+    const connect = (port: number, host: string) => {
+      tried.push(host);
+      return net.connect({ port: host.includes(':') ? policy.port : smtp.port, host: '127.0.0.1' });
+    };
+    const dns = fakeDns({ 'blk.dk': ['mx.blk.test'] }, { 'mx.blk.test': '2001:db8::9' });
+    const cache = memoryCache();
+    const v = new Verifier({ ...base, cache, dns, connect, ipv6Available: () => true });
+    expect(await v.verify('info@blk.dk')).toMatchObject({ verification: 'valid', reason: 'rcpt_accepted' });
+    expect(tried).toEqual(['2001:db8::9', 'mx.blk.test']);
+    // The IPv6 policy answer was never cached as unknown.
+    expect(cache.store.get('info@blk.dk')?.verification).toBe('valid');
+  });
+
+  it('does not call a real address valid when the decoys were tarpitted', async () => {
+    // 452 (too many recipients / tarpit) on the decoys, 250 on the real one: must not read as valid.
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '452 4.5.3 Too many recipients' : '250 ok') });
+    const cache = memoryCache();
+    const v = new Verifier({ ...base, cache, dns: fakeDns({ 'tar.dk': ['mx.tar.test'] }), connect: connectTo(smtp.port) });
+    expect(await v.verify('real@tar.dk')).toMatchObject({ verification: 'unknown', reason: 'rcpt_tempfail_decoy' });
+    // Tempfail, so nothing is cached and the pipeline retries.
+    expect(cache.store.size).toBe(0);
+    // The decoys went first.
+    const rcpts = smtp.sessions[0]!.filter((l) => l.startsWith('RCPT'));
+    expect(rcpts[0]).toMatch(/^RCPT TO:<nvoke-/);
+    expect(rcpts[rcpts.length - 1]).toBe('RCPT TO:<real@tar.dk>');
+  });
+
+  it('paces sessions per mail provider under a global ceiling', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const dns = fakeDns({
+      'g1.dk': ['aspmx.l.google.com'],
+      'g2.dk': ['alt1.aspmx.l.google.com'],
+      'o1.dk': ['o1-dk.mail.protection.outlook.com'],
+      'x1.dk': ['mx.x1.dk'],
+    });
+    const v = new Verifier({ ...base, dns, connect: connectTo(smtp.port), now: () => 1_000_000, sessionsPerProviderPerMinute: 1, sessionsPerMinute: 2 });
+    expect(await v.verify('a@g1.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('a@g2.dk')).toMatchObject({ reason: 'smtp_paced' });
+    expect(await v.verify('a@o1.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('a@x1.dk')).toMatchObject({ reason: 'smtp_paced' });
+  });
+
+  it('gives a provider a rest after it hangs up with 421', async () => {
+    const smtp = await fakeSmtp({ rcpt: () => '421 4.7.0 Try again later, closing connection' });
+    let t = 1_000_000;
+    const v = new Verifier({ ...base, dns: fakeDns({ 'a.dk': ['mx.slow.test'], 'b.dk': ['mx2.slow.test'] }), connect: connectTo(smtp.port), now: () => t });
+    // The decoy goes first and gets the 421, so the real address is never asked.
+    expect(await v.verify('x@a.dk')).toMatchObject({ reason: 'no_rcpt_reply' });
+    expect(await v.verify('x@b.dk')).toMatchObject({ reason: 'smtp_paced', retryAfterMs: 5 * 60_000 });
+    t += 5 * 60_000;
+    expect(await v.verify('x@b.dk')).toMatchObject({ reason: 'no_rcpt_reply' });
+  });
+
+  it('groups MX hosts by provider', () => {
+    expect(mailProvider('alt2.aspmx.l.google.com.')).toBe('google');
+    expect(mailProvider('acme-dk.mail.protection.outlook.com')).toBe('outlook');
+    expect(mailProvider('mx1.one.com')).toBe('one.com');
+    expect(registrableDomain('mx.mail.example.co.uk')).toBe('example.co.uk');
+  });
+
+  it('reads Microsoft 365 recipient refusals as unknown users', () => {
+    expect(classifyRcpt({ code: 550, enhanced: '5.4.1', message: '5.4.1 Recipient address rejected: Access denied. AS(201806281)' })).toEqual({
+      verification: 'invalid',
+      reason: 'rcpt_rejected_550',
+    });
   });
 });

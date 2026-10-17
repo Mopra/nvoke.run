@@ -1,11 +1,14 @@
 // The shared crawl cache (migration 0300_privacy). A domain row records the
 // last crawl's outcome; domain_emails holds the generic role addresses it
 // found on the domain's own site, and domain_pages (1300_openers) the text of
-// a few of its pages, for openers. Personal, webmail and other domains'
-// addresses are never cached: a domain that had any is crawled again by
-// every search, so they stay in that search's own rows.
+// a few of its pages, for openers, and domain_people (1610_domain_people)
+// the people its pages name, without addresses. Personal, webmail and other
+// domains' addresses are never cached: a domain that had any is crawled
+// again by every search, so they stay in that search's own rows.
 
 import type { Sql, TransactionSql } from 'postgres';
+import type { Seniority } from '@nvoke/shared';
+import { personKey, type FoundPerson } from '@nvoke/shared/crawl';
 import type { CrawlResult } from './crawl.js';
 import type { SitePage } from './page-text.js';
 import { isWebmailDomain, sameSite } from './domain.js';
@@ -28,6 +31,8 @@ export function isCacheable(email: { address: string; kind: 'generic' | 'persona
 export interface CachedDomain {
   crawlStatus: CrawlOutcome;
   emails: { address: string; sourceUrl: string | null }[];
+  /** The people the last crawl found, in its order. */
+  people: FoundPerson[];
 }
 
 /**
@@ -45,7 +50,31 @@ export async function cachedCrawl(tx: Sql | TransactionSql, domain: string, now:
   const emails = await tx<{ address: string; source_url: string | null }[]>`
     select address, source_url from domain_emails where domain = ${domain} order by address
   `;
-  return { crawlStatus: row.crawl_status, emails: emails.map((e) => ({ address: e.address, sourceUrl: e.source_url })) };
+  return {
+    crawlStatus: row.crawl_status,
+    emails: emails.map((e) => ({ address: e.address, sourceUrl: e.source_url })),
+    people: await cachedPeople(tx, domain),
+  };
+}
+
+async function cachedPeople(tx: Sql | TransactionSql, domain: string): Promise<FoundPerson[]> {
+  const people = await tx<{ first_name: string; last_name: string; title: string | null; seniority: Seniority | null; source_url: string | null }[]>`
+    select first_name, last_name, title, seniority, source_url from domain_people where domain = ${domain} order by position
+  `;
+  return people.map((p) => ({ firstName: p.first_name, lastName: p.last_name, title: p.title, seniority: p.seniority, sourceUrl: p.source_url }));
+}
+
+/** How long Claude's reading of a domain's people pages stands before it is asked again. */
+export const PEOPLE_READ_DAYS = 90;
+
+/**
+ * The cached people of a domain whose people pages Claude read within
+ * PEOPLE_READ_DAYS, or null when it has not: then the people step may ask.
+ */
+export async function recentPeopleRead(sql: Sql | TransactionSql, domain: string, now: Date): Promise<FoundPerson[] | null> {
+  const since = new Date(now.getTime() - PEOPLE_READ_DAYS * 86_400_000).toISOString();
+  const [row] = await sql`select 1 from domains where domain = ${domain} and people_read_at > ${since}::timestamptz`;
+  return row ? cachedPeople(sql, domain) : null;
 }
 
 /**
@@ -64,18 +93,25 @@ export async function recordCrawl(
     generic: { address: string; sourceUrl: string | null }[];
     /** The pages' text, replacing what the last crawl kept. */
     texts?: SitePage[];
+    /** The people found, replacing the last crawl's. Left as they are when absent. */
+    people?: FoundPerson[];
+    /** Claude read the people pages in this crawl (people-llm.ts). */
+    peopleRead?: boolean;
   },
   now: Date,
 ): Promise<void> {
   const at = now.toISOString();
   await tx`
-    insert into domains (domain, crawl_status, crawled_at, has_personal, recheck_at)
-    values (${domain}, ${outcome.status}, ${at}, ${outcome.hasPersonal}, ${recheckAt(outcome.status, now).toISOString()})
+    insert into domains (domain, crawl_status, crawled_at, has_personal, recheck_at, people_read_at)
+    values (${domain}, ${outcome.status}, ${at}, ${outcome.hasPersonal}, ${recheckAt(outcome.status, now).toISOString()},
+            ${outcome.peopleRead ? at : null})
     on conflict (domain) do update
     set crawl_status = excluded.crawl_status, crawled_at = excluded.crawled_at,
-        has_personal = excluded.has_personal, recheck_at = excluded.recheck_at
+        has_personal = excluded.has_personal, recheck_at = excluded.recheck_at,
+        people_read_at = coalesce(excluded.people_read_at, domains.people_read_at)
   `;
   await recordPages(tx, domain, outcome.texts ?? [], now);
+  if (outcome.people) await recordPeople(tx, domain, outcome.people, now);
   const unique = [...new Map(outcome.generic.map((e) => [e.address, e])).values()];
   const addresses = unique.map((e) => e.address);
   if (addresses.length === 0) {
@@ -105,6 +141,31 @@ async function recordPages(tx: TransactionSql, domain: string, texts: SitePage[]
   const at = now.toISOString();
   const rows = unique.map((t) => ({ domain, url: t.url, title: t.title, description: t.description, text: t.text, fetched_at: at }));
   await tx`insert into domain_pages ${tx(rows, 'domain', 'url', 'title', 'description', 'text', 'fetched_at')}`;
+}
+
+/** Replaces the cached people of `domain`. The domain row must exist. */
+async function recordPeople(tx: TransactionSql, domain: string, people: FoundPerson[], now: Date): Promise<void> {
+  await tx`delete from domain_people where domain = ${domain}`;
+  // The first mention wins: the list comes best first.
+  const byName = new Map<string, FoundPerson>();
+  for (const p of people) byName.set(personKey(p), byName.get(personKey(p)) ?? p);
+  const unique = [...byName.values()];
+  if (unique.length === 0) return;
+  const at = now.toISOString();
+  const rows = unique.map((p, i) => ({
+    domain,
+    first_name: p.firstName,
+    last_name: p.lastName,
+    title: p.title,
+    seniority: p.seniority,
+    source_url: p.sourceUrl,
+    position: i,
+    fetched_at: at,
+  }));
+  await tx`
+    insert into domain_people ${tx(rows, 'domain', 'first_name', 'last_name', 'title', 'seniority', 'source_url', 'position', 'fetched_at')}
+    on conflict do nothing
+  `;
 }
 
 /** The kept page text of each domain, homepage first (it was read first). */

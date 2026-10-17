@@ -245,8 +245,9 @@ describe('lead routes', () => {
       const p = await page('');
       expect(p.companies.map((c) => c.name)).toEqual(['Acme Dental', 'Beta, "the" clinic', 'Gamma', 'Delta']);
       expect(p.companies[0]?.emails.map((e) => [e.address, e.kind, e.verification])).toEqual([
-        ['info@acme.dk', 'generic', 'valid'],
+        // Personal addresses before role inboxes.
         ['ole@acme.dk', 'personal', 'invalid'],
+        ['info@acme.dk', 'generic', 'valid'],
       ]);
       expect(p.companies[2]?.emails).toEqual([]);
       expect(p.nextCursor).toBeNull();
@@ -301,11 +302,11 @@ describe('lead routes', () => {
       expect(res.headers['content-disposition']).toMatch(/^attachment; filename="nvoke-[0-9a-f]{8}\.csv"$/);
       const lines = res.body.slice(res.body.charCodeAt(0) === 0xfeff ? 1 : 0).trimEnd().split('\r\n');
       expect(lines).toEqual([
-        'company,domain,website,email,kind,verification,source_url,location,phone,opener',
-        'Acme Dental,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78,Your clinic opened in Aarhus in 1998.',
-        'Acme Dental,acme.dk,https://acme.dk/,ole@acme.dk,personal,invalid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78,Your clinic opened in Aarhus in 1998.',
-        '"Beta, ""the"" clinic",beta.dk,https://beta.dk/,mette@beta.dk,personal,valid,https://beta.dk/kontakt,"Vej 1, København",+45 12 34 56 78,',
-        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,personal,unknown,https://delta.dk/kontakt,\"Vej 1, København\",+45 12 34 56 78,",
+        'company,domain,website,email,first_name,last_name,title,seniority,kind,verification,source_url,found_via,confidence,location,phone,opener',
+        'Acme Dental,acme.dk,https://acme.dk/,ole@acme.dk,,,,,personal,invalid,https://acme.dk/kontakt,,,"Vej 1, København",+45 12 34 56 78,Your clinic opened in Aarhus in 1998.',
+        'Acme Dental,acme.dk,https://acme.dk/,info@acme.dk,,,,,generic,valid,https://acme.dk/kontakt,,,"Vej 1, København",+45 12 34 56 78,Your clinic opened in Aarhus in 1998.',
+        '"Beta, ""the"" clinic",beta.dk,https://beta.dk/,mette@beta.dk,,,,,personal,valid,https://beta.dk/kontakt,,,"Vej 1, København",+45 12 34 56 78,',
+        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,,,,,personal,unknown,https://delta.dk/kontakt,,,\"Vej 1, København\",+45 12 34 56 78,",
       ]);
       const filtered = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv?verification=valid&kind=generic`, headers: as('alice') });
       expect(filtered.body.trimEnd().split('\r\n')).toHaveLength(2);

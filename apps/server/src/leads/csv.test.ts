@@ -7,9 +7,15 @@ const row = (over: Partial<CsvRow> = {}): CsvRow => ({
   domain: 'acme.dk',
   website: 'https://acme.dk/',
   email: 'info@acme.dk',
+  first_name: null,
+  last_name: null,
+  title: null,
+  seniority: null,
   kind: 'generic',
   verification: 'valid',
   source_url: 'https://acme.dk/kontakt',
+  found_via: 'page',
+  confidence: '60',
   location: 'Vej 1, 2100 København',
   phone: '+45 12 34 56 78',
   opener: null,
@@ -39,13 +45,13 @@ describe('csvCell', () => {
 
 describe('toCsv', () => {
   it('writes a BOM, the header in spec order and one CRLF line per row', () => {
-    const csv = toCsv([row({ opener: 'Open on Saturdays, rare in Copenhagen.' }), row({ email: 'ole@acme.dk', kind: 'personal', verification: null, company: 'Acme, "the" shop' })]);
+    const csv = toCsv([row({ opener: 'Open on Saturdays, rare in Copenhagen.' }), row({ email: 'ole@acme.dk', first_name: 'Ole', last_name: 'Berg', title: 'CEO', seniority: 'founder', kind: 'personal', verification: null, company: 'Acme, "the" shop', confidence: '90' })]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const lines = csv.slice(1).split('\r\n');
-    expect(lines[0]).toBe('company,domain,website,email,kind,verification,source_url,location,phone,opener');
+    expect(lines[0]).toBe('company,domain,website,email,first_name,last_name,title,seniority,kind,verification,source_url,found_via,confidence,location,phone,opener');
     expect(lines[0]?.split(',')).toEqual([...CSV_COLUMNS]);
-    expect(lines[1]).toBe('Acme ApS,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, 2100 København",+45 12 34 56 78,"Open on Saturdays, rare in Copenhagen."');
-    expect(lines[2]).toBe('"Acme, ""the"" shop",acme.dk,https://acme.dk/,ole@acme.dk,personal,,https://acme.dk/kontakt,"Vej 1, 2100 København",+45 12 34 56 78,');
+    expect(lines[1]).toBe('Acme ApS,acme.dk,https://acme.dk/,info@acme.dk,,,,,generic,valid,https://acme.dk/kontakt,page,60,"Vej 1, 2100 København",+45 12 34 56 78,"Open on Saturdays, rare in Copenhagen."');
+    expect(lines[2]).toBe('"Acme, ""the"" shop",acme.dk,https://acme.dk/,ole@acme.dk,Ole,Berg,CEO,founder,personal,,https://acme.dk/kontakt,page,90,"Vej 1, 2100 København",+45 12 34 56 78,');
     expect(lines[3]).toBe('');
     expect(lines).toHaveLength(4);
   });

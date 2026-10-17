@@ -61,7 +61,10 @@ units read it. The API needs the first block; the worker reads the second.
 | `NOMINATIM_URL`, `OVERPASS_URL` | worker | OpenStreetMap endpoints for `local` searches; defaults are public |
 | `SMTP_PROBE_ENABLED` | worker | `false` verifies with MX records only |
 | `SMTP_HELO_NAME`, `SMTP_PROBE_FROM` | worker | Name and sender used by the RCPT probe (no mail is sent) |
-| `SMTP_PROBES_PER_MINUTE` | worker | SMTP connections a minute, default 5. Hostinger cuts outbound port 25 off for a long while after bursts above about 5 a minute |
+| `SMTP_PROBES_PER_MINUTE` | worker | SMTP sessions a minute over IPv4, default 5. Hostinger cuts outbound IPv4 port 25 off for a long while after bursts above about 5 a minute; IPv6 is not throttled |
+| `SMTP_SESSIONS_PER_MINUTE`, `SMTP_SESSIONS_PER_PROVIDER_PER_MINUTE` | worker | SMTP sessions a minute in all (default 60) and to one mail provider: Google, Microsoft 365, else the MX domain (default 20). A session checks a whole domain |
+| `SMTP_PREFER_IPV6` | worker | `true` (default) probes over IPv6 when the MX host has an AAAA record, IPv4 otherwise or when IPv6 fails |
+| `TOOLS_SMTP_PROBES_PER_MINUTE` | API | The free email verifier's share of the session budgets, default 1; the worker gets the rest |
 | `OPENROUTER_API_KEY` | API, worker | OpenRouter key (openrouter.ai, API Keys; the "nvoke server" key, $50 a month cap); without it the features that use Claude answer unavailable |
 | `AI_MONTHLY_BUDGET_FLOOR_USD`, `AI_MONTHLY_BUDGET_PRICE_SHARE` | API, worker | Claude spend cap per account a month: the share of the plan's price (default 0.25), never below the floor (default 1 USD) |
 

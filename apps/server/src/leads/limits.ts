@@ -80,9 +80,17 @@ export class RateLimiter {
 export class KeyedMutex {
   private readonly tails = new Map<string, Promise<unknown>>();
 
-  async run<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  /**
+   * Runs `fn` once the previous holder of `key` is done. When `signal`
+   * aborts before `fn` gets its turn, the waiter bails with AbortedError and
+   * never runs `fn`, so a timed-out job does not later open its session.
+   */
+  async run<T>(key: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     const prev = this.tails.get(key) ?? Promise.resolve();
-    const result = prev.catch(() => undefined).then(fn);
+    const result = prev.catch(() => undefined).then(() => {
+      if (signal?.aborted) throw new AbortedError();
+      return fn();
+    });
     const tail = result.catch(() => undefined);
     this.tails.set(key, tail);
     try {

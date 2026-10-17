@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fallbackPages, looksJsOnly, pageWall, pickFromSitemap, pickLikelyPages, planPages } from './pages.ts';
+import { fallbackPages, isPeoplePage, looksJsOnly, pageWall, pickFromSitemap, pickLikelyPages, planPages } from './pages.ts';
 
 const filler = `<p>${'We are a small studio in Aarhus making furniture by hand. '.repeat(20)}</p>`;
 
@@ -89,5 +89,25 @@ describe('pickFromSitemap and fallbackPages', () => {
   it('skips guessed paths already read', () => {
     const seen = new Set(['https://a.dk/contact', 'https://a.dk/kontakt/']);
     expect(fallbackPages('https://a.dk/', seen, 2)).toEqual(['https://a.dk/about', 'https://a.dk/impressum']);
+  });
+});
+
+describe('people pages', () => {
+  it('knows team, leadership, about and imprint pages from their path', () => {
+    for (const url of ['https://a.dk/team', 'https://a.dk/om-os/medarbejdere', 'https://a.de/impressum', 'https://a.com/company/leadership', 'https://a.com/about-us', 'https://a.dk/ledelse']) {
+      expect(isPeoplePage(url), url).toBe(true);
+    }
+    for (const url of ['https://a.dk/kontakt', 'https://a.com/services/asset-management', 'https://a.com/privacy', 'https://a.com/partners']) {
+      expect(isPeoplePage(url), url).toBe(false);
+    }
+  });
+
+  it('keeps room for people pages when contact pages alone would fill the plan', () => {
+    const contacts = Array.from({ length: 8 }, (_, i) => `<a href="/kontakt-${i}">Kontakt</a>`).join('');
+    const html = `<body>${contacts}<a href="/team">Team</a><a href="/impressum">Impressum</a><a href="/about">About</a><a href="/privacy">Privacy</a></body>`;
+    const picked = pickLikelyPages(html, 'https://acme.de/', 6);
+    expect(picked).toHaveLength(6);
+    expect(picked).toEqual(expect.arrayContaining(['https://acme.de/team', 'https://acme.de/impressum', 'https://acme.de/about']));
+    expect(picked[0]).toBe('https://acme.de/kontakt-0');
   });
 });

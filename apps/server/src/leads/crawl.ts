@@ -1,4 +1,5 @@
-// Crawls one company website for published email addresses.
+// Crawls one company website for published email addresses and the people
+// it names (team, about and imprint pages).
 //
 // Limits (docs/SPEC.md): the homepage plus likely pages (contact, about,
 // team, impressum, privacy, legal) from its links or its sitemap, at most 8
@@ -14,12 +15,16 @@ import {
   SITEMAP_MAX_FILES,
   clientRedirect,
   extractEmails,
+  extractPeople,
   fallbackPages,
   hasOwnAddress,
   homepageVariants,
   hostToDomain,
+  peoplePageKind,
+  withoutQuotes,
   isPlatformDomain,
   looksJsOnly,
+  mergePeople,
   pageWall,
   parseSitemap,
   pickLikelyPages,
@@ -27,6 +32,7 @@ import {
   rankSitemaps,
   selectForCompany,
   type ExtractedEmail,
+  type FoundPerson,
 } from '@nvoke/shared/crawl';
 import { decodeBody, fetchCapped, type FetchLike } from './http.js';
 import { pageText, type SitePage } from './page-text.js';
@@ -58,7 +64,10 @@ function openerText(html: string, url: string): SitePage {
   return { ...page, title: strip(page.title), description: strip(page.description), text: strip(page.text) };
 }
 
-/** Pages that say little about the business, or mostly name people. Their text is not kept. */
+/** Visible text of the people pages (team, about, imprint) kept for the people step, all pages together. */
+export const PEOPLE_TEXT_MAX = 8_000;
+
+/** Pages that say little about the business, or mostly name people. Their text is not kept for openers. */
 const NO_TEXT_PATH = /privacy|privat|legal|impressum|imprint|terms|cookie|datenschutz|gdpr|persondata|kontakt|contact|team|staff|people|medarbejder|mitarbeiter/i;
 
 export interface CrawlDeps {
@@ -93,6 +102,14 @@ export interface CrawlResult {
   pages: PageVisit[];
   /** Visible text of the homepage and up to two pages about the business, for openers. */
   texts: SitePage[];
+  /** The people the pages name, one entry each, decision makers first, at most PEOPLE_MAX. */
+  people: FoundPerson[];
+  /**
+   * Visible text of the team, about and imprint pages, PEOPLE_TEXT_MAX in
+   * all, for the people step (src/leads/people-llm.ts). Never cached: it
+   * names people and holds their addresses.
+   */
+  peopleTexts: SitePage[];
   error?: string;
 }
 
@@ -185,7 +202,19 @@ export async function crawlSite(
   const fetcher = new SiteFetcher(deps, opts.maxBytes ?? CRAWL_MAX_BYTES, opts.signal);
   const pages: PageVisit[] = [];
   const found: ExtractedEmail[] = [];
+  const people: FoundPerson[] = [];
+  const peopleTexts: SitePage[] = [];
   const fetched = () => pages.filter((p) => p.note !== 'robots').length;
+  const empty = { emails: [], texts: [], people: [], peopleTexts: [] };
+  /** People and the text of a people page, from one page read. */
+  const readPeople = (html: string, url: string) => {
+    people.push(...extractPeople(html, url));
+    if (peoplePageKind(url) && peopleTexts.length < 6) {
+      // Without quotes and testimonials: Claude reads only what the company says of its own people.
+      const page = pageText(withoutQuotes(html), url, PEOPLE_TEXT_MAX);
+      if (page.text) peopleTexts.push(page);
+    }
+  };
 
   // Homepage. Small business sites still go without TLS or answer on only
   // one of www and the bare domain, so try those when the given one fails.
@@ -195,13 +224,13 @@ export async function crawlSite(
     pages.push(visit(home));
     if (home.kind !== 'error') break;
   }
-  if (!home) return { status: 'failed', emails: [], pages, texts: [], error: 'no homepage' };
-  if (home.kind === 'robots') return { status: 'blocked', emails: [], pages, texts: [] };
+  if (!home) return { status: 'failed', ...empty, pages, error: 'no homepage' };
+  if (home.kind === 'robots') return { status: 'blocked', ...empty, pages };
   if (home.kind === 'ok' && REFUSED_STATUSES.has(home.status)) {
-    return { status: 'refused', emails: [], pages, texts: [], error: `homepage answered ${home.status}` };
+    return { status: 'refused', ...empty, pages, error: `homepage answered ${home.status}` };
   }
   if (home.kind === 'error' || home.status >= 400) {
-    return { status: 'failed', emails: [], pages, texts: [], error: home.error ?? `homepage answered ${home.status}` };
+    return { status: 'failed', ...empty, pages, error: home.error ?? `homepage answered ${home.status}` };
   }
 
   let homeHtml = isHtml(home.contentType) ? decodeBody(home.body, home.contentType) : '';
@@ -216,8 +245,9 @@ export async function crawlSite(
     home = next;
     homeHtml = decodeBody(next.body, next.contentType);
   }
-  if (pageWall(homeHtml) === 'challenge') return { status: 'refused', emails: [], pages, texts: [], error: 'bot challenge' };
+  if (pageWall(homeHtml) === 'challenge') return { status: 'refused', ...empty, pages, error: 'bot challenge' };
   found.push(...extractEmails(homeHtml, home.url));
+  people.push(...extractPeople(homeHtml, home.url));
   const texts: SitePage[] = homeHtml ? [openerText(homeHtml, home.url)] : [];
 
   // A homepage that redirects to a new brand domain makes that domain "own site" too, unless it is a platform.
@@ -248,6 +278,7 @@ export async function crawlSite(
     if (page.kind === 'ok' && page.status < 400 && isHtml(page.contentType)) {
       const html = decodeBody(page.body, page.contentType);
       found.push(...extractEmails(html, page.url));
+      readPeople(html, page.url);
       if (texts.length < OPENER_PAGES && !NO_TEXT_PATH.test(new URL(page.url).pathname)) {
         texts.push(openerText(html, page.url));
       }
@@ -261,8 +292,34 @@ export async function crawlSite(
   }
 
   const emails = selectForCompany(found, own);
-  if (emails.length === 0 && looksJsOnly(homeHtml)) return { status: 'js_only', emails, pages, texts: [] };
-  return { status: 'done', emails, pages, texts: texts.filter((t) => t.text.length > 0) };
+  const named = mergePeople(people);
+  if (emails.length === 0 && looksJsOnly(homeHtml)) return { status: 'js_only', ...empty, emails, pages, people: named, peopleTexts: sharePeopleText(peopleTexts) };
+  return { status: 'done', emails, pages, texts: texts.filter((t) => t.text.length > 0), people: named, peopleTexts: sharePeopleText(peopleTexts) };
+}
+
+const KIND_ORDER = { team: 0, about: 1, imprint: 2 } as const;
+
+/**
+ * The people pages' text within PEOPLE_TEXT_MAX: team pages first, the
+ * imprint last, and the budget shared, so one long about page cannot crowd
+ * out the team page read after it. A page that needs less leaves the rest
+ * to the others.
+ */
+export function sharePeopleText(pages: SitePage[], max = PEOPLE_TEXT_MAX): SitePage[] {
+  const ordered = pages
+    .map((p, i) => ({ p, i, kind: KIND_ORDER[peoplePageKind(p.url) ?? 'imprint'] }))
+    .sort((a, b) => a.kind - b.kind || a.i - b.i)
+    .map(({ p }) => p);
+  // Shortest first, so what a short page does not need goes to the longer ones.
+  const sizes = new Map<SitePage, number>();
+  let left = max;
+  const bySize = [...ordered].sort((a, b) => a.text.length - b.text.length);
+  for (const [i, p] of bySize.entries()) {
+    const size = Math.min(p.text.length, Math.floor(left / (bySize.length - i)));
+    sizes.set(p, size);
+    left -= size;
+  }
+  return ordered.map((p) => ({ ...p, text: p.text.slice(0, sizes.get(p) ?? 0) })).filter((p) => p.text.length > 0);
 }
 
 /** Pages listed in the site's sitemaps (from robots.txt, else /sitemap.xml), at most `maxFiles` fetches. */

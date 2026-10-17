@@ -6,4 +6,6 @@ export * from './domain.ts';
 export * from './extract.ts';
 export * from './names.ts';
 export * from './pages.ts';
+export * from './people.ts';
+export * from './seniority.ts';
 export * from './site.ts';

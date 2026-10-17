@@ -26,19 +26,28 @@ describe('companiesToTsv', () => {
   it('writes a header and one row per email, tab separated', () => {
     const lines = companiesToTsv([company({ emails: [email, { ...email, id: 'e2', address: 'bo@acme.dk' }] })]).trim().split('\n');
     expect(lines).toHaveLength(3);
-    expect(lines[0]!.split('\t')).toHaveLength(10);
-    expect(lines[1]).toBe('Acme\tacme.dk\thttps://acme.dk\tinfo@acme.dk\tgeneric\tvalid\t\tAarhus\t+45 12 34 56 78\t');
+    expect(lines[0]!.split('\t')).toHaveLength(16);
+    expect(lines[1]).toBe('Acme\tacme.dk\thttps://acme.dk\tinfo@acme.dk\t\t\t\t\tgeneric\tvalid\t\t\t\tAarhus\t+45 12 34 56 78\t');
   });
 
   it('keeps a company without emails and flattens tabs and line breaks', () => {
     const [, row] = companiesToTsv([company({ name: 'A\tB\nC' })]).trim().split('\n');
-    expect(row).toBe('A B C\tacme.dk\thttps://acme.dk\t\t\t\t\tAarhus\t+45 12 34 56 78');
+    expect(row).toBe(`A B C\tacme.dk\thttps://acme.dk${'\t'.repeat(11)}Aarhus\t+45 12 34 56 78`);
   });
 
   it('defuses formulas but leaves phone numbers alone', () => {
     const [, row] = companiesToTsv([company({ name: '=HYPERLINK("x")', emails: [email] })]).trim().split('\n');
     expect(row!.startsWith(`'=HYPERLINK`)).toBe(true);
-    expect(row!.split('\t')[8]).toBe('+45 12 34 56 78');
+    expect(row!.split('\t')[14]).toBe('+45 12 34 56 78');
+  });
+});
+
+describe('the person columns', () => {
+  it('writes the person, how the address was found and the confidence', () => {
+    const named = { ...email, id: 'e3', address: 'ole@acme.dk', kind: 'personal', person: { firstName: 'Ole', lastName: 'Berg', title: 'CEO', seniority: 'founder' }, foundVia: 'page', confidence: 90 } as const;
+    const [header, row] = companiesToCsv([company({ emails: [named] })]).trim().split(/\r\n/);
+    const cells = Object.fromEntries(header!.split(',').map((h, i) => [h, row!.split(',')[i]]));
+    expect(cells).toMatchObject({ email: 'ole@acme.dk', first_name: 'Ole', last_name: 'Berg', title: 'CEO', seniority: 'founder', found_via: 'page', confidence: '90' });
   });
 });
 

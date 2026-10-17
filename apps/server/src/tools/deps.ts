@@ -16,13 +16,22 @@ import { turnstileCheck } from './turnstile.js';
 const TOOL_CRAWL_MAX_PAGES = 6;
 
 /**
- * The worker's SMTP connections a minute: SMTP_PROBES_PER_MINUTE less the
+ * The worker's IPv4 SMTP sessions a minute: SMTP_PROBES_PER_MINUTE less the
  * tools' share, since both processes probe from the same VPS address.
  * 0 (no limit) stays 0.
  */
 export function workerProbesPerMinute(env: Pick<Env, 'SMTP_PROBES_PER_MINUTE' | 'TOOLS_SMTP_PROBES_PER_MINUTE'>): number {
-  if (env.SMTP_PROBES_PER_MINUTE === 0) return 0;
-  return Math.max(1, env.SMTP_PROBES_PER_MINUTE - env.TOOLS_SMTP_PROBES_PER_MINUTE);
+  return lessToolsShare(env.SMTP_PROBES_PER_MINUTE, env);
+}
+
+/** The worker's SMTP sessions a minute in all: SMTP_SESSIONS_PER_MINUTE less the tools' share. */
+export function workerSessionsPerMinute(env: Pick<Env, 'SMTP_SESSIONS_PER_MINUTE' | 'TOOLS_SMTP_PROBES_PER_MINUTE'>): number {
+  return lessToolsShare(env.SMTP_SESSIONS_PER_MINUTE, env);
+}
+
+function lessToolsShare(limit: number, env: Pick<Env, 'TOOLS_SMTP_PROBES_PER_MINUTE'>): number {
+  if (limit === 0) return 0;
+  return Math.max(1, limit - env.TOOLS_SMTP_PROBES_PER_MINUTE);
 }
 
 /**
@@ -39,13 +48,19 @@ export function publicOnlyFetch(base: FetchLike = fetch): FetchLike {
 
 export function createToolsDeps(getSql: () => Sql, env: Env): Omit<ToolsRoutesOptions, 'limits' | 'now' | 'authDns'> {
   const share = env.TOOLS_SMTP_PROBES_PER_MINUTE;
-  const common = { heloName: env.SMTP_HELO_NAME, mailFrom: env.SMTP_PROBE_FROM };
+  const common = { heloName: env.SMTP_HELO_NAME, mailFrom: env.SMTP_PROBE_FROM, preferIpv6: env.SMTP_PREFER_IPV6 };
   // The cache is built per call so the API still boots without DATABASE_URL.
   const cache = {
     get: (address: string) => dbVerifyCache(getSql()).get(address),
     set: (result: Parameters<ReturnType<typeof dbVerifyCache>['set']>[0]) => dbVerifyCache(getSql()).set(result),
   };
-  const full = new Verifier({ ...common, smtpEnabled: env.SMTP_PROBE_ENABLED && share > 0, probesPerMinute: share, cache });
+  const full = new Verifier({
+    ...common,
+    smtpEnabled: env.SMTP_PROBE_ENABLED && share > 0,
+    probesPerMinute: share,
+    sessionsPerMinute: share,
+    cache,
+  });
   const lite = new Verifier({ ...common, smtpEnabled: false, cache });
 
   const fetchImpl = publicOnlyFetch();

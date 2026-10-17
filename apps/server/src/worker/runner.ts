@@ -16,6 +16,7 @@ import {
   type PipelineDeps,
 } from './pipeline.js';
 import { onOpenerGaveUp, runOpener } from '../openers/openers.js';
+import { onPeopleGaveUp, runPeople, settleCompanyLead } from './people-job.js';
 import { claim, complete, fail, release, requeueStale, type Job, type JobType } from './queue.js';
 
 export interface RunnerOptions {
@@ -35,6 +36,8 @@ const DEFAULT_TIMEOUTS: Record<JobType, number> = {
   verify: 2 * 60_000,
   // One Claude call for a batch of companies.
   opener: 3 * 60_000,
+  // One SMTP session per company, behind the MX host's lock.
+  people: 3 * 60_000,
 };
 
 class ShutdownSignal extends Error {
@@ -70,6 +73,7 @@ export class Runner {
       verify: Math.max(1, Math.ceil(n / 2)),
       crawl: n,
       opener: Math.max(1, Math.floor(n / 4)),
+      people: Math.max(1, Math.floor(n / 4)),
     };
   }
 
@@ -129,11 +133,11 @@ export class Runner {
   }
 
   private async fill(): Promise<number> {
-    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0 };
+    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0 };
     for (const r of this.running.values()) counts[r.job.type]++;
     let claimed = 0;
     // Verify gets its share before crawl takes whatever is left.
-    for (const type of ['find', 'verify', 'opener', 'crawl'] as const) {
+    for (const type of ['find', 'verify', 'people', 'opener', 'crawl'] as const) {
       const free = this.opts.concurrency - this.running.size;
       const room = Math.min(free, this.caps[type] - counts[type]);
       if (room <= 0 || this.stopping) continue;
@@ -169,8 +173,13 @@ export class Runner {
       if (job.type === 'find') await runFind(this.deps, job, signal);
       else if (job.type === 'crawl') await runCrawl(this.deps, job, signal);
       else if (job.type === 'opener') await this.opener(job);
+      else if (job.type === 'people') await runPeople(this.deps, job, signal);
       else await runVerify(this.deps, job, signal);
       await complete(this.deps.sql, job.id);
+      // Now this people job is off the queue, a company that was waiting on it can settle.
+      if (job.type === 'people' && typeof job.payload.companyId === 'string') {
+        await settleCompanyLead(this.deps, job.payload.companyId);
+      }
     } catch (err) {
       if (signal.reason instanceof ShutdownSignal) {
         await release(this.deps.sql, job.id);
@@ -186,6 +195,7 @@ export class Runner {
         if (job.type === 'find') await onFindGaveUp(this.deps, job, error);
         else if (job.type === 'crawl') await onCrawlGaveUp(this.deps, job);
         else if (job.type === 'opener') await onOpenerGaveUp(this.deps, job);
+        else if (job.type === 'people') onPeopleGaveUp(this.deps, job);
         else await onVerifyGaveUp(this.deps, job);
       }
     }

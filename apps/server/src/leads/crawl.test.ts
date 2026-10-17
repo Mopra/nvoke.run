@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fakeFetch, fixture, type FakeRoute } from '../testing/fakes.js';
-import { crawlSite, pickLikelyPages, type CrawlDeps } from './crawl.js';
+import { crawlSite, pickLikelyPages, sharePeopleText, type CrawlDeps } from './crawl.js';
 import type { FetchLike } from './http.js';
 import { RateLimiter } from './limits.js';
 import { RobotsCache } from './robots.js';
@@ -82,6 +82,29 @@ describe('crawlSite', () => {
     expect(result.texts[0]!.text).not.toContain('Kontakt');
     // No addresses: the shared cache keeps none of a person's.
     expect(result.texts[1]).toMatchObject({ title: 'Om os', text: 'Since 1998 in Aarhus. Ask or .' });
+  });
+
+  it('returns the people the pages name, decision makers first, and the people pages text apart from the opener text', async () => {
+    const fetch = fakeFetch({
+      'https://acme.dk/': page(HOME.replace('<p>Welcome.</p>', '<p>Mette Hansen, CEO</p>')),
+      'https://acme.dk/kontakt': page('<p>Skriv til info@acme.dk</p><p>Geschäftsführer: Ole Berg</p>'),
+      'https://acme.dk/team/': page(
+        '<div><h3>Sofie Lund</h3><p>Designer</p></div><div><h3>Jonas Kirk</h3><p>Head of Growth</p></div><div><h3>Mette Hansen</h3><p>Adm. direktør</p></div>',
+      ),
+      'https://www.acme.dk/om-os': page('<p>Since 1998 in Aarhus.</p>'),
+      'https://acme.dk/privatlivspolitik': page('<p>Dataansvarlig</p>'),
+    });
+    const result = await crawlSite('https://acme.dk/', 'acme.dk', deps(fetch));
+    expect(result.people.map((p) => [p.firstName, p.lastName, p.title, p.seniority])).toEqual([
+      ['Mette', 'Hansen', 'CEO', 'founder'],
+      ['Ole', 'Berg', 'Geschäftsführer', 'founder'],
+      ['Jonas', 'Kirk', 'Head of Growth', 'director'],
+      ['Sofie', 'Lund', 'Designer', 'staff'],
+    ]);
+    expect(result.people[0]!.sourceUrl).toBe('https://acme.dk/');
+    expect(result.peopleTexts.map((t) => t.url)).toEqual(['https://acme.dk/team/', 'https://www.acme.dk/om-os']);
+    expect(result.peopleTexts[0]!.text).toContain('Head of Growth');
+    expect(result.texts.map((t) => t.url)).not.toContain('https://acme.dk/team/');
   });
 
   it('extracts from a realistic Danish contact page', async () => {
@@ -287,5 +310,23 @@ describe('crawlSite', () => {
     const result = await crawlSite('https://quiet.dk/', 'quiet.dk', deps(fetch));
     expect(result.emails.map((e) => e.address)).toEqual(['stol@quiet.dk']);
     expect(result.pages.filter((p) => p.note !== 'robots').length).toBeLessThanOrEqual(8);
+  });
+});
+
+describe('sharePeopleText', () => {
+  const pageOf = (url: string, n: number) => ({ url, title: '', description: '', text: 'x'.repeat(n) });
+
+  it('shares the budget, team pages first and the imprint last', () => {
+    const shared = sharePeopleText([pageOf('https://a.dk/om-os', 9_000), pageOf('https://a.dk/impressum', 500), pageOf('https://a.dk/team', 9_000)], 8_000);
+    expect(shared.map((p) => [p.url, p.text.length])).toEqual([
+      ['https://a.dk/team', 3_750],
+      ['https://a.dk/om-os', 3_750],
+      ['https://a.dk/impressum', 500],
+    ]);
+  });
+
+  it('leaves what a short page does not need to the others', () => {
+    const shared = sharePeopleText([pageOf('https://a.dk/team', 300), pageOf('https://a.dk/about', 9_000)], 8_000);
+    expect(shared.map((p) => p.text.length)).toEqual([300, 7_700]);
   });
 });
