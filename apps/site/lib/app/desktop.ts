@@ -23,9 +23,13 @@ export {
   periodLabel,
   relativeTime,
   resetDate,
+  runsAdded,
+  runTitle,
   searchSubtitle,
+  searchRuns,
   searchTitle,
   type LaunchWindow,
+  type SearchRun,
 } from '../../../desktop/src/renderer/src/lib/format';
 export { countries, countryName, matchCountries, type Country } from '../../../desktop/src/renderer/src/lib/countries';
 export { dismissExportNotice, shouldShowExportNotice } from '../../../desktop/src/renderer/src/lib/export-notice';

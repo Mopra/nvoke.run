@@ -56,6 +56,8 @@ export function describeError(status: number, code: string): string {
   if (code === 'site_unreadable') return 'We couldn’t read that website.';
   if (code === 'ai_unavailable') return 'Claude isn’t answering right now. Try again in a few minutes.';
   if (code === 'cancelled') return 'Stopped.';
+  if (code === 'search_running') return 'This search is still running. Search more once it finishes.';
+  if (code === 'kind_mismatch') return 'A search runs again with its own kind. Start a new search for another kind.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Your session expired. Sign in again.';
   if (status === 404) return 'That search is gone.';
@@ -149,6 +151,8 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     listSearches: async (): Promise<Search[]> => (await call<SearchListResponse>('GET', '/v1/searches')).searches,
     getSearch: (id: string): Promise<Search> => call('GET', `/v1/searches/${enc(id)}`),
     createSearch: (input: CreateSearchInput): Promise<Search> => call('POST', '/v1/searches', input),
+    /** Runs an ended search again with new params of its kind; only companies it does not hold yet are added. */
+    searchMore: (id: string, input: CreateSearchInput): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/more`, input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
     deleteSearch: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/searches/${enc(id)}`);

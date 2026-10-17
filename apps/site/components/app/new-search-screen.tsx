@@ -1,19 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent, type Ref } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, ChevronDown, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react';
+import { ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { itemDomain, SEARCH_LIMIT_MAX, type CreateSearchInput } from '@nvoke/shared';
-import { CountryPicker } from '@/components/app/country-picker';
-import { Line, Pill, SENTENCE, SentenceInput } from '@/components/app/sentence';
+import { SEARCH_LIMIT_MAX, type CreateSearchInput } from '@nvoke/shared';
+import { SearchFields } from '@/components/app/search-fields';
 import { APP_COLUMN, APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isQuotaError } from '@/lib/app/api';
-import { formatNumber, searchTitle, WINDOW_LABEL, type LaunchWindow } from '@/lib/app/desktop';
+import { formatNumber, searchTitle } from '@/lib/app/desktop';
 import { BILLING_PATH, quotaState } from '@/lib/app/quota';
 import { useCreateSearch, useMe } from '@/lib/app/queries';
 import { WEBSITE_PATH } from '@/lib/app/site-profile';
@@ -21,8 +19,6 @@ import {
   buildSearchInput,
   emptyForm,
   formProblem,
-  LIMIT_PRESETS,
-  summarizeList,
   type FormKind,
   type SearchForm,
 } from '@/lib/app/search-form';
@@ -80,7 +76,6 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
 
   // The plan caps one search; the server clamps too, this keeps the form honest.
   const maxLimit = me.data?.maxSearchLimit ?? SEARCH_LIMIT_MAX;
-  const list = summarizeList(form.list, maxLimit);
   const input = buildSearchInput(form, maxLimit);
   const quota = me.data ? quotaState(me.data) : null;
 
@@ -91,8 +86,6 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
     create.start(input);
   }
 
-  const invalid = (value: string): boolean => touched && !value.trim();
-  const preset = LIMIT_PRESETS.find((p) => p === form.limit) ?? null;
   const problem = touched ? formProblem(form, maxLimit) : null;
 
   return (
@@ -126,120 +119,8 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
           <p className="pl-1 text-sm text-muted-foreground">{SOURCES[form.kind]}</p>
         </div>
 
-        <div className="mt-12 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-3 sm:gap-x-6">
-          {form.kind === 'local' && (
-            <>
-              <Line lead="Find" htmlFor="niche">
-                <SentenceInput
-                  id="niche"
-                  ref={firstField}
-                  value={form.niche}
-                  onChange={(e) => set('niche')(e.target.value)}
-                  placeholder="dentists"
-                  aria-invalid={invalid(form.niche)}
-                />
-              </Line>
-              <Line lead="in" htmlFor="location">
-                <SentenceInput
-                  id="location"
-                  value={form.location}
-                  onChange={(e) => set('location')(e.target.value)}
-                  placeholder="Austin"
-                  aria-invalid={invalid(form.location)}
-                />
-              </Line>
-            </>
-          )}
-
-          {form.kind === 'web' && (
-            <>
-              <Line lead="Find" htmlFor="keyword">
-                <SentenceInput
-                  id="keyword"
-                  ref={firstField}
-                  value={form.keyword}
-                  onChange={(e) => set('keyword')(e.target.value)}
-                  placeholder="headless CMS"
-                  aria-invalid={invalid(form.keyword)}
-                />
-              </Line>
-              <Line lead="in" htmlFor="country">
-                <CountryPicker id="country" value={form.country} onChange={set('country')} triggerClassName={SENTENCE} />
-              </Line>
-            </>
-          )}
-
-          {form.kind === 'launches' && (
-            <>
-              <Line lead="Find" htmlFor="launch-keyword">
-                <SentenceInput
-                  id="launch-keyword"
-                  ref={firstField}
-                  value={form.launchKeyword}
-                  onChange={(e) => set('launchKeyword')(e.target.value)}
-                  placeholder="any launch"
-                />
-              </Line>
-              <Line lead="from the" htmlFor="launch-window">
-                <SentenceSelect
-                  id="launch-window"
-                  value={form.launchWindow}
-                  onChange={(v) => set('launchWindow')(v as LaunchWindow)}
-                  options={(Object.keys(WINDOW_LABEL) as LaunchWindow[]).map((w) => [w, WINDOW_LABEL[w].toLowerCase()])}
-                />
-              </Line>
-            </>
-          )}
-
-          {form.kind === 'domains' && (
-            <>
-              <Line lead="Contacts at" htmlFor="list">
-                <ListField
-                  id="list"
-                  ref={listField}
-                  value={form.list}
-                  onChange={set('list')}
-                  invalid={touched && (list.items.length === 0 || list.tooLong)}
-                />
-              </Line>
-              <ListSummary items={list.items} domains={list.domains} names={list.names} max={maxLimit} />
-              {list.names > 0 && (
-                <Line lead="names in" htmlFor="list-country">
-                  <CountryPicker id="list-country" value={form.listCountry} onChange={set('listCountry')} triggerClassName={SENTENCE} />
-                </Line>
-              )}
-            </>
-          )}
-
-          {form.kind !== 'domains' && (
-            <>
-              <Line lead="up to" htmlFor="limit">
-                <div className="flex items-baseline gap-3 sm:gap-4">
-                  <input
-                    id="limit"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={maxLimit}
-                    value={Number.isNaN(form.limit) ? '' : form.limit}
-                    onChange={(e) => set('limit')(e.target.valueAsNumber)}
-                    style={{ width: `${Math.max(2, String(Number.isNaN(form.limit) ? '' : form.limit).length) + 0.4}ch` }}
-                    className={cn(SENTENCE, 'tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none')}
-                  />
-                  <span className="font-display text-[26px]/[34px] font-semibold tracking-[-0.03em] text-muted-foreground/50 sm:text-4xl">
-                    companies
-                  </span>
-                </div>
-              </Line>
-              <div className="col-start-2 -mt-1 -ml-3 flex flex-wrap gap-1" role="group" aria-label="Preset limits">
-                {LIMIT_PRESETS.map((p) => (
-                  <Pill key={p} pressed={preset === p} onClick={() => set('limit')(p)}>
-                    {p}
-                  </Pill>
-                ))}
-              </div>
-            </>
-          )}
+        <div className="mt-12">
+          <SearchFields form={form} onChange={setForm} touched={touched} maxLimit={maxLimit} firstField={firstField} listField={listField} />
         </div>
 
         <div className="mt-14 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
@@ -269,105 +150,5 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
         </div>
       </form>
     </main>
-  );
-}
-
-/** The pasted list in display type, growing with its lines up to a scroll. Monospace, since most of it is domains. */
-function ListField({
-  id,
-  ref,
-  value,
-  onChange,
-  invalid,
-}: {
-  id: string;
-  ref: Ref<HTMLTextAreaElement>;
-  value: string;
-  onChange: (value: string) => void;
-  invalid: boolean;
-}) {
-  const lines = Math.min(8, Math.max(3, value.split('\n').length));
-  return (
-    <textarea
-      id={id}
-      ref={ref}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      rows={lines}
-      spellCheck={false}
-      autoComplete="off"
-      aria-invalid={invalid}
-      aria-describedby="list-summary"
-      placeholder={'acme.com\nhttps://linear.app\nNovo Nordisk'}
-      className={cn(SENTENCE, 'block w-full resize-none overflow-y-auto font-mono text-lg/[1.45] font-normal tracking-tight sm:text-2xl/[1.45]')}
-    />
-  );
-}
-
-/** What the list holds, read back as the user types: domains against names, and the first few items. */
-function ListSummary({ items, domains, names, max }: { items: string[]; domains: number; names: number; max: number }) {
-  const shown = items.slice(0, 6);
-  const parts = [
-    domains > 0 && `${formatNumber(domains)} ${domains === 1 ? 'domain' : 'domains'}`,
-    names > 0 && `${formatNumber(names)} ${names === 1 ? 'name' : 'names'} to look up`,
-  ].filter(Boolean);
-  return (
-    <div
-      id="list-summary"
-      aria-live="polite"
-      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground"
-    >
-      {items.length === 0 ? (
-        <span>One per line: domains, websites, email addresses or company names. Up to {formatNumber(max)}.</span>
-      ) : (
-        <>
-          <span className={cn('mr-1 tabular-nums', items.length > max ? 'text-destructive' : 'text-foreground')}>
-            {items.length > max ? `More than ${formatNumber(max)}` : parts.join(', ')}
-          </span>
-          {shown.map((item) => {
-            const domain = itemDomain(item);
-            return (
-              <span key={item} className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5', domain && 'font-mono')}>
-                {domain ?? item}
-              </span>
-            );
-          })}
-          {items.length > shown.length && items.length <= max && <span>and {formatNumber(items.length - shown.length)} more</span>}
-        </>
-      )}
-    </div>
-  );
-}
-
-const ANY = 'any';
-
-function SentenceSelect({
-  id,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: [string, string][];
-}) {
-  // Radix reserves the empty string for "no value", so "any" stands in for it.
-  return (
-    <Select value={value || ANY} onValueChange={(v) => onChange(v === ANY ? '' : v)}>
-      <SelectTrigger id={id} className={cn(SENTENCE, 'w-full text-left')}>
-        <span className="min-w-0 flex-1 truncate py-[0.12em]">
-          <SelectValue />
-        </span>
-        <ChevronDown className="size-6 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
-      </SelectTrigger>
-      <SelectContent align="start">
-        {options.map(([code, name]) => (
-          <SelectItem key={code || ANY} value={code || ANY} className="*:first-letter:uppercase">
-            {name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

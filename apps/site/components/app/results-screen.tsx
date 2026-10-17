@@ -15,6 +15,7 @@ import {
   Loader2,
   MoreHorizontal,
   PenLine,
+  Plus,
   Radar,
   RefreshCw,
   RotateCw,
@@ -30,6 +31,7 @@ import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/app/indicators';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
+import { FoundFewNote, RunsLine, SearchMorePanel } from '@/components/app/search-more';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { EmptyState, ErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
@@ -70,6 +72,7 @@ import {
   useRefreshWhenFinished,
   useSearch,
 } from '@/lib/app/queries';
+import { canSearchMore, foundFew } from '@/lib/app/search-form';
 import { cn } from '@/lib/utils';
 
 const COLUMNS = 'md:grid md:grid-cols-[minmax(10rem,1fr)_minmax(17rem,1.6fr)_minmax(7rem,0.6fr)_3.5rem] md:gap-6';
@@ -129,7 +132,20 @@ function Stat({ label, value, sub }: { label: string; value: number; sub?: strin
   );
 }
 
-function Overview({ search, timing, onRunAgain, starting }: { search: Search; timing: string; onRunAgain: () => void; starting: boolean }) {
+function Overview({
+  search,
+  timing,
+  onRunAgain,
+  starting,
+  onSearchMore,
+}: {
+  search: Search;
+  timing: string;
+  onRunAgain: () => void;
+  starting: boolean;
+  /** Null while Search more is open, or when the search cannot run again. */
+  onSearchMore: (() => void) | null;
+}) {
   const active = isActive(search.status);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
@@ -141,6 +157,7 @@ function Overview({ search, timing, onRunAgain, starting }: { search: Search; ti
           {searchSubtitle(search)}, {timing}
         </span>
       </div>
+      <RunsLine search={search} />
       <div className="mt-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
         <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
         <Stat label="Websites crawled" value={search.companiesCrawled} />
@@ -177,6 +194,9 @@ function Overview({ search, timing, onRunAgain, starting }: { search: Search; ti
             </Button>
           )}
         </div>
+      )}
+      {onSearchMore && foundFew(search) && search.companiesFound > 0 && !stoppedByQuota(search) && (
+        <FoundFewNote search={search} onSearchMore={onSearchMore} />
       )}
     </section>
   );
@@ -443,6 +463,7 @@ export function ResultsScreen({ id }: { id: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState(false);
+  const [searchingMore, setSearchingMore] = useState(false);
   const q = useDebounced(text.trim(), 250);
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(id, { q: q || undefined, verification, kind }, live);
@@ -545,6 +566,12 @@ export function ResultsScreen({ id }: { id: string }) {
       <BackLink />
       {search && (
         <div className="ml-auto flex items-center gap-2">
+          {canSearchMore(search) && !searchingMore && (
+            <Button variant="glass" size="sm" className="h-9 px-4" onClick={() => setSearchingMore(true)}>
+              <Plus />
+              Search more
+            </Button>
+          )}
           {live && (
             <Button variant="glass" size="sm" className="h-9 px-4" onClick={doCancel} disabled={cancel.isPending}>
               <Ban />
@@ -558,6 +585,12 @@ export function ResultsScreen({ id }: { id: string }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {canSearchMore(search) && (
+                <DropdownMenuItem onSelect={() => setSearchingMore(true)} disabled={searchingMore}>
+                  <Plus />
+                  Search more
+                </DropdownMenuItem>
+              )}
               {search.kind !== 'drop' && (
                 <DropdownMenuItem onSelect={runAgain} disabled={live || create.isPending}>
                   <RotateCw />
@@ -633,7 +666,14 @@ export function ResultsScreen({ id }: { id: string }) {
   return (
     <main className={cn(APP_FRAME, 'pb-40')}>
       {header}
-      <Overview search={search} timing={timing} onRunAgain={runAgain} starting={create.isPending} />
+      <Overview
+        search={search}
+        timing={timing}
+        onRunAgain={runAgain}
+        starting={create.isPending}
+        onSearchMore={canSearchMore(search) && !searchingMore ? () => setSearchingMore(true) : null}
+      />
+      {searchingMore && canSearchMore(search) && <SearchMorePanel search={search} onClose={() => setSearchingMore(false)} />}
 
       <div className={cn(COLUMNS, 'hidden px-6 py-2 text-xs text-muted-foreground')}>
         <span>Company</span>
@@ -687,13 +727,22 @@ export function ResultsScreen({ id }: { id: string }) {
             <EmptyState icon={Radar} title="Looking for companies">
               They show up here the moment we find them.
             </EmptyState>
-          ) : search.status === 'failed' ? (
-            <EmptyState icon={Inbox} title="No companies found">
-              It stopped before finding any.
-            </EmptyState>
           ) : (
-            <EmptyState icon={Inbox} title="No companies found">
-              Try a broader keyword or a bigger area.
+            <EmptyState
+              icon={Inbox}
+              title="No companies found"
+              action={
+                canSearchMore(search) && !searchingMore && !stoppedByQuota(search) ? (
+                  <Button onClick={() => setSearchingMore(true)}>
+                    <Plus />
+                    Search more
+                  </Button>
+                ) : undefined
+              }
+            >
+              {search.status === 'failed'
+                ? 'It stopped before finding any. Search again into this list, wider or with other words.'
+                : 'Widen it: another place, keyword or window adds to this list.'}
             </EmptyState>
           )
         ) : (

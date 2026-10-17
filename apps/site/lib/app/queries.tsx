@@ -138,6 +138,28 @@ export function useCreateSearch() {
   });
 }
 
+/**
+ * Runs an ended search again into the same list. The search goes back to
+ * queued, so its page polls again; its companies refetch at once.
+ */
+export function useSearchMore(id: string) {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSearchInput) => api.searchMore(id, input),
+    onSuccess: (search) => {
+      client.setQueryData(keys.search(search.id), search);
+      client.setQueryData<Search[]>(keys.searches, (list) => list?.map((s) => (s.id === search.id ? search : s)));
+      void client.invalidateQueries({ queryKey: [...keys.search(id), 'companies'] });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'quota_exceeded') void client.invalidateQueries({ queryKey: keys.me });
+      // Someone else started it meanwhile (another tab, the desktop app): show it running.
+      if (error instanceof ApiError && error.code === 'search_running') void client.invalidateQueries({ queryKey: keys.search(id), exact: true });
+    },
+  });
+}
+
 export function useCancelSearch() {
   const api = useApi();
   const client = useQueryClient();

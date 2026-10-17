@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { CreateSearchRequest } from '@nvoke/shared';
-import { buildSearchInput, clampLimit, emptyForm, formProblem, isFormKind, summarizeList, type SearchForm } from './search-form';
+import { CreateSearchRequest, type Search } from '@nvoke/shared';
+import {
+  buildSearchInput,
+  canSearchMore,
+  clampLimit,
+  emptyForm,
+  formFromSearch,
+  formProblem,
+  foundFew,
+  isFormKind,
+  summarizeList,
+  type SearchForm,
+} from './search-form';
 
 const form = (patch: Partial<SearchForm>): SearchForm => ({ ...emptyForm(patch.kind), ...patch });
 
@@ -98,5 +109,63 @@ describe('isFormKind', () => {
     expect(isFormKind('drop')).toBe(false);
     expect(isFormKind(undefined)).toBe(false);
     expect(isFormKind(['web'])).toBe(false);
+  });
+});
+
+const base = {
+  id: '00000000-0000-4000-8000-000000000001',
+  limit: 50,
+  status: 'done',
+  error: null,
+  companiesFound: 12,
+  companiesCrawled: 12,
+  emailsFound: 9,
+  emailsValid: 4,
+  createdAt: '2026-10-17T10:00:00.000Z',
+  startedAt: '2026-10-17T10:00:01.000Z',
+  finishedAt: '2026-10-17T10:05:00.000Z',
+} as const;
+
+describe('search more', () => {
+  it('starts from the latest run of a local search', () => {
+    const search = {
+      ...base,
+      kind: 'local',
+      params: { niche: 'dentists', location: 'Odense' },
+      limit: 62,
+      runs: [
+        { params: { niche: 'dentists', location: 'Aarhus' }, limit: 50, foundBefore: 0, createdAt: base.createdAt },
+        { params: { niche: 'dentists', location: 'Odense' }, limit: 25, foundBefore: 37, createdAt: base.createdAt },
+      ],
+    } as Search & { kind: 'local' };
+    const next = formFromSearch(search);
+    expect(next).toMatchObject({ kind: 'local', niche: 'dentists', location: 'Odense', limit: 25 });
+    const input = buildSearchInput({ ...next, location: 'Vejle' });
+    expect(input).toEqual({ kind: 'local', params: { niche: 'dentists', location: 'Vejle' }, limit: 25 });
+    expect(CreateSearchRequest.safeParse(input).success).toBe(true);
+  });
+
+  it('takes the limit of a search from before runs were kept', () => {
+    const search = { ...base, kind: 'web', params: { keyword: 'roofing', country: 'us' } } as Search & { kind: 'web' };
+    expect(formFromSearch(search)).toMatchObject({ kind: 'web', keyword: 'roofing', country: 'us', limit: 50 });
+  });
+
+  it('keeps the launch window and starts a list empty with its country', () => {
+    const launches = { ...base, kind: 'launches', params: { days: 30, keyword: 'ai' } } as Search & { kind: 'launches' };
+    expect(formFromSearch(launches)).toMatchObject({ launchKeyword: 'ai', launchWindow: 'month' });
+    const list = { ...base, kind: 'domains', params: { items: ['acme.com'], country: 'dk' } } as Search & { kind: 'domains' };
+    const next = formFromSearch(list);
+    expect(next).toMatchObject({ kind: 'domains', list: '', listCountry: 'dk' });
+    expect(buildSearchInput(next)).toBeNull();
+  });
+
+  it('offers it once a search ended, never for drops, and invites it when few were found', () => {
+    const local = { ...base, kind: 'local', params: { niche: 'dentists', location: 'Aarhus' } } as Search;
+    expect(canSearchMore(local)).toBe(true);
+    expect(foundFew(local)).toBe(true);
+    expect(foundFew({ ...local, companiesFound: 50 })).toBe(false);
+    expect(canSearchMore({ ...local, status: 'running' })).toBe(false);
+    expect(canSearchMore({ ...local, status: 'canceled' })).toBe(true);
+    expect(canSearchMore({ ...base, kind: 'drop', params: { dropId: base.id, dropName: 'AI' } } as unknown as Search)).toBe(false);
   });
 });

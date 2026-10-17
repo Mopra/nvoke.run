@@ -1,5 +1,5 @@
-import { itemDomain, SEARCH_LIMIT_MAX, splitList, type CreateSearchInput, type SearchKind } from '@nvoke/shared';
-import { WINDOW_DAYS, type LaunchWindow } from './desktop';
+import { itemDomain, SEARCH_LIMIT_MAX, splitList, type CreateSearchInput, type Search, type SearchKind } from '@nvoke/shared';
+import { isActive, searchRuns, WINDOW_DAYS, type LaunchWindow } from './desktop';
 
 /**
  * The new search form as data: what the fields hold, and the request they
@@ -110,4 +110,41 @@ export function formProblem(form: SearchForm, maxLimit: number = SEARCH_LIMIT_MA
   return summarizeList(form.list, maxLimit).tooLong
     ? `Up to ${maxLimit.toLocaleString('en-US')} companies in one list.`
     : 'Paste a domain or a company name per line.';
+}
+
+/** Whether a search can run again into the same list: it ended, and a drop's searches never do. */
+export function canSearchMore(search: Search): search is Search & { kind: FormKind } {
+  return search.kind !== 'drop' && !isActive(search.status);
+}
+
+/** An ended search that came back with fewer companies than it asked for, so widening it is the next step. */
+export function foundFew(search: Search): search is Search & { kind: FormKind } {
+  return canSearchMore(search) && search.companiesFound < search.limit;
+}
+
+/** The launch window closest to a number of days. */
+function windowFor(days: number): LaunchWindow {
+  return (Object.keys(WINDOW_DAYS) as LaunchWindow[]).reduce((best, w) =>
+    Math.abs(WINDOW_DAYS[w] - days) < Math.abs(WINDOW_DAYS[best] - days) ? w : best,
+  );
+}
+
+/**
+ * The form for another run of a search: its kind, the latest run's params
+ * and limit to start from. A list starts empty, since it takes more items.
+ */
+export function formFromSearch(search: Search & { kind: FormKind }): SearchForm {
+  const form = emptyForm(search.kind);
+  const latest = searchRuns(search).at(-1);
+  form.limit = latest && search.kind !== 'domains' ? latest.limit : DEFAULT_LIMIT;
+  switch (search.kind) {
+    case 'local':
+      return { ...form, niche: search.params.niche, location: search.params.location };
+    case 'web':
+      return { ...form, keyword: search.params.keyword, country: search.params.country ?? '' };
+    case 'launches':
+      return { ...form, launchKeyword: search.params.keyword ?? '', launchWindow: windowFor(search.params.days) };
+    case 'domains':
+      return { ...form, listCountry: search.params.country ?? '' };
+  }
 }
