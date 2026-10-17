@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Crawl hit rate stopped after an uncommitted sample retry fix with nothing running; told it to commit, rerun failed countries once, then freeze the sample (shortfall noted) and go on to baseline and improvements without stopping.
 - 2026-10-17 Round as the human left: journey check now running, crawl hit rate running, three blocks with the human. Nothing to do.
 - 2026-10-17 Round after Openers landed (8672ee6, b1b1d38): Push leads blocked by its own timebox, left with the human (aim is met without it). Filed 'Journey check: paste your site to a CSV with openers, end to end' (sonnet) for the aim. Crawl hit rate still running. 24 quests since the last ship, left shipping to the human.
 - 2026-10-17 Crawl hit rate stopped again, only waiting on its own web sample slice after stopping a duplicate watcher; noted, no message sent.
@@ -93,6 +94,7 @@
 ## Open
 
 - Push leads blocked with the human: build it or not (spec in docs/SPEC.md, Push to sending tools).
+- Crawl hit rate told its sample retry is the last; if it stops on the sample again, push it straight to baseline.
 - Journey check filed; when it and crawl hit rate land, decide whether the Go public aim is done (needs a ship, which is the human's).
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
