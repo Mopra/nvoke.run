@@ -65,6 +65,9 @@ export const BUILD_PHASES: { at: number; label: (domain: string) => string }[] =
   { at: 24_000, label: () => 'Planning the searches' },
 ];
 
+/** When the server answers early, each phase left over still ticks by, this far apart, so the list never jumps to the result. */
+export const BUILD_RUNOUT_MS = 400;
+
 /** After this long the last phase says that big sites take longer. */
 export const BUILD_SLOW_MS = 35_000;
 

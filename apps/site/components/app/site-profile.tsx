@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Check, CornerDownLeft, Loader2, Pencil, Play, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useBuildSiteProfile, useSiteProfile, useUpdateSiteProfile } from '@/lib/app/queries';
 import {
   BUILD_PHASES,
+  BUILD_RUNOUT_MS,
   BUILD_SLOW_MS,
   buildPhase,
   buildProblem,
@@ -44,6 +45,9 @@ export function WebsiteScreen() {
   // With a profile on file: typing another site, or editing the profile.
   const [entering, setEntering] = useState(false);
   const [editing, setEditing] = useState(false);
+  // The build screen outlives the request until its phases have played out.
+  const [building, setBuilding] = useState<'off' | 'reading' | 'read'>('off');
+  const finishBuilding = useCallback(() => setBuilding('off'), []);
 
   function run(raw: string): void {
     const read = readWebsite(raw);
@@ -53,12 +57,15 @@ export function WebsiteScreen() {
     }
     setProblem(null);
     setDomain(read.domain);
+    setBuilding('reading');
     build.mutate(read.website, {
       onSuccess: () => {
+        setBuilding('read');
         setEntering(false);
         setEditing(false);
       },
       onError: () => {
+        setBuilding('off');
         // Back to the field with what was read, so the error sits under it.
         setValue(raw);
         setEntering(true);
@@ -71,8 +78,8 @@ export function WebsiteScreen() {
     body = <ProfileSkeleton />;
   } else if (profile.error) {
     body = <ErrorState error={profile.error} onRetry={() => void profile.refetch()} />;
-  } else if (build.isPending) {
-    body = <Building domain={domain} />;
+  } else if (building !== 'off') {
+    body = <Building domain={domain} done={building === 'read'} onFinished={finishBuilding} />;
   } else if (!profile.data || entering) {
     body = (
       <WebsiteForm
@@ -208,15 +215,35 @@ function WebsiteForm({
   );
 }
 
-/** While the server reads the site: the phases one after another, no fake percentage, and the aura. */
-function Building({ domain }: { domain: string }) {
+/**
+ * While the server reads the site: the phases one after another, no fake
+ * percentage, and the aura. Once `done`, the phases left tick by quickly and
+ * then `onFinished` shows the result.
+ */
+function Building({ domain, done, onFinished }: { domain: string; done: boolean; onFinished: () => void }) {
+  const [started] = useState(() => Date.now());
   const [elapsed, setElapsed] = useState(0);
+  const [runout, setRunout] = useState<number | null>(null);
   useEffect(() => {
-    const start = Date.now();
-    const timer = setInterval(() => setElapsed(Date.now() - start), 500);
+    const timer = setInterval(() => setElapsed(Date.now() - started), 500);
     return () => clearInterval(timer);
-  }, []);
-  const current = buildPhase(elapsed);
+  }, [started]);
+  useEffect(() => {
+    if (!done) return;
+    let step = buildPhase(Date.now() - started);
+    // One past the last phase checks them all, one more tick lets that land.
+    const timer = setInterval(() => {
+      step += 1;
+      if (step > BUILD_PHASES.length) {
+        clearInterval(timer);
+        onFinished();
+      } else {
+        setRunout(step);
+      }
+    }, BUILD_RUNOUT_MS);
+    return () => clearInterval(timer);
+  }, [done, started, onFinished]);
+  const current = runout ?? buildPhase(elapsed);
 
   return (
     <section role="status" aria-live="polite" aria-label={`Reading ${domain}`} className="relative">
@@ -256,7 +283,7 @@ function Building({ domain }: { domain: string }) {
         ))}
       </ol>
       <p className="mt-10 text-sm text-muted-foreground">
-        {elapsed >= BUILD_SLOW_MS ? 'Big sites take a little longer. Still on it.' : 'Keep this tab open. It takes about 20 seconds.'}
+        {elapsed >= BUILD_SLOW_MS && runout === null ? 'Big sites take a little longer. Still on it.' : 'Keep this tab open. It takes about 20 seconds.'}
       </p>
     </section>
   );
