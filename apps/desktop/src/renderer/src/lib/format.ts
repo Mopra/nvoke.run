@@ -60,7 +60,52 @@ export function isActive(status: SearchStatus): boolean {
   return status === 'queued' || status === 'running';
 }
 
+/**
+ * A search that ran more than once is titled by all its runs: one niche in
+ * several places lists the places, a list counts every item, anything else
+ * is the first run's title with how many more runs followed ("+2").
+ */
 export function searchTitle(search: Pick<Search, 'kind' | 'params'> | Search): string {
+  const runs = searchRuns(search as Search);
+  if (runs.length <= 1) return runTitle(search);
+  const first = runs[0]!;
+  if (search.kind === 'local') {
+    const all = runs as { params: Extract<Search, { kind: 'local' }>['params'] }[];
+    const niche = all[0]!.params.niche.toLowerCase();
+    if (all.every((r) => r.params.niche.toLowerCase() === niche)) {
+      const places = [...new Set(all.map((r) => capitalize(r.params.location)))];
+      return `${capitalize(all[0]!.params.niche)} in ${joinAnd(places)}`;
+    }
+  }
+  if (search.kind === 'domains') {
+    return listTitle([...new Set((runs as { params: Extract<Search, { kind: 'domains' }>['params'] }[]).flatMap((r) => r.params.items))]);
+  }
+  return `${runTitle({ kind: search.kind, params: first.params } as Search)} +${formatNumber(runs.length - 1)}`;
+}
+
+/** One run of a search; its params are of the search's kind. */
+export interface SearchRun {
+  params: Search['params'];
+  limit: number;
+  foundBefore: number;
+  createdAt: string;
+}
+
+/** The runs of a search, oldest first. A search from before runs were kept counts as its one run. */
+export function searchRuns(search: Search): SearchRun[] {
+  if (search.kind === 'drop') return [];
+  if (search.runs && search.runs.length > 0) return search.runs;
+  return [{ params: search.params, limit: search.limit, foundBefore: 0, createdAt: search.createdAt }];
+}
+
+/** Companies each run added, in run order: the next run's starting count minus this one's. */
+export function runsAdded(search: Search): number[] {
+  const runs = searchRuns(search);
+  return runs.map((run, i) => (runs[i + 1]?.foundBefore ?? search.companiesFound) - run.foundBefore);
+}
+
+/** The title of one set of params. */
+export function runTitle(search: Pick<Search, 'kind' | 'params'> | Search): string {
   const s = search as Search;
   switch (s.kind) {
     case 'local':
@@ -76,6 +121,12 @@ export function searchTitle(search: Pick<Search, 'kind' | 'params'> | Search): s
     case 'drop':
       return s.params.dropName;
   }
+}
+
+/** "Aarhus", "Aarhus and Odense", "Aarhus, Odense and Vejle". */
+function joinAnd(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 /** "linear.app", "linear.app and Pleo", "linear.app, Pleo and 5 more". */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildQuery } from './api';
 import { companiesToCsv } from './csv';
-import { csvFileName, percent, relativeTime, searchTitle } from './format';
+import { csvFileName, percent, relativeTime, runsAdded, searchTitle } from './format';
 import { parseRoute, routeHref } from './router';
 import type { Company, Search } from './types';
 
@@ -20,6 +20,23 @@ const base = {
 } as const;
 
 describe('format', () => {
+  it('titles a search that ran more than once by all its runs', () => {
+    const run = (params: object, foundBefore: number) => ({ params, limit: 50, foundBefore, createdAt: base.createdAt });
+    const local = {
+      ...base,
+      companiesFound: 30,
+      kind: 'local',
+      params: { niche: 'dentists', location: 'vejle' },
+      runs: [run({ niche: 'dentists', location: 'aarhus' }, 0), run({ niche: 'Dentists', location: 'odense' }, 12), run({ niche: 'dentists', location: 'vejle' }, 20)],
+    } as Search;
+    expect(searchTitle(local)).toBe('Dentists in Aarhus, Odense and Vejle');
+    expect(runsAdded(local)).toEqual([12, 8, 10]);
+    const web = { ...base, kind: 'web', params: { keyword: 'b' }, runs: [run({ keyword: 'a' }, 0), run({ keyword: 'b' }, 4)] } as Search;
+    expect(searchTitle(web)).toBe('"a" +1');
+    const list = { ...base, kind: 'domains', params: { items: ['b.com'] }, runs: [run({ items: ['a.com', 'b.com'] }, 0), run({ items: ['b.com', 'c.com'] }, 2)] } as Search;
+    expect(searchTitle(list)).toBe('a.com, b.com and 1 more');
+  });
+
   it('titles each kind of search', () => {
     expect(searchTitle({ ...base, kind: 'local', params: { niche: 'dentists', location: 'austin' } })).toBe(
       'Dentists in Austin',
