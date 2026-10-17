@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Start from your website stopped only to wait for its own three background agents; noted, no message sent.
 - 2026-10-17 Round after free tool pages landed (2582b1e): Turnstile blocked as expected on the VPS secret, left with the human. Start from your website and crawl hit rate running, Openers and Push leads waiting. 22 quests since the last ship, left shipping to the human.
 - 2026-10-17 Free tool pages finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, check in one turn and merge newest main last.
 - 2026-10-17 Free tool pages stopped to wait for its own review (5da0c53, tests green); told it to finish the review, recheck and mark done in one turn.
