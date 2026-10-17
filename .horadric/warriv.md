@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-17 Round after Start from your website landed (85efa14): Openers now running (opus), crawl hit rate running, Push leads waits on Openers, Turnstile and macOS test with the human. Nothing to file; 23 quests since the last ship, left shipping to the human.
 - 2026-10-17 Crawl hit rate stopped mid sample build (Overpass timeouts, 4 of 10 local queries); gave it opus and told it to cache and retry, accept a short local share, freeze the sample and go on with a commit per step.
 - 2026-10-17 Start from your website finished but conflicted on merge; fix-up already running, gave it sonnet and told it to keep both sides, renumber its migration if needed, check in one turn and merge newest main last.
 - 2026-10-17 Start from your website stopped again, only waiting for its desktop screens agent; noted, no message sent.
@@ -84,7 +85,7 @@
 
 ## Open
 
-- Claude features need the Claude key (ANTHROPIC_API_KEY, or the OpenRouter key since de623c9) in /opt/nvoke/.env on the VPS (human). Check the fix-up's summary says it when Start from your website lands.
+- Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 - Turnstile quest blocked with the human: add TURNSTILE_SECRET_KEY to /opt/nvoke/.env and restart nvoke-api once the free tools (2582b1e) are live on nvoke.run. Free tools never seen live.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test is with the human (needs a Mac); after it, also check TCC loses the Screen Recording grant on unsigned rebuilds.
