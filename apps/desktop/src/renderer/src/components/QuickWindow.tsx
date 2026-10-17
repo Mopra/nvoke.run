@@ -170,7 +170,8 @@ function Running({ id, onNew }: { id: string; onNew: () => void }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Enter') {
+      // A focused button answers Enter itself, so it must not also open the search.
+      if (event.key === 'Enter' && !(event.target instanceof Element && event.target.closest('button'))) {
         event.preventDefault();
         open();
       }
@@ -242,7 +243,9 @@ function Progress({ search }: { search: Search }) {
   return (
     <>
       <div className="flex items-baseline justify-between gap-4">
-        <div className="truncate font-display text-xl tracking-[-0.02em]">{searchTitle(search)}</div>
+        <div className="truncate font-display text-xl tracking-[-0.02em]" title={searchTitle(search)}>
+          {searchTitle(search)}
+        </div>
         <div className="shrink-0 text-sm tabular-nums text-muted-foreground">
           {formatNumber(search.emailsFound)} emails
           {isActive(search.status) ? '' : `, ${formatNumber(search.emailsValid)} valid`}

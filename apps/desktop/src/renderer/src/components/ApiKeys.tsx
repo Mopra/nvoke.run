@@ -80,11 +80,15 @@ function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: () => void }) 
     <li className="flex items-center gap-6 py-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[15px] font-medium">{apiKey.name}</span>
+          <span className="truncate text-[15px] font-medium" title={apiKey.name}>
+            {apiKey.name}
+          </span>
           {apiKey.origin === 'agent_signup' && <Badge>agent</Badge>}
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-          <span className="font-mono">{apiKey.prefix}…</span>
+          <span className="font-mono" data-selectable>
+            {apiKey.prefix}…
+          </span>
           <span>Created {relativeTime(apiKey.createdAt)}</span>
           <span>{apiKey.lastUsedAt ? `Last used ${relativeTime(apiKey.lastUsedAt)}` : 'Never used'}</span>
         </div>
@@ -161,6 +165,7 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
               maxLength={60}
               placeholder="CRM sync, Claude, a script"
               aria-label="Key name"
+              autoComplete="off"
               className="h-10 rounded-full px-4"
             />
             <div className="flex justify-end gap-2">
@@ -181,11 +186,14 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
 
 function RevokeDialog({ apiKey, onOpenChange }: { apiKey: ApiKey | null; onOpenChange: (open: boolean) => void }) {
   const revoke = useRevokeApiKey();
+  // Keeps the name on screen while the dialog fades out after `apiKey` clears.
+  const [shown, setShown] = useState(apiKey);
+  if (apiKey && apiKey !== shown) setShown(apiKey);
   return (
     <AlertDialog open={apiKey !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Revoke {apiKey?.name}?</AlertDialogTitle>
+          <AlertDialogTitle>Revoke {shown?.name}?</AlertDialogTitle>
           <AlertDialogDescription>
             Anything using it stops working at once. This can’t be undone.
           </AlertDialogDescription>
@@ -238,7 +246,11 @@ export function ApiKeys() {
         ) : error ? (
           <p className="py-4 text-sm text-muted-foreground">
             Couldn’t load your keys.{' '}
-            <button type="button" className="text-foreground underline-offset-4 hover:underline" onClick={() => void refetch()}>
+            <button
+              type="button"
+              className="rounded-sm text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+              onClick={() => void refetch()}
+            >
               Try again
             </button>
           </p>
@@ -273,7 +285,8 @@ export function ConnectAgent() {
             <span className="text-sm font-medium">MCP server</span>
             <button
               type="button"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              data-link
+              className="rounded-sm text-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
               onClick={() => void api.openExternal(MCP_DOCS_URL)}
             >
               Setup for other clients

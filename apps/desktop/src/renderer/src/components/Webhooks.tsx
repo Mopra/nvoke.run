@@ -75,7 +75,7 @@ function WebhookRow({ webhook, drops, onDelete }: { webhook: Webhook; drops: Dro
   return (
     <li className="flex items-center gap-6 py-4">
       <div className="min-w-0 flex-1">
-        <div className="truncate font-mono text-[13px]" title={webhook.url}>
+        <div className="truncate font-mono text-[13px]" title={webhook.url} data-selectable>
           {webhook.url}
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -197,6 +197,9 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               maxLength={2000}
               placeholder="https://example.com/hooks/nvoke"
               aria-label="Webhook URL"
+              spellCheck={false}
+              autoComplete="off"
+              autoCapitalize="off"
               className="h-10 rounded-full px-4 font-mono text-[13px]"
             />
             <div className="flex flex-col gap-2">
@@ -252,13 +255,16 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
 function DeleteDialog({ webhook, onOpenChange }: { webhook: Webhook | null; onOpenChange: (open: boolean) => void }) {
   const remove = useDeleteWebhook();
+  // Keeps the URL on screen while the dialog fades out after `webhook` clears.
+  const [shown, setShown] = useState(webhook);
+  if (webhook && webhook !== shown) setShown(webhook);
   return (
     <AlertDialog open={webhook !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this webhook?</AlertDialogTitle>
           <AlertDialogDescription className="break-all">
-            {webhook?.url} stops getting leads at once, and anything still queued for it is dropped.
+            {shown?.url} stops getting leads at once, and anything still queued for it is dropped.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -310,7 +316,11 @@ export function Webhooks() {
         ) : error ? (
           <p className="py-4 text-sm text-muted-foreground">
             Couldn’t load your webhooks.{' '}
-            <button type="button" className="text-foreground underline-offset-4 hover:underline" onClick={() => void refetch()}>
+            <button
+              type="button"
+              className="rounded-sm text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+              onClick={() => void refetch()}
+            >
               Try again
             </button>
           </p>

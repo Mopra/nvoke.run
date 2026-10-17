@@ -318,6 +318,8 @@ export function Commands({
           }}
           placeholder={onStart ? 'Find companies, or jump to' : 'Find a lead, or jump to'}
           aria-label="Search or jump to"
+          spellCheck={false}
+          autoComplete="off"
           className="h-full flex-1 bg-transparent font-display text-xl tracking-[-0.02em] caret-primary outline-none placeholder:text-muted-foreground/50"
         />
         <Kbd>esc</Kbd>
@@ -351,7 +353,9 @@ export function Commands({
                 )}
               >
                 {command.icon}
-                <span className="truncate">{command.label}</span>
+                <span className="truncate" title={command.label}>
+                  {command.label}
+                </span>
                 {command.hint && (
                   <span className={cn('truncate text-xs text-muted-foreground', command.hintMono && 'font-mono')}>{command.hint}</span>
                 )}

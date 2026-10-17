@@ -118,7 +118,9 @@ export function LocalMcp() {
         <div>
           <div className="mb-2 flex items-baseline justify-between gap-4">
             <span className="text-sm font-medium">Cursor</span>
-            <span className="font-mono text-xs text-muted-foreground">~/.cursor/mcp.json</span>
+            <span className="font-mono text-xs text-muted-foreground" data-selectable>
+              ~/.cursor/mcp.json
+            </span>
           </div>
           <CopyField value={setup.cursor} what="Cursor config" className="whitespace-pre-wrap" />
         </div>

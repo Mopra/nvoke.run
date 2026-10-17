@@ -308,7 +308,9 @@ function ProfileReadout({
     <div className="px-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Globe className="size-3.5" />
-        <span className="font-mono">{profile.domain}</span>
+        <span className="font-mono" data-selectable>
+          {profile.domain}
+        </span>
         <span>read {relativeTime(profile.createdAt)}</span>
       </div>
       <h1 className="mt-3 font-display text-4xl font-semibold text-balance">{p.name}</h1>
@@ -347,7 +349,9 @@ function SuggestionRow({
   return (
     <div data-suggestion className="flex items-center gap-6 rounded-[24px] px-6 py-5 transition-colors duration-200 hover:bg-foreground/[0.035]">
       <div className="min-w-0 flex-1">
-        <div className="truncate font-display text-lg font-medium">{title}</div>
+        <div className="truncate font-display text-lg font-medium" title={title}>
+          {title}
+        </div>
         <div className="mt-0.5 text-xs text-muted-foreground">{suggestionCaption(suggestion.search)}</div>
         <p className="mt-2 text-pretty text-sm text-muted-foreground">{suggestion.why}</p>
       </div>
@@ -425,6 +429,8 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
             id="p-language"
             value={draft.language}
             maxLength={2}
+            spellCheck={false}
+            autoComplete="off"
             onChange={(e) => set('language')(e.target.value)}
             aria-invalid={bad('language')}
             className="font-mono lowercase"

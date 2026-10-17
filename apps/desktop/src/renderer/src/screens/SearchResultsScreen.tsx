@@ -148,7 +148,7 @@ function Overview({
       <h1 className="font-display text-3xl font-semibold text-balance">{searchTitle(search)}</h1>
       <div className="mt-2 flex items-center gap-2.5 text-sm text-muted-foreground">
         <StatusLabel status={search.status} />
-        <span className="truncate">
+        <span className="truncate" title={`${searchSubtitle(search)}, ${timing}`}>
           {searchSubtitle(search)}, {timing}
         </span>
       </div>
@@ -348,6 +348,7 @@ function OpenerLine({ opener }: { opener: Opener }) {
             <TooltipTrigger asChild>
               <button
                 type="button"
+                data-link
                 onClick={() => void api.openExternal(sourceUrl)}
                 className="max-w-40 truncate rounded-sm text-left text-2xs leading-5 text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               >
@@ -410,9 +411,13 @@ function CompanyRow({
       )}
     >
         <div className="min-w-0 leading-5">
-          <div className="truncate text-[14px] font-medium">{company.name}</div>
+          <div className="truncate text-[14px] font-medium" title={company.name}>
+            {company.name}
+          </div>
           <button
             type="button"
+            data-link
+            title={company.website}
             onClick={() => void api.openExternal(company.website)}
             className="block max-w-full truncate rounded-sm text-left font-mono text-2xs text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           >
@@ -421,8 +426,14 @@ function CompanyRow({
         </div>
         <EmailsCell company={company} live={live} />
         <div className="min-w-0 text-xs leading-5 text-muted-foreground">
-          <div className="truncate">{company.location ?? source}</div>
-          {company.phone && <div className="truncate tabular-nums">{company.phone}</div>}
+          <div className="truncate" title={company.location ?? source}>
+            {company.location ?? source}
+          </div>
+          {company.phone && (
+            <div className="truncate tabular-nums" title={company.phone}>
+              {company.phone}
+            </div>
+          )}
         </div>
         <div className="-my-0.5 flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
           {company.emails.length > 1 && (
@@ -904,7 +915,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-72 rounded-2xl px-3 py-2 leading-relaxed">
-                    Public addresses from each company's own website. Many EU countries require prior consent for
+                    Public addresses from each company’s own website. Many EU countries require prior consent for
                     marketing email, even to businesses. Results are deleted 12 months after the search.
                   </TooltipContent>
                 </Tooltip>
@@ -1032,6 +1043,8 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
               }}
               placeholder="Filter companies and emails"
               aria-label="Filter companies and emails"
+              spellCheck={false}
+              autoComplete="off"
               className="h-9 w-full rounded-full bg-foreground/[0.045] pr-12 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
             />
             {text ? (
@@ -1039,7 +1052,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                 type="button"
                 aria-label="Clear filter"
                 onClick={() => setText('')}
-                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background hover:bg-muted-foreground/60"
+                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background outline-none hover:bg-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <X className="size-2.5" strokeWidth={3} />
               </button>

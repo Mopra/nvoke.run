@@ -319,7 +319,7 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
           {shown.map((item) => {
             const domain = itemDomain(item);
             return (
-              <span key={item} className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5', domain && 'font-mono')}>
+              <span key={item} title={item} className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5', domain && 'font-mono')}>
                 {domain ?? item}
               </span>
             );

@@ -194,7 +194,9 @@ function EnrichForm({
           <FileSpreadsheet className="size-5 text-muted-foreground" strokeWidth={1.5} />
         </div>
         <div className="min-w-0">
-          <div className="truncate font-display text-xl font-semibold tracking-tight">{fileName}</div>
+          <div className="truncate font-display text-xl font-semibold tracking-tight" title={fileName}>
+            {fileName}
+          </div>
           <div className="text-xs text-muted-foreground tabular-nums">
             {formatNumber(table.rows.length)} {table.rows.length === 1 ? 'row' : 'rows'}, {formatNumber(table.headers.length)}{' '}
             {table.headers.length === 1 ? 'column' : 'columns'}
@@ -247,6 +249,7 @@ function EnrichForm({
               {shown.map((item) => (
                 <span
                   key={item}
+                  title={item}
                   className={cn('max-w-44 truncate rounded-full bg-foreground/[0.06] px-2.5 py-0.5', itemDomain(item) && 'font-mono')}
                 >
                   {itemDomain(item) ?? item}

@@ -48,6 +48,7 @@ export function ExportNoticeDialog({
           </AlertDialogDescription>
           <button
             type="button"
+            data-link
             onClick={() => void api.openExternal(TERMS_URL)}
             className="inline-flex w-fit items-center gap-1 rounded-sm text-sm text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
           >
@@ -62,7 +63,7 @@ export function ExportNoticeDialog({
             onChange={(e) => setSkip(e.target.checked)}
             className="size-3.5 accent-primary"
           />
-          Don't show this again
+          Don’t show this again
         </label>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

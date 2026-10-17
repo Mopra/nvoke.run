@@ -111,9 +111,25 @@
   ::selection {
     background: color-mix(in oklab, var(--primary) 26%, transparent);
   }
+  /* Native buttons keep the arrow; only hyperlinks to the web get the hand, as in native apps. */
   button,
   [role="button"],
   a {
+    cursor: default;
+  }
+  a[href^="http"],
+  a[href^="mailto:"],
+  [data-link] {
+    cursor: pointer;
+  }
+  /* The default above is inherited, so text fields ask for the I-beam back. */
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"]),
+  textarea,
+  [contenteditable="true"] {
+    cursor: text;
+  }
+  :disabled,
+  [aria-disabled="true"] {
     cursor: default;
   }
 

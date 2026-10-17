@@ -35,7 +35,7 @@ export function InboxFolder() {
         <>
           Put a CSV of domains or company names in the folder and nvoke enriches it in the background, even while it sits in the{' '}
           {trayPlace()}. The result and the original move to a done folder next to it, and you get a notification.
-          <span className="mt-1 block truncate font-mono text-xs" title={settings.inboxFolder}>
+          <span className="mt-1 block truncate font-mono text-xs" title={settings.inboxFolder} data-selectable>
             {settings.inboxFolder}
           </span>
           {settings.inboxEnabled && settings.inboxError && <span className="mt-1 block text-destructive">{settings.inboxError}</span>}

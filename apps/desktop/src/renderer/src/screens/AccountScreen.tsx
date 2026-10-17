@@ -52,11 +52,13 @@ export function AccountScreen() {
               <div className="flex items-center gap-5">
                 <Avatar user={me.user} className="size-16 text-lg" />
                 <div className="min-w-0">
-                  <h1 className="truncate font-display text-3xl font-semibold">
+                  <h1 className="truncate font-display text-3xl font-semibold" title={me.user.name ?? me.user.email ?? undefined}>
                     {me.user.name ?? me.user.email ?? 'Your account'}
                   </h1>
                   {me.user.name && me.user.email && (
-                    <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{me.user.email}</div>
+                    <div className="mt-1 truncate font-mono text-xs text-muted-foreground" title={me.user.email} data-selectable>
+                      {me.user.email}
+                    </div>
                   )}
                 </div>
               </div>

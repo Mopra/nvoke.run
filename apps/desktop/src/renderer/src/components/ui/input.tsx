@@ -7,7 +7,7 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
       type={type}
       data-slot="input"
       className={cn(
-        'flex h-8 w-full min-w-0 rounded-md border border-input bg-card px-2.5 text-sm shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-foreground/5',
+        'flex h-8 w-full min-w-0 rounded-md border border-input bg-card px-2.5 text-sm shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 disabled:opacity-50 dark:bg-foreground/5',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25',
         'aria-invalid:border-destructive/70 aria-invalid:ring-destructive/15',
         '[&::-webkit-inner-spin-button]:appearance-none',
@@ -27,7 +27,7 @@ function PlainInput({ className, ...props }: React.ComponentProps<'input'>) {
     <input
       data-slot="input"
       className={cn(
-        'h-8 w-full min-w-0 rounded-sm bg-transparent px-2 text-sm outline-none transition-shadow duration-150 placeholder:text-muted-foreground/60',
+        'h-8 w-full min-w-0 rounded-sm bg-transparent px-2 text-sm outline-none transition-shadow duration-150 placeholder:text-muted-foreground/60 disabled:opacity-50',
         'focus-visible:ring-[3px] focus-visible:ring-ring/25',
         'aria-invalid:placeholder:text-destructive/80',
         '[&::-webkit-inner-spin-button]:appearance-none',
