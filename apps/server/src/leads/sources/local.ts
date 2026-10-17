@@ -158,6 +158,12 @@ function addressOf(tags: Record<string, string>): string | undefined {
   return out || undefined;
 }
 
+/** The first email tag of a place, or undefined. */
+export function placeEmail(tags: Record<string, string>): string | undefined {
+  const raw = (tags.email ?? tags['contact:email'] ?? '').split(';')[0]?.trim().replace(/^mailto:/i, '');
+  return raw && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(raw) ? raw.toLowerCase() : undefined;
+}
+
 const CATEGORY_KEYS = ['amenity', 'shop', 'office', 'craft', 'healthcare', 'tourism', 'leisure'];
 
 export function elementToCompany(el: OverpassElement): FoundCompany | null {

@@ -14,6 +14,8 @@
  *   pnpm --filter @nvoke/server cli sources resume brave
  *   pnpm --filter @nvoke/server cli alert test
  *   pnpm --filter @nvoke/server cli feed collect
+ *   pnpm --filter @nvoke/server cli bench sample
+ *   pnpm --filter @nvoke/server cli bench crawl --label baseline
  *
  * `db` starts the embedded Postgres, applies the migrations, prints its URL
  * and keeps running until Ctrl+C, so `dev:api` and `dev:worker` can use it as
@@ -56,14 +58,26 @@
  * `feed collect` runs every feed collector now, whatever its interval, and
  * prints what each found and how much of it was new; `feed` alone prints
  * the feed per source. Both pick the database like stats.
+ *
+ * `bench` needs no database. `bench fill` counts, per local sample query,
+ * the OSM places with a website and those with only an email. `bench sample` rebuilds the crawl benchmark's
+ * fixed sample (apps/server/bench/crawl-sample.json); `bench crawl` crawls
+ * it and prints a markdown table for docs/research/crawl-benchmark.md, with
+ * the sites that gained or lost every email against --compare LABEL.
+ *   --label L           name of the run, saved in apps/server/.bench/results
+ *   --concurrency N     sites at once (default 24)
+ *   --only SOURCE       local, web or launches
+ *   --no-cache          fetch everything live (responses are cached by default)
  */
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres, { type Sql } from 'postgres';
 import { pino } from 'pino';
 import { CreateSearchRequest, type Search } from '@nvoke/shared';
 import { applyMigrations } from './db/migrations.js';
+import { diffRuns, markdownTable, runCrawlBench, cachingFetch, type SampleSite, type SiteResult } from './bench/crawl-bench.js';
+import { buildSample, localFillRate } from './bench/crawl-sample.js';
 import { createAlerter } from './alerts.js';
 import { collectDue } from './feed/collect.js';
 import { createCollectors, sourceAvailability } from './feed/collectors.js';
@@ -97,7 +111,7 @@ function parseArgs(argv: string[]): Args {
     if (a.startsWith('--')) {
       const name = a.slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod'].includes(name)) {
+      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod', 'no-cache'].includes(name)) {
         flags.set(name, next);
         i++;
       } else flags.set(name, true);
@@ -122,6 +136,8 @@ function usage(): never {
       '  cli sources resume <source> [--prod]',
       '  cli alert test [--prod]',
       '  cli feed [collect] [--prod]',
+      '  cli bench sample | fill',
+      '  cli bench crawl [--label L] [--compare L] [--concurrency N] [--only SOURCE] [--no-cache]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
       'privacy, stats, sources, alert and feed act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
@@ -343,6 +359,59 @@ async function feed(args: Args): Promise<void> {
   }
 }
 
+const BENCH_DIR = join(SERVER_DIR, '.bench');
+const SAMPLE_PATH = join(SERVER_DIR, 'bench', 'crawl-sample.json');
+
+/** `cli bench sample | crawl`: the crawl benchmark (docs/research/crawl-benchmark.md). */
+async function bench(args: Args): Promise<void> {
+  const action = args.positional[1];
+  const flag = (n: string) => {
+    const v = args.flags.get(n);
+    return typeof v === 'string' ? v : undefined;
+  };
+  if (action === 'sample') {
+    const sample = await buildSample(loadEnv());
+    writeFileSync(SAMPLE_PATH, `${JSON.stringify(sample, null, 1)}\n`);
+    console.log(`wrote ${sample.length} sites to ${SAMPLE_PATH}`);
+    return;
+  }
+  if (action === 'fill') {
+    const rows = await localFillRate(loadEnv());
+    console.log('| query | places | website | own email only | webmail only |');
+    console.log('|---|--:|--:|--:|--:|');
+    for (const r of rows) console.log(`| ${r.query} | ${r.places} | ${r.website} | ${r.ownEmailOnly} | ${r.webmailOnly} |`);
+    const sum = (k: 'places' | 'website' | 'ownEmailOnly' | 'webmailOnly') => rows.reduce((n, r) => n + r[k], 0);
+    console.log(`| all | ${sum('places')} | ${sum('website')} | ${sum('ownEmailOnly')} | ${sum('webmailOnly')} |`);
+    return;
+  }
+  if (action !== 'crawl') usage();
+  let sample = JSON.parse(readFileSync(SAMPLE_PATH, 'utf8')) as SampleSite[];
+  const only = flag('only');
+  if (only) sample = sample.filter((s) => s.source === only);
+  const label = flag('label') ?? new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const cache = args.flags.has('no-cache') ? null : cachingFetch(join(BENCH_DIR, 'http'));
+  const started = Date.now();
+  const results = await runCrawlBench(sample, {
+    fetch: cache?.fetch,
+    concurrency: Number(flag('concurrency') ?? 24),
+    onResult: (r, done) => {
+      console.error(`${String(done).padStart(4)}/${sample.length} ${r.status.padEnd(8)} ${String(r.emails.length).padStart(2)} ${r.domain}${r.error ? `  ${r.error}` : ''}`);
+    },
+  });
+  mkdirSync(join(BENCH_DIR, 'results'), { recursive: true });
+  writeFileSync(join(BENCH_DIR, 'results', `${label}.json`), JSON.stringify(results, null, 1));
+  console.log(`\n${markdownTable(label, results)}\n`);
+  console.log(`${((Date.now() - started) / 1000).toFixed(0)} s${cache ? `, ${cache.stats.hits} cached responses, ${cache.stats.live} live` : ''}`);
+  const compare = flag('compare');
+  if (compare) {
+    const before = JSON.parse(readFileSync(join(BENCH_DIR, 'results', `${compare}.json`), 'utf8')) as SiteResult[];
+    const { gained, lost } = diffRuns(before, results);
+    console.log(`\nagainst ${compare}: ${gained.length} gained, ${lost.length} lost`);
+    for (const r of gained) console.log(`  + ${r.domain}  ${r.emails.join(', ')}  (${r.via.join(', ')})`);
+    for (const r of lost) console.log(`  - ${r.domain}  ${r.status}${r.error ? ` ${r.error}` : ''}`);
+  }
+}
+
 /**
  * The database for operator commands: --database-url, then DATABASE_URL with
  * --prod, then CLI_DATABASE_URL or the embedded Postgres. Prints which.
@@ -375,6 +444,7 @@ async function main(): Promise<void> {
   if (args.positional[0] === 'sources') return sources(args);
   if (args.positional[0] === 'alert') return alertTest(args);
   if (args.positional[0] === 'feed') return feed(args);
+  if (args.positional[0] === 'bench') return bench(args);
   const { request, limit } = buildRequest(args);
   const env = loadEnv();
   if (args.flags.has('no-smtp')) env.SMTP_PROBE_ENABLED = false;

@@ -23,3 +23,6 @@ apps/desktop/screenshots/
 
 # Local Postgres data for the server CLI (apps/server/src/cli.ts)
 .pgdata/
+
+# Crawl benchmark cache and results (apps/server/src/bench)
+.bench/
