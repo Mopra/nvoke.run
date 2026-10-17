@@ -58,7 +58,7 @@ async function makeApp(over: Partial<ToolsRoutesOptions> = {}): Promise<FastifyI
     prefix: '/v1/tools',
     getSql: () => db.sql,
     verifier: { full: { verify: async (a) => verdict(a, 'rcpt_accepted') }, lite },
-    crawl: async () => ({ status: 'done', emails: [], pages: [] }),
+    crawl: async () => ({ status: 'done', emails: [], pages: [], texts: [] }),
     authDns,
     turnstile: null,
     ...over,
@@ -134,6 +134,7 @@ describe('POST /v1/tools/extract-emails', () => {
   const crawled: CrawlResult = {
     status: 'done',
     pages: [],
+    texts: [],
     emails: [
       { address: 'info@acme.dk', kind: 'generic', via: 'mailto', sourceUrl: 'https://acme.dk/contact' },
       { address: 'jane@acme.dk', kind: 'personal', via: 'mailto', sourceUrl: 'https://acme.dk/team' },

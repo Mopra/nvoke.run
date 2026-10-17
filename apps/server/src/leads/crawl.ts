@@ -18,6 +18,7 @@ import {
   type ExtractedEmail,
 } from '@nvoke/shared/crawl';
 import { decodeBody, fetchCapped, type FetchLike } from './http.js';
+import { pageText, type SitePage } from './page-text.js';
 import type { RateLimiter } from './limits.js';
 import type { RobotsCache } from './robots.js';
 
@@ -27,6 +28,27 @@ const MAX_REDIRECTS = 5;
 /** Homepage answers that mean "not you" rather than "not here": usually a block on datacenter addresses. */
 const REFUSED_STATUSES = new Set([401, 403, 429, 503]);
 const PAGE_TIMEOUT_MS = 15_000;
+/** Pages whose text is kept for openers, the homepage first, and the text kept of each. */
+export const OPENER_PAGES = 3;
+export const OPENER_PAGE_TEXT_MAX = 3_000;
+/** Email addresses, plain or written out ("ole [at] acme [dot] dk"). Kept text never holds them: the shared cache stores no personal address. */
+const ADDRESS_IN_TEXT = /[\w.+-]+(@|\s*[[(]\s*(at|snabel-?a)\s*[\])]\s*)[\w-]+((\.|\s*[[(]\s*(dot|punktum)\s*[\])]\s*)[\w-]+)+/gi;
+
+/** The opener text of a page, without email addresses. */
+function openerText(html: string, url: string): SitePage {
+  const page = pageText(html, url, OPENER_PAGE_TEXT_MAX);
+  const strip = (v: string) =>
+    v
+      .replace(ADDRESS_IN_TEXT, '')
+      .split('\n')
+      .map((l) => l.replace(/[^\S\n]+/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n');
+  return { ...page, title: strip(page.title), description: strip(page.description), text: strip(page.text) };
+}
+
+/** Pages that say little about the business, or mostly name people. Their text is not kept. */
+const NO_TEXT_PATH = /privacy|privat|legal|impressum|imprint|terms|cookie|datenschutz|gdpr|persondata|kontakt|contact|team|staff|people|medarbejder|mitarbeiter/i;
 
 export interface CrawlDeps {
   fetch?: FetchLike;
@@ -58,6 +80,8 @@ export interface CrawlResult {
   status: 'done' | 'failed' | 'blocked' | 'refused' | 'js_only';
   emails: ExtractedEmail[];
   pages: PageVisit[];
+  /** Visible text of the homepage and up to two pages about the business, for openers. */
+  texts: SitePage[];
   error?: string;
 }
 
@@ -153,17 +177,18 @@ export async function crawlSite(
     home = await fetcher.get(`http://${website.slice('https://'.length)}`);
     pages.push(visit(home));
   }
-  if (home.kind === 'robots') return { status: 'blocked', emails: [], pages };
+  if (home.kind === 'robots') return { status: 'blocked', emails: [], pages, texts: [] };
   if (home.kind === 'ok' && REFUSED_STATUSES.has(home.status)) {
-    return { status: 'refused', emails: [], pages, error: `homepage answered ${home.status}` };
+    return { status: 'refused', emails: [], pages, texts: [], error: `homepage answered ${home.status}` };
   }
   if (home.kind === 'error' || home.status >= 400) {
-    return { status: 'failed', emails: [], pages, error: home.error ?? `homepage answered ${home.status}` };
+    return { status: 'failed', emails: [], pages, texts: [], error: home.error ?? `homepage answered ${home.status}` };
   }
 
   const homeHtml = isHtml(home.contentType) ? decodeBody(home.body, home.contentType) : '';
-  if (pageWall(homeHtml) === 'challenge') return { status: 'refused', emails: [], pages, error: 'bot challenge' };
+  if (pageWall(homeHtml) === 'challenge') return { status: 'refused', emails: [], pages, texts: [], error: 'bot challenge' };
   found.push(...extractEmails(homeHtml, home.url));
+  const texts: SitePage[] = homeHtml ? [openerText(homeHtml, home.url)] : [];
 
   let queue = pickLikelyPages(homeHtml, home.url, maxPages - 1);
   if (queue.length === 0) {
@@ -183,15 +208,19 @@ export async function crawlSite(
     const page = await fetcher.get(url);
     pages.push(visit(page));
     if (page.kind !== 'ok' || page.status >= 400 || !isHtml(page.contentType)) continue;
-    found.push(...extractEmails(decodeBody(page.body, page.contentType), page.url));
+    const html = decodeBody(page.body, page.contentType);
+    found.push(...extractEmails(html, page.url));
+    if (texts.length < OPENER_PAGES && !NO_TEXT_PATH.test(new URL(page.url).pathname)) {
+      texts.push(openerText(html, page.url));
+    }
   }
 
   // A homepage that redirects to a new brand domain makes that domain "own site" too.
   const landed = hostToDomain(new URL(home.url).hostname);
   const own = landed && landed !== companyDomain ? [companyDomain, landed] : [companyDomain];
   const emails = selectForCompany(found, own);
-  if (emails.length === 0 && looksJsOnly(homeHtml)) return { status: 'js_only', emails, pages };
-  return { status: 'done', emails, pages };
+  if (emails.length === 0 && looksJsOnly(homeHtml)) return { status: 'js_only', emails, pages, texts: [] };
+  return { status: 'done', emails, pages, texts: texts.filter((t) => t.text.length > 0) };
 }
 
 function visit(f: Fetched): PageVisit {

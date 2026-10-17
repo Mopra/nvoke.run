@@ -8,11 +8,13 @@ import { load } from 'cheerio';
 import { hostToDomain, looksJsOnly, pageWall, registrableDomain, sameSite } from '@nvoke/shared/crawl';
 import { decodeBody } from '../leads/http.js';
 import { SiteFetcher, isHtml, type CrawlDeps } from '../leads/crawl.js';
+import { pageText, type SitePage } from '../leads/page-text.js';
+
+export { pageText, type SitePage };
 
 export const SITE_MAX_PAGES = 5;
 const SITE_MAX_BYTES = 2_000_000;
-/** Visible text kept per page and in all. */
-const PAGE_TEXT_MAX = 6_000;
+/** Visible text kept in all. */
 const TOTAL_TEXT_MAX = 20_000;
 /** Below this much text in all, there is nothing to profile. */
 const MIN_TEXT = 200;
@@ -30,13 +32,6 @@ const PROFILE_HINTS: Array<{ re: RegExp; score: number }> = [
 ];
 
 const SKIP = /\.(png|jpe?g|gif|webp|avif|svg|ico|pdf|zip|docx?|xlsx?|pptx?|mp4|mp3|mov|webm|css|js|xml|json|txt)$/i;
-
-export interface SitePage {
-  url: string;
-  title: string;
-  description: string;
-  text: string;
-}
 
 export type ReadSiteResult =
   | { ok: true; website: string; domain: string; pages: SitePage[] }
@@ -91,28 +86,6 @@ function decodeURIComponentSafe(s: string): string {
   } catch {
     return s;
   }
-}
-
-/** Title, meta description and the visible text of a page, whitespace collapsed and capped. */
-export function pageText(html: string, url: string): SitePage {
-  const $ = load(html);
-  const title = $('title').first().text().replace(/\s+/g, ' ').trim().slice(0, 200);
-  const description = ($('meta[name="description"]').attr('content') ?? $('meta[property="og:description"]').attr('content') ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 400);
-  $('script, style, noscript, svg, iframe, template, form, nav, footer').remove();
-  // Block elements end a line, so headings and list items do not run together.
-  $('h1, h2, h3, h4, h5, h6, p, li, div, section, article, br, tr').after('\n');
-  const text = $('body')
-    .text()
-    .split('\n')
-    .map((l) => l.replace(/\s+/g, ' ').trim())
-    .filter(Boolean)
-    .filter((l, i, all) => all.indexOf(l) === i)
-    .join('\n')
-    .slice(0, PAGE_TEXT_MAX);
-  return { url, title, description, text };
 }
 
 export async function readSite(website: string, deps: CrawlDeps, signal?: AbortSignal, now: () => number = Date.now): Promise<ReadSiteResult> {

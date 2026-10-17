@@ -15,6 +15,8 @@ import {
   CompaniesPage,
   CompaniesQuery,
   CreateSearchRequest,
+  DraftOpenersRequest,
+  DraftOpenersResponse,
   LeadFilters,
   Search,
   SearchIdParams,
@@ -237,7 +239,7 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Leads',
     summary: 'Export as CSV',
     description:
-      'One row per email: company, domain, website, email, kind, verification, source_url, location, phone. Takes the same filters as the company list.',
+      'One row per email: company, domain, website, email, kind, verification, source_url, location, phone, opener. Takes the same filters as the company list.',
     auth: 'key',
     params: SearchIdParams,
     query: LeadFilters,
@@ -245,6 +247,22 @@ export const ENDPOINTS: Endpoint[] = [
     response: 'csv',
     errors: ['not_found', 'invalid_request'],
     example: { verification: 'valid' },
+  },
+  {
+    id: 'draftOpeners',
+    method: 'POST',
+    path: '/v1/searches/:id/openers',
+    group: 'Leads',
+    summary: 'Draft an opener per company',
+    description:
+      'Claude drafts one first line per company from the pages nvoke read on its site, only for companies with at least one valid email, so the cost follows your verified emails. Every line rests on a fact the page states (`opener.quote`, verbatim, on `opener.sourceUrl`); no merge tags, nothing invented, and `none` when the pages hold nothing to build on. Uses your site profile (`POST /v1/site-profile`) when there is one. Pass `companyIds` for some companies, or leave it out for the whole search. Runs in the background: read `opener` on the companies from the company list, and the `opener` column in the CSV. nvoke never sends anything.',
+    auth: 'key',
+    params: SearchIdParams,
+    body: DraftOpenersRequest,
+    status: 202,
+    response: DraftOpenersResponse,
+    errors: ['not_found', 'invalid_request', 'ai_unavailable'],
+    example: {},
   },
   {
     id: 'claimLocalCrawl',
@@ -651,6 +669,19 @@ export const MCP_TOOLS: McpTool[] = [
     destructive: false,
   },
   {
+    name: 'draft_openers',
+    title: 'Draft openers',
+    description:
+      'Drafts one first line per company of a search from its own website, for companies with a valid email. Each line rests on a quote from the page (opener.quote, opener.sourceUrl); no merge tags, nothing invented. Runs in the background: read opener on get_leads a minute later, or the opener column of export_csv. Copy and export only; nvoke never sends.',
+    input: z.object({
+      searchId,
+      companyIds: z.array(z.uuid()).max(1000).optional().describe('Only these companies. The whole search when left out.'),
+      redo: z.boolean().optional().describe('Draft again where an opener is already there.'),
+    }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
     name: 'cancel_search',
     title: 'Cancel a search',
     description: 'Stops a running search. What it found so far stays.',
@@ -709,7 +740,7 @@ export const MCP_TOOLS: McpTool[] = [
 /** Instructions the MCP server sends at `initialize`. */
 export const MCP_INSTRUCTIONS = `nvoke finds companies and the email addresses published on their own websites, and checks each address with its mail server.
 
-Typical run: get_account, then start_search, then wait_for_search until status is done, then get_leads with verification "valid" or export_csv. To have leads pushed to a URL as they are ready instead, use create_webhook.
+Typical run: get_account, then start_search, then wait_for_search until status is done, then get_leads with verification "valid" or export_csv. To have leads pushed to a URL as they are ready instead, use create_webhook. For a first line per company to copy into the user's own outreach, use draft_openers.
 
 Searches run on nvoke's servers and take a few minutes. Only addresses whose check comes back valid count against the plan (free: 50 a month). When the allowance is used up, searches fail with quota_exceeded; a human upgrades at the billingUrl from get_account.
 

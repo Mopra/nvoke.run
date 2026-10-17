@@ -84,6 +84,25 @@ describe('createWebApi', () => {
     expect(calls[0]?.url).toBe('https://api/v1/searches/s1/export.csv?q=acme');
   });
 
+  it('drafts openers for some companies and reads the 202 answer', async () => {
+    const { fetch, calls } = fakeFetch(json({ queued: 1, skipped: 0 }, 202));
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    const companyId = '6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b';
+    await expect(api.draftOpeners('s1', { companyIds: [companyId], redo: true })).resolves.toEqual({ queued: 1, skipped: 0 });
+    expect(calls[0]?.url).toBe('https://api/v1/searches/s1/openers');
+    expect(calls[0]?.init.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ companyIds: [companyId], redo: true });
+  });
+
+  it('drafts openers for the whole search with an empty body and keeps ai_unavailable', async () => {
+    const { fetch, calls } = fakeFetch(json({ error: 'ai_unavailable' }, 503));
+    const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });
+    const error = (await api.draftOpeners('s1').catch((e: unknown) => e)) as ApiError;
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({});
+    expect(error.status).toBe(503);
+    expect(error.code).toBe('ai_unavailable');
+  });
+
   it('reads the plan with ?sync=1 only when asked', async () => {
     const { fetch, calls } = fakeFetch(json({}), json({}));
     const api = createWebApi({ baseUrl: 'https://api', getToken: async () => 't', fetch });

@@ -1,0 +1,13 @@
+# Openers per company
+
+**Draft.** A search's More actions menu has Draft openers (the whole search) and, once any loaded company has an opener, Draft openers again (`redo: true`). The selection bar has Draft openers for the selected companies (`companyIds`). Both send `POST /v1/searches/:id/openers` through `window.nvoke.request` (no new IPC channel). The server drafts one first line per company with Claude from the company's own pages, only for companies with a valid email, and leaves alone the ones that already have one or are queued unless `redo` is set. nvoke never sends email: the line is for copying and for the export.
+
+**Toasts.** "Drafting 42 openers" with "8 skipped: no valid email or already drafted." when `skipped` is above zero. Nothing queued is "Nothing to draft": when some of the asked companies already have a line, it says so and offers Draft again (the same request with `redo`); otherwise "None of these companies has a valid email to write to." `ai_unavailable` (503) reads "Claude is not answering right now. Try again in a minute."
+
+**Rows.** `Company.opener` shows on a line under the company, across the company, emails and location columns. Older local copies lack the field, so the renderer reads it as `company.opener ?? null`. `done`: the line in readable text you can select (a mouse drag on it selects text instead of dragging the row out), a Copy button on hover and a small "from /about" link that opens `sourceUrl` in the browser, with the quote as its tooltip. `queued`: "Drafting opener" with an iris spinner. `none`: a faint "No fact on the site to build on". `failed`: a faint "Opener failed". Rows are measured by the virtualizer; a row with an opener is estimated taller.
+
+**Following.** `useDraftOpeners` posts, then asks main to refetch the search into the local copy (`refreshLocal`) and invalidates the search's companies, so the queued rows show at once. While any loaded company is `queued`, `useFollowOpeners` repeats that every 2.5 seconds until none is. A running search polls the API on its own, so it is skipped there.
+
+**Export.** `CSV_COLUMNS` ends with `opener`: the line when `done`, blank otherwise. Drag out and Cmd+C (`lib/csv.ts`) match the export.
+
+**Code.** `lib/api.ts` (`draftOpeners`), `lib/queries.ts` (`useDraftOpeners`, `useFollowOpeners`), `lib/csv.ts`, `screens/SearchResultsScreen.tsx` (`OpenerLine`). The mock (`VITE_MOCK=1`) answers the route: companies with a valid email turn `queued`, then after about two seconds (staggered) `done` with a line built from a fact on one of their pages (`sourceUrl` on their website, the quote), or now and then `none`. Capture shots: `08c-openers-drafting` and `08d-openers-done` (`src/main/capture/shots/results.ts`).

@@ -5,7 +5,7 @@
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import type { Company, Search, WebhookEvent, WebhookPayload, WebhookSearchRef } from '@nvoke/shared';
-import { toSearch } from '../leads/repo.js';
+import { toOpener, toSearch, type OpenerColumns } from '../leads/repo.js';
 import { domainSuppressedSql, suppressedSql } from '../leads/suppression.js';
 import type { WebhookSender } from './send.js';
 
@@ -63,7 +63,7 @@ function searchRef(s: SearchRow): WebhookSearchRef {
   return { id: s.id, kind: s.kind, dropId: s.drop_id, dropName: typeof dropName === 'string' ? dropName : null };
 }
 
-interface CompanyRow {
+interface CompanyRow extends OpenerColumns {
   id: string;
   name: string;
   domain: string;
@@ -91,6 +91,7 @@ async function loadLead(sql: Sql, userId: string, companyId: string): Promise<Co
   const [row] = await sql<CompanyRow[]>`
     select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category,
            c.crawl_status, c.crawled_at, c.local_crawl,
+           c.opener_status, c.opener, c.opener_source_url, c.opener_quote, c.opener_at,
            coalesce(
              json_agg(json_build_object(
                'id', e.id, 'address', e.address, 'kind', e.kind, 'source_url', e.source_url,
@@ -125,6 +126,7 @@ async function loadLead(sql: Sql, userId: string, companyId: string): Promise<Co
       verification: e.verification,
       checkedAt: iso(e.checked_at),
     })),
+    opener: toOpener(row),
   };
 }
 

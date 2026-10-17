@@ -1,11 +1,13 @@
 // The shared crawl cache (migration 0300_privacy). A domain row records the
 // last crawl's outcome; domain_emails holds the generic role addresses it
-// found on the domain's own site. Personal, webmail and other domains'
+// found on the domain's own site, and domain_pages (1300_openers) the text of
+// a few of its pages, for openers. Personal, webmail and other domains'
 // addresses are never cached: a domain that had any is crawled again by
 // every search, so they stay in that search's own rows.
 
 import type { Sql, TransactionSql } from 'postgres';
 import type { CrawlResult } from './crawl.js';
+import type { SitePage } from './page-text.js';
 import { isWebmailDomain, sameSite } from './domain.js';
 import { recheckAt } from './retention.js';
 
@@ -56,7 +58,13 @@ export async function cachedCrawl(tx: Sql | TransactionSql, domain: string, now:
 export async function recordCrawl(
   tx: TransactionSql,
   domain: string,
-  outcome: { status: CrawlOutcome; hasPersonal: boolean; generic: { address: string; sourceUrl: string | null }[] },
+  outcome: {
+    status: CrawlOutcome;
+    hasPersonal: boolean;
+    generic: { address: string; sourceUrl: string | null }[];
+    /** The pages' text, replacing what the last crawl kept. */
+    texts?: SitePage[];
+  },
   now: Date,
 ): Promise<void> {
   const at = now.toISOString();
@@ -67,6 +75,7 @@ export async function recordCrawl(
     set crawl_status = excluded.crawl_status, crawled_at = excluded.crawled_at,
         has_personal = excluded.has_personal, recheck_at = excluded.recheck_at
   `;
+  await recordPages(tx, domain, outcome.texts ?? [], now);
   const unique = [...new Map(outcome.generic.map((e) => [e.address, e])).values()];
   const addresses = unique.map((e) => e.address);
   if (addresses.length === 0) {
@@ -86,4 +95,31 @@ export async function recordCrawl(
     on conflict (domain, address) do update
     set last_seen = excluded.last_seen, source_url = excluded.source_url
   `;
+}
+
+/** Replaces the kept page text of `domain`. The domain row must exist. */
+async function recordPages(tx: TransactionSql, domain: string, texts: SitePage[], now: Date): Promise<void> {
+  await tx`delete from domain_pages where domain = ${domain}`;
+  const unique = [...new Map(texts.map((t) => [t.url, t])).values()];
+  if (unique.length === 0) return;
+  const at = now.toISOString();
+  const rows = unique.map((t) => ({ domain, url: t.url, title: t.title, description: t.description, text: t.text, fetched_at: at }));
+  await tx`insert into domain_pages ${tx(rows, 'domain', 'url', 'title', 'description', 'text', 'fetched_at')}`;
+}
+
+/** The kept page text of each domain, homepage first (it was read first). */
+export async function domainPages(sql: Sql | TransactionSql, domains: string[]): Promise<Map<string, SitePage[]>> {
+  const out = new Map<string, SitePage[]>();
+  if (domains.length === 0) return out;
+  const rows = await sql<{ domain: string; url: string; title: string; description: string; text: string }[]>`
+    select domain, url, title, description, text from domain_pages
+    where domain in ${sql(domains)}
+    order by domain, length(url), url
+  `;
+  for (const r of rows) {
+    const list = out.get(r.domain) ?? [];
+    list.push({ url: r.url, title: r.title, description: r.description, text: r.text });
+    out.set(r.domain, list);
+  }
+  return out;
 }

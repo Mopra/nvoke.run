@@ -16,6 +16,7 @@ const company = (over: Partial<Company>): Company => ({
   crawledAt: null,
   localCrawl: null,
   emails: [],
+  opener: null,
   ...over,
 });
 
@@ -25,8 +26,8 @@ describe('companiesToTsv', () => {
   it('writes a header and one row per email, tab separated', () => {
     const lines = companiesToTsv([company({ emails: [email, { ...email, id: 'e2', address: 'bo@acme.dk' }] })]).trim().split('\n');
     expect(lines).toHaveLength(3);
-    expect(lines[0]!.split('\t')).toHaveLength(9);
-    expect(lines[1]).toBe('Acme\tacme.dk\thttps://acme.dk\tinfo@acme.dk\tgeneric\tvalid\t\tAarhus\t+45 12 34 56 78');
+    expect(lines[0]!.split('\t')).toHaveLength(10);
+    expect(lines[1]).toBe('Acme\tacme.dk\thttps://acme.dk\tinfo@acme.dk\tgeneric\tvalid\t\tAarhus\t+45 12 34 56 78\t');
   });
 
   it('keeps a company without emails and flattens tabs and line breaks', () => {
@@ -35,9 +36,41 @@ describe('companiesToTsv', () => {
   });
 
   it('defuses formulas but leaves phone numbers alone', () => {
-    const [, row] = companiesToTsv([company({ name: '=HYPERLINK("x")' })]).trim().split('\n');
+    const [, row] = companiesToTsv([company({ name: '=HYPERLINK("x")', emails: [email] })]).trim().split('\n');
     expect(row!.startsWith(`'=HYPERLINK`)).toBe(true);
-    expect(row!.endsWith('+45 12 34 56 78')).toBe(true);
+    expect(row!.split('\t')[8]).toBe('+45 12 34 56 78');
+  });
+});
+
+describe('the opener column', () => {
+  const done = {
+    status: 'done',
+    line: 'Saw you opened a second clinic in Aarhus.',
+    sourceUrl: 'https://acme.dk/news',
+    quote: 'Our second clinic',
+    draftedAt: null,
+  } as const;
+
+  it('carries a drafted line on every row of the company and nothing otherwise', () => {
+    const lines = companiesToTsv([
+      company({ opener: done, emails: [email, { ...email, id: 'e2', address: 'bo@acme.dk' }] }),
+      company({ id: 'c2', opener: { ...done, status: 'queued', line: null }, emails: [email] }),
+    ]).split('\n');
+    expect(lines[0]!.split('\t').at(-1)).toBe('opener');
+    expect(lines[1]!.split('\t').at(-1)).toBe(done.line);
+    expect(lines[2]!.split('\t').at(-1)).toBe(done.line);
+    expect(lines[3]!.split('\t').at(-1)).toBe('');
+  });
+
+  it('reads an older local copy without the field as blank', () => {
+    const { opener: _gone, ...old } = company({ emails: [email] });
+    const csv = companiesToCsv([old as Company]);
+    expect(csv.split('\r\n')[1]!.endsWith(',+45 12 34 56 78,')).toBe(true);
+  });
+
+  it('quotes a line with a comma in the CSV', () => {
+    const csv = companiesToCsv([company({ emails: [email], opener: { ...done, line: 'Two clinics, one team.' } })]);
+    expect(csv).toContain(',"Two clinics, one team."\r\n');
   });
 });
 

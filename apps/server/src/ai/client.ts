@@ -101,6 +101,8 @@ export interface StructuredResult<T> {
 
 export interface Ai {
   structured<S extends z.ZodType>(req: StructuredRequest<S>): Promise<StructuredResult<z.infer<S>>>;
+  /** Whether a call for the account would be made now: a key is set and the monthly budget is not spent. */
+  ready(userId: string): Promise<boolean>;
 }
 
 export interface AiOptions {
@@ -181,6 +183,12 @@ export function createAi(opts: AiOptions): Ai {
   const now = opts.now ?? (() => new Date());
 
   return {
+    async ready(userId) {
+      if (!client) return false;
+      const [spent, budget] = await Promise.all([spentThisMonth(opts.sql, userId, now()), monthlyBudgetUsd(opts.sql, userId, opts.budget)]);
+      return spent < budget;
+    },
+
     async structured(req) {
       if (!client) throw new AiError('unavailable', 'Claude is not configured (OPENROUTER_API_KEY)');
 

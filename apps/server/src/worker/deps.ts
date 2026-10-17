@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
+import { createAiFromEnv } from '../ai/client.js';
 import { createAlerter } from '../alerts.js';
 import type { Env } from '../env.js';
 import { RateLimiter } from '../leads/limits.js';
@@ -20,6 +21,7 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
   return {
     sql,
     log,
+    ai: createAiFromEnv(sql, log),
     adapters: createAdapters(env, { sql }),
     alert,
     braveBudget: env.BRAVE_MONTHLY_BUDGET_USD

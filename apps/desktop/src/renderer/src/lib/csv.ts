@@ -19,15 +19,22 @@ export function defuse(value: string | null | undefined): string {
   return /^[=+\-@\t\r]/.test(v) && !PHONE_LIKE.test(v) ? `'${v}` : v;
 }
 
+/** The drafted line when there is one. Older local copies have no `opener` at all. */
+function openerOf(c: Company): string | null {
+  const opener = c.opener ?? null;
+  return opener?.status === 'done' ? opener.line : null;
+}
+
 function rowsOf(companies: Company[], { includeEmpty }: { includeEmpty: boolean }): Row[] {
   const rows: Row[] = [];
   for (const c of companies) {
+    const opener = openerOf(c);
     if (c.emails.length === 0) {
-      if (includeEmpty) rows.push([c.name, c.domain, c.website, null, null, null, null, c.location, c.phone]);
+      if (includeEmpty) rows.push([c.name, c.domain, c.website, null, null, null, null, c.location, c.phone, opener]);
       continue;
     }
     for (const e of c.emails) {
-      rows.push([c.name, c.domain, c.website, e.address, e.kind, e.verification, e.sourceUrl, c.location, c.phone]);
+      rows.push([c.name, c.domain, c.website, e.address, e.kind, e.verification, e.sourceUrl, c.location, c.phone, opener]);
     }
   }
   return rows;

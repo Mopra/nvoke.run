@@ -45,5 +45,6 @@ export function company(n: number, name: string, emails: [string, 'generic' | 'p
       verification,
       checkedAt: null,
     })),
+    opener: null,
   };
 }

@@ -7,7 +7,7 @@
 
 import type { Sql, TransactionSql } from 'postgres';
 
-export type JobType = 'find' | 'crawl' | 'verify';
+export type JobType = 'find' | 'crawl' | 'verify' | 'opener';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled';
 
 export interface FindPayload {
@@ -21,7 +21,11 @@ export interface VerifyPayload {
   /** Greylisting retries so far. */
   retry?: number;
 }
-export type JobPayload = FindPayload | CrawlPayload | VerifyPayload;
+export interface OpenerPayload {
+  /** Up to OPENER_BATCH companies of one user, drafted in one Claude call. */
+  companyIds: string[];
+}
+export type JobPayload = FindPayload | CrawlPayload | VerifyPayload | OpenerPayload;
 
 export interface Job {
   /** bigint, kept as a string. */

@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { CompaniesPage, MeResponse, Search, SearchListResponse } from '@nvoke/shared';
+import { CompaniesPage, DraftOpenersResponse, MeResponse, Search, SearchListResponse } from '@nvoke/shared';
+import type { Ai } from '../../ai/client.js';
 import { createTestDb, type TestDb } from '../../testing/db.js';
 import { loadEnv } from '../../env.js';
 import { memoryStore } from '../../auth/store.js';
@@ -9,6 +10,14 @@ import { leadsRoutes } from './leads.js';
 
 let db: TestDb;
 let app: FastifyInstance;
+/** Whether the fake Claude says it would answer. */
+let aiReady = true;
+const ai: Ai = {
+  ready: async () => aiReady,
+  structured: async () => {
+    throw new Error('the route never calls Claude');
+  },
+};
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -17,6 +26,7 @@ beforeAll(async () => {
     prefix: '/v1',
     getSql: () => db.sql,
     billingUrl: 'https://nvoke.test/desktop/billing',
+    getAi: () => ai,
     // Stands in for the real auth preHandler.
     authenticate: async (req) => {
       const user = req.headers['x-test-user'];
@@ -33,6 +43,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await db.sql`truncate accounts, jobs, source_pauses cascade`;
+  aiReady = true;
 });
 
 const as = (user: string) => ({ 'x-test-user': user });
@@ -238,22 +249,71 @@ describe('lead routes', () => {
     });
 
     it('exports one CSV row per email', async () => {
+      await db.sql`
+        update companies set opener_status = 'done', opener = 'Your clinic opened in Aarhus in 1998.', opener_at = now()
+        where domain = 'acme.dk'
+      `;
+      // Only a done opener is exported.
+      await db.sql`update companies set opener_status = 'queued', opener = 'stale' where domain = 'beta.dk'`;
       const res = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv`, headers: as('alice') });
       expect(res.statusCode).toBe(200);
       expect(res.headers['content-type']).toBe('text/csv; charset=utf-8');
       expect(res.headers['content-disposition']).toMatch(/^attachment; filename="nvoke-[0-9a-f]{8}\.csv"$/);
       const lines = res.body.slice(res.body.charCodeAt(0) === 0xfeff ? 1 : 0).trimEnd().split('\r\n');
       expect(lines).toEqual([
-        'company,domain,website,email,kind,verification,source_url,location,phone',
-        'Acme Dental,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
-        'Acme Dental,acme.dk,https://acme.dk/,ole@acme.dk,personal,invalid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
-        '"Beta, ""the"" clinic",beta.dk,https://beta.dk/,mette@beta.dk,personal,valid,https://beta.dk/kontakt,"Vej 1, København",+45 12 34 56 78',
-        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,personal,unknown,https://delta.dk/kontakt,\"Vej 1, København\",+45 12 34 56 78",
+        'company,domain,website,email,kind,verification,source_url,location,phone,opener',
+        'Acme Dental,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78,Your clinic opened in Aarhus in 1998.',
+        'Acme Dental,acme.dk,https://acme.dk/,ole@acme.dk,personal,invalid,https://acme.dk/kontakt,"Vej 1, København",+45 12 34 56 78,Your clinic opened in Aarhus in 1998.',
+        '"Beta, ""the"" clinic",beta.dk,https://beta.dk/,mette@beta.dk,personal,valid,https://beta.dk/kontakt,"Vej 1, København",+45 12 34 56 78,',
+        "Delta,delta.dk,https://delta.dk/,'=cmd@delta.dk,personal,unknown,https://delta.dk/kontakt,\"Vej 1, København\",+45 12 34 56 78,",
       ]);
       const filtered = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv?verification=valid&kind=generic`, headers: as('alice') });
       expect(filtered.body.trimEnd().split('\r\n')).toHaveLength(2);
       const other = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/export.csv`, headers: as('mallory') });
       expect(other.statusCode).toBe(404);
+    });
+
+    const draft = (body: object, user = 'alice') =>
+      app.inject({ method: 'POST', url: `/v1/searches/${searchId}/openers`, headers: as(user), payload: body });
+
+    it('queues openers only for companies with a valid email, in batches', async () => {
+      const res = await draft({});
+      expect(res.statusCode, res.body).toBe(202);
+      // Acme and Beta have a valid address; Gamma and Delta do not.
+      expect(DraftOpenersResponse.parse(res.json())).toEqual({ queued: 2, skipped: 2 });
+      const jobs = await db.sql<{ type: string; payload: { companyIds: string[] }; search_id: string | null }[]>`
+        select type, payload, search_id from jobs where type = 'opener'
+      `;
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.payload.companyIds).toHaveLength(2);
+      expect(jobs[0]!.search_id).toBeNull();
+
+      const p = await page('');
+      expect(p.companies.map((c) => c.opener?.status ?? null)).toEqual(['queued', 'queued', null, null]);
+
+      // Queued ones are left alone, even with redo.
+      expect((await draft({ redo: true })).json()).toEqual({ queued: 0, skipped: 4 });
+    });
+
+    it('drafts again only with redo, and only the companies asked for', async () => {
+      const acme = (await page('')).companies[0]!.id;
+      await db.sql`update companies set opener_status = 'done', opener = 'x' where id = ${acme}`;
+      expect((await draft({ companyIds: [acme] })).json()).toEqual({ queued: 0, skipped: 1 });
+      expect((await draft({ companyIds: [acme], redo: true })).json()).toEqual({ queued: 1, skipped: 0 });
+      // A failed one is drafted again without redo.
+      await db.sql`update companies set opener_status = 'failed' where id = ${acme}`;
+      expect((await draft({ companyIds: [acme] })).json()).toEqual({ queued: 1, skipped: 0 });
+    });
+
+    it('refuses when Claude would not answer, and other users', async () => {
+      aiReady = false;
+      const res = await draft({});
+      expect(res.statusCode).toBe(503);
+      expect(res.json()).toEqual({ error: 'ai_unavailable' });
+      aiReady = true;
+      expect((await draft({}, 'mallory')).statusCode).toBe(404);
+      expect((await draft({ companyIds: ['nope'] })).statusCode).toBe(400);
+      expect(await db.sql`select 1 from jobs where type = 'opener'`).toHaveLength(0);
     });
   });
 });

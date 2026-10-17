@@ -3,7 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api, ApiError } from './api';
 import { isActive } from './format';
 import type { ApiKey, CreateWebhookRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
-import type { CompaniesQuery, Drop, DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
+import type { CompaniesQuery, DraftOpenersInput, Drop,DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
 export const POLL_MS = 2000;
@@ -71,6 +71,49 @@ export function useRefreshWhenFinished(live: boolean, id: string | null): void {
     }
     wasLive.current = live;
   }, [live, id, client]);
+}
+
+/** Drafting openers is followed at this interval until none is queued. */
+export const OPENER_POLL_MS = 2500;
+
+/** Re-reads a search's companies: the local copy first (main only refetches when told), then the cache. */
+async function reloadCompanies(client: ReturnType<typeof useQueryClient>, id: string): Promise<void> {
+  await api.refreshLocal(id);
+  await client.invalidateQueries({ queryKey: [...keys.search(id), 'companies'] });
+}
+
+/** Queues openers for a search, or for some of its companies, and shows them as queued. */
+export function useDraftOpeners(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DraftOpenersInput) => api.draftOpeners(id, body),
+    onSuccess: () => reloadCompanies(client, id),
+  });
+}
+
+/**
+ * While a loaded company's opener is queued, re-reads the companies every
+ * OPENER_POLL_MS until none is. A running search polls on its own already.
+ */
+export function useFollowOpeners(id: string, drafting: boolean, live: boolean): void {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!drafting || live) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = (): void => {
+      timer = setTimeout(() => {
+        void reloadCompanies(client, id).finally(() => {
+          if (!stopped) tick();
+        });
+      }, OPENER_POLL_MS);
+    };
+    tick();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [id, drafting, live, client]);
 }
 
 /** How the local copy stands: counts, last sync and whether the server answered. */

@@ -67,6 +67,23 @@ describe('crawlSite', () => {
     expect(pages.every((c) => c.headers['user-agent'] === 'nvokebot/1.0 (+https://nvoke.run/bot)')).toBe(true);
   });
 
+  it('keeps the text of the homepage and the pages about the business, not contact, team or legal pages', async () => {
+    const fetch = fakeFetch({
+      'https://acme.dk/': page(`${HOME.replace('<p>Welcome.</p>', '<h1>Acme Tandklinik</h1><p>Open on Saturdays.</p>')}`),
+      'https://acme.dk/kontakt': page('<p>info@acme.dk</p>'),
+      'https://acme.dk/team/': page('<p>Mette Hansen</p>'),
+      'https://www.acme.dk/om-os': page('<title>Om os</title><p>Since 1998 in Aarhus. Ask jens@acme.dk or ole [at] acme [dot] dk.</p><footer>Cookies</footer>'),
+      'https://acme.dk/privatlivspolitik': page('<p>Dataansvarlig</p>'),
+    });
+    const result = await crawlSite('https://acme.dk/', 'acme.dk', deps(fetch));
+    expect(result.texts.map((t) => t.url)).toEqual(['https://acme.dk/', 'https://www.acme.dk/om-os']);
+    expect(result.texts[0]!.text).toContain('Open on Saturdays.');
+    // Navigation and footers are not page text.
+    expect(result.texts[0]!.text).not.toContain('Kontakt');
+    // No addresses: the shared cache keeps none of a person's.
+    expect(result.texts[1]).toMatchObject({ title: 'Om os', text: 'Since 1998 in Aarhus. Ask or .' });
+  });
+
   it('extracts from a realistic Danish contact page', async () => {
     const fetch = fakeFetch({
       'https://tandtorvet.dk/': page('<a href="/kontakt">Kontakt</a>'),

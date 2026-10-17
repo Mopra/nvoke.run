@@ -37,6 +37,9 @@ const claudeAnswer = {
 
 /** Claude behind the src/ai interface: answers with `reply`, or throws it when it is an error. */
 const ai: Ai = {
+  async ready() {
+    return true;
+  },
   async structured(req) {
     requests.push(req);
     if (reply instanceof Error) throw reply;

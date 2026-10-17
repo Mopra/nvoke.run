@@ -147,6 +147,29 @@ export const Email = z.object({
 });
 export type Email = z.infer<typeof Email>;
 
+/**
+ * A drafted opener: `queued` while Claude writes it, `done` with a line,
+ * `none` when the company's pages hold no fact to build on (or were never
+ * read), `failed` when Claude could not answer. Copy and export only:
+ * nvoke never sends.
+ */
+export const OpenerStatus = z.enum(['queued', 'done', 'none', 'failed']);
+export type OpenerStatus = z.infer<typeof OpenerStatus>;
+
+export const OPENER_MAX_LENGTH = 300;
+
+export const Opener = z.object({
+  status: OpenerStatus,
+  /** The drafted first line, plain text with no merge tags. Set when `done`. */
+  line: z.string().nullable(),
+  /** The page of the company's own site the line's fact comes from. */
+  sourceUrl: z.string().nullable(),
+  /** The words on that page the line rests on, verbatim. */
+  quote: z.string().nullable(),
+  draftedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type Opener = z.infer<typeof Opener>;
+
 export const Company = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -162,6 +185,8 @@ export const Company = z.object({
   /** Null unless the desktop app took up a refused or JS-only site. */
   localCrawl: LocalCrawlStatus.nullable(),
   emails: z.array(Email),
+  /** Null until openers are drafted for it (`POST /v1/searches/:id/openers`). Older local copies lack it. */
+  opener: Opener.nullable().default(null),
 });
 export type Company = z.infer<typeof Company>;
 
@@ -208,7 +233,31 @@ export const CSV_COLUMNS = [
   'source_url',
   'location',
   'phone',
+  'opener',
 ] as const;
+
+/** Companies one opener job sends to Claude together. */
+export const OPENER_BATCH = 8;
+
+/**
+ * Drafts openers for the companies of a search that have at least one valid
+ * email: the ones in `companyIds`, or all of them. Companies that already
+ * have one (`done`) or are `queued` are left alone unless `redo` is set.
+ */
+export const DraftOpenersRequest = z.object({
+  companyIds: z.array(z.uuid()).min(1).max(SEARCH_LIMIT_MAX).optional(),
+  redo: z.boolean().default(false),
+});
+export type DraftOpenersRequest = z.infer<typeof DraftOpenersRequest>;
+export type DraftOpenersInput = z.input<typeof DraftOpenersRequest>;
+
+export const DraftOpenersResponse = z.object({
+  /** Companies queued for an opener. They turn `done`, `none` or `failed` within a minute or two. */
+  queued: z.number().int().nonnegative(),
+  /** Asked for but left alone: no valid email, or an opener already there. */
+  skipped: z.number().int().nonnegative(),
+});
+export type DraftOpenersResponse = z.infer<typeof DraftOpenersResponse>;
 
 export const Usage = z.object({
   /** yyyy-mm, UTC. */
@@ -240,5 +289,6 @@ export const LeadsErrorCode = z.enum([
   'not_claimed',
   'database_unavailable',
   'source_unavailable',
+  'ai_unavailable',
 ]);
 export type LeadsErrorCode = z.infer<typeof LeadsErrorCode>;

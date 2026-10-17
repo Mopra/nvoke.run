@@ -15,8 +15,10 @@ import { DropRunInternal } from '../feed/drops.js';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
 import { cachedCrawl, isCacheable, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
 import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
+import type { SitePage } from '../leads/page-text.js';
 import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
+import type { Ai } from '../ai/client.js';
 import type { Alerter } from '../alerts.js';
 import { pauseSource } from '../leads/source-pause.js';
 import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
@@ -27,6 +29,8 @@ import { cancelSearchJobs, enqueue, type Job } from './queue.js';
 
 export interface PipelineDeps {
   sql: Sql;
+  /** Claude, for openers. Without it opener jobs fail. */
+  ai?: Ai;
   adapters: AdapterRegistry;
   crawl: CrawlDeps;
   verifier: Verifier;
@@ -300,7 +304,7 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   const emails = result.emails
     .filter((e) => !blocked.has(e.address))
     .map((e) => ({ address: e.address, kind: e.kind, sourceUrl: e.sourceUrl }));
-  await finishCrawl(deps, company, result.status, emails, now);
+  await finishCrawl(deps, company, result.status, emails, now, result.texts);
 }
 
 interface FoundEmail {
@@ -319,6 +323,7 @@ async function finishCrawl(
   status: CrawlOutcome,
   emails: FoundEmail[],
   crawledAt?: Date,
+  texts?: SitePage[],
 ): Promise<void> {
   const { sql } = deps;
   const stored = await sql.begin(async (tx) => {
@@ -338,6 +343,7 @@ async function finishCrawl(
           status,
           hasPersonal: emails.some((e) => !isCacheable(e, company.domain)),
           generic: emails.filter((e) => isCacheable(e, company.domain)),
+          texts,
         },
         crawledAt,
       );

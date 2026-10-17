@@ -12,6 +12,7 @@ const row = (over: Partial<CsvRow> = {}): CsvRow => ({
   source_url: 'https://acme.dk/kontakt',
   location: 'Vej 1, 2100 København',
   phone: '+45 12 34 56 78',
+  opener: null,
   ...over,
 });
 
@@ -38,13 +39,13 @@ describe('csvCell', () => {
 
 describe('toCsv', () => {
   it('writes a BOM, the header in spec order and one CRLF line per row', () => {
-    const csv = toCsv([row(), row({ email: 'ole@acme.dk', kind: 'personal', verification: null, company: 'Acme, "the" shop' })]);
+    const csv = toCsv([row({ opener: 'Open on Saturdays, rare in Copenhagen.' }), row({ email: 'ole@acme.dk', kind: 'personal', verification: null, company: 'Acme, "the" shop' })]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const lines = csv.slice(1).split('\r\n');
-    expect(lines[0]).toBe('company,domain,website,email,kind,verification,source_url,location,phone');
+    expect(lines[0]).toBe('company,domain,website,email,kind,verification,source_url,location,phone,opener');
     expect(lines[0]?.split(',')).toEqual([...CSV_COLUMNS]);
-    expect(lines[1]).toBe('Acme ApS,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, 2100 København",+45 12 34 56 78');
-    expect(lines[2]).toBe('"Acme, ""the"" shop",acme.dk,https://acme.dk/,ole@acme.dk,personal,,https://acme.dk/kontakt,"Vej 1, 2100 København",+45 12 34 56 78');
+    expect(lines[1]).toBe('Acme ApS,acme.dk,https://acme.dk/,info@acme.dk,generic,valid,https://acme.dk/kontakt,"Vej 1, 2100 København",+45 12 34 56 78,"Open on Saturdays, rare in Copenhagen."');
+    expect(lines[2]).toBe('"Acme, ""the"" shop",acme.dk,https://acme.dk/,ole@acme.dk,personal,,https://acme.dk/kontakt,"Vej 1, 2100 København",+45 12 34 56 78,');
     expect(lines[3]).toBe('');
     expect(lines).toHaveLength(4);
   });

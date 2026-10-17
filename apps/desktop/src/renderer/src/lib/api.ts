@@ -15,6 +15,8 @@ import type {
   AuthState,
   CompaniesPage,
   CompaniesQuery,
+  DraftOpenersInput,
+  DraftOpenersResponse,
   Drop,
   DropInput,
   DropListResponse,
@@ -65,6 +67,7 @@ export class ApiError extends Error {
 function describeError(status: number, code: string): string {
   if (code === 'quota_exceeded') return 'You’re out of verified emails this month. Upgrade or wait for the reset.';
   if (code === 'source_unavailable') return 'Web search is paused on our side. We know and we’re on it. Local and launch searches still work.';
+  if (code === 'ai_unavailable') return 'Claude is not answering right now. Try again in a minute.';
   if (status === 0) return 'Can’t reach nvoke. Check your connection.';
   if (status === 401) return 'Session expired. Sign in again.';
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
@@ -150,6 +153,12 @@ export function createApi(transport: Transport) {
     /** `live` skips the local copy, which only holds finished searches. */
     listCompanies: (id: string, query: CompaniesQuery = {}, live = false): Promise<CompaniesPage> =>
       listCompanies(id, query, live),
+    /**
+     * Queues an opener for each company with a valid email: the ones in
+     * `companyIds`, or the whole search. They land on `Company.opener`.
+     */
+    draftOpeners: (id: string, body: DraftOpenersInput = {}): Promise<DraftOpenersResponse> =>
+      call('POST', `/v1/searches/${enc(id)}/openers`, body),
     /** Companies across every search in the local copy. Null without one. */
     findLeads: (q: string, limit?: number): Promise<LocalFindResult | null> =>
       local.find(limit ? { q, limit } : { q }).catch(() => null),

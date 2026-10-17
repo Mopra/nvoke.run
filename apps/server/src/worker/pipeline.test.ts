@@ -471,6 +471,12 @@ describe('crawl cache', () => {
     ]);
     const cached = await db.sql`select domain, address from domain_emails order by address`;
     expect(cached).toEqual([{ domain: 'beta.dk', address: 'info@beta.dk' }]);
+    // The pages' text is kept for openers, without addresses, and not for a blocked site.
+    const pages = await db.sql`select domain, url, text from domain_pages order by domain`;
+    expect(pages).toEqual([
+      { domain: 'beta.dk', url: 'https://beta.dk/', text: 'Write to or' },
+      { domain: 'nomail.dk', url: 'https://nomail.dk/', text: 'No addresses here' },
+    ]);
   });
 
   it('recrawls a stale domain, keeps first_seen and drops vanished addresses', async () => {

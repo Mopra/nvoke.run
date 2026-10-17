@@ -10,6 +10,8 @@ import type {
   CrawlStatus,
   LocalCrawlStatus,
   EmailKind,
+  Opener,
+  OpenerStatus,
   LeadFilters,
   Search,
   SearchKind,
@@ -124,7 +126,7 @@ interface EmailJson {
   checked_at: string | null;
 }
 
-interface CompanyRow {
+interface CompanyRow extends OpenerColumns {
   id: string;
   name: string;
   domain: string;
@@ -192,6 +194,7 @@ export async function listCompanies(
   const rows = await sql<CompanyRow[]>`
     select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category,
            c.crawl_status, c.crawled_at, c.local_crawl, c.created_at::text as created_at_text,
+           c.opener_status, c.opener, c.opener_source_url, c.opener_quote, c.opener_at,
            coalesce(
              json_agg(json_build_object(
                'id', e.id, 'address', e.address, 'kind', e.kind, 'source_url', e.source_url,
@@ -260,11 +263,32 @@ export async function listCompanies(
       verification: e.verification,
       checkedAt: iso(e.checked_at),
     })),
+    opener: toOpener(r),
   }));
   return {
     companies,
     nextCursor: rows.length > query.limit && last ? encodeCursor(last.created_at_text, last.id) : null,
     total: count?.total ?? 0,
+  };
+}
+
+/** The opener columns of a company row as the API shows them. */
+export interface OpenerColumns {
+  opener_status: OpenerStatus | null;
+  opener: string | null;
+  opener_source_url: string | null;
+  opener_quote: string | null;
+  opener_at: Date | null;
+}
+
+export function toOpener(r: OpenerColumns): Opener | null {
+  if (!r.opener_status) return null;
+  return {
+    status: r.opener_status,
+    line: r.opener,
+    sourceUrl: r.opener_source_url,
+    quote: r.opener_quote,
+    draftedAt: iso(r.opener_at),
   };
 }
 
@@ -282,9 +306,11 @@ export async function exportRows(sql: Sql, userId: string, searchId: string, f: 
       source_url: string | null;
       location: string | null;
       phone: string | null;
+      opener: string | null;
     }[]
   >`
-    select c.name, c.domain, c.website, e.address, e.kind, e.verification, e.source_url, c.location, c.phone
+    select c.name, c.domain, c.website, e.address, e.kind, e.verification, e.source_url, c.location, c.phone,
+           case when c.opener_status = 'done' then c.opener end as opener
     from emails e
     join companies c on c.id = e.company_id
     where e.search_id = ${searchId} and e.clerk_user_id = ${userId}
@@ -303,5 +329,6 @@ export async function exportRows(sql: Sql, userId: string, searchId: string, f: 
     source_url: r.source_url,
     location: r.location,
     phone: r.phone,
+    opener: r.opener,
   }));
 }

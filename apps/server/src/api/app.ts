@@ -131,11 +131,15 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
   await app.register(webhookRoutes, { prefix: '/webhooks', signingSecret: env.CLERK_WEBHOOK_SIGNING_SECRET ?? null, accounts });
   await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
   // requireAuth sets request.userId; the plugin's requireUser guard reads it.
+  let ai = overrides.ai;
+  // Fastify's logger is pino underneath; its type only leaves out a few members.
+  const getAi = () => (ai ??= createAiFromEnv(getSql(), app.log as unknown as Logger));
   await app.register(leadsRoutes, {
     prefix: '/v1',
     getSql,
     authenticate: app.requireAuth,
     billingUrl: new URL('/desktop/billing', env.SITE_URL).toString(),
+    getAi,
   });
   await app.register(dropsRoutes, {
     prefix: '/v1',
@@ -152,14 +156,11 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     send: overrides.webhookSender ?? httpSender({ ...urlPolicy, resolve: overrides.webhookResolve }),
     resolve: overrides.webhookResolve,
   });
-  let ai = overrides.ai;
   await app.register(siteProfileRoutes, {
     prefix: '/v1/site-profile',
     getSql,
     authenticate: app.requireAuth,
-    getAi: () =>
-      // Fastify's logger is pino underneath; its type only leaves out a few members.
-      (ai ??= createAiFromEnv(getSql(), app.log as unknown as Logger)),
+    getAi,
     urlPolicy,
     read: overrides.readSite,
     resolve: overrides.webhookResolve,

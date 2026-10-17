@@ -2,9 +2,10 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ApiKey, CreateSearchInput, Search, SiteProfile, UpdateSiteProfileRequest } from '@nvoke/shared';
+import type { ApiKey, CreateSearchInput, DraftOpenersInput, Search, SiteProfile, UpdateSiteProfileRequest } from '@nvoke/shared';
 import { ApiError, type CompaniesQuery, type WebApi } from './api';
-import { listPollInterval, POLL_MS, searchPollInterval } from './quota';
+import { companiesPollInterval } from './openers';
+import { listPollInterval, searchPollInterval } from './quota';
 
 /**
  * React Query hooks over the web API, with the same keys and polling as the
@@ -54,6 +55,7 @@ export function useSearch(id: string) {
   });
 }
 
+/** Polls while the search runs, and after it while any loaded company's opener is still queued. */
 export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>, live: boolean) {
   const api = useApi();
   return useInfiniteQuery({
@@ -61,7 +63,7 @@ export function useCompanies(id: string, filters: Omit<CompaniesQuery, 'cursor'>
     queryFn: ({ pageParam }) => api.listCompanies(id, { ...filters, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    refetchInterval: live ? POLL_MS : false,
+    refetchInterval: (query) => companiesPollInterval(live, query.state.data?.pages),
     placeholderData: (previous) => previous,
   });
 }
@@ -81,6 +83,16 @@ export function useRefreshWhenFinished(live: boolean, id: string | null): void {
     }
     wasLive.current = live;
   }, [live, id, client]);
+}
+
+/** Queues openers for a search (or some of its companies), then refetches its companies so the queued ones show and poll. */
+export function useDraftOpeners(id: string) {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DraftOpenersInput) => api.draftOpeners(id, body),
+    onSuccess: () => void client.invalidateQueries({ queryKey: [...keys.search(id), 'companies'] }),
+  });
 }
 
 export function useMe() {

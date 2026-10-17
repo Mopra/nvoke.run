@@ -3,7 +3,7 @@
  * derives from a seed, so a search shows the same leads on every poll.
  */
 import { itemDomain, type SiteProfile } from '@nvoke/shared';
-import type { Company, Email, EmailKind, SearchInput, Verification } from '../types';
+import type { Company, Email, EmailKind, Opener, SearchInput, Verification } from '../types';
 
 /** mulberry32: small, fast, good enough for fake data. */
 export function rng(seed: number): () => number {
@@ -97,7 +97,7 @@ function nicheNoun(niche: string): string {
 }
 
 export interface MockCompanySeed {
-  company: Omit<Company, 'crawlStatus' | 'crawledAt' | 'localCrawl' | 'emails'>;
+  company: Omit<Company, 'crawlStatus' | 'crawledAt' | 'localCrawl' | 'emails' | 'opener'>;
   emails: Omit<Email, 'checkedAt' | 'verification'>[];
   verifications: Verification[];
   /** Some sites refuse crawling, need JavaScript or fail. */
@@ -198,6 +198,54 @@ export function generateCompany(searchId: string, input: SearchInput, index: num
     verifications,
     crawlOutcome,
     localCrawl,
+  };
+}
+
+/** A fact a company's own page could hold, and the first line Claude would build on it. */
+const OPENER_FACTS: { path: string; quote: (n: number, c: MockCompanySeed['company']) => string; line: (n: number, c: MockCompanySeed['company']) => string }[] = [
+  {
+    path: '/about',
+    quote: (n) => `Family owned and run since ${2026 - 8 - (n % 30)}.`,
+    line: (n) => `${8 + (n % 30)} years as a family run business is a long stretch, and your about page wears it well.`,
+  },
+  {
+    path: '/team',
+    quote: (n) => `Our team grew to ${6 + (n % 19)} people this year.`,
+    line: (n) => `Going to ${6 + (n % 19)} people in one year means the hiring went well.`,
+  },
+  {
+    path: '/news',
+    quote: (_n, c) => `We just opened our second location${c.location ? ` in ${c.location.split(',')[0]}` : ''}.`,
+    line: (_n, c) => `Congrats on the second location${c.location ? ` in ${c.location.split(',')[0]}` : ''}.`,
+  },
+  {
+    path: '/pricing',
+    quote: () => 'Every plan includes onboarding at no extra cost.',
+    line: () => 'Free onboarding on every plan takes the risk out of switching, which is rare to see spelled out.',
+  },
+  {
+    path: '/',
+    quote: (n) => `Trusted by ${(3 + (n % 40)) * 10} customers across the region.`,
+    line: (n, c) => `${(3 + (n % 40)) * 10} customers is a solid base for ${c.name} to build on.`,
+  },
+  {
+    path: '/services',
+    quote: () => 'Same day appointments, six days a week.',
+    line: () => 'Same day appointments six days a week must keep the calendar full.',
+  },
+];
+
+/** The opener Claude would draft for a company: a line from one of its pages, or now and then nothing to build on. */
+export function mockOpener(seed: MockCompanySeed['company'], index: number, at: string): Opener {
+  const r = rng(hashString(`opener:${seed.id}`));
+  if (r() < 0.12) return { status: 'none', line: null, sourceUrl: null, quote: null, draftedAt: at };
+  const fact = pick(r, OPENER_FACTS);
+  return {
+    status: 'done',
+    line: fact.line(index, seed),
+    sourceUrl: `${seed.website.replace(/\/$/, '')}${fact.path}`,
+    quote: fact.quote(index, seed),
+    draftedAt: at,
   };
 }
 

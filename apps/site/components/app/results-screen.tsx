@@ -14,7 +14,9 @@ import {
   Info,
   Loader2,
   MoreHorizontal,
+  PenLine,
   Radar,
+  RefreshCw,
   RotateCw,
   Search as SearchIcon,
   SearchX,
@@ -23,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Company, CreateSearchInput, Email, EmailKind, Search, Verification } from '@nvoke/shared';
+import type { Company, CreateSearchInput, DraftOpenersInput, Email, EmailKind, Opener, Search, Verification } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
 import { StatusLabel, VERIFICATION_DOT, VerificationBadge } from '@/components/app/indicators';
@@ -57,8 +59,17 @@ import {
   shouldShowExportNotice,
   VERIFICATION_LABEL,
 } from '@/lib/app/desktop';
+import { canDraftOpener, openerSourceLabel, openersNotice } from '@/lib/app/openers';
 import { BILLING_PATH, stoppedByQuota } from '@/lib/app/quota';
-import { useApi, useCancelSearch, useCompanies, useCreateSearch, useRefreshWhenFinished, useSearch } from '@/lib/app/queries';
+import {
+  useApi,
+  useCancelSearch,
+  useCompanies,
+  useCreateSearch,
+  useDraftOpeners,
+  useRefreshWhenFinished,
+  useSearch,
+} from '@/lib/app/queries';
 import { cn } from '@/lib/utils';
 
 const COLUMNS = 'md:grid md:grid-cols-[minmax(10rem,1fr)_minmax(17rem,1.6fr)_minmax(7rem,0.6fr)_3.5rem] md:gap-6';
@@ -226,8 +237,67 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
   );
 }
 
-function CompanyRow({ company, live }: { company: Company; live: boolean }) {
+/** The drafted first line under a company, to copy into the user's own outreach. */
+function OpenerLine({ opener }: { opener: Opener }) {
+  const quiet = 'text-xs leading-5 text-muted-foreground';
+  if (opener.status === 'queued') {
+    return (
+      <span className={cn(quiet, 'inline-flex items-center gap-2')}>
+        <Loader2 className="size-3 text-primary motion-safe:animate-spin" />
+        Drafting opener
+      </span>
+    );
+  }
+  if (opener.status === 'none') return <span className={cn(quiet, 'text-muted-foreground/70')}>No fact on the site to build on</span>;
+  if (opener.status === 'failed' || !opener.line) return <span className={cn(quiet, 'text-muted-foreground/70')}>Opener failed</span>;
+  const line = opener.line;
+  return (
+    <div className="group/opener flex min-w-0 max-w-[68ch] items-start gap-2">
+      <p className="min-w-0 select-text text-[13px] leading-5 text-pretty text-foreground/80 dark:text-foreground/70">
+        {line}
+        {opener.sourceUrl && (
+          <a
+            href={opener.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={opener.quote ?? undefined}
+            className="ml-2 whitespace-nowrap rounded-sm font-mono text-2xs text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            from {openerSourceLabel(opener.sourceUrl)}
+          </a>
+        )}
+      </p>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-my-0.5 size-6 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/opener:opacity-100 focus-visible:opacity-100"
+            aria-label="Copy opener"
+            onClick={() => void copy(line, 'the opener')}
+          >
+            <Copy className="size-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Copy opener</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+function CompanyRow({
+  company,
+  live,
+  onDraftOpener,
+}: {
+  company: Company;
+  live: boolean;
+  onDraftOpener: (company: Company) => void;
+}) {
   const source = SOURCE_LABEL[company.source] ?? company.source;
+  const opener = company.opener;
+  const draftable = canDraftOpener(company) && opener?.status !== 'queued';
+  const draftLabel = opener ? 'Draft opener again' : 'Draft opener';
   return (
     <div
       data-company-row
@@ -266,6 +336,22 @@ function CompanyRow({ company, live }: { company: Company; live: boolean }) {
             <TooltipContent>Copy all emails</TooltipContent>
           </Tooltip>
         )}
+        {draftable && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-6 text-muted-foreground"
+                aria-label={draftLabel}
+                onClick={() => onDraftOpener(company)}
+              >
+                <PenLine className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{draftLabel}</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="icon-sm" className="size-6 text-muted-foreground">
@@ -277,6 +363,11 @@ function CompanyRow({ company, live }: { company: Company; live: boolean }) {
           <TooltipContent>Open website</TooltipContent>
         </Tooltip>
       </div>
+      {opener && (
+        <div className="min-w-0 md:col-span-3 md:-mt-3">
+          <OpenerLine opener={opener} />
+        </div>
+      )}
     </div>
   );
 }
@@ -358,6 +449,7 @@ export function ResultsScreen({ id }: { id: string }) {
   useRefreshWhenFinished(live, id);
   const cancel = useCancelSearch();
   const create = useCreateSearch();
+  const draft = useDraftOpeners(id);
   const sentinel = useRef<HTMLDivElement>(null);
 
   const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
@@ -427,6 +519,27 @@ export function ResultsScreen({ id }: { id: string }) {
     });
   }
 
+  /** Queues openers (the whole search, or the given companies) and says what happened. */
+  function draftOpeners(body: DraftOpenersInput): void {
+    if (draft.isPending) return;
+    draft.mutate(body, {
+      onSuccess: (res) => {
+        const { title, description } = openersNotice(res);
+        if (res.queued === 0) toast(title, { description });
+        else toast.success(title, { description });
+      },
+      onError: (err) =>
+        err instanceof ApiError && err.code === 'ai_unavailable'
+          ? toast.error('Claude is not answering right now. Try again in a minute.')
+          : toast.error('Couldn’t draft openers', { description: err.message }),
+    });
+  }
+
+  /** One row: a first draft, or a fresh one when it has an opener already. */
+  function draftOpener(company: Company): void {
+    draftOpeners({ companyIds: [company.id], redo: company.opener !== null });
+  }
+
   const header = (
     <div className="flex items-center gap-2 px-1 pt-8 sm:px-6">
       <BackLink />
@@ -454,6 +567,15 @@ export function ResultsScreen({ id }: { id: string }) {
               <DropdownMenuItem onSelect={requestExport} disabled={search.emailsFound === 0}>
                 <Download />
                 Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => draftOpeners({})} disabled={search.emailsValid === 0 || draft.isPending}>
+                <PenLine />
+                Draft openers
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => draftOpeners({ redo: true })} disabled={search.emailsValid === 0 || draft.isPending}>
+                <RefreshCw />
+                Draft openers again
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
@@ -577,7 +699,7 @@ export function ResultsScreen({ id }: { id: string }) {
         ) : (
           <div className="flex flex-col">
             {rows.map((company) => (
-              <CompanyRow key={company.id} company={company} live={live} />
+              <CompanyRow key={company.id} company={company} live={live} onDraftOpener={draftOpener} />
             ))}
             <div ref={sentinel} className="flex h-10 items-center justify-center">
               {isFetchingNextPage && <Loader2 className="size-4 text-muted-foreground motion-safe:animate-spin" />}

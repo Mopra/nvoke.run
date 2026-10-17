@@ -11,6 +11,7 @@ import {
   Info,
   Loader2,
   MoreHorizontal,
+  PenLine,
   Radar,
   RotateCw,
   SearchX,
@@ -62,13 +63,15 @@ import {
   useCancelSearch,
   useCompanies,
   useCreateSearch,
+  useDraftOpeners,
+  useFollowOpeners,
   useLocalStatus,
   useRefreshWhenFinished,
   useSearch,
 } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
-import type { Company, Email, EmailKind, Search, SearchInput, Verification } from '@/lib/types';
+import type { Company, DraftOpenersInput, Email, EmailKind, Opener, Search, SearchInput, Verification } from '@/lib/types';
 import { useDesktopSettings } from '@/lib/desktop';
 import { cn } from '@/lib/utils';
 
@@ -237,6 +240,93 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
   );
 }
 
+/** The page an opener's fact comes from, as a short path. */
+function sourcePath(url: string): string {
+  try {
+    const path = new URL(url).pathname.replace(/\/$/, '');
+    return path || 'home page';
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Lets a mouse drag select the opener's text instead of dragging the row out.
+ * The row turns draggable again on mouse up.
+ */
+function holdRowDrag(event: ReactMouseEvent): void {
+  const row = event.currentTarget.closest<HTMLElement>('[data-company-row]');
+  if (!row) return;
+  row.draggable = false;
+  window.addEventListener('mouseup', () => (row.draggable = true), { once: true });
+}
+
+/** The drafted first line under a company, or where drafting it stands. */
+function OpenerLine({ opener }: { opener: Opener }) {
+  const quiet = 'text-xs leading-5 text-muted-foreground';
+  if (opener.status === 'queued') {
+    return (
+      <span data-opener="queued" className={cn(quiet, 'inline-flex items-center gap-2')}>
+        <Loader2 className="size-3 text-primary motion-safe:animate-spin" />
+        Drafting opener
+      </span>
+    );
+  }
+  if (opener.status === 'none') {
+    return (
+      <span data-opener="none" className={cn(quiet, 'opacity-70')}>
+        No fact on the site to build on
+      </span>
+    );
+  }
+  if (opener.status === 'failed' || !opener.line) {
+    return (
+      <span data-opener="failed" className={cn(quiet, 'opacity-70')}>
+        Opener failed
+      </span>
+    );
+  }
+  const { line, sourceUrl, quote } = opener;
+  return (
+    <div data-opener="done" className="group/opener flex min-w-0 items-start gap-2">
+      <p
+        onMouseDown={holdRowDrag}
+        className="min-w-0 cursor-text text-[13px] leading-5 text-pretty text-foreground/80 select-text dark:text-foreground/70"
+      >
+        {line}
+      </p>
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          data-copy-opener
+          onClick={() => void copy(line, 'opener')}
+          aria-label="Copy opener"
+          title="Copy opener"
+          className="flex size-5 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none transition-opacity group-hover/opener:opacity-100 hover:text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <Copy className="size-3" />
+        </button>
+        {sourceUrl && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => void api.openExternal(sourceUrl)}
+                className="max-w-40 truncate rounded-sm text-left text-2xs leading-5 text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                from <span className="font-mono">{sourcePath(sourceUrl)}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-72 rounded-2xl px-3 py-2 leading-relaxed">
+              {quote ? `“${quote}”` : sourceUrl}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CompanyRow({
   company,
   live,
@@ -256,6 +346,8 @@ function CompanyRow({
   onDragOut: (id: string, event: ReactDragEvent) => void;
 }) {
   const source = SOURCE_LABEL[company.source] ?? company.source;
+  // Older local copies have no `opener` field at all.
+  const opener = company.opener ?? null;
   return (
     <div
       data-company-row
@@ -267,12 +359,14 @@ function CompanyRow({
       }}
       onClick={(e) => {
         if (e.target instanceof Element && e.target.closest('button, a, input')) return;
+        // Selecting the opener's text is not a click on the row.
+        if (e.target instanceof Element && e.target.closest('[data-opener]') && window.getSelection()?.toString()) return;
         onSelect(company.id, e);
       }}
       onDragStart={(e) => onDragOut(company.id, e)}
       className={cn(
         COLUMNS,
-        'group items-start rounded-[20px] px-6 py-4 transition-colors duration-150',
+        'group items-start gap-y-2 rounded-[20px] px-6 py-4 transition-colors duration-150',
         selected ? 'bg-primary/[0.09] dark:bg-primary/[0.16]' : 'hover:bg-foreground/[0.035]',
         selected && joinAbove && 'rounded-t-none',
         selected && joinBelow && 'rounded-b-none',
@@ -327,6 +421,11 @@ function CompanyRow({
             <TooltipContent>Open website</TooltipContent>
           </Tooltip>
         </div>
+        {opener && (
+          <div className="col-span-3 min-w-0">
+            <OpenerLine opener={opener} />
+          </div>
+        )}
     </div>
   );
 }
@@ -418,6 +517,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const offline = offlineCaption(useLocalStatus().data);
   const cancel = useCancelSearch();
   const create = useCreateSearch();
+  const draft = useDraftOpeners(id);
   const filterRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -427,13 +527,17 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
   const filtered = Boolean(q || verification || kind);
+  const drafting = rows.some((r) => r.opener?.status === 'queued');
+  const drafted = rows.some((r) => r.opener != null && r.opener.status !== 'queued');
+  useFollowOpeners(id, drafting, live);
 
   // TanStack Virtual returns fresh functions each render; the compiler lint knows.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 58,
+    // A row with an opener has a line under it; measureElement corrects the rest.
+    estimateSize: (index) => (rows[index]?.opener ? 86 : 58),
     overscan: 12,
     getItemKey: (index) => rows[index]?.id ?? index,
     // The title and numbers scroll with the list, above it.
@@ -555,6 +659,34 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
     }
   }
 
+  /**
+   * Queues openers for `companies` (the whole search when omitted). When
+   * nothing was queued but some of them have one already, the toast offers
+   * to draft those again.
+   */
+  function draftOpeners(companies?: Company[], redo = false): void {
+    if (draft.isPending) return;
+    const body: DraftOpenersInput = companies ? { companyIds: companies.map((c) => c.id), redo } : { redo };
+    const asked = companies ?? rows;
+    draft.mutate(body, {
+      onSuccess: ({ queued, skipped }) => {
+        const skippedLine = skipped > 0 ? `${formatNumber(skipped)} skipped: no valid email or already drafted.` : undefined;
+        if (queued > 0) {
+          toast.success(`Drafting ${formatNumber(queued)} ${queued === 1 ? 'opener' : 'openers'}`, { description: skippedLine });
+          return;
+        }
+        const again = !redo && asked.some((c) => c.opener?.status === 'done');
+        toast('Nothing to draft', {
+          description: again
+            ? 'These companies have an opener already, or no valid email.'
+            : 'None of these companies has a valid email to write to.',
+          action: again ? { label: 'Draft again', onClick: () => draftOpeners(companies, true) } : undefined,
+        });
+      },
+      onError: (err) => toast.error('Couldn’t draft openers', { description: err.message }),
+    });
+  }
+
   function doCancel(): void {
     cancel.mutate(id, {
       onSuccess: () => toast('Search stopped', { description: 'Everything found so far is kept.' }),
@@ -662,6 +794,17 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                   <Download />
                   Export CSV
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => draftOpeners()} disabled={search.emailsValid === 0 || draft.isPending}>
+                  <PenLine />
+                  Draft openers
+                </DropdownMenuItem>
+                {drafted && (
+                  <DropdownMenuItem onSelect={() => draftOpeners(undefined, true)} disabled={draft.isPending}>
+                    <RotateCw />
+                    Draft openers again
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                   <Trash2 />
@@ -784,6 +927,16 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
             <span className="text-muted-foreground">
               Drag into Excel, Outlook or a folder, or <Kbd className="bg-transparent">{modKey} C</Kbd> to copy
             </span>
+            <button
+              type="button"
+              data-draft-selected
+              onClick={() => draftOpeners(selected)}
+              disabled={draft.isPending}
+              className="flex h-6 items-center gap-1.5 rounded-full px-2.5 font-medium outline-none hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+            >
+              <PenLine className="size-3.5" />
+              Draft openers
+            </button>
             <button
               type="button"
               aria-label="Clear selection"

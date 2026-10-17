@@ -165,3 +165,59 @@ describe('local copy', () => {
     await expect(api.updateSiteProfile({ name: 'X' })).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe('openers', () => {
+  async function finished() {
+    const { api, advance } = setup();
+    const s = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 60 });
+    advance(10 * 60_000);
+    const companies = (await api.listCompanies(s.id, {}, true)).companies;
+    return { api, advance, id: s.id, companies };
+  }
+  const valid = (c: { emails: { verification: string | null }[] }): boolean => c.emails.some((e) => e.verification === 'valid');
+
+  it('starts with no openers', async () => {
+    const { companies } = await finished();
+    expect(companies.every((c) => c.opener === null)).toBe(true);
+  });
+
+  it('queues companies with a valid email, then drafts them', async () => {
+    const { api, advance, id, companies } = await finished();
+    const eligible = companies.filter(valid).length;
+    expect(eligible).toBeGreaterThan(0);
+    const res = await api.draftOpeners(id);
+    expect(res).toEqual({ queued: eligible, skipped: companies.length - eligible });
+
+    const queued = (await api.listCompanies(id, {}, true)).companies;
+    for (const c of queued) expect(c.opener?.status ?? null).toBe(valid(c) ? 'queued' : null);
+
+    advance(10_000);
+    const drafted = (await api.listCompanies(id)).companies.filter((c) => c.opener);
+    expect(drafted).toHaveLength(eligible);
+    const done = drafted.filter((c) => c.opener!.status === 'done');
+    expect(done.length).toBeGreaterThan(0);
+    for (const c of done) {
+      expect(c.opener!.line).toBeTruthy();
+      expect(c.opener!.quote).toBeTruthy();
+      expect(c.opener!.sourceUrl!.startsWith(c.website.replace(/\/$/, ''))).toBe(true);
+    }
+    for (const c of drafted.filter((d) => d.opener!.status === 'none')) expect(c.opener!.line).toBeNull();
+  });
+
+  it('skips what is drafted unless asked to redo, and drafts a chosen few', async () => {
+    const { api, advance, id, companies } = await finished();
+    const picked = companies.filter(valid).slice(0, 2);
+    expect(await api.draftOpeners(id, { companyIds: [...picked.map((c) => c.id), companies.find((c) => !valid(c))!.id] })).toEqual({
+      queued: 2,
+      skipped: 1,
+    });
+    advance(10_000);
+    const ids = picked.map((c) => c.id);
+    const done = (await api.listCompanies(id)).companies.filter((c) => ids.includes(c.id) && c.opener?.status === 'done');
+    if (done.length > 0) {
+      expect(await api.draftOpeners(id, { companyIds: done.map((c) => c.id) })).toEqual({ queued: 0, skipped: done.length });
+      expect(await api.draftOpeners(id, { companyIds: done.map((c) => c.id), redo: true })).toEqual({ queued: done.length, skipped: 0 });
+    }
+    await expect(api.draftOpeners(id, { companyIds: [] })).rejects.toMatchObject({ status: 400 });
+  });
+});

@@ -18,6 +18,19 @@ export const resultsShots: CaptureStep = async (kit) => {
   await go(links.done, 1600);
   await shot('08-results-done');
 
+  // Draft openers for the whole search: queued at first, drafted a few seconds later.
+  await js(`(() => {
+    const t = document.querySelector('[aria-label="More actions"]');
+    t?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' }));
+  })()`);
+  await sleep(400);
+  await js(`[...document.querySelectorAll('[role="menuitem"]')].find((e) => e.textContent?.trim() === 'Draft openers')?.click()`);
+  await sleep(1200);
+  await shot('08c-openers-drafting');
+  await sleep(6000);
+  await shot('08d-openers-done');
+  await sleep(2000);
+
   // Select a range of rows, as a click and a shift click would.
   await js(`(() => {
     const rows = document.querySelectorAll('[data-company-row]');

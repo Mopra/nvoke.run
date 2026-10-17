@@ -81,6 +81,7 @@ function company(name: string, domain: string, emails: Company['emails'] = []): 
     crawledAt: null,
     localCrawl: null,
     emails,
+    opener: null,
   };
 }
 const email = (address: string, kind: 'generic' | 'personal', verification: 'valid' | 'risky' | null) => ({

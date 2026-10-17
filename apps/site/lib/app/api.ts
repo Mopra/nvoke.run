@@ -4,6 +4,8 @@ import type {
   CompaniesPage,
   CreateApiKeyResponse,
   CreateSearchInput,
+  DraftOpenersInput,
+  DraftOpenersResponse,
   LeadFilters,
   MeResponse,
   Search,
@@ -148,6 +150,9 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     /** The server's CSV (one row per email), with the same filters as the list. */
     exportCsv: async (id: string, filters: LeadFilters = {}): Promise<Blob> =>
       (await send('GET', `/v1/searches/${enc(id)}/export.csv${buildQuery({ ...filters })}`)).blob(),
+    /** Queues an opener per company with a valid email (202). They turn up on the companies as Claude writes them. */
+    draftOpeners: (id: string, body: DraftOpenersInput = {}): Promise<DraftOpenersResponse> =>
+      call('POST', `/v1/searches/${enc(id)}/openers`, body),
     /** `sync` makes the server re-read the plan from Clerk Billing first. */
     getMe: (sync = false): Promise<MeResponse> => call('GET', sync ? '/v1/me?sync=1' : '/v1/me'),
     listApiKeys: async (): Promise<ApiKey[]> => (await call<ApiKeyListResponse>('GET', '/v1/api-keys')).apiKeys,

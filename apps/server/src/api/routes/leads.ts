@@ -9,12 +9,14 @@ import type { z } from 'zod';
 import {
   CompaniesQuery,
   CreateSearchRequest,
+  DraftOpenersRequest,
   LeadFilters,
   LocalCrawlClaimRequest,
   LocalCrawlResultRequest,
   SEARCH_LIMIT_DEFAULT,
   SearchIdParams,
   type CompaniesPage,
+  type DraftOpenersResponse,
   type LeadsErrorCode,
   type LocalCrawlClaimResponse,
   type LocalCrawlResultResponse,
@@ -35,6 +37,8 @@ import {
   listCompanies,
   listSearches,
 } from '../../leads/repo.js';
+import type { Ai } from '../../ai/client.js';
+import { queueOpeners } from '../../openers/openers.js';
 import { requireUser } from '../user.js';
 
 export interface LeadsRoutesOptions {
@@ -44,6 +48,8 @@ export interface LeadsRoutesOptions {
   authenticate?: preHandlerAsyncHookHandler;
   /** Where a human upgrades, sent with `quota_exceeded`. */
   billingUrl?: string;
+  /** Claude, asked whether openers can be drafted now. Without it they cannot. */
+  getAi?: () => Ai;
 }
 
 function sendError(reply: FastifyReply, status: number, error: LeadsErrorCode, details?: unknown) {
@@ -143,6 +149,21 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
       .header('content-disposition', `attachment; filename="nvoke-${params.data.id.slice(0, 8)}.csv"`)
       .header('cache-control', 'no-store')
       .send(toCsv(rows));
+  });
+
+  // Openers per company (docs/SPEC.md, "Openers"): queued here, drafted by the worker.
+  app.post('/searches/:id/openers', async (req, reply): Promise<DraftOpenersResponse | void> => {
+    const params = parse(SearchIdParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    const body = parse(DraftOpenersRequest, req.body ?? {});
+    if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
+    const sql = opts.getSql();
+    const userId = req.userId!;
+    if (!(await getSearch(sql, userId, params.data.id))) return sendError(reply, 404, 'not_found');
+    if (!opts.getAi || !(await opts.getAi().ready(userId))) return sendError(reply, 503, 'ai_unavailable');
+    const result = await queueOpeners(sql, userId, params.data.id, body.data);
+    if (!result) return sendError(reply, 404, 'not_found');
+    return reply.code(202).send(result);
   });
 
   // The desktop's local render crawl (docs/desktop/local-crawl.md).

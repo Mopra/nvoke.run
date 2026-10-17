@@ -56,6 +56,8 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
       };
     case 'export_csv':
       return { method: 'GET', url: `/v1/searches/${id}/export.csv${qs({ verification: a['verification'], kind: a['kind'], q: a['q'] })}` };
+    case 'draft_openers':
+      return { method: 'POST', url: `/v1/searches/${id}/openers`, body: { companyIds: a['companyIds'], redo: a['redo'] } };
     case 'start_search': {
       const kind = a['kind'];
       const params =

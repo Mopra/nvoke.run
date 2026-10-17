@@ -10,6 +10,7 @@ import type {
   CompaniesPage,
   Company,
   Drop,
+  Opener,
   DropRunParams,
   FeedSource,
   EmailKind,
@@ -32,6 +33,7 @@ import {
   SEARCH_LIMIT_MAX,
   CreateWebhookRequest,
   BuildSiteProfileRequest,
+  DraftOpenersRequest,
   UpdateDropRequest,
   UpdateSiteProfileRequest,
   UpdateWebhookRequest,
@@ -42,9 +44,11 @@ import {
   type SiteProfile,
   type Webhook,
 } from '@nvoke/shared';
-import { generateCompany, mockSiteProfile, sourceYield, type MockCompanySeed } from './data';
+import { generateCompany, mockOpener, mockSiteProfile, sourceYield, type MockCompanySeed } from './data';
 
 const QUEUE_MS = 1500;
+/** How long Claude takes over one opener, before the stagger across a batch. */
+const OPENER_MS = 1800;
 /** How long a mock site profile build takes, long enough to show the phases. */
 const SITE_PROFILE_MS = 5200;
 /** The built profile survives a reload in dev, like the server keeps it. */
@@ -72,6 +76,8 @@ interface SearchRecord {
   total: number;
   /** Set when a drop made this search. The input then only seeds the fake companies. */
   dropRun?: DropRunParams;
+  /** When each company's opener was queued, by company id. */
+  openers?: Map<string, number>;
 }
 
 interface Progress {
@@ -176,9 +182,47 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
               checkedAt: verified ? stamp : null,
             }))
           : [],
+        opener: openerOf(rec, i),
       });
     }
     return out;
+  }
+
+  /** Queued for a moment after it was asked for, then drafted. Staggered, like batches finishing. */
+  function openerOf(rec: SearchRecord, index: number): Opener | null {
+    const seed = seeds(rec)[index]!;
+    const queuedAt = rec.openers?.get(seed.company.id);
+    if (queuedAt === undefined) return null;
+    const doneAt = queuedAt + OPENER_MS + (index % 8) * 250;
+    if (now() < doneAt) return { status: 'queued', line: null, sourceUrl: null, quote: null, draftedAt: null };
+    return mockOpener(seed.company, index, new Date(doneAt).toISOString());
+  }
+
+  /** POST /v1/searches/:id/openers: queues the companies with a valid email that have no opener yet, or all of them on `redo`. */
+  function draftOpeners(rec: SearchRecord, body: unknown): BridgeResponse {
+    // Mock company ids are not uuids, so the ids are checked as plain strings.
+    const req = DraftOpenersRequest.omit({ companyIds: true }).safeParse(body ?? {});
+    const ids = (body as { companyIds?: unknown } | null)?.companyIds;
+    const idsOk = ids === undefined || (Array.isArray(ids) && ids.length > 0 && ids.every((i) => typeof i === 'string'));
+    if (!req.success || !idsOk) return fail(400, 'invalid_request');
+    const companyIds = ids as string[] | undefined;
+    const { redo } = req.data;
+    const wanted = companyIds ? new Set(companyIds) : null;
+    const openers = (rec.openers ??= new Map());
+    let queued = 0;
+    let skipped = 0;
+    for (const c of companiesOf(rec, progress(rec))) {
+      if (wanted && !wanted.has(c.id)) continue;
+      const eligible = c.emails.some((e) => e.verification === 'valid');
+      const has = c.opener?.status === 'done' || c.opener?.status === 'queued';
+      if (!eligible || (has && !redo)) {
+        skipped += 1;
+        continue;
+      }
+      openers.set(c.id, now());
+      queued += 1;
+    }
+    return json(202, { queued, skipped });
   }
 
   function toSearch(rec: SearchRecord): Search {
@@ -401,6 +445,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       return json(200, toSearch(rec));
     }
     if (parts[3] === 'companies' && method === 'GET') return json(200, listCompanies(rec, url.searchParams));
+    if (parts[3] === 'openers' && method === 'POST') return draftOpeners(rec, body);
     return fail(404, 'not_found');
   }
 
