@@ -5,12 +5,15 @@
 // sells to), which is free and stable. Built once and committed, so every
 // benchmark run crawls the same sites.
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pino } from 'pino';
 import { domainOf, isPlatformDomain, isWebmailDomain, normalizeDomain, normalizeWebsite } from '@nvoke/shared/crawl';
 import type { Env } from '../env.js';
 import { fetchJson } from '../leads/http.js';
+import { sleep } from '../leads/limits.js';
 import { createAdapters } from '../leads/sources/index.js';
-import { elementToCompany, nicheTags, placeEmail, queryOverpass, resolveArea } from '../leads/sources/local.js';
+import { nicheTags, placeEmail, queryOverpass, resolveArea } from '../leads/sources/local.js';
 import type { FoundCompany, SourceAdapter } from '../leads/sources/types.js';
 import type { SampleSite, SampleSource } from './crawl-bench.js';
 
@@ -68,46 +71,72 @@ async function* wikidataBusinesses(country: string, qid: string): AsyncGenerator
   }
 }
 
-export async function buildSample(env: Env, log = pino({ level: 'warn' })): Promise<SampleSite[]> {
+/** Pauses before the second and third try of a query that failed (public Overpass mirrors time out). */
+const QUERY_RETRY_DELAYS_MS = [30_000, 90_000];
+
+/**
+ * Builds the sample. Every query that finished is kept in `cacheDir`, so a
+ * second run fetches only the queries that failed before.
+ */
+export async function buildSample(env: Env, cacheDir: string, log = pino({ level: 'warn' })): Promise<SampleSite[]> {
   const adapters = createAdapters(env);
   const seen = new Set<string>();
   const out: SampleSite[] = [];
+  mkdirSync(cacheDir, { recursive: true });
 
-  const take = async (source: SampleSource, query: string, found: AsyncIterable<FoundCompany>, max: number) => {
-    let n = 0;
-    try {
-      for await (const company of found) {
-        const website = normalizeWebsite(company.website);
-        const domain = website ? normalizeDomain(website) : null;
-        if (!website || !domain || isPlatformDomain(domain) || seen.has(domain)) continue;
-        seen.add(domain);
-        out.push({ source, query, name: company.name, website, domain });
-        if (++n >= max) break;
+  /** The companies a query found, from the cache or fetched (with retries) and cached. */
+  const found = async (query: string, fetchAll: () => AsyncIterable<FoundCompany>, max: number): Promise<FoundCompany[] | null> => {
+    const file = join(cacheDir, `${query.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`);
+    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')) as FoundCompany[];
+    for (let attempt = 0; attempt <= QUERY_RETRY_DELAYS_MS.length; attempt++) {
+      if (attempt > 0) await sleep(QUERY_RETRY_DELAYS_MS[attempt - 1]!);
+      const companies: FoundCompany[] = [];
+      try {
+        for await (const company of fetchAll()) {
+          companies.push(company);
+          if (companies.length >= max) break;
+        }
+        writeFileSync(file, JSON.stringify(companies, null, 1));
+        return companies;
+      } catch (err) {
+        log.warn({ query, attempt, err: err instanceof Error ? err.message : String(err) }, 'sample: query failed');
       }
-    } catch (err) {
-      log.warn({ query, err: err instanceof Error ? err.message : String(err) }, 'sample: query failed');
     }
-    console.error(`${source.padEnd(8)} ${query}: ${n}`);
+    return null;
+  };
+
+  const take = async (source: SampleSource, query: string, fetchAll: () => AsyncIterable<FoundCompany>, max: number) => {
+    const companies = await found(query, fetchAll, max * 4);
+    let n = 0;
+    for (const company of companies ?? []) {
+      const website = normalizeWebsite(company.website);
+      const domain = website ? normalizeDomain(website) : null;
+      if (!website || !domain || isPlatformDomain(domain) || seen.has(domain)) continue;
+      seen.add(domain);
+      out.push({ source, query, name: company.name, website, domain });
+      if (++n >= max) break;
+    }
+    console.error(`${source.padEnd(8)} ${query}: ${companies ? n : 'failed'}`);
   };
   const ctx = (limit: number) => ({ limit, signal: AbortSignal.timeout(10 * 60_000), log });
 
   const perLocal = Math.ceil(PER_SOURCE / LOCAL_QUERIES.length);
   for (const [niche, location] of LOCAL_QUERIES) {
-    await take('local', `${niche} in ${location}`, adapters.local.find({ niche, location }, ctx(perLocal * 3)), perLocal);
+    await take('local', `${niche} in ${location}`, () => adapters.local.find({ niche, location }, ctx(perLocal * 4)), perLocal);
   }
 
-  await take('launches', 'show hn, last 30 days', adapters.launches.find({ days: 30, sources: ['show_hn'] }, ctx(PER_SOURCE * 2)), PER_SOURCE);
+  await take('launches', 'show hn, last 30 days', () => adapters.launches.find({ days: 30, sources: ['show_hn'] }, ctx(PER_SOURCE * 4)), PER_SOURCE);
 
   if (env.BRAVE_SEARCH_API_KEY) {
     const web = adapters.web as SourceAdapter<{ keyword: string; country: string }>;
     const perWeb = Math.ceil(PER_SOURCE / WEB_KEYWORDS.length);
     for (const [keyword, country] of WEB_KEYWORDS) {
-      await take('web', `${keyword} (${country})`, web.find({ keyword, country }, ctx(perWeb * 2)), perWeb);
+      await take('web', `${keyword} (${country})`, () => web.find({ keyword, country }, ctx(perWeb * 4)), perWeb);
     }
   } else {
     const perCountry = Math.ceil(PER_SOURCE / WIKIDATA_COUNTRIES.length);
     for (const [code, qid] of WIKIDATA_COUNTRIES) {
-      await take('web', `wikidata business (${code})`, wikidataBusinesses(code, qid), perCountry);
+      await take('web', `wikidata business (${code})`, () => wikidataBusinesses(code, qid), perCountry);
     }
   }
   return out;
@@ -146,7 +175,7 @@ export async function localFillRate(env: Env): Promise<FillRate[]> {
         const tags = el.tags ?? {};
         if (!tags.name) continue;
         row.places++;
-        if (elementToCompany(el)) row.website++;
+        if (tags.website ?? tags['contact:website'] ?? tags.url) row.website++;
         else {
           const email = placeEmail(tags);
           if (email && isWebmailDomain(domainOf(email))) row.webmailOnly++;

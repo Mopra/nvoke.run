@@ -370,7 +370,7 @@ async function bench(args: Args): Promise<void> {
     return typeof v === 'string' ? v : undefined;
   };
   if (action === 'sample') {
-    const sample = await buildSample(loadEnv());
+    const sample = await buildSample(loadEnv(), join(BENCH_DIR, 'sample-queries'));
     writeFileSync(SAMPLE_PATH, `${JSON.stringify(sample, null, 1)}\n`);
     console.log(`wrote ${sample.length} sites to ${SAMPLE_PATH}`);
     return;
