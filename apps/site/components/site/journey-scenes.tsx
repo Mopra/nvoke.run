@@ -119,6 +119,16 @@ const FOUND: { domain: string; email: string; pages: number; result: Verificatio
   { domain: 'lonestarsmiles.com', email: 'info@lonestarsmiles.com', pages: 4, result: 'invalid' },
 ];
 
+/** The badge while the mail server is being asked. */
+function Checking() {
+  return (
+    <span className="j-check h-[18px] shrink-0 items-center gap-1.5 rounded-full bg-foreground/[0.05] pr-2 pl-1.5 text-[10.5px] leading-[14px] font-medium whitespace-nowrap text-muted-foreground">
+      <span className="size-1.5 rounded-full bg-primary/70" />
+      Checking
+    </span>
+  );
+}
+
 /** 3. nvoke finds the companies, reads their sites and checks each address. */
 export function FindScene({ seen }: { seen: boolean }) {
   return (
@@ -148,7 +158,7 @@ export function FindScene({ seen }: { seen: boolean }) {
                 </div>
               </div>
               <span className="relative inline-flex shrink-0">
-                <VerificationBadge value="checking" className="j-check" />
+                <Checking />
                 <VerificationBadge value={f.result} className="j-final" />
               </span>
             </li>

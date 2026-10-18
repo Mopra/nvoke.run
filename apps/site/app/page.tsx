@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Download } from 'lucide-react';
-import { MockFit, VERIFICATION, VerificationBadge } from '@/components/mockups/primitives';
+import { DENTISTS } from '@/components/mockups/data';
+import { MockButton, MockFit, VERIFICATION, VerificationBadge } from '@/components/mockups/primitives';
 import {
-  CommandWindowScene,
-  ExportScene,
-  NewSearchScene,
-  ResultsWindowScene,
-  SearchesScene,
-} from '@/components/mockups/scenes';
-import { SEARCH_KINDS } from '@/components/mockups/screens';
+  CompanyRow,
+  MacCommandWindow,
+  NewSearchForm,
+  SEARCH_KINDS,
+  SearchRow,
+  WindowsResultsWindow,
+} from '@/components/mockups/screens';
 import { Stage } from '@/components/mockups/stage';
 import { VerificationTrace } from '@/components/mockups/verification-trace';
 import type { Verification } from '@/components/mockups/data';
@@ -137,7 +138,7 @@ function StepShot({ index }: { index: number }) {
     return (
       <MockFit width={620} height={470} label="The new search form, set to find dentists in Austin.">
         <Panel>
-          <NewSearchScene />
+          <NewSearchForm />
         </Panel>
       </MockFit>
     );
@@ -146,7 +147,14 @@ function StepShot({ index }: { index: number }) {
     return (
       <MockFit width={620} height={330} label="A running search: 27 of 44 websites crawled, 36 emails found so far.">
         <Panel>
-          <SearchesScene />
+          <div className="pb-4">
+            <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">Searches</div>
+            <div className="mt-1 text-[13px] text-muted-foreground">5 searches, 1 running</div>
+          </div>
+          <div className="-mx-5 flex flex-col gap-1">
+            <SearchRow index={0} compact />
+            <SearchRow index={1} compact />
+          </div>
         </Panel>
       </MockFit>
     );
@@ -154,7 +162,20 @@ function StepShot({ index }: { index: number }) {
   return (
     <MockFit width={620} height={330} label="Dentists in Austin with verified emails, ready to export as CSV.">
       <Panel>
-        <ExportScene />
+        <div className="flex items-start gap-4 pb-4">
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-[28px] leading-[34px] font-semibold tracking-[-0.026em]">
+              Dentists in Austin
+            </div>
+            <div className="mt-1 text-[13px] text-muted-foreground">46 valid of 83</div>
+          </div>
+          <MockButton icon={Download}>Export CSV</MockButton>
+        </div>
+        <div className="-mx-8">
+          {DENTISTS.slice(0, 2).map((c) => (
+            <CompanyRow key={c.domain} company={c} location={false} />
+          ))}
+        </div>
       </Panel>
     </MockFit>
   );
@@ -197,7 +218,7 @@ export default function HomePage() {
             minScale={0.55}
             label="The nvoke app on Windows, showing a running search for bakeries in Lisbon with verified emails arriving."
           >
-            <ResultsWindowScene />
+            <WindowsResultsWindow animate />
           </Stage>
         </Container>
       </section>
@@ -281,7 +302,7 @@ export default function HomePage() {
             minScale={0.55}
             label="The nvoke app on macOS: the list of searches, with the command bar open to jump to Dentists in Austin."
           >
-            <CommandWindowScene />
+            <MacCommandWindow />
           </Stage>
         </Container>
         <Container>
