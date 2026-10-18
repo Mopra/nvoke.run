@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Round after the checks on 41a8a73 landed (two duplicate checks quests, both done, no fix commits): read as green. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
 - 2026-10-18 Round after a landing: the human committed guarded fetch, lead quality report and check policy (1794f19 to 41a8a73) past green 6fd077f, tree clean, so filed 'Checks on main after guarded fetch and check policy' (sonnet). Brave and registry keys still with the human.
 - 2026-10-18 Round after 'Checks on main after free search fallback and shared inboxes' landed: done with no fix commits or notes, read as green at 6fd077f. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
 - 2026-10-18 Hourly round: the human committed free search fallback, cheaper searches and shared inboxes (94a8266 to 6fd077f) and the tree is clean, so filed 'Checks on main after free search fallback and shared inboxes' (sonnet). Brave and registry keys still with the human.
@@ -137,7 +138,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at 6fd077f (2026-10-18); checks on 41a8a73 filed. Shipping is the human's (36 quests since the last ship).
+- Main checked green at 41a8a73 (2026-10-18). Shipping is the human's (37 quests since the last ship).
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
