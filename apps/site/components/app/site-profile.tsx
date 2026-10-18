@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, CornerDownLeft, Loader2, Pencil, Play, RotateCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CornerDownLeft, Globe, Loader2, Pencil, Play, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateSearchInput, SiteProfile, SuggestedSearch } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
 import { DeleteSiteProfileDialog } from '@/components/app/delete-site-profile-dialog';
 import { useStartSearch } from '@/components/app/new-search-screen';
-import { Pill, SENTENCE } from '@/components/app/sentence';
+import { PLATE } from '@/components/app/search-fields';
+import { Line, Pill, SentenceInput } from '@/components/app/sentence';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { ErrorState } from '@/components/app/states';
+import { LogoMark } from '@/components/site/logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -170,9 +172,9 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
 
   return (
     <main className={cn(APP_FRAME, 'app-view pb-24')}>
-      <div className={cn(APP_INSET, 'relative flex flex-col pt-8 sm:pt-[6vh]')}>
+      <div className={cn(APP_INSET, 'relative flex flex-col pt-6')}>
         <BackLink />
-        <div className="mt-6">{body}</div>
+        <div className="mx-auto w-full max-w-[760px] pt-8 sm:pt-[6vh]">{body}</div>
       </div>
       {profile.data && (
         <DeleteSiteProfileDialog
@@ -192,14 +194,17 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
 /** The way out to the tabs, on every state of the step. */
 function ManualLink({ children = 'Set up a search by hand' }: { children?: ReactNode }) {
   return (
-    <Link
-      href={MANUAL_PATH}
-      className="rounded-full text-sm text-muted-foreground underline-offset-4 outline-none transition-colors hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40"
-    >
-      {children}
-    </Link>
+    <Button asChild variant="secondary" size="sm">
+      <Link href={MANUAL_PATH}>
+        {children}
+        <ArrowRight className="size-3" />
+      </Link>
+    </Button>
   );
 }
+
+/** Small print under a key. */
+const NOTE = 'text-sm text-muted-foreground';
 
 function WebsiteForm({
   value,
@@ -223,56 +228,51 @@ function WebsiteForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate>
-      <h1 className="font-display text-4xl font-semibold tracking-[-0.035em] text-balance sm:text-5xl">Start from your website</h1>
-      <p className="mt-3 max-w-lg text-base text-pretty text-muted-foreground">
-        nvoke reads your site, works out who buys from you and plans the searches that find them. About 20 seconds.
-      </p>
-
-      <div className="group/line relative mt-12 pb-2">
-        <label htmlFor="website" className="sr-only">
-          Your website
-        </label>
-        <input
-          id="website"
-          ref={field}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          type="text"
-          inputMode="url"
-          autoComplete="url"
-          autoCapitalize="none"
-          spellCheck={false}
-          placeholder="yourcompany.com"
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? 'website-problem' : undefined}
-          className={cn(SENTENCE, 'w-full font-mono font-normal tracking-tight')}
-        />
-        <span className="absolute inset-x-0 bottom-0 h-px bg-border transition-colors duration-300 group-focus-within/line:bg-primary/70" />
-      </div>
-
-      {problem && (
-        <p id="website-problem" role="alert" className="mt-4 text-sm text-pretty">
-          <span className="text-destructive">{problem}</span> <ManualLink>Set one up by hand instead.</ManualLink>
-        </p>
+    <form onSubmit={submit} noValidate className="flex flex-col">
+      <h1 className="sr-only">Start from your website</h1>
+      {onCancel && (
+        <Pill onClick={onCancel} className="mb-6 self-start">
+          <ArrowLeft className="size-3" />
+          Keep the current profile
+        </Pill>
       )}
+      <div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-3 sm:gap-x-6">
+        <Line lead="Start from" htmlFor="website">
+          <SentenceInput
+            id="website"
+            ref={field}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            type="text"
+            inputMode="url"
+            autoComplete="url"
+            autoCapitalize="none"
+            placeholder="yourcompany.com"
+            aria-invalid={problem ? true : undefined}
+            aria-describedby={problem ? 'website-problem' : 'website-hint'}
+            className="font-mono tracking-tight"
+          />
+        </Line>
+      </div>
+      <p id="website-hint" className={cn('mt-5 max-w-xl text-pretty', NOTE)}>
+        nvoke reads your homepage and its about, pricing and services pages, works out who buys from you and plans the
+        searches that find them. About 20 seconds. robots.txt is honored. Free, 10 sites a day.
+      </p>
 
       <div className="mt-12 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
         <Button type="submit" size="lg" className="min-w-44">
           Plan my searches
           <CornerDownLeft className="size-3.5 opacity-70" />
         </Button>
-        {onCancel ? (
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            Keep the current profile
-          </Button>
-        ) : (
-          !problem && <ManualLink />
+        {problem && (
+          <span id="website-problem" role="alert" className="max-w-md text-sm text-pretty text-destructive">
+            {problem}
+          </span>
         )}
       </div>
-      <p className="mt-6 max-w-sm text-xs text-muted-foreground">
-        We read your homepage and its about, pricing and services pages, and honor robots.txt. Free, 10 sites a day.
-      </p>
+      <div className="mt-8">
+        <ManualLink />
+      </div>
     </form>
   );
 }
@@ -329,52 +329,45 @@ function Building({
   const current = runout ?? buildPhase(elapsed);
 
   return (
-    <section role="status" aria-live="polite" aria-label={`Reading ${domain}`} className="relative">
-      <div
-        aria-hidden
-        className="aura pointer-events-none absolute -top-48 left-1/2 -z-10 h-[460px] w-[760px] max-w-[150vw] -translate-x-1/2 rounded-full motion-safe:animate-breathe"
-      />
-      <h1 className="truncate font-mono text-[26px]/[34px] tracking-tight sm:text-4xl" title={domain}>
+    <section role="status" aria-live="polite" aria-label={`Reading ${domain}`} className="flex flex-col">
+      <LogoMark motion="loading" className="mb-8 size-10" />
+      <h1 className="cap truncate text-primary" title={domain}>
         {domain}
       </h1>
-      <div className="mt-6 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07]">
-        <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate" />
+      <div
+        className="relative mt-5 h-[3px] w-full max-w-72 overflow-hidden rounded-[1px] bg-foreground/[0.12]"
+        role="progressbar"
+        aria-label="Reading your site"
+      >
+        <div className="absolute inset-y-0 left-0 w-1/4 rounded-[1px] bg-primary shadow-[0_0_6px_var(--primary)] motion-safe:animate-indeterminate" />
       </div>
-      <ol className="mt-10 flex flex-col gap-3">
+      <ol className="mt-10 flex flex-col">
         {BUILD_PHASES.map((phase, i) => (
           <li
             key={i}
             className={cn(
-              'flex items-center gap-3 font-display text-lg transition-colors duration-500 sm:text-xl',
+              'flex items-center gap-4 border-t border-border py-3 font-display text-lg font-light transition-colors duration-500 last:border-b sm:text-xl',
               i < current && 'text-muted-foreground',
-              i === current && 'font-medium text-foreground',
-              i > current && 'text-foreground/20',
+              i === current && 'text-foreground',
+              i > current && 'text-foreground/30',
             )}
           >
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              {i < current ? (
-                <Check className="size-4" strokeWidth={2} />
-              ) : i === current ? (
-                <span className="relative flex size-2">
-                  <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
-                  <span className="relative size-2 rounded-full bg-primary" />
-                </span>
-              ) : (
-                <span className="size-1.5 rounded-full bg-current" />
-              )}
-            </span>
+            <span
+              aria-hidden
+              className={cn('led', i < current && 'bg-chart-1', i === current && 'led-on motion-safe:animate-pulse')}
+            />
             {phase.label(domain)}
           </li>
         ))}
       </ol>
-      <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
-        <p className="text-sm text-muted-foreground">
+      <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <p className={NOTE}>
           {elapsed >= BUILD_SLOW_MS && runout === null
             ? 'Big sites take a little longer. Still on it.'
             : 'About 20 seconds. You can leave this page while it reads.'}
         </p>
         {!done && (
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel} className="-ml-3 sm:ml-0">
+          <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
             Cancel
           </Button>
         )}
@@ -396,7 +389,7 @@ function ProfileSkeleton() {
               <Skeleton className="h-4 w-56 max-w-full" />
               <Skeleton className="h-3 w-80 max-w-full" />
             </div>
-            <Skeleton className="h-8 w-20 rounded-full" />
+            <Skeleton className="h-8 w-20" />
           </div>
         ))}
       </div>
@@ -424,20 +417,23 @@ function ProfileView({
 
   return (
     <>
-      <div className="-ml-3 flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-        <span className="px-3 font-mono">{displayDomain(profile.website)}</span>
-        <Pill onClick={onReadAgain} className="inline-flex items-center gap-1.5">
-          <RotateCw className="size-3" />
-          Read again
-        </Pill>
-        <Pill onClick={onAnother}>Another site</Pill>
+      <div className="cap flex items-center gap-2 text-muted-foreground">
+        <Globe className="size-3.5" />
+        <span className="text-primary">{displayDomain(profile.website)}</span>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
         {!editing && (
-          <Pill onClick={() => onEdit(true)} className="inline-flex items-center gap-1.5">
+          <Pill onClick={() => onEdit(true)}>
             <Pencil className="size-3" />
             Edit
           </Pill>
         )}
-        <Pill onClick={onRemove} className="inline-flex items-center gap-1.5">
+        <Pill onClick={onReadAgain}>
+          <RotateCw className="size-3" />
+          Read again
+        </Pill>
+        <Pill onClick={onAnother}>Read another site</Pill>
+        <Pill onClick={onRemove}>
           <Trash2 className="size-3" />
           Remove
         </Pill>
@@ -449,29 +445,27 @@ function ProfileView({
         <section aria-label="Your profile" className="mt-6">
           <div className="flex items-center gap-4 sm:gap-6">
             {profile.icon && <SiteIcon key={profile.icon} src={profile.icon} />}
-            <h1 className="min-w-0 font-display text-5xl/[1.02] font-semibold tracking-[-0.045em] text-balance sm:text-7xl/[1]">{fields.name}</h1>
+            <h1 className="min-w-0 font-display text-3xl font-light tracking-[-0.02em] text-balance sm:text-4xl">{fields.name}</h1>
           </div>
-          <p className="mt-6 max-w-[34ch] font-display text-2xl/[1.3] tracking-[-0.015em] text-pretty text-foreground/75 sm:text-[28px]/[1.3]">
+          <p className="mt-3 max-w-2xl text-base text-pretty text-muted-foreground">
             {fields.summary}
           </p>
-          <dl className="mt-10">
-            <dt className="text-sm text-muted-foreground">Sells to</dt>
-            <dd className="mt-2 max-w-[56ch] text-lg/relaxed text-pretty text-foreground/90">{fields.audience}</dd>
+          <dl className="mt-6">
+            <dt className="cap text-muted-foreground">Sells to</dt>
+            <dd className="mt-1.5 max-w-2xl text-sm text-pretty">{fields.audience}</dd>
           </dl>
           <SitePicture key={profile.image ?? profile.updatedAt} profile={profile} />
         </section>
       )}
 
-      <section aria-labelledby="suggestions" className="mt-20">
-        <h2 id="suggestions" className="font-display text-3xl font-semibold tracking-[-0.03em] text-balance">
+      <section aria-labelledby="suggestions" className="mt-14">
+        <h2 id="suggestions" className="cap text-muted-foreground">
           Searches that find your buyers
         </h2>
         {profile.suggestions.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">
-            No searches came out of this site. Read it again, or <ManualLink>set one up by hand</ManualLink>.
-          </p>
+          <p className={cn('mt-4', NOTE)}>No searches came out of this site. Read it again, or set one up by hand.</p>
         ) : (
-          <div className="stagger -mx-4 mt-6 flex flex-col gap-1 sm:-mx-6">
+          <div className="stagger mt-3 flex flex-col">
             {profile.suggestions.map((suggestion, i) => (
               <SuggestionRow
                 key={i}
@@ -486,7 +480,7 @@ function ProfileView({
         )}
       </section>
 
-      <div className="mt-12">
+      <div className="mt-8">
         <ManualLink />
       </div>
     </>
@@ -500,7 +494,7 @@ function SiteIcon({ src }: { src: string }) {
   return (
     <span
       className={cn(
-        'flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[16px] bg-card shadow-sm ring-1 ring-border/70 sm:size-[72px] sm:rounded-[20px]',
+        'plate flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[6px] sm:size-14',
         state === 'loading' && 'opacity-0',
       )}
     >
@@ -535,7 +529,7 @@ function SitePicture({ profile }: { profile: SiteProfile }) {
   return (
     <figure className="mt-12">
       {picture && (
-        <div className="overflow-hidden rounded-[24px] bg-card shadow-sm ring-1 ring-border/70">
+        <div className="plate overflow-hidden">
           <img
             src={profile.image!}
             alt={`${profile.domain}, as nvoke read it`}
@@ -546,8 +540,8 @@ function SitePicture({ profile }: { profile: SiteProfile }) {
         </div>
       )}
       {pages.length > 0 && (
-        <figcaption className={cn('flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-muted-foreground', picture && 'mt-4')}>
-          <span>
+        <figcaption className={cn('flex flex-wrap items-baseline gap-x-4 gap-y-1 text-muted-foreground', picture && 'mt-4')}>
+          <span className="cap">
             Read {pages.length} {pages.length === 1 ? 'page' : 'pages'} on {profile.domain}
           </span>
           {pages.map((page) => (
@@ -556,7 +550,7 @@ function SitePicture({ profile }: { profile: SiteProfile }) {
               href={page.url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full font-mono text-xs text-muted-foreground/80 underline-offset-4 outline-none transition-colors hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40"
+              className="rounded-[3px] font-mono text-xs text-muted-foreground underline-offset-4 outline-none transition-colors hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {page.label}
             </a>
@@ -591,17 +585,17 @@ function SuggestionRow({
     <div
       data-suggestion-kind={search.kind}
       style={{ '--i': index } as CSSProperties}
-      className="flex items-start gap-4 rounded-[24px] px-4 py-6 transition-colors duration-200 hover:bg-foreground/[0.035] sm:gap-6 sm:px-6"
+      className="flex items-start gap-4 border-t border-border py-4 transition-colors duration-200 last:border-b hover:bg-foreground/[0.035] sm:items-center sm:gap-6"
     >
-      <span aria-hidden className="hidden w-8 shrink-0 pt-1 font-display text-xl font-extralight tabular-nums text-muted-foreground/60 sm:block">
+      <span aria-hidden className="cap hidden w-6 shrink-0 text-muted-foreground sm:block">
         {String(index + 1).padStart(2, '0')}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="font-display text-xl/snug font-medium tracking-[-0.02em] text-balance sm:text-2xl/snug">{curlyQuotes(title)}</div>
-        <p className="mt-2 max-w-[60ch] text-base/relaxed text-pretty text-muted-foreground">{suggestion.why}</p>
-        <div className="mt-2 text-sm text-muted-foreground/70">{suggestionCaption(search)}</div>
+        <div className="font-display text-lg text-balance">{curlyQuotes(title)}</div>
+        <div className="cap mt-0.5 text-muted-foreground">{suggestionCaption(search)}</div>
+        <p className={cn('mt-2 max-w-[60ch] text-pretty', NOTE)}>{suggestion.why}</p>
       </div>
-      <Button variant="outline" onClick={onStart} disabled={disabled} aria-label={`Start ${title}`} className="mt-0.5 shrink-0">
+      <Button variant="secondary" onClick={onStart} disabled={disabled} aria-label={`Start ${title}`} className="shrink-0">
         {pending ? <Loader2 className="motion-safe:animate-spin" /> : <Play className="size-3.5" />}
         Start
       </Button>
@@ -609,8 +603,11 @@ function SuggestionRow({
   );
 }
 
-const textareaClass =
-  'flex w-full min-w-0 resize-y rounded-md border border-input bg-card px-2.5 py-1.5 text-sm shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 dark:bg-foreground/5';
+/** A profile field on a recessed plate: small mono, the ring on focus. */
+const textareaClass = cn(
+  PLATE,
+  'block w-full min-w-0 resize-y px-2.5 py-1.5 text-xs outline-none transition-[box-shadow] duration-150 placeholder:text-muted-foreground/90 focus-visible:ring-[3px] focus-visible:ring-ring/25',
+);
 
 function Textarea(props: ComponentProps<'textarea'>) {
   return <textarea {...props} className={cn(textareaClass, props.className)} />;
@@ -619,9 +616,9 @@ function Textarea(props: ComponentProps<'textarea'>) {
 function Row({ label, hint, htmlFor, children }: { label: string; hint?: string; htmlFor: string; children: ReactNode }) {
   return (
     <div className="contents">
-      <label htmlFor={htmlFor} className="pt-1.5 text-sm text-muted-foreground">
+      <label htmlFor={htmlFor} className="cap pt-2 text-muted-foreground">
         {label}
-        {hint && <span className="block text-xs text-muted-foreground/70">{hint}</span>}
+        {hint && <span className="mt-0.5 block font-sans text-xs tracking-normal normal-case text-muted-foreground/80">{hint}</span>}
       </label>
       <div className="min-w-0">{children}</div>
     </div>
@@ -662,6 +659,7 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
 
   return (
     <form onSubmit={save} noValidate aria-label="Edit your profile" className="mt-6">
+      <h1 className="mb-6 font-display text-2xl font-light">Edit your profile</h1>
       <div className="grid gap-x-6 gap-y-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
         <Row label="Name" htmlFor="p-name">
           <Input id="p-name" value={form.name} onChange={(e) => set('name')(e.target.value)} maxLength={120} />
@@ -704,7 +702,7 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
             id="p-country"
             value={form.country}
             onChange={set('country')}
-            triggerClassName="h-8 max-w-64 rounded-md border border-input bg-card px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 dark:bg-foreground/5 [&>svg]:size-4"
+            triggerClassName={cn(PLATE, 'h-8 max-w-64 px-2.5 py-0 text-xs focus-visible:ring-[3px] focus-visible:ring-ring/25 [&>svg]:size-4')}
           />
         </Row>
       </div>
@@ -713,7 +711,7 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
           {update.isPending && <Loader2 className="motion-safe:animate-spin" />}
           Save
         </Button>
-        <Button type="button" variant="ghost" onClick={onDone} disabled={update.isPending}>
+        <Button type="button" variant="secondary" onClick={onDone} disabled={update.isPending}>
           Cancel
         </Button>
         {problem && (

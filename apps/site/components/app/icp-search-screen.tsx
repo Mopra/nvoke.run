@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles, X } from 'lucide-react';
 import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
 import { useStartSearch } from '@/components/app/new-search-screen';
+import { PLATE } from '@/components/app/search-fields';
 import { Pill } from '@/components/app/sentence';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
@@ -36,9 +37,6 @@ const OTHER_WAYS = [
   { href: '/app/new?kind=launches', icon: Rocket, title: 'New launches' },
   { href: '/app/new?kind=domains', icon: ClipboardList, title: 'Paste a list' },
 ] as const;
-
-const FIELD =
-  'h-11 w-full rounded-[16px] bg-foreground/[0.045] px-4 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/60 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25';
 
 /**
  * New search: say who you sell to in plain words, and nvoke plans the
@@ -93,37 +91,43 @@ export function IcpSearchScreen() {
 
   return (
     <main className={cn(APP_FRAME, 'app-view pb-24')}>
-      <form onSubmit={submit} noValidate className={cn(APP_INSET, 'flex flex-col pt-8 sm:pt-[6vh]')}>
+      <div className={cn(APP_INSET, 'pt-6')}>
         <BackLink />
-
-        <h1 className="mt-8 font-display text-[34px]/[42px] font-semibold tracking-[-0.035em] text-balance sm:text-5xl/[1.15]">
+      </div>
+      <form onSubmit={submit} noValidate className={cn(APP_INSET, 'mx-auto flex w-full max-w-[760px] flex-col pt-8 sm:pt-[4vh]')}>
+        <h1 className="font-display text-3xl font-light text-balance sm:text-4xl">
           <label htmlFor={ids.description}>Who do you sell to?</label>
         </h1>
-        <p className="mt-3 max-w-xl text-[15px] text-pretty text-muted-foreground">
-          Plain words, like you’d tell a friend. nvoke plans the searches, finds the companies and the people who decide,
-          and checks every address with its mail server.
+        <p className={cn('mt-2 max-w-xl text-pretty', NOTE)}>
+          Say it like you would to a new hire. nvoke plans the searches, reads every site and finds the people who decide.
         </p>
 
-        <div className="relative mt-8">
+        <div className="group/line relative mt-7 pb-2">
           <textarea
             id={ids.description}
             ref={description}
             value={form.description}
             onChange={(e) => set('description')(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
+              // Enter finds leads, Shift+Enter breaks the line.
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit();
+              }
             }}
-            rows={3}
+            rows={1}
             maxLength={DESCRIPTION_MAX + 200}
-            placeholder="Marketing agencies in the UK that run paid ads for their clients"
+            placeholder="Owner run dental clinics with 3 to 20 staff"
             aria-invalid={Boolean(problem)}
-            aria-describedby={problem ? `${ids.description}-problem` : undefined}
+            aria-describedby={problem ? `${ids.description}-problem` : `${ids.description}-examples`}
             spellCheck
-            className="field-sizing-content min-h-[7.5rem] w-full resize-none rounded-[26px] bg-foreground/[0.045] px-5 py-4 font-display text-xl/8 font-medium tracking-[-0.02em] caret-primary outline-none transition-[background-color,box-shadow] duration-200 placeholder:text-foreground/25 hover:bg-foreground/[0.06] focus-visible:bg-foreground/[0.06] focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/25 sm:px-6 sm:py-5 sm:text-2xl/9"
+            autoComplete="off"
+            className="field-sizing-content block max-h-[7.5em] min-h-[1.25em] w-full resize-none overflow-y-auto bg-transparent font-display text-2xl leading-[1.25] font-normal text-pretty caret-primary outline-none placeholder:text-foreground/30 aria-invalid:placeholder:text-destructive/40 sm:text-3xl"
           />
+          <span className="absolute inset-x-0 bottom-0 h-px bg-border transition-colors duration-300 group-focus-within/line:bg-primary" />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-1">
-          <span className="mr-1 pl-1 text-xs text-muted-foreground">Try</span>
+
+        <div id={`${ids.description}-examples`} className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Examples">
           {ICP_EXAMPLES.map((example) => (
             <Pill
               key={example}
@@ -132,18 +136,20 @@ export function IcpSearchScreen() {
                 set('description')(example);
                 description.current?.focus();
               }}
-              className="h-auto min-h-7 py-1 text-left"
+              title={example}
+              className={cn('h-auto min-h-7 max-w-full py-1 text-left', EXAMPLE)}
             >
               {example}
             </Pill>
           ))}
         </div>
 
-        <div className="mt-12 grid gap-x-8 gap-y-7 md:grid-cols-2">
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <label htmlFor={ids.product} className="text-sm font-medium">
-              What do you sell? <span className="font-normal text-muted-foreground">Optional</span>
-            </label>
+        <div className="mt-8 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-[max-content_minmax(0,1fr)] sm:items-baseline">
+          <QuietLine
+            label="What you sell"
+            htmlFor={ids.product}
+            hint={fromProfile && profile.data ? `From ${displayDomain(profile.data.website)}` : 'Optional'}
+          >
             <input
               id={ids.product}
               value={form.product}
@@ -152,118 +158,135 @@ export function IcpSearchScreen() {
                 set('product')(e.target.value);
               }}
               maxLength={PRODUCT_MAX}
-              placeholder="Cold email infrastructure for agencies"
+              placeholder="So nvoke skips your competitors"
               autoComplete="off"
-              className={FIELD}
+              className={QUIET_FIELD}
             />
-            <p className="pl-1 text-xs text-muted-foreground">
-              {fromProfile && profile.data
-                ? `From your website, ${displayDomain(profile.data.website)}. It tells a buyer from a competitor.`
-                : 'It tells a buyer from a competitor.'}
-            </p>
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-2">
-            <label id={ids.countries} htmlFor={`${ids.countries}-add`} className="text-sm font-medium">
-              Countries <span className="font-normal text-muted-foreground">Optional</span>
-            </label>
-            <div role="group" aria-labelledby={ids.countries} className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-[16px] bg-foreground/[0.045] p-1.5">
+          </QuietLine>
+          <QuietLine label="Countries" htmlFor={`${ids.countries}-add`} hint="Optional">
+            <div role="group" aria-label="Countries" className="flex flex-wrap items-center gap-1.5">
               {form.countries.map((code) => (
-                <span key={code} className="inline-flex h-8 items-center gap-1 rounded-full bg-card pr-1 pl-3 text-[13px] shadow-xs dark:bg-foreground/10">
-                  {countryName(code) ?? code}
+                <span
+                  key={code}
+                  className="inline-flex h-6 items-center gap-1 rounded-[3px] bg-secondary pr-1 pl-2.5 font-mono text-[11px] text-secondary-foreground uppercase shadow-[0_1px_0_var(--glass-edge)]"
+                >
+                  {countryName(code) ?? code.toUpperCase()}
                   <button
                     type="button"
                     aria-label={`Remove ${countryName(code) ?? code}`}
                     onClick={() => set('countries')(form.countries.filter((c) => c !== code))}
-                    className="flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-foreground/[0.07] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="flex size-4 items-center justify-center rounded-[2px] text-muted-foreground outline-none hover:bg-foreground/[0.08] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
                     <X className="size-3" />
                   </button>
                 </span>
               ))}
-              <div className="min-w-36 flex-1">
+              <div className="min-w-44 flex-1">
                 <CountryPicker
                   id={`${ids.countries}-add`}
                   value=""
+                  chosen={form.countries}
                   onChange={(code) => set('countries')(addCountry(form.countries, code))}
-                  anyLabel={form.countries.length ? 'Add another' : 'Anywhere, nvoke picks'}
-                  triggerClassName="h-8 rounded-full px-2.5 text-sm text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/25 [&_svg]:size-4"
+                  anyLabel={form.countries.length ? 'Add a country' : 'Anywhere, nvoke picks'}
+                  triggerClassName={cn(QUIET_FIELD, 'text-muted-foreground [&_svg]:size-4')}
                 />
               </div>
             </div>
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor={ids.locations} className="text-sm font-medium">
-              Cities or regions <span className="font-normal text-muted-foreground">Optional</span>
-            </label>
+          </QuietLine>
+          <QuietLine label="Cities or regions" htmlFor={ids.locations} hint="Optional">
             <input
               id={ids.locations}
               value={form.locations}
               onChange={(e) => set('locations')(e.target.value)}
-              placeholder="Manchester, Leeds"
+              placeholder="Austin, Denver. For local businesses."
               autoComplete="off"
-              className={FIELD}
+              className={QUIET_FIELD}
             />
-            <p className="pl-1 text-xs text-muted-foreground">For local businesses. Separate with commas.</p>
-          </div>
+          </QuietLine>
         </div>
 
-        <div className="mt-10 flex items-start justify-between gap-6 rounded-[22px] bg-foreground/[0.03] px-5 py-4">
-          <div className="min-w-0">
-            <label htmlFor={ids.ongoing} className="text-sm font-medium">
-              Keep finding new leads
-            </label>
-            <p className="mt-1 text-xs text-pretty text-muted-foreground">
-              After the first {formatNumber(Math.min(ICP_LIMIT, maxLimit))} companies, nvoke keeps looking and adds
-              new ones as it finds them, a few a day. Switch it off any time.
-            </p>
-          </div>
+        <label htmlFor={ids.ongoing} className="mt-7 flex cursor-pointer items-start gap-4 self-start">
           <Switch id={ids.ongoing} checked={form.ongoing} onCheckedChange={set('ongoing')} className="mt-0.5" />
-        </div>
+          <span>
+            <span className="cap block text-foreground">Keep finding new leads</span>
+            <span className={cn('mt-0.5 block max-w-md text-pretty', NOTE)}>
+              After the first {formatNumber(Math.min(ICP_LIMIT, maxLimit))} companies, nvoke keeps looking and adds new
+              people as it finds them, until you switch it off.
+            </span>
+          </span>
+        </label>
 
-        <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <Button type="submit" size="lg" disabled={pending} className="min-w-44">
+        <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <Button type="submit" size="lg" disabled={pending} className="min-w-40">
             {pending ? <Loader2 className="motion-safe:animate-spin" /> : null}
             Find leads
             {!pending && <CornerDownLeft className="size-3.5 opacity-70" />}
           </Button>
           {problem ? (
-            <span id={`${ids.description}-problem`} className="text-sm text-destructive">
+            <span id={`${ids.description}-problem`} role="alert" className="text-sm text-destructive">
               {problem}
             </span>
           ) : quota?.level === 'out' ? (
-            <p className="max-w-sm text-sm text-muted-foreground">
+            <p className={cn('max-w-sm', NOTE)}>
               This month’s {formatNumber(quota.limit)} verified emails are used, so a search stops at once.{' '}
-              <Link href={BILLING_PATH} className="inline-flex items-center gap-0.5 text-primary hover:underline">
+              <Link
+                href={BILLING_PATH}
+                className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
+              >
                 Upgrade
                 <ArrowUpRight className="size-3.5" />
               </Link>
             </p>
           ) : (
-            <p className="max-w-sm text-xs text-pretty text-muted-foreground">
-              Only verified emails count{quota ? `, ${formatNumber(quota.left)} left this month` : ''}. The first people show
-              up within a minute. Checking every address takes longer.
+            <p className={cn('max-w-sm text-pretty', NOTE)}>
+              Only verified emails count.
+              {quota && (
+                <>
+                  {' '}
+                  <span className="font-medium text-primary">{formatNumber(quota.left)}</span> left this month.
+                </>
+              )}{' '}
+              Results are kept for 12 months.
             </p>
           )}
         </div>
 
-        <nav aria-label="Other ways to search" className="mt-20 border-t border-border/60 pt-6">
-          <h2 className="pl-1 text-xs font-medium text-muted-foreground">Other ways to search</h2>
-          <div className="mt-3 flex flex-wrap gap-x-1 gap-y-1.5">
+        <nav aria-labelledby="other-ways" className="mt-12">
+          <h2 id="other-ways" className="cap text-muted-foreground">
+            Other ways to search
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-2">
             {OTHER_WAYS.map(({ href, icon: Icon, title }) => (
-              <Link
-                key={href}
-                href={href}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-foreground/70 outline-none transition-colors hover:bg-foreground/[0.05] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
-              >
-                <Icon className="size-3.5 text-muted-foreground" />
-                {title}
-              </Link>
+              <Button key={href} asChild variant="secondary" size="sm">
+                <Link href={href}>
+                  <Icon className="size-3" />
+                  {title}
+                  <ArrowRight className="size-3 opacity-50" />
+                </Link>
+              </Button>
             ))}
           </div>
         </nav>
       </form>
     </main>
+  );
+}
+
+/** Small print under a key. */
+const NOTE = 'text-sm text-muted-foreground';
+/** The quiet fields: a sunk plate in small mono. */
+const QUIET_FIELD = cn(PLATE, 'h-9 w-full min-w-0 py-1.5 text-sm font-normal caret-primary outline-none placeholder:text-muted-foreground/90');
+/** An example sentence on a key: too long for capitals. */
+const EXAMPLE = 'normal-case tracking-normal text-[11.5px]';
+
+function QuietLine({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint: string; children: ReactNode }) {
+  return (
+    <div className="contents">
+      <label htmlFor={htmlFor} className="flex items-baseline gap-2 pt-2">
+        <span className="cap">{label}</span>
+        <span className="cap text-muted-foreground">{hint}</span>
+      </label>
+      <div className="min-w-0 pb-1.5">{children}</div>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { itemDomain } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
 import { Line, Pill, SENTENCE, SentenceInput } from '@/components/app/sentence';
+import { Knob } from '@/components/ui/knob';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatNumber, WINDOW_LABEL, type LaunchWindow } from '@/lib/app/desktop';
 import { LIMIT_PRESETS, summarizeList, type SearchForm } from '@/lib/app/search-form';
@@ -14,7 +15,8 @@ import { cn } from '@/lib/utils';
  * The fields of a search written as a sentence ("Find dentists in Austin up
  * to 100 companies"), for the form's kind. New search uses it, and so does
  * Search more on a results page, where `more` makes the limit read as
- * "more companies" and a list as "Add".
+ * "more companies" and a list as "Add". `presets` is the row of limit
+ * keycaps under the sentence; New search turns it off and shows the knob.
  */
 export function SearchFields({
   form,
@@ -24,6 +26,7 @@ export function SearchFields({
   firstField,
   listField,
   more = false,
+  presets = true,
   className,
 }: {
   form: SearchForm;
@@ -34,6 +37,7 @@ export function SearchFields({
   firstField?: RefObject<HTMLInputElement | null>;
   listField?: RefObject<HTMLTextAreaElement | null>;
   more?: boolean;
+  presets?: boolean;
   className?: string;
 }) {
   const set = <K extends keyof SearchForm>(key: K) => (value: SearchForm[K]) => onChange((f) => ({ ...f, [key]: value }));
@@ -142,12 +146,17 @@ export function SearchFields({
                 style={{ width: `${Math.max(2, String(Number.isNaN(form.limit) ? '' : form.limit).length) + 0.4}ch` }}
                 className={cn(SENTENCE, 'tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none')}
               />
-              <span className="font-display text-[26px]/[34px] font-semibold tracking-[-0.03em] text-muted-foreground/50 sm:text-4xl">
+              <span className="font-display text-[26px]/[34px] font-light text-muted-foreground sm:text-4xl">
                 {more ? 'more companies' : 'companies'}
               </span>
             </div>
           </Line>
-          <div className="col-start-2 -mt-1 -ml-3 flex flex-wrap gap-1" role="group" aria-label="Preset limits">
+          {/* The knob stands in for the presets on wide screens where a screen shows it; phones keep the keys. */}
+          <div
+            className={cn('col-start-2 mt-1 flex flex-wrap gap-2', !presets && 'lg:hidden')}
+            role="group"
+            aria-label="Preset limits"
+          >
             {LIMIT_PRESETS.map((p) => (
               <Pill key={p} pressed={preset === p} onClick={() => set('limit')(p)}>
                 {p}
@@ -160,7 +169,7 @@ export function SearchFields({
   );
 }
 
-/** The pasted list in display type, growing with its lines up to a scroll. Monospace, since most of it is domains. */
+/** The pasted list on a recessed plate, growing with its lines up to a scroll. Monospace, since most of it is domains. */
 function ListField({
   id,
   ref,
@@ -194,7 +203,7 @@ function ListField({
       aria-invalid={invalid}
       aria-describedby="list-summary"
       placeholder={'acme.com\nhttps://linear.app\nStripe'}
-      className={cn(SENTENCE, 'block w-full resize-none overflow-y-auto font-mono text-lg/[1.45] font-normal tracking-tight sm:text-2xl/[1.45]')}
+      className={cn(SENTENCE, 'block w-full resize-none overflow-y-auto text-lg/[1.45] font-normal tracking-tight sm:text-lg/[1.45]', PLATE)}
     />
   );
 }
@@ -210,7 +219,7 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
     <div
       id="list-summary"
       aria-live="polite"
-      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground"
+      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[11.5px] text-muted-foreground"
     >
       {items.length === 0 ? (
         <span>One per line: domains, websites, email addresses or company names. Up to {formatNumber(max)}.</span>
@@ -222,7 +231,7 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
           {shown.map((item) => {
             const domain = itemDomain(item);
             return (
-              <span key={item} title={domain ?? item} className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5', domain && 'font-mono')}>
+              <span key={item} title={domain ?? item} className="max-w-48 truncate rounded-[3px] bg-secondary px-2 py-0.5 text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]">
                 {domain ?? item}
               </span>
             );
@@ -235,6 +244,40 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
 }
 
 const ANY = 'any';
+
+/** A recessed plate for pasted text: mono on the card color, sunk into the chassis. */
+export const PLATE = 'rounded-[4px] bg-card px-3 py-2 font-mono shadow-[inset_0_1px_2px_var(--shadow-strong)]';
+
+/**
+ * The limit as a knob with the presets as its ticks, under a bracketed LIMIT
+ * label. It follows the typed limit when that is a preset, and points at the
+ * nearest one otherwise; turning it writes the preset back into the sentence.
+ */
+export function LimitKnob({ limit, onChange }: { limit: number; onChange: (limit: number) => void }) {
+  const typed = Number.isNaN(limit) ? 0 : limit;
+  const options = [...LIMIT_PRESETS] as number[];
+  const nearest = options.reduce((best, p) => (Math.abs(p - typed) < Math.abs(best - typed) ? p : best));
+  return (
+    <div className="flex flex-col items-center gap-3.5">
+      <Bracket label="Limit" />
+      <Knob value={nearest} options={options} onChange={onChange} label="Limit" format={formatNumber} size={170} />
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="led led-on" />
+        <span className="cap text-muted-foreground">Turn or click</span>
+      </div>
+    </div>
+  );
+}
+
+/** A panel label over a bracket: the cap sits in a gap in the bracket's top line. */
+function Bracket({ label }: { label: string }) {
+  return (
+    <div aria-hidden className="relative h-3.5 w-[150px]">
+      <span className="absolute inset-x-1 top-0.5 h-1.5 border border-b-0 border-muted-foreground" />
+      <span className="cap absolute -top-1 left-1/2 -translate-x-1/2 bg-background px-1.5 text-muted-foreground">{label}</span>
+    </div>
+  );
+}
 
 function SentenceSelect({
   id,
