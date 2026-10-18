@@ -261,7 +261,7 @@ function Grille({ live }: { live: Search[] }) {
 /* The display */
 
 /** The eight small blocks on the left of the display: one per search, lit by its state. */
-function Blocks({ searches }: { searches: Search[] }) {
+function Blocks({ searches, shown }: { searches: Search[]; shown: Search | undefined }) {
   return (
     <span aria-hidden className="flex items-center gap-1.5">
       {Array.from({ length: 8 }, (_, i) => {
@@ -274,12 +274,25 @@ function Blocks({ searches }: { searches: Search[] }) {
               i % 4 === 3 ? 'w-7' : 'w-3.5',
               s?.status === 'running' && 'bg-primary shadow-[0_0_8px_var(--primary)]',
               s?.status === 'queued' && 'bg-chart-3 shadow-[0_0_8px_var(--chart-3)]',
+              // The one the display is reading right now.
+              s && s.id === shown?.id && 'ring-1 ring-screen-foreground/70 ring-offset-1 ring-offset-screen',
             )}
           />
         );
       })}
     </span>
   );
+}
+
+/** Which of several running searches the display reads: each gets a few seconds in turn. */
+function useTurn(count: number, ms = 4000): number {
+  const [turn, setTurn] = useState(0);
+  useEffect(() => {
+    if (count < 2) return;
+    const id = setInterval(() => setTurn((t) => t + 1), ms);
+    return () => clearInterval(id);
+  }, [count, ms]);
+  return count ? turn % count : 0;
 }
 
 /**
@@ -289,7 +302,9 @@ function Blocks({ searches }: { searches: Search[] }) {
  */
 function Display({ searches, live, route, onOpen }: { searches: Search[]; live: Search[]; route: Route; onOpen: () => void }) {
   const { data: me } = useMe();
-  const current = live[0];
+  // Several running searches take turns on the display.
+  const turn = useTurn(live.length);
+  const current = live[turn];
   // On the running search's own page, the page already shows the progress.
   const showLive = current && !(route.name === 'search' && route.id === current.id);
   const scale = current ? Math.max(current.limit, current.companiesFound, 1) : 1;
@@ -303,9 +318,9 @@ function Display({ searches, live, route, onOpen }: { searches: Search[]; live: 
       className="screen app-no-drag relative mx-3.5 grid h-[62px] shrink-0 grid-cols-[auto_1fr_auto] items-center gap-5 overflow-hidden rounded-none rounded-b-[3px] px-5 text-left outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/60"
     >
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,transparent_40%,oklch(1_0_0/0.05)_55%,transparent_70%)]" />
-      <Blocks searches={searches} />
+      <Blocks searches={searches} shown={showLive ? current : undefined} />
       {showLive ? (
-        <span className="flex min-w-0 items-center gap-3">
+        <span key={current.id} className="flex min-w-0 items-center gap-3 motion-safe:animate-fade-in">
           <span className="led led-on motion-safe:animate-pulse" />
           <span className="lcd min-w-0 truncate text-[17px] uppercase" title={searchTitle(current)}>
             {searchTitle(current)}
@@ -337,7 +352,11 @@ function Display({ searches, live, route, onOpen }: { searches: Search[]; live: 
           </span>
         </span>
         <span className="cap text-screen-foreground/50">{current ? 'Verified' : 'This month'}</span>
-        {live.length > 1 && <span className="cap text-screen-foreground/50">+{live.length - 1}</span>}
+        {live.length > 1 && (
+          <span className="cap text-screen-foreground/50">
+            {turn + 1} / {live.length}
+          </span>
+        )}
       </span>
     </button>
   );
