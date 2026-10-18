@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { CodeChallenge, DesktopState } from '@nvoke/shared';
 import { LogoMark } from '@/components/site/logo';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardLabel, CardTitle } from '@/components/app/plate';
 import { DesktopSignIn } from './desktop-sign-in';
 
 export const metadata: Metadata = {
@@ -22,18 +22,21 @@ export default async function DesktopSignInPage({ searchParams }: { searchParams
   const codeChallenge = CodeChallenge.safeParse(params['code_challenge']);
 
   return (
-    <section className="relative overflow-hidden">
-      <div
-        aria-hidden="true"
-        className="halo pointer-events-none absolute top-24 left-1/2 h-[30rem] w-[44rem] max-w-[140vw] -translate-x-1/2 opacity-35 dark:opacity-40"
-      />
-      <div className="relative mx-auto flex min-h-[70dvh] max-w-md flex-col items-center gap-8 px-6 py-16 sm:py-24">
-        <LogoMark motion="intro" className="size-14" />
+    <section className="rim relative">
+      <div className="relative mx-auto flex min-h-[70dvh] max-w-md flex-col items-center gap-8 px-4 py-16 sm:px-6 sm:py-24">
+        <div className="flex flex-col items-center gap-4">
+          <LogoMark motion="intro" className="size-12" />
+          <span className="cap text-muted-foreground">nvoke Desktop</span>
+        </div>
         {state.success && codeChallenge.success ? (
           <DesktopSignIn state={state.data} codeChallenge={codeChallenge.data} />
         ) : (
           <Card className="w-full">
             <CardHeader>
+              <CardLabel className="flex items-center gap-2">
+                <span className="led bg-destructive" />
+                Broken link
+              </CardLabel>
               <CardTitle>This sign-in link is broken</CardTitle>
               <CardDescription>Start over from Sign in in the nvoke app.</CardDescription>
             </CardHeader>

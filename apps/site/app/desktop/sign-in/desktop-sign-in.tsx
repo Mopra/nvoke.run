@@ -5,7 +5,8 @@ import { SignIn, useAuth, useClerk, useUser } from '@clerk/nextjs';
 import { DesktopAuthorizeResponse } from '@nvoke/shared';
 import { LogoLoader } from '@/components/app/motion';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { CLERK_APPEARANCE } from '@/components/app/clerk-appearance';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardLabel, CardTitle } from '@/components/app/plate';
 import { apiUrl } from '@/lib/api';
 
 type Phase =
@@ -68,7 +69,7 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
   }
 
   if (!isSignedIn) {
-    return <SignIn fallback={<LogoLoader />} routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
+    return <SignIn appearance={CLERK_APPEARANCE} fallback={<LogoLoader />} routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
 
   const who = user?.primaryEmailAddress?.emailAddress ?? user?.fullName ?? 'your account';
@@ -77,6 +78,10 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
     return (
       <Card className="w-full">
         <CardHeader>
+          <CardLabel className="flex items-center gap-2">
+            <span className="led bg-chart-1" />
+            Signed in
+          </CardLabel>
           <CardTitle>You are in. Back to nvoke.</CardTitle>
           <CardDescription>
             Signed in as {who}. App did not open? Use the button. Then close this tab.
@@ -94,6 +99,10 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
   return (
     <Card className="w-full">
       <CardHeader>
+        <CardLabel className="flex items-center gap-2">
+          <span className={phase.kind === 'error' ? 'led bg-destructive' : 'led led-on'} />
+          {phase.kind === 'error' ? 'Failed' : 'Sign in'}
+        </CardLabel>
         <CardTitle>Sign in to the nvoke app</CardTitle>
         <CardDescription>Continue as {who}?</CardDescription>
       </CardHeader>

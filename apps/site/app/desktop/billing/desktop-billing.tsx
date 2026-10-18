@@ -7,7 +7,9 @@ import { FREE_PLAN, MeResponse, PAID_PLANS, PLAN_ORDER, planLabel, type Plan } f
 import { LogoLoader } from '@/components/app/motion';
 import { PlanSlider } from '@/components/site/plan-slider';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CLERK_APPEARANCE } from '@/components/app/clerk-appearance';
+import { Card, CardContent, CardDescription, CardHeader, CardLabel, CardTitle } from '@/components/app/plate';
+import { Badge } from '@/components/ui/badge';
 import { apiUrl } from '@/lib/api';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
@@ -38,7 +40,7 @@ export function DesktopBilling({
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <LogoLoader />;
   if (!isSignedIn) {
-    return <SignIn fallback={<LogoLoader />} routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
+    return <SignIn appearance={CLERK_APPEARANCE} fallback={<LogoLoader />} routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
   return <Billing returnUrl={returnUrl} doneHint={doneHint} onPlanChange={onPlanChange} title={title} />;
 }
@@ -73,11 +75,15 @@ function Billing({
     return (
       <Card className="w-full max-w-md">
         <CardHeader>
+          <CardLabel className="flex items-center gap-2">
+            <span className="led bg-destructive" />
+            Failed
+          </CardLabel>
           <CardTitle>Couldn’t load your plan</CardTitle>
           <CardDescription>{load.message}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" onClick={refresh}>
+          <Button variant="secondary" className="w-full" onClick={refresh}>
             Try again
           </Button>
         </CardContent>
@@ -137,36 +143,45 @@ function PlanPicker({
     <div className="flex w-full flex-col gap-6">
       {title ? (
         <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-3xl font-semibold tracking-[-0.03em]">Your plan</h1>
-          {who ? <p className="text-sm text-muted-foreground">Signed in as {who}</p> : null}
+          <h1 className="font-display text-4xl font-light tracking-[-0.02em]">Your plan</h1>
+          {who ? <p className="cap text-muted-foreground">Signed in as <span className="normal-case">{who}</span></p> : null}
         </div>
       ) : null}
 
-      <Card className="w-full">
-        <CardHeader>
-          <CardDescription>
-            {me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, ${formatPrice(tierPrice(me.plan))} a month`}
-          </CardDescription>
-          <CardTitle className="flex items-baseline gap-2 text-2xl tabular-nums">
-            {formatCount(emailsVerified)}
-            <span className="text-sm font-normal text-muted-foreground">
-              of {formatCount(emailsLimit)} verified emails this month
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={emailsLimit}
-            aria-valuenow={emailsVerified}
-            aria-label="Verified emails used this month"
-            className="h-1.5 overflow-hidden rounded-full bg-muted"
-          >
-            <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+      {/* This month on a screen: the figure lit over ghost digits, the meter in segments. */}
+      <section className="screen p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div>
+            <div className="cap text-screen-foreground/50">
+              {me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, ${formatPrice(tierPrice(me.plan))} a month`}
+            </div>
+            <div className="relative mt-2 inline-block font-lcd text-[40px] leading-none">
+              <span aria-hidden className="absolute inset-y-0 right-0 font-extrabold text-screen-dim">
+                {'8'.repeat(Math.max(3, formatCount(emailsVerified).length))}
+              </span>
+              <span className="lcd relative tabular-nums">{formatCount(emailsVerified)}</span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+          <span className="cap pb-1 text-screen-foreground/50">
+            Of {formatCount(emailsLimit)} verified this month
+          </span>
+        </div>
+        <div
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={emailsLimit}
+          aria-valuenow={emailsVerified}
+          aria-label="Verified emails used this month"
+          className="mt-4 flex gap-[2px]"
+        >
+          {Array.from({ length: 16 }, (_, i) => (
+            <span
+              key={i}
+              className={cn('h-2.5 min-w-0 flex-1 rounded-[1px]', i < Math.round((share / 100) * 16) ? 'bg-primary' : 'bg-screen-dim')}
+            />
+          ))}
+        </div>
+      </section>
 
       <PlanSlider
         tiers={pricing.tiers}
@@ -175,11 +190,11 @@ function PlanPicker({
         className="max-w-none"
         badge={
           index === current ? (
-            <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">Current</span>
+            <Badge variant="secondary">Current</Badge>
           ) : null
         }
       >
-        <div className="flex flex-col items-center gap-3 border-t pt-7 sm:flex-row sm:justify-between">
+        <div className="flex flex-col items-center gap-3 border-t border-border pt-7 sm:flex-row sm:justify-between">
           <p className="text-sm text-pretty text-muted-foreground">
             Every feature on every plan. Changes apply immediately.
           </p>

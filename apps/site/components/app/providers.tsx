@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { CircleAlert, CircleCheck, Info, Loader2, TriangleAlert } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { apiUrl } from '@/lib/api';
@@ -43,33 +42,33 @@ export function AppProviders({ children }: { children: ReactNode }) {
   );
 }
 
-/** Toasts drop in at the top center as glass capsules, as in the desktop app. */
+/** Toasts drop in at the top center as small plates with a hairline rim, labels printed, as in the desktop app. */
 function AppToaster() {
   return (
     <Toaster
       position="top-center"
-      offset={72}
+      offset={60}
       gap={8}
       icons={{
-        success: <CircleCheck className="size-4 text-chart-1" />,
-        error: <CircleAlert className="size-4 text-destructive" />,
-        warning: <TriangleAlert className="size-4 text-chart-2" />,
-        info: <Info className="size-4 text-muted-foreground" />,
-        loading: <Loader2 className="size-4 text-muted-foreground motion-safe:animate-spin" />,
+        success: <span className="led bg-chart-1" />,
+        error: <span className="led bg-destructive" />,
+        warning: <span className="led bg-chart-2" />,
+        info: <span className="led" />,
+        loading: <span className="led led-on motion-safe:animate-pulse" />,
       }}
       toastOptions={{
         unstyled: true,
         classNames: {
           toast:
-            'glass-strong flex w-[min(380px,calc(100vw-32px))] items-start gap-3 rounded-[22px] px-4 py-3.5 text-[13px] text-popover-foreground',
-          icon: 'mt-px flex size-4 shrink-0 items-center justify-center',
+            'panel flex w-[min(380px,calc(100vw-32px))] items-start gap-3 rounded-[4px] px-4 py-3 text-[13px] text-card-foreground shadow-[var(--shadow-plate),inset_0_0_0_1px_var(--border)]',
+          icon: 'mt-[5px] flex size-1.5 shrink-0 items-center justify-center',
           content: 'flex min-w-0 flex-1 flex-col gap-0.5',
           title: 'font-medium',
-          description: 'text-xs text-muted-foreground',
+          description: 'font-mono text-[12px] tracking-[0.02em] text-muted-foreground',
           actionButton:
-            'ml-auto h-6 shrink-0 rounded-full bg-primary px-2.5 text-xs font-medium text-primary-foreground outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/50',
+            'key ml-auto h-6 shrink-0 bg-foreground px-2.5 font-mono text-[11px] font-medium tracking-[0.07em] text-background uppercase outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/50',
           cancelButton:
-            'ml-auto h-6 shrink-0 rounded-full bg-muted px-2.5 text-xs font-medium outline-none hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring/50',
+            'key ml-auto h-6 shrink-0 bg-secondary px-2.5 font-mono text-[11px] font-medium tracking-[0.07em] text-secondary-foreground uppercase outline-none hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-ring/50',
         },
       }}
     />

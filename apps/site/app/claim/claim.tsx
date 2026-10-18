@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { SignIn, useAuth, useClerk, useSignIn, useUser } from '@clerk/nextjs';
 import { ClaimResponse, ClaimStatusResponse, PLANS, type AccountOrigin } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { CLERK_APPEARANCE } from '@/components/app/clerk-appearance';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardLabel, CardTitle } from '@/components/app/plate';
 import { apiUrl } from '@/lib/api';
 
 type Phase =
@@ -115,9 +116,9 @@ export function Claim() {
   );
 
   if (phase.kind === 'start' || phase.kind === 'signing-in' || !isLoaded) {
-    return <p className="text-sm text-muted-foreground">Signing you in…</p>;
+    return <Working>Signing you in</Working>;
   }
-  if (phase.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your account…</p>;
+  if (phase.kind === 'loading') return <Working>Loading your account</Working>;
 
   if (phase.kind === 'load-failed') {
     return (
@@ -145,7 +146,7 @@ export function Claim() {
     return (
       <div className="flex w-full flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3 text-center">
-          <h1 className="text-3xl font-semibold tracking-[-0.03em]">
+          <h1 className="font-display text-4xl font-light tracking-[-0.02em] text-balance">
             {phase.kind === 'ticket-failed' ? 'This claim link no longer works' : 'Claim your nvoke account'}
           </h1>
           <p className="max-w-sm text-sm text-pretty text-muted-foreground">
@@ -154,7 +155,7 @@ export function Claim() {
               : 'Open the link from the email we sent, or sign in with the email the agent used.'}
           </p>
         </div>
-        <SignIn routing="hash" forceRedirectUrl="/claim" />
+        <SignIn appearance={CLERK_APPEARANCE} routing="hash" forceRedirectUrl="/claim" />
       </div>
     );
   }
@@ -169,7 +170,7 @@ function NothingToClaim({ who }: { who: string }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl tracking-[-0.025em]">Nothing to claim</CardTitle>
+        <CardTitle className="text-2xl">Nothing to claim</CardTitle>
         <CardDescription className="text-pretty">
           <span className="font-mono text-foreground">{who}</span> was not signed up by an agent. The account is
           already yours.
@@ -184,6 +185,16 @@ function NothingToClaim({ who }: { who: string }) {
         </Button>
       </CardFooter>
     </Card>
+  );
+}
+
+/** A wait, printed: a blinking LED and the step in capitals. */
+function Working({ children }: { children: string }) {
+  return (
+    <p role="status" className="cap flex items-center gap-2 text-muted-foreground">
+      <span className="led led-on motion-safe:animate-pulse" />
+      {children}
+    </p>
   );
 }
 
@@ -205,7 +216,8 @@ function Choose({
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl tracking-[-0.025em]">Claim your nvoke account</CardTitle>
+        <CardLabel>Agent sign up</CardLabel>
+        <CardTitle className="text-2xl">Claim your nvoke account</CardTitle>
         <CardDescription className="text-pretty">
           {phase.account.agentName ? `An AI agent called “${phase.account.agentName}”` : 'An AI agent'} signed you up as{' '}
           <span className="font-mono text-foreground">{who}</span> and got an API key.
@@ -213,13 +225,14 @@ function Choose({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <ul className="flex flex-col gap-3 text-sm text-muted-foreground">
-          <li>
-            <span className="font-medium text-foreground">Keep it</span>: the agent goes on working for you.
+        <ul className="flex flex-col border-b border-border text-sm text-muted-foreground">
+          <li className="flex gap-3 border-t border-border py-2.5">
+            <span className="cap w-16 shrink-0 pt-0.5 text-foreground">Keep</span>
+            <span>The agent goes on working for you.</span>
           </li>
-          <li>
-            <span className="font-medium text-foreground">Revoke it</span>: the key stops working now. Make a new one
-            in the app whenever you want.
+          <li className="flex gap-3 border-t border-border py-2.5">
+            <span className="cap w-16 shrink-0 pt-0.5 text-foreground">Revoke</span>
+            <span>The key stops working now. Make a new one in the app whenever you want.</span>
           </li>
         </ul>
         <label className="flex cursor-pointer items-start gap-3 text-sm">
@@ -264,7 +277,11 @@ function Done({ phase }: { phase: Extract<Phase, { kind: 'done' }> }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl tracking-[-0.025em]">The account is yours</CardTitle>
+        <CardLabel className="flex items-center gap-2">
+          <span className="led bg-chart-1" />
+          Claimed
+        </CardLabel>
+        <CardTitle className="text-2xl">The account is yours</CardTitle>
         <CardDescription className="text-pretty">{what}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -278,7 +295,7 @@ function Done({ phase }: { phase: Extract<Phase, { kind: 'done' }> }) {
           <Link href="/docs">Read the docs</Link>
         </Button>
       </CardFooter>
-      <CardFooter>
+      <CardFooter className="border-0 pt-0">
         <Link href="/desktop/billing" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
           See plans
         </Link>
