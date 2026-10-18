@@ -34,7 +34,7 @@ export function AppShell({ route, children }: { route: Route; children: ReactNod
   return (
     <div className="canvas relative isolate flex h-full flex-col overflow-hidden">
       <Ports route={route} onFind={() => setCommandOpen(true)} />
-      <Head working={live.length > 0} />
+      <Head live={live} />
       <Display searches={data ?? []} live={live} route={route} onOpen={() => setCommandOpen(true)} />
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
       <CommandBar open={commandOpen} onOpenChange={setCommandOpen} />
@@ -173,11 +173,11 @@ function Power() {
 /* The head: name plate and grille */
 
 /** The name plate on the left, the speaker grille on the right. */
-function Head({ working }: { working: boolean }) {
+function Head({ live }: { live: Search[] }) {
   return (
     <div className="app-drag grid shrink-0 grid-cols-[1fr_232px] px-3.5">
       <Plate />
-      <Grille working={working} />
+      <Grille live={live} />
     </div>
   );
 }
@@ -213,24 +213,27 @@ const GRILLE_COLS = 16;
 const GRILLE_ROWS = 6;
 
 /**
- * The speaker grille: a field of holes that lights up as a spectrum while a
- * search runs, column by column from the bottom, and goes dark at rest.
+ * The speaker grille is a level meter of lead flow. Each column is one poll
+ * of the running searches (every two seconds, so the grille holds the last
+ * half minute) and its height is how many emails came in on that poll. A
+ * running search that finds nothing idles at one dot; at rest the grille
+ * goes dark.
  */
-function Grille({ working }: { working: boolean }) {
-  // A tick every 160ms while working; the column heights are derived from it.
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!working || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const id = setInterval(() => setTick((t) => t + 1), 160);
-    return () => clearInterval(id);
-  }, [working]);
-  const heights = Array.from({ length: GRILLE_COLS }, (_, col) => {
-    if (!working) return 0;
-    const wave = Math.abs(Math.sin(tick / 4 + col * 0.7));
-    // A touch of noise so the columns flicker like a level meter.
-    const noise = ((tick * 7 + col * 13) % 5) / 4;
-    return 1 + Math.round(wave * 3 * noise + 1);
-  });
+function Grille({ live }: { live: Search[] }) {
+  const working = live.length > 0;
+  const found = live.reduce((n, s) => n + s.emailsFound, 0);
+  // The history of columns, derived from each new poll's figure as it arrives.
+  const [meter, setMeter] = useState<{ found: number | null; bars: number[] }>({ found: null, bars: [] });
+  if (!working && meter.found !== null) {
+    setMeter({ found: null, bars: [] });
+  } else if (working && meter.found !== found) {
+    // The first poll sets the baseline; every later one adds a column.
+    const delta = meter.found === null ? 0 : Math.max(0, found - meter.found);
+    const bar = Math.min(GRILLE_ROWS, delta === 0 ? 1 : 1 + Math.ceil(Math.log2(delta + 1)));
+    setMeter({ found, bars: [...meter.bars.slice(-(GRILLE_COLS - 1)), bar] });
+  }
+  const bars = meter.bars;
+  const heights = Array.from({ length: GRILLE_COLS }, (_, col) => bars[col - (GRILLE_COLS - bars.length)] ?? 0);
   return (
     <div
       aria-hidden
