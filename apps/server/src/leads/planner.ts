@@ -31,6 +31,9 @@ export type PlanQuery = z.infer<typeof PlanQuery>;
 const LocalPair = z.object({ niche: z.string().min(2).max(100), location: z.string().min(2).max(200) });
 export type LocalPair = z.infer<typeof LocalPair>;
 
+const QueryYield = z.object({ pages: z.number().int().nonnegative(), kept: z.number().int().nonnegative() });
+export type QueryYield = z.infer<typeof QueryYield>;
+
 /** The plan as stored in searches.plan. */
 export const IcpPlan = z.object({
   version: z.literal(PLAN_VERSION),
@@ -63,6 +66,13 @@ export const IcpPlan = z.object({
   ran: z.array(z.string()).optional(),
   /** Paid Brave requests a run of this plan may make, when smaller than the server's: an ongoing round's reservation. */
   braveBudget: z.number().int().nonnegative().optional(),
+  /**
+   * What each web query of this plan and the ones before it gave, by `queryKey`: result pages read and
+   * candidates the fit score kept. A replan shows Sonnet what paid off and skips tiers that kept nothing.
+   */
+  yields: z.record(z.string(), QueryYield).optional(),
+  /** Sites (registrable domains) the fit score turned down in this search, newest last, so no round pays to score them again. */
+  rejected: z.array(z.string()).optional(),
 });
 export type IcpPlan = z.infer<typeof IcpPlan>;
 
@@ -296,6 +306,13 @@ export function ranKeys(plan: IcpPlan): string[] {
   return [...new Set(keys)].slice(-MAX_RAN);
 }
 
+/** The yields of queries still in `ran`, so the record stays as capped as `ran` on a search that runs every day. */
+export function keptYields(yields: Record<string, QueryYield> | undefined, ran: string[]): Record<string, QueryYield> | undefined {
+  if (!yields) return undefined;
+  const keep = new Set(ran);
+  return Object.fromEntries(Object.entries(yields).filter(([k]) => keep.has(k)));
+}
+
 /** Countries this plan and the ones before it searched (stored plans keep the union in `countries`). */
 export function usedCountries(plan: IcpPlan): Set<string> {
   const out = new Set(plan.countries);
@@ -344,7 +361,58 @@ export function replanPrompt(params: IcpSearchParams, previous: IcpPlan, stats: 
     `Countries searched so far: ${[...usedCountries(previous)].map((c) => c.toUpperCase()).join(', ') || 'none'}`,
     `So far: ${stats.companies} fitting companies and ${stats.verified} verified email addresses, aiming for ${stats.target}. This is fresh round ${(previous.round ?? 0) + 1}.`,
     `Searches already run (do not repeat them):\n${ran.map((k) => `- ${describeQuery(k)}`).join('\n')}`,
+    ...yieldNotes(previous),
+    `This round may run ${stats.maxQueries} web queries in all. Write no more than that across directories, adjacent and wider, the most promising first.`,
   ].join('\n\n');
+}
+
+/** Queries shown to Sonnet as the ones that paid off, and as the ones that kept nothing. */
+const YIELD_LINES = 12;
+
+/** What earlier queries gave, for the replan prompt: the best by companies kept per page, and the ones that kept none. */
+export function yieldNotes(previous: IcpPlan): string[] {
+  const rows = Object.entries(previous.yields ?? {}).filter(([, y]) => y.pages > 0);
+  const best = rows
+    .filter(([, y]) => y.kept > 0)
+    .sort(([, a], [, b]) => b.kept / b.pages - a.kept / a.pages || b.kept - a.kept)
+    .slice(0, YIELD_LINES);
+  const none = rows
+    .filter(([, y]) => y.kept === 0)
+    .sort(([, a], [, b]) => b.pages - a.pages)
+    .slice(0, YIELD_LINES);
+  const out: string[] = [];
+  if (best.length) {
+    out.push(
+      `Searches that found the most fitting companies (write more like these, in their wording and for their kinds of company):\n${best.map(([k, y]) => `- ${describeQuery(k)}: ${y.kept} kept`).join('\n')}`,
+    );
+  }
+  if (none.length) out.push(`Searches that found no fitting company (avoid their wording and angle):\n${none.map(([k]) => `- ${describeQuery(k)}`).join('\n')}`);
+  return out;
+}
+
+type ReplanTier = 'directories' | 'adjacent' | 'hiring' | 'wider';
+
+/** Result pages a tier must have read with nothing kept before a replan stops adding to it. */
+const BARREN_PAGES = 3;
+
+/** Tiers of the last plan that read BARREN_PAGES or more result pages and kept nothing, unless every tier tried did. */
+export function barrenTiers(previous: IcpPlan): Set<ReplanTier> {
+  const tiers: Record<ReplanTier, PlanQuery[]> = {
+    directories: previous.directories,
+    adjacent: previous.adjacent,
+    hiring: previous.hiring ?? [],
+    wider: previous.wider,
+  };
+  const out = new Set<ReplanTier>();
+  let tried = 0;
+  for (const [tier, queries] of Object.entries(tiers) as [ReplanTier, PlanQuery[]][]) {
+    const ys = queries.map((q) => previous.yields?.[queryKey(q)]).filter((y): y is QueryYield => !!y);
+    if (ys.length === 0) continue;
+    tried++;
+    const pages = ys.reduce((n, y) => n + y.pages, 0);
+    if (pages >= BARREN_PAGES && ys.every((y) => y.kept === 0)) out.add(tier);
+  }
+  return out.size === tried ? new Set() : out;
 }
 
 /**
@@ -366,11 +434,13 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
   const fresh = [...new Set(wider.map((q) => q.country).filter((c): c is string => !!c && !used.has(c)))];
   const hiring = previous.hiringRoles?.length && fresh.length ? hiringQueries(previous.hiringRoles, fresh, PLAN_CAPS.hiring, seen) : [];
   // Taken in turn, so a small budget still gets some of each.
+  // A tier whose queries read pages last round and kept nothing gets none this round.
+  const barren = barrenTiers(previous);
   const take = { directories: 0, adjacent: 0, hiring: 0, wider: 0 };
   for (let left = Math.max(0, Math.floor(maxQueries)); left > 0; ) {
     let took = false;
     for (const tier of ['directories', 'adjacent', 'hiring', 'wider'] as const) {
-      const pool = { directories, hiring, adjacent, wider }[tier];
+      const pool = barren.has(tier) ? [] : { directories, hiring, adjacent, wider }[tier];
       if (left > 0 && take[tier] < pool.length) {
         take[tier]++;
         left--;
@@ -396,6 +466,8 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
     ...(previous.hiringRoles?.length ? { hiringRoles: previous.hiringRoles, hiring: hiring.slice(0, take.hiring) } : {}),
     round: (previous.round ?? 0) + 1,
     ran,
+    ...(previous.yields ? { yields: keptYields(previous.yields, ran) } : {}),
+    ...(previous.rejected ? { rejected: previous.rejected } : {}),
   };
   if (planQueryCount(plan) + plan.local.length === 0) return null;
   for (const c of usedCountries(plan)) if (!plan.countries.includes(c)) plan.countries.push(c);

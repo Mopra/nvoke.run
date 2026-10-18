@@ -3,6 +3,8 @@ import type { Ai } from '../ai/client.js';
 import { DEFAULT_HIRING_ROLES } from './hiring.js';
 import {
   PLAN_CAPS,
+  barrenTiers,
+  keptYields,
   freshCountries,
   hiringQueries,
   makePlan,
@@ -207,5 +209,39 @@ describe('replan', () => {
     const res = await replan(ai, 'user_1', params, first, { companies: 80, verified: 40, target: 100, maxQueries: 20 });
     expect(asked).toEqual(['replan']);
     expect(res.plan?.round).toBe(1);
+  });
+
+  it('shows Sonnet the queries that paid off and the ones that kept nothing, and the round size', () => {
+    const yields = { 'cold email agency|us': { pages: 2, kept: 9 }, 'b2b leadgenerierung agentur|de': { pages: 1, kept: 0 }, 'never read|us': { pages: 0, kept: 0 } };
+    const prompt = replanPrompt(params, { ...first, yields }, { companies: 80, verified: 40, target: 100, maxQueries: 20 });
+    expect(prompt).toContain('Searches that found the most fitting companies');
+    expect(prompt).toContain('- cold email agency (US): 9 kept');
+    expect(prompt).toContain('Searches that found no fitting company (avoid their wording and angle):\n- b2b leadgenerierung agentur (DE)');
+    expect(prompt).not.toContain('never read');
+    expect(prompt).toContain('This round may run 20 web queries in all');
+  });
+
+  it('adds nothing to a tier whose queries read pages and kept nothing, unless every tier did', () => {
+    const keys = (qs: { q: string; country?: string }[]) => qs.map((q) => `${q.q.toLowerCase()}|${q.country ?? ''}`);
+    const barren = Object.fromEntries(keys(first.directories).map((k) => [k, { pages: 3, kept: 0 }]));
+    const kept = Object.fromEntries(keys(first.adjacent).map((k) => [k, { pages: 1, kept: 3 }]));
+    const previous = { ...first, yields: { ...barren, ...kept }, rejected: ['bad.com'] };
+    expect([...barrenTiers(previous)]).toEqual(['directories']);
+    const plan = toReplan(round(), params, previous, 30)!;
+    expect(plan.directories).toEqual([]);
+    expect(plan.adjacent.length).toBeGreaterThan(0);
+    // What the earlier rounds learned goes on to the next one.
+    expect(plan.yields).toEqual(keptYields(previous.yields, ranKeys(first)));
+    expect(Object.keys(plan.yields!).length).toBeGreaterThan(0);
+    expect(plan.rejected).toEqual(['bad.com']);
+    // Every tier barren: none is skipped, the replan is all the search has left.
+    expect([...barrenTiers({ ...first, yields: barren })]).toEqual([]);
+  });
+});
+
+describe('keptYields', () => {
+  it('keeps only the yields of queries still in the capped ran list', () => {
+    expect(keptYields({ 'a|us': { pages: 1, kept: 2 }, 'b|us': { pages: 3, kept: 0 } }, ['a|us'])).toEqual({ 'a|us': { pages: 1, kept: 2 } });
+    expect(keptYields(undefined, ['a|us'])).toBeUndefined();
   });
 });

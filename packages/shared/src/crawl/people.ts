@@ -8,7 +8,7 @@
 // Testimonials, quotes and client logos are left out before reading.
 
 import { load, type CheerioAPI } from 'cheerio';
-import type { Seniority } from '../leads.ts';
+import { isDecisionMaker, type Seniority } from '../leads.ts';
 import { foldTitle, hasTitleWord, looksLikeTitle, seniorityOf } from './seniority.ts';
 
 export interface FoundPerson {
@@ -59,6 +59,9 @@ const NOT_NAME = new Set(
   institute foundation association club hotel restaurant cafe bar kitchen coffee press release case study white paper ebook
   webinar podcast video gallery portfolio testimonials reviews faq help docs documentation api integrations download trial
   manager director founder partner owner chief officer head lead
+  google maps tag gen generation demand leads qualified appointment appointments setting outbound inbound pipeline account accounts
+  based start process edition newsletter education sector trusted worldwide loading excellence qualification prospecting
+  why how what who where when we are
   om os vores kontakt ydelser kunder priser nyheder ledelse ledelsen medarbejdere ansatte bestyrelse bestyrelsen
   uber ueber uns unser unsere leistungen kunden karriere impressum datenschutz wir geschaftsfuhrung vorstand
   ons onze over diensten klanten nous notre equipe qui sommes sobre nosotros equipo oss vart tjanster tjenester
@@ -294,8 +297,19 @@ export function titleElsewhere(title: string, own: OwnCompany = { label: null })
 /** Credits in an imprint or a footer: the agency that built the site, the photographer. Never the company's people. */
 const CREDIT = /^(design|webdesign|web design|website|webseite|webside|programmierung|programming|development|udvikling|entwicklung|realisierung|realisation|umsetzung|konzept|concept|layout|grafik|gestaltung|foto|fotos|photo|photos|photography|fotografie|fotografi|bilder|billeder|images|bildnachweis|illustration|illustrationer|text|texte|tekst|copy|hosting|credits|seo|produktion|production)( (and|und|og|&) \w+)?$/;
 
+/** "by" at the end of a credit: "Design by", "Fotos von". */
+const BY = /\s+(by|von|af|par|door|por|da|med)$/;
+/**
+ * A credit written as a sentence: a verb of making followed by "by" ("Made
+ * by", "Réalisé par", "Directions artistique et technique faites par").
+ * "Founded by" and "Represented by" name the company's own people and are
+ * not credits.
+ */
+const CREDIT_BY = /\b(made|built|designed|developed|powered|realise|realisee|realises|faite?s?|concu|erstellt|umgesetzt|gemacht|lavet|udviklet)\s+(by|von|af|par|door|por|da|med)$/;
+
 function isCredit(label: string): boolean {
-  return CREDIT.test(foldTitle(label.replace(/[:\s]+$/, '')));
+  const folded = foldTitle(label.replace(/[:\s]+$/, ''));
+  return CREDIT.test(folded) || CREDIT.test(folded.replace(BY, '')) || CREDIT_BY.test(folded);
 }
 
 /** A degree after a comma: "Jane Doe, MD" is a doctor, not a managing director. */
@@ -326,8 +340,8 @@ const GROUP_HEADING = /\b(team|teams|directors|partners|founders|managers|owners
 
 // Lines
 
-/** Labels in an imprint that name the company's representatives without a title. */
-const REPRESENTED_BY = /^(vertreten durch|vertretungsberechtigte?r?( geschaftsfuhrer)?|represented by|legal representative|repraesentant|wettelijk vertegenwoordiger)$/;
+/** Labels in an imprint or about page that name the company's representatives or founders without a title. */
+const REPRESENTED_BY = /^(founded by|co-?founded by|gegrundet von|grundlagt af|fonde par|opgericht door|vertreten durch|vertretungsberechtigte?r?( geschaftsfuhrer)?|represented by|legal representative|repraesentant|wettelijk vertegenwoordiger)$/;
 
 /** Short lines between a name and its title that say nothing: icons, links, a phone number. */
 const FILLER = /^(linkedin|twitter|x|e-?mail|mail|phone|tel\.?|telefon|call|ring|instagram|facebook|github|read more|laes mere|mehr|meer|plus|bio|profile|profil|\+?[\d\s()./-]{6,}|[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+)$/iu;
@@ -338,6 +352,20 @@ interface Candidate {
   name: { firstName: string; lastName: string };
   title: string | null;
   seniority?: Seniority | null;
+  /** The line the name was read from, for checking the words around it. */
+  line?: number;
+}
+
+/**
+ * The names around a dash: before it when contact details follow ("Olivier
+ * Gouleau - ogouleau@acme.fr"), both sides when it parts two names ("Hans
+ * Müller - Peter Schmidt").
+ */
+function withoutContactTail(text: string): string {
+  const m = /\s+[-\u2013\u2014]\s+/.exec(text);
+  if (!m) return text;
+  const rest = text.slice(m.index + m[0].length);
+  return /@|\d|https?:|www\./i.test(rest) ? text.slice(0, m.index) : `${text.slice(0, m.index)}, ${rest}`;
 }
 
 /** "Geschäftsführer: Max Mustermann, Erika Musterfrau", "Inhaber: X", "CEO: Jane Doe". */
@@ -349,7 +377,7 @@ function labelled(line: string, own: OwnCompany): Candidate[] {
   const represented = REPRESENTED_BY.test(foldTitle(label));
   if (!represented && (!looksLikeTitle(label) || titleElsewhere(label, own))) return [];
   const out: Candidate[] = [];
-  for (const part of m[2]!.split(NAME_SEPARATORS)) {
+  for (const part of withoutContactTail(m[2]!).split(NAME_SEPARATORS)) {
     const name = parseName(part);
     if (!name) break;
     out.push(represented ? { name, title: null, seniority: 'founder' } : { name, title: label });
@@ -438,11 +466,25 @@ const NOT_OWN = [
 const SLIDERS = '[class*="swiper" i], [class*="slick" i], [class*="carousel" i], [class*="slider" i]';
 const QUOTED = /[“”„«»★]|(^|\s)"\p{L}/u;
 
+/**
+ * Removes what is never the page's own people. A class match never removes
+ * html, body or main themselves: WordPress puts "wp-custom-logo" on body and
+ * themes put slider classes there, which would take every name on the page
+ * with them. Sections inside them go, even one with its own heading.
+ */
 function removeNotOwn($: CheerioAPI): void {
-  $(NOT_OWN).remove();
-  $(SLIDERS).each((_i, el) => {
-    if (QUOTED.test($(el).text())) $(el).remove();
-  });
+  const remove = (sel: string, quotedOnly: boolean) => {
+    for (const el of $(sel).toArray()) {
+      const node = $(el);
+      const tag = String(node.prop('tagName') ?? '').toLowerCase();
+      if (tag === 'html' || tag === 'body' || tag === 'main') continue;
+      // Inside a section already removed: nothing left to do, and no text to read.
+      if (node.parents('body').length === 0) continue;
+      if (!quotedOnly || QUOTED.test(node.text())) node.remove();
+    }
+  };
+  remove(NOT_OWN, false);
+  remove(SLIDERS, true);
 }
 
 /**
@@ -600,7 +642,17 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
     const people = fromLine(lines[i]!, own);
     if (people.length > 0) {
       used.add(i);
-      found.push(...people);
+      found.push(...people.map((p) => ({ ...p, line: i })));
+      continue;
+    }
+    // An imprint label on its own line with the names on the next: "Vertreten durch:" / "Ulrike Ströhle".
+    const next = lines[i + 1];
+    if (next && /^.{2,60}[:：]$/u.test(lines[i]!) && !used.has(i + 1)) {
+      const joined = labelled(`${lines[i]!} ${next}`, own);
+      if (joined.length > 0) {
+        used.add(i).add(i + 1);
+        found.push(...joined);
+      }
     }
   }
 
@@ -630,7 +682,7 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
       const j = step(i, dir);
       const title = titleAt(j);
       if (!title) continue;
-      found.push({ name, title });
+      found.push({ name, title, line: i });
       used.add(i).add(j);
       nameAt.delete(i);
     }
@@ -646,8 +698,19 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
     }
   }
 
+  // A heading read as a name ("Account Based / Marketing", "Qualified Leads / Sales") holds a word the
+  // lines around it write in lower case; a person's last name rarely appears that way next to it. Only
+  // for names read from a line without a decision maker's title: "Andrew Hill, CEO" stays whatever the page says of hills.
+  const plainWords = (c: Candidate) => {
+    if (c.line === undefined || isDecisionMaker(c.seniority !== undefined ? c.seniority : seniorityOf(c.title))) return false;
+    const near = lowercaseWords(lines.slice(Math.max(0, c.line - NEAR_LINES), c.line + NEAR_LINES + 1));
+    return `${c.name.firstName} ${c.name.lastName}`
+      .split(/[\s-]+/)
+      .some((t) => !PARTICLES.has(t.toLowerCase()) && !isFirstName(t) && near.has(t.toLowerCase()));
+  };
   return mergePeople(
     found
+      .filter((c) => !plainWords(c))
       .filter((c) => !companyAsPerson({ ...c.name, title: c.title }, own.label))
       .slice(0, PAGE_PEOPLE_MAX)
       .map((c) => ({
@@ -659,6 +722,23 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
       })),
     PAGE_PEOPLE_MAX,
   );
+}
+
+/** Lines on each side of a name whose words count as around it. */
+const NEAR_LINES = 3;
+
+/** Words the lines write in lower case, addresses and links left out. */
+function lowercaseWords(lines: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const line of lines) {
+    // Tokens, not a regex over the line: a long run without spaces would make a backtracking pattern slow.
+    const text = line
+      .split(/\s+/)
+      .filter((t) => !t.includes('@') && !t.includes('/'))
+      .join(' ');
+    for (const word of text.split(/[^\p{L}'’]+/u)) if (word.length >= 2 && /^\p{Ll}/u.test(word)) out.add(word);
+  }
+  return out;
 }
 
 const RANK: Record<Seniority, number> = { founder: 0, executive: 1, director: 2, manager: 3, staff: 4 };

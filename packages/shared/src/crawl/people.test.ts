@@ -246,3 +246,58 @@ describe('companyAsPerson', () => {
     expect(isFirstName('Agence')).toBe(false);
   });
 });
+
+describe('page wrappers and headings', () => {
+  it('reads a WordPress page whose body class names a logo', () => {
+    const html = '<html><body class="page wp-custom-logo"><main><h1>Impressum</h1><p>Geschäftsführer: Stefan Roggatz &amp; Katy Roggatz</p></main></body></html>';
+    expect(names(extractPeople(html, 'https://invictus.de/impressum'))).toEqual(['Stefan Roggatz|Geschäftsführer|founder', 'Katy Roggatz|Geschäftsführer|founder']);
+  });
+
+  it('still drops a client logo section inside the page', () => {
+    const html = '<body class="wp-custom-logo"><h1>Team</h1><div class="client-logos"><p>Jane Doe, CEO</p></div><p>Ole Hansen, Founder</p></body>';
+    expect(names(extractPeople(html, 'https://acme.dk/team'))).toEqual(['Ole Hansen|Founder|founder']);
+  });
+
+  it('reads an imprint label on its own line with the name on the next', () => {
+    const html = '<h5>Vertreten durch:</h5><p>Ulrike Ströhle</p><h5>Kontakt:</h5><p>Telefon: 0731 14 111 690</p>';
+    expect(names(extractPeople(html, 'https://dialog.de/impressum'))).toEqual(['Ulrike Ströhle||founder']);
+  });
+
+  it('drops a site credit written as a sentence', () => {
+    const html = '<p>Responsable de publication : Fabien Errero</p><p>Directions artistique et technique faites par : Let’s Clic</p>';
+    expect(names(extractPeople(html, 'https://acceor.com/mentions-legales'))).toEqual(['Fabien Errero|Responsable de publication|manager']);
+  });
+
+  it('drops headings read as names when the page writes their words in lower case', () => {
+    const html = `<h3>Account Based</h3><p>Marketing</p><h3>Qualified Leads</h3><p>Sales</p>
+      <p>We run account based campaigns that turn qualified leads into meetings.</p>
+      <h3>Owen Richards</h3><p>Founder &amp; CEO</p>`;
+    expect(names(extractPeople(html, 'https://air.co.uk/team'))).toEqual(['Owen Richards|Founder & CEO|founder']);
+  });
+});
+
+describe('review: labels, surnames and sections', () => {
+  const read = (html: string, url = 'https://acme.de/impressum') => names(extractPeople(html, url));
+
+  it('keeps "Represented by" and "Founded by", drops "Made by" and "Design by"', () => {
+    expect(read('<p>Represented by: Jane Doe</p>')).toEqual(['Jane Doe||founder']);
+    expect(read('<p>Founded by: Jane Doe</p>')).toEqual(['Jane Doe||founder']);
+    expect(read('<p>Made by: Lars Bureau</p><p>Design by: Mette Hansen</p>')).toEqual([]);
+  });
+
+  it('keeps both names around a dash, cuts contact details after one', () => {
+    expect(read('<p>Geschäftsführer: Hans Müller - Peter Schmidt</p>')).toEqual(['Hans Müller|Geschäftsführer|founder', 'Peter Schmidt|Geschäftsführer|founder']);
+    expect(read('<p>Responsable publication : Olivier Gouleau - ogouleau@fox.fr</p>', 'https://fox.fr/mentions')).toEqual(['Olivier Gouleau|Responsable publication|manager']);
+  });
+
+  it('keeps surnames that are words when the title is a decision maker or the word is far away', () => {
+    const html = `<p>Andrew Hill, CEO</p><p>Sarah Wood</p><p>Marketing Manager</p>
+      <p>a</p><p>b</p><p>c</p><p>d</p><p>Our office sits on a hill by the wood.</p>`;
+    expect(read(html, 'https://acme.co.uk/team')).toEqual(['Andrew Hill|CEO|founder', 'Sarah Wood|Marketing Manager|manager']);
+  });
+
+  it('removes a testimonials section even when it has its own heading', () => {
+    const html = '<body><main><section class="testimonials"><h1>What clients say</h1><p>Jane Doe, CEO</p></section><p>Ole Hansen, Founder</p></main></body>';
+    expect(read(html, 'https://acme.dk/om')).toEqual(['Ole Hansen|Founder|founder']);
+  });
+});
