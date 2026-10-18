@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { ArrowRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, X } from 'lucide-react';
-import { BackButton, PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { CountryPicker } from '@/components/CountryPicker';
 import { NOTE, PLATE } from '@/components/SearchForm';
 import { Pill } from '@/components/Sentence';
@@ -120,7 +120,7 @@ export function DescribeCustomer() {
   return (
     <>
       <PageHeader leading={<BackButton />} />
-      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
+      <Panel className="px-8 pb-24">
         <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[4vh] motion-safe:animate-view-in">
           <label htmlFor="icp-description" className="font-display text-4xl font-light text-balance">
             Who do you sell to?
@@ -278,7 +278,7 @@ export function DescribeCustomer() {
 
           <OtherWays />
         </form>
-      </main>
+      </Panel>
     </>
   );
 }

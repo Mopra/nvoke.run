@@ -20,7 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { BackButton, PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VerificationBadge } from '@/components/indicators';
@@ -786,7 +786,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const inboxesFollowing = inboxesSince !== null && Boolean(search?.checkInboxes) && search?.inboxesPending !== 0;
   useFollowInboxChecks(id, inboxesFollowing ? inboxesSince : null, live);
   const filterRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [listTop, setListTop] = useState(0);
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
@@ -1139,12 +1139,13 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
         }
       />
 
-      <div
+      <Panel
         ref={scrollRef}
         onClick={(e) => {
           if (!(e.target instanceof Element && e.target.closest('[data-company-row], button, a, input'))) setSelection(EMPTY_SELECTION);
         }}
-        className="fade-edges min-h-0 flex-1 overflow-auto px-8 pb-32 [scrollbar-gutter:stable]">
+        className="px-8 pb-32 [scrollbar-gutter:stable]"
+      >
         <div className="mx-auto w-full max-w-[1120px]">
           <Overview
             search={search}
@@ -1254,7 +1255,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
             )}
           </div>
         </div>
-      </div>
+      </Panel>
 
       {/* The key bar: filters and export on a plate over the list, with the notices on plates above it. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex flex-col items-center gap-2 px-8">

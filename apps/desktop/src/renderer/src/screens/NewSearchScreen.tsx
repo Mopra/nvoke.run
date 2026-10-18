@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ArrowLeft, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, type LucideIcon } from 'lucide-react';
-import { BackButton, PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/Sentence';
 import { isFormKind, LimitKnob, SearchFields, SearchFootnote, useSearchForm, type FormKind } from '@/components/SearchForm';
@@ -63,7 +63,7 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
   return (
     <>
       <PageHeader leading={<BackButton />} />
-      <main className="fade-edges flex-1 overflow-auto px-9 pb-24">
+      <Panel className="px-9 pb-24">
         <form onSubmit={submit} className="flex flex-col pt-7 motion-safe:animate-view-in" noValidate>
           <h1 className="sr-only">New search</h1>
           <Pill onClick={() => navigate({ name: 'new', kind: null })} className="mb-7 self-start">
@@ -96,7 +96,7 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
             <div className="pt-1">{kind !== 'domains' && <LimitKnob form={form} />}</div>
           </div>
         </form>
-      </main>
+      </Panel>
     </>
   );
 }

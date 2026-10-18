@@ -322,11 +322,6 @@
   box-shadow: var(--shadow-plate);
 }
 
-/* Fades content out under the floating bars instead of a hard edge. */
-@utility fade-edges {
-  mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 96px), transparent 100%);
-}
-
 /* Running searches: a soft band of light travels along the filled part. */
 @utility progress-sheen {
   background-image: linear-gradient(

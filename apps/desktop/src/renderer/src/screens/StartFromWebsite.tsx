@@ -3,7 +3,7 @@ import { useMutationState } from '@tanstack/react-query';
 import { LogoMark } from '@/components/Logo';
 import { ArrowLeft, ArrowRight, CornerDownLeft, Globe, Loader2, Pencil, Play, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Aura, BackButton, PageHeader } from '@/components/AppShell';
+import { Aura, BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { CountryPicker } from '@/components/CountryPicker';
 import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { Line, Pill, SentenceInput } from '@/components/Sentence';
@@ -114,7 +114,7 @@ export function StartFromWebsite({ fresh = false }: { fresh?: boolean }) {
     <>
       <Aura on={!!running} />
       <PageHeader leading={<BackButton />} />
-      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">{body}</main>
+      <Panel className="px-8 pb-24">{body}</Panel>
     </>
   );
 }

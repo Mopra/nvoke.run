@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CornerDownLeft, Inbox, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DROP_BACKFILL_DAYS, DROP_DAILY_LIMIT_DEFAULT, DROP_DAILY_LIMIT_MAX, FEED_SOURCES } from '@nvoke/shared';
-import { BackButton, PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { Line, Pill, SENTENCE, SentenceInput } from '@/components/Sentence';
 import { EmptyState } from '@/components/states';
 import { Button } from '@/components/ui/button';
@@ -117,7 +117,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
   return (
     <>
       <PageHeader leading={<BackButton />} />
-      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
+      <Panel className="px-8 pb-24">
         <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" noValidate>
           <h1 className="font-display text-xl font-light text-muted-foreground">{drop ? 'Edit drop' : 'New drop'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -213,7 +213,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
             )}
           </div>
         </form>
-      </main>
+      </Panel>
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { transportMode } from '@/lib/api';
@@ -441,5 +441,29 @@ export function ScrollShade({ of }: { of: RefObject<HTMLElement | null> }) {
         more ? 'opacity-100' : 'opacity-0',
       )}
     />
+  );
+}
+
+/**
+ * A screen's scrolling panel: the main element with the shade at its foot.
+ * Takes a ref like a plain main, for screens that scroll it themselves.
+ */
+export function Panel({ ref, className, children, ...props }: ComponentProps<'main'>) {
+  const el = useRef<HTMLElement | null>(null);
+  const setRef = useCallback(
+    (node: HTMLElement | null) => {
+      el.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+  return (
+    <>
+      <main ref={setRef} className={cn('min-h-0 flex-1 overflow-auto', className)} {...props}>
+        {children}
+      </main>
+      <ScrollShade of={el} />
+    </>
   );
 }

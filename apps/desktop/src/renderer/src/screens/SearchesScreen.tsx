@@ -2,7 +2,7 @@ import { useRef, useState, type CSSProperties } from 'react';
 import { useMutationState } from '@tanstack/react-query';
 import { ArrowRight, ArrowUpRight, Ban, MoreHorizontal, Trash2, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
-import { KeyGroup, LedKey, ScrollShade } from '@/components/AppShell';
+import { KeyGroup, LedKey, Panel } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { StatusDot } from '@/components/indicators';
@@ -347,8 +347,8 @@ export function SearchesScreen() {
       : offline;
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <main ref={scrollRef} className="flex-1 overflow-auto px-9 pb-16">
+    <>
+      <Panel ref={scrollRef} className="px-9 pb-16">
         <div className="motion-safe:animate-view-in">
           <div className="flex items-end justify-between pt-6 pb-5">
             <h1 className="font-display text-4xl font-light tracking-[-0.02em]">
@@ -389,8 +389,7 @@ export function SearchesScreen() {
             </>
           )}
         </div>
-      </main>
-      <ScrollShade of={scrollRef} />
-    </div>
+      </Panel>
+    </>
   );
 }

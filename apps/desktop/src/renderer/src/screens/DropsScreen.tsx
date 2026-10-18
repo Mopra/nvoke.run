@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { Inbox, MoreHorizontal, Pause, Pencil, Play, Plus, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FEED_SOURCES } from '@nvoke/shared';
-import { BackButton, DisplayTitle, PageHeader } from '@/components/AppShell';
+import { BackButton, DisplayTitle, PageHeader, Panel } from '@/components/AppShell';
 import { EmptyState, ErrorState } from '@/components/states';
 import {
   AlertDialog,
@@ -193,7 +193,7 @@ export function DropsScreen() {
   return (
     <>
       <PageHeader leading={<BackButton />} actions={newDrop} />
-      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
+      <Panel className="px-8 pb-24">
         <div className="mx-auto max-w-[880px] motion-safe:animate-view-in">
           <DisplayTitle
             className="px-4"
@@ -230,7 +230,7 @@ export function DropsScreen() {
             <DropList drops={data.drops} />
           )}
         </div>
-      </main>
+      </Panel>
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { ApiKeys, ConnectAgent } from '@/components/ApiKeys';
 import { Webhooks } from '@/components/Webhooks';
-import { BackButton, PageHeader } from '@/components/AppShell';
+import { BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { Avatar } from '@/components/Avatar';
 import { ErrorState } from '@/components/states';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,7 +41,7 @@ export function AccountScreen() {
   return (
     <>
       <PageHeader leading={<BackButton />} />
-      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
+      <Panel className="px-8 pb-24">
         <div className="mx-auto flex max-w-[620px] flex-col pt-14 motion-safe:animate-view-in">
           {isPending ? (
             <AccountSkeleton />
@@ -99,7 +99,7 @@ export function AccountScreen() {
             </>
           )}
         </div>
-      </main>
+      </Panel>
     </>
   );
 }
