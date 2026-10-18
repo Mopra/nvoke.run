@@ -25,6 +25,11 @@ export interface CaptionProps {
   align?: 'center' | 'left';
   /** Horizontal anchor for left aligned captions, px. */
   x?: number;
+  /** Box width, px. Defaults to the stage's caption width. */
+  width?: number;
+  /** Type colors, for captions on a dark stage. */
+  color?: string;
+  subColor?: string;
   style?: React.CSSProperties;
 }
 
@@ -106,6 +111,9 @@ export const Caption: React.FC<CaptionProps> = ({
   exit = 22,
   align = 'center',
   x,
+  width,
+  color = theme.foreground,
+  subColor = theme.mutedForeground,
   style,
 }) => {
   const stage = useStage();
@@ -129,12 +137,12 @@ export const Caption: React.FC<CaptionProps> = ({
       style={{
         position: 'absolute',
         left: align === 'center' ? (stage.width - stage.captionWidth) / 2 : (x ?? stage.width * 0.08),
-        width: stage.captionWidth,
+        width: width ?? stage.captionWidth,
         top: centerY,
         transform: 'translateY(-50%)',
         textAlign: align,
         fontFamily: fonts.display,
-        color: theme.foreground,
+        color,
         ...style,
       }}
     >
@@ -168,7 +176,7 @@ export const Caption: React.FC<CaptionProps> = ({
             fontWeight: 500,
             letterSpacing: '-0.018em',
             lineHeight: 1.2,
-            color: theme.mutedForeground,
+            color: subColor,
           }}
         >
           {subWords.map((w, i) => (

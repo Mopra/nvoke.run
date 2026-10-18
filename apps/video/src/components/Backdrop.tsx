@@ -33,6 +33,8 @@ export interface BackdropProps {
   /** How far apart the three lights sit. 1 is a wide wash, lower gathers them into one calm glow. */
   spread?: number;
   grain?: boolean;
+  /** The canvas color under the lights. Defaults to the light theme's background. */
+  base?: string;
   children?: React.ReactNode;
 }
 
@@ -41,7 +43,14 @@ export interface BackdropProps {
  * Three lights (iris core, a cool blue wash, a violet undertone) wander on
  * slow, unrelated sine paths so the light never visibly loops.
  */
-export const Backdrop: React.FC<BackdropProps> = ({ intensity, focus = { x: 0.5, y: 0.62 }, spread = 1, grain = true, children }) => {
+export const Backdrop: React.FC<BackdropProps> = ({
+  intensity,
+  focus = { x: 0.5, y: 0.62 },
+  spread = 1,
+  grain = true,
+  base = theme.background,
+  children,
+}) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
   const t = frame / fps;
@@ -66,7 +75,7 @@ export const Backdrop: React.FC<BackdropProps> = ({ intensity, focus = { x: 0.5,
   ];
 
   return (
-    <AbsoluteFill style={{ backgroundColor: theme.background }}>
+    <AbsoluteFill style={{ backgroundColor: base }}>
       <AbsoluteFill style={{ backgroundImage: layers.join(', ') }} />
       {grain && (
         <AbsoluteFill
