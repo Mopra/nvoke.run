@@ -2,8 +2,14 @@
 @import "tw-animate-css";
 @import "@nvoke/theme/theme.css";
 @import "@nvoke/theme/motion.css";
+/* The Field look's faces, bundled so they load offline. */
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/doto";
 
 @custom-variant dark (&:is(.dark *));
+/* The look, set on <html> by lib/look.ts. Calm has no attribute. */
+@custom-variant field (&:is([data-look="field"] *));
 
 /* Window chrome variants, set on <html> by lib/chrome.ts. */
 @custom-variant mac (&:is([data-platform="darwin"] *));
@@ -91,6 +97,15 @@
   html[data-material="vibrancy"],
   html[data-material="mica"] {
     background: transparent;
+  }
+  /* The Field chassis is a solid: the window material would thin it out. */
+  html[data-look="field"] {
+    background: var(--background);
+    font-feature-settings: "ss03";
+    letter-spacing: 0;
+  }
+  html[data-look="field"] ::selection {
+    background: color-mix(in oklab, var(--primary) 32%, transparent);
   }
   /* The quick window floats over other apps: nothing around its panel is painted. */
   html[data-quick],
@@ -190,23 +205,124 @@
   :where([data-material="vibrancy"], [data-material="mica"]) & {
     background-color: color-mix(in oklab, var(--background) 74%, transparent);
   }
+  [data-look="field"] & {
+    background-color: var(--background);
+  }
+}
+
+/*
+ * The Field look's parts, used with the `field:` variant. A keycap sits on
+ * the chassis with a lip at its foot and sinks when pressed; `key-primary`
+ * is the orange one with its glow. A screen is the black display. A cap is
+ * a panel label: tiny mono capitals. An LED is a status dot that can be lit.
+ */
+@utility key {
+  border-radius: 4px;
+  box-shadow:
+    inset 0 -2px 0 oklch(0 0 0 / 0.2),
+    inset 0 1px 0 oklch(1 0 0 / 0.2),
+    0 2px 0 color-mix(in oklab, var(--foreground) 24%, var(--background)),
+    0 3px 6px -2px var(--shadow-strong);
+  transition-property: background-color, box-shadow, color, transform, filter;
+  transition-duration: 80ms;
+  &:active,
+  &[data-state="on"]:active,
+  &[aria-pressed="true"]:active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 -1px 0 oklch(0 0 0 / 0.2),
+      inset 0 1px 0 oklch(1 0 0 / 0.2),
+      0 0 0 color-mix(in oklab, var(--foreground) 24%, var(--background)),
+      0 1px 2px var(--shadow-color);
+  }
+}
+@utility key-primary {
+  box-shadow:
+    inset 0 -2px 0 oklch(0 0 0 / 0.22),
+    inset 0 1px 0 oklch(1 0 0 / 0.28),
+    0 2px 0 color-mix(in oklab, var(--foreground) 24%, var(--background)),
+    0 6px 14px -4px var(--glow);
+  &:active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 -1px 0 oklch(0 0 0 / 0.22),
+      inset 0 1px 0 oklch(1 0 0 / 0.28),
+      0 0 0 color-mix(in oklab, var(--foreground) 24%, var(--background)),
+      0 2px 6px -2px var(--glow);
+  }
+}
+/* A keycap that is down: the same shape, sunk, with its LED lit by the caller. */
+@utility key-down {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -1px 0 oklch(0 0 0 / 0.2),
+    inset 0 1px 0 oklch(1 0 0 / 0.2),
+    0 0 0 color-mix(in oklab, var(--foreground) 24%, var(--background)),
+    0 1px 2px var(--shadow-color);
+}
+@utility screen {
+  background-color: var(--screen);
+  color: var(--screen-foreground);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    0 1px 0 var(--highlight);
+}
+/* Figures on a screen: the dot matrix face, lit. */
+@utility lcd {
+  font-family: var(--font-lcd);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px color-mix(in oklab, var(--screen-foreground) 55%, transparent);
+}
+@utility cap {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+@utility led {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: color-mix(in oklab, var(--foreground) 35%, var(--background));
+  flex: none;
+}
+@utility led-on {
+  background-color: var(--primary);
+  box-shadow: 0 0 6px var(--primary);
 }
 
 /*
  * Liquid glass. A floating control: translucent fill, backdrop blur, a
  * specular top edge and a hairline rim, then a wide soft drop shadow.
  */
+/* Field has no liquid: glass turns into a plate with a hairline and a lip. `:where` keeps `field:` utilities on top. */
 @utility glass {
   background-color: var(--glass);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   backdrop-filter: blur(28px) saturate(180%);
   box-shadow: var(--shadow-float);
+  :where([data-look="field"]) & {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--glass-strong);
+    box-shadow: var(--shadow-plate);
+  }
 }
 @utility glass-strong {
   background-color: var(--glass-strong);
   -webkit-backdrop-filter: blur(36px) saturate(190%);
   backdrop-filter: blur(36px) saturate(190%);
   box-shadow: var(--shadow-float);
+  :where([data-look="field"]) & {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: var(--shadow-plate);
+  }
 }
 
 /* Fades content out under the floating bars instead of a hard edge. */

@@ -8,6 +8,7 @@ import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { StatusDot } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { EmptyState, ErrorState } from '@/components/states';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import {
   STATUS_LABEL,
 } from '@/lib/format';
 import { BUILD_SITE_PROFILE, useCancelSearch, useLocalStatus, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/queries';
+import { useLook } from '@/lib/look';
 import { parseWebsite } from '@/lib/site-profile';
 import { CountUp, useStagger } from '@/lib/motion';
 import { navigate, routeHref } from '@/lib/router';
@@ -115,44 +117,77 @@ function WebsiteMenu({ profile }: { profile: SiteProfile }) {
   );
 }
 
-function SearchRow({ search, style }: { search: Search; style?: CSSProperties }) {
+/** The Field look's kind tag: one word, and which keycap color it prints on. */
+const FIELD_KIND_TAG: Record<string, [label: string, variant: 'default' | 'secondary' | 'outline']> = {
+  local: ['Local', 'secondary'],
+  web: ['Web', 'secondary'],
+  launches: ['Launches', 'secondary'],
+  domains: ['List', 'secondary'],
+  drop: ['Drop', 'default'],
+  icp: ['Describe', 'outline'],
+};
+
+function KindTag({ kind }: { kind: string }) {
+  const [label, variant] = FIELD_KIND_TAG[kind] ?? ['Search', 'secondary'];
+  return <Badge variant={variant}>{label}</Badge>;
+}
+
+/** The Field look's channel number, two digits at the row's left edge. */
+function Channel({ index }: { index: number }) {
+  return <span className="cap w-7 shrink-0 text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>;
+}
+
+/* Field: the rows are instrument channels, hairline divided, with no pill. */
+const ROW = 'group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]';
+const ROW_FIELD = 'field:rounded-none field:border-t field:border-border field:last:border-b';
+const ROW_LINK = 'absolute inset-0 rounded-[24px] outline-none field:rounded-none';
+const ROW_BODY = 'pointer-events-none relative flex items-center gap-8 px-6 py-5 field:gap-5 field:px-2 field:py-4';
+const ROW_TITLE = 'truncate font-display text-lg font-medium field:text-base field:font-normal';
+const ROW_SUBTITLE = 'mt-1 truncate text-sm text-muted-foreground field:mt-1.5 field:font-mono field:text-[10.5px] field:uppercase field:tracking-[0.04em]';
+const ROW_FIGURE = 'font-display text-3xl font-light tabular-nums field:tracking-[-0.02em]';
+const ROW_CAPTION = 'text-xs tabular-nums text-muted-foreground field:cap';
+
+function SearchRow({ search, index, style }: { search: Search; index: number; style?: CSSProperties }) {
+  const look = useLook();
   const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
   return (
-    <div style={style} className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+    <div style={style} className={cn(ROW, ROW_FIELD)}>
       <a
         href={routeHref({ name: 'search', id: search.id })}
         data-search-status={search.status}
         data-search-kind={search.kind}
         aria-label={searchTitle(search)}
-        className="absolute inset-0 rounded-[24px] outline-none"
+        className={ROW_LINK}
       />
-      <div className="pointer-events-none relative flex items-center gap-8 px-6 py-5">
+      <div className={ROW_BODY}>
+        {look === 'field' && <Channel index={index} />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             {(active || search.status === 'failed') && <StatusDot status={search.status} />}
-            <span className="truncate font-display text-lg font-medium">{searchTitle(search)}</span>
+            <span className={ROW_TITLE}>{searchTitle(search)}</span>
           </div>
-          <div className="mt-1 truncate text-sm text-muted-foreground">
+          <div className={ROW_SUBTITLE}>
             {stopped || active ? `${STATUS_LABEL[search.status]}, ` : ''}
             {searchSubtitle(search).toLowerCase()}, {relativeTime(search.createdAt)}
             {search.ongoing && !active && !stopped && <span className="text-foreground/70">, keeps finding new leads</span>}
           </div>
           {active && (
             <div className="mt-4 flex max-w-md items-center gap-4">
-              <SearchProgress search={search} className="h-[3px] flex-1" />
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
+              <SearchProgress search={search} className="h-[3px] flex-1 field:h-2.5" />
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground field:cap">{progressCaption(search)}</span>
             </div>
           )}
           {search.status === 'failed' && (
             <div className="mt-1 truncate text-xs text-muted-foreground/80">{errorMessage(search.error)}</div>
           )}
         </div>
+        {look === 'field' && <KindTag kind={search.kind} />}
         <div className="shrink-0 text-right">
-          <div className="font-display text-3xl font-light tabular-nums">
+          <div className={ROW_FIGURE}>
             <CountUp value={search.emailsFound} />
           </div>
-          <div className="text-xs tabular-nums text-muted-foreground">
+          <div className={ROW_CAPTION}>
             {stopped && search.emailsFound === 0 ? 'no emails' : `emails, ${formatNumber(search.emailsValid)} valid`}
           </div>
         </div>
@@ -170,6 +205,7 @@ function SearchRow({ search, style }: { search: Search; style?: CSSProperties })
  * starts fresh, so this row is the way back to it.
  */
 function WebsiteRow() {
+  const look = useLook();
   const profile = useSiteProfile();
   const running = useMutationState({
     filters: { mutationKey: BUILD_SITE_PROFILE, status: 'pending' },
@@ -181,31 +217,31 @@ function WebsiteRow() {
   const title = reading ?? profile.data!.profile.name;
   return (
     <section className="flex flex-col gap-1 [&+&]:mt-10">
-      <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
-        <a href={routeHref({ name: 'website' })} aria-label={title} className="absolute inset-0 rounded-[24px] outline-none" />
-        <div className="pointer-events-none relative flex items-center gap-8 px-6 py-5">
+      <div className={cn(ROW, ROW_FIELD)}>
+        <a href={routeHref({ name: 'website' })} aria-label={title} className={ROW_LINK} />
+        <div className={ROW_BODY}>
+          {look === 'field' && <Channel index={-1} />}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
               {reading !== null && <StatusDot status="running" />}
-              <span className={cn('truncate font-display text-lg font-medium', reading !== null && 'font-mono font-normal tracking-tight')}>
-                {title}
-              </span>
+              <span className={cn(ROW_TITLE, reading !== null && 'font-mono font-normal tracking-tight')}>{title}</span>
             </div>
-            <div className="mt-1 truncate text-sm text-muted-foreground">
+            <div className={ROW_SUBTITLE}>
               {reading !== null
                 ? 'Reading your website, planning searches'
                 : `Your website, ${profile.data!.domain}, ${relativeTime(profile.data!.updatedAt)}`}
             </div>
             {reading !== null && (
-              <div className="mt-4 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07]">
-                <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate" />
+              <div className="mt-4 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07] field:h-2.5 field:rounded-none field:bg-foreground/15">
+                <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate field:rounded-none" />
               </div>
             )}
           </div>
+          {look === 'field' && <Badge variant="default">Website</Badge>}
           {reading === null && (
             <div className="shrink-0 text-right">
-              <div className="font-display text-3xl font-light tabular-nums">{formatNumber(planned)}</div>
-              <div className="text-xs tabular-nums text-muted-foreground">{planned === 1 ? 'search planned' : 'searches planned'}</div>
+              <div className={ROW_FIGURE}>{formatNumber(planned)}</div>
+              <div className={ROW_CAPTION}>{planned === 1 ? 'search planned' : 'searches planned'}</div>
             </div>
           )}
           <div className="pointer-events-auto -mr-2 flex w-7 justify-end">
@@ -243,7 +279,7 @@ function Section({ searches, offset = 0 }: { searches: Search[]; offset?: number
   return (
     <section className="stagger flex flex-col gap-1 [&+&]:mt-10">
       {searches.map((s, i) => (
-        <SearchRow key={s.id} search={s} style={stagger.style(offset + i)} />
+        <SearchRow key={s.id} search={s} index={offset + i} style={stagger.style(offset + i)} />
       ))}
     </section>
   );

@@ -6,6 +6,16 @@ import { FILM_SCALE, filmScenes, runFilm } from './film';
 import { createKit, sleep, waitForLoad, type CaptureExtras } from './kit';
 import { CAPTURE_STEPS } from './shots';
 
+/** `NVOKE_CAPTURE_ONLY=look,results` runs just those steps (the file names under shots/), for a quick look at one feature. */
+function captureSteps(): typeof CAPTURE_STEPS {
+  const only = process.env['NVOKE_CAPTURE_ONLY']
+    ?.split(',')
+    .map((s) => s.trim().replace(/-/g, '').toLowerCase())
+    .filter(Boolean);
+  if (!only?.length) return CAPTURE_STEPS;
+  return CAPTURE_STEPS.filter((step) => only.includes(step.name.replace(/Shots$/, '').toLowerCase()));
+}
+
 /**
  * Development only. `pnpm --filter @nvoke/desktop capture` (or `--capture[=dir]`
  * on the Electron command line, or NVOKE_CAPTURE=dir) walks every screen in
@@ -78,7 +88,7 @@ export async function runCapture(win: BrowserWindow, dir: string, extras: Captur
       // The app's own appearance setting, which also drives nativeTheme.
       nativeTheme.themeSource = theme;
       await kit.js(`localStorage.setItem('nvoke.theme', '${theme}')`);
-      for (const step of CAPTURE_STEPS) await step(kit);
+      for (const step of captureSteps()) await step(kit);
     }
   } catch (err) {
     failed = true;

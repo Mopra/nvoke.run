@@ -10,6 +10,7 @@ import { DropNotifications } from './account/DropNotifications';
 import { InboxFolder } from './account/InboxFolder';
 import { LocalCrawl } from './account/LocalCrawl';
 import { LocalMcpSection } from './account/LocalMcpSection';
+import { LookSetting } from './account/LookSetting';
 import { OpenAtLogin } from './account/OpenAtLogin';
 import { PlanSetting } from './account/PlanSetting';
 import { QuickHotkey } from './account/QuickHotkey';
@@ -77,6 +78,7 @@ export function AccountScreen() {
               <div className="mt-14 flex flex-col divide-y divide-border">
                 <PlanSetting me={me} />
                 <AppearanceSetting />
+                <LookSetting />
                 <OpenAtLogin />
                 <QuickHotkey />
                 <InboxFolder />

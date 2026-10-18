@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,10 +25,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FEED_SOURCE_LABEL, formatNumber, nextRunLabel, relativeTime, sourcesLabel } from '@/lib/format';
+import { useLook } from '@/lib/look';
 import { useDeleteDrop, useDrops, useRunDrop, useUpdateDrop } from '@/lib/queries';
 import { useStagger } from '@/lib/motion';
 import { navigate, routeHref } from '@/lib/router';
 import type { Drop, FeedSourceStatus } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 function DropMenu({ drop }: { drop: Drop }) {
   const [confirm, setConfirm] = useState(false);
@@ -116,44 +119,54 @@ function DropMenu({ drop }: { drop: Drop }) {
 function DropList({ drops }: { drops: Drop[] }) {
   const stagger = useStagger();
   return (
-    <section className="stagger flex flex-col gap-1">
+    <section className="stagger flex flex-col gap-1 field:gap-0">
       {drops.map((d, i) => (
-        <DropRow key={d.id} drop={d} style={stagger.style(i)} />
+        <DropRow key={d.id} drop={d} index={i + 1} style={stagger.style(i)} />
       ))}
     </section>
   );
 }
 
-function DropRow({ drop, style }: { drop: Drop; style?: CSSProperties }) {
+/** One drop. In Field it is a numbered channel: index, name, tag, LED, count, between hairlines. */
+function DropRow({ drop, index, style }: { drop: Drop; index: number; style?: CSSProperties }) {
+  const look = useLook();
   const what = drop.keyword ? `"${drop.keyword}"` : 'Every launch';
   return (
-    <div style={style} className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+    <div
+      style={style}
+      className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05] field:rounded-none field:border-t field:border-border field:last:border-b"
+    >
       <a
         href={routeHref({ name: 'drop', id: drop.id })}
         aria-label={drop.name}
-        className="absolute inset-0 rounded-[24px] outline-none"
+        className="absolute inset-0 rounded-[24px] outline-none field:rounded-none"
       />
-      <div className="pointer-events-none relative flex items-center gap-8 px-6 py-5">
+      <div className="pointer-events-none relative flex items-center gap-8 px-6 py-5 field:gap-6 field:px-4 field:py-4">
+        <span className="hidden field:block field:cap field:w-5 field:shrink-0 field:text-muted-foreground" aria-hidden>
+          {String(index).padStart(2, '0')}
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             {drop.enabled && (
-              <span className="relative flex size-2 shrink-0" aria-hidden>
+              <span className="relative flex size-2 shrink-0 field:hidden" aria-hidden>
                 <span className="size-2 rounded-full bg-primary" />
               </span>
             )}
-            <span className="truncate font-display text-lg font-medium">{drop.name}</span>
+            <span className="truncate font-display text-lg font-medium field:font-normal field:text-base">{drop.name}</span>
           </div>
-          <div className="mt-1 truncate text-sm text-muted-foreground">
+          <div className="mt-1 truncate text-sm text-muted-foreground field:font-mono field:text-[10.5px] field:uppercase field:tracking-[0.04em] field:text-muted-foreground">
             {what} from {sourcesLabel(drop.sources, FEED_SOURCES.length)}, up to {formatNumber(drop.dailyLimit)} a day
           </div>
-          <div className="mt-1 truncate text-xs text-muted-foreground/80">
+          <div className="mt-1 truncate text-xs text-muted-foreground/80 field:cap">
+            <span className={cn('hidden field:led field:mr-2 field:align-middle', drop.enabled && 'field:led-on')} aria-hidden />
             {nextRunLabel(drop)}
             {drop.lastDeliveredAt && `. Last delivery ${relativeTime(drop.lastDeliveredAt)}`}
           </div>
         </div>
+        {look === 'field' && <Badge variant="outline">{drop.enabled ? 'Daily' : 'Paused'}</Badge>}
         <div className="shrink-0 text-right">
-          <div className="font-display text-3xl font-light tabular-nums">{formatNumber(drop.companiesDelivered)}</div>
-          <div className="text-xs text-muted-foreground">companies delivered</div>
+          <div className="font-display text-3xl font-light tabular-nums field:font-light">{formatNumber(drop.companiesDelivered)}</div>
+          <div className="text-xs text-muted-foreground field:cap">companies delivered</div>
         </div>
         <div className="pointer-events-auto -mr-2 flex w-7 justify-end">
           <DropMenu drop={drop} />
@@ -168,7 +181,7 @@ function FeedPulse({ sources }: { sources: FeedSourceStatus[] }) {
   const on = sources.filter((s) => s.available);
   const total = on.reduce((sum, s) => sum + s.lastWeek, 0);
   return (
-    <p className="text-base text-muted-foreground">
+    <p className="text-base text-muted-foreground field:font-mono field:text-xs">
       <span className="tabular-nums">{formatNumber(total)}</span> new launches this week from{' '}
       {on.map((s, i) => (
         <span key={s.source}>

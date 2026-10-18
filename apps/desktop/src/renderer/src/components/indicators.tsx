@@ -22,11 +22,13 @@ export function VerificationBadge({ value, pending = false }: { value: Verificat
           className={cn(
             'inline-flex h-[18px] shrink-0 cursor-default items-center gap-1.5 rounded-full bg-foreground/[0.05] pr-2 pl-1.5 text-2xs font-medium',
             value === 'invalid' && !pending ? 'text-muted-foreground' : 'text-foreground/75',
+            // Field: a cap label with its LED, printed on the chassis rather than in a pill.
+            'field:cap field:gap-2 field:rounded-[3px] field:bg-transparent field:px-0',
           )}
         >
           <span
             className={cn(
-              'size-1.5 rounded-full',
+              'size-1.5 rounded-full field:led',
               pending ? 'bg-primary/70 motion-safe:animate-pulse' : VERIFICATION_DOT[value],
             )}
           />
@@ -53,7 +55,15 @@ export function StatusDot({ status, className }: { status: SearchStatus; classNa
       {live && (
         <span className={cn('absolute -inset-px rounded-full opacity-50 motion-safe:animate-ping', STATUS_DOT[status])} />
       )}
-      <span className={cn('relative inline-flex size-[7px] rounded-full', STATUS_DOT[status])} />
+      {/* Field: an LED, lit while the search runs. The one-property color utilities still win for failed. */}
+      <span
+        className={cn(
+          'relative inline-flex size-[7px] rounded-full field:led',
+          STATUS_DOT[status],
+          live && 'field:led-on',
+          status === 'failed' && 'field:bg-destructive',
+        )}
+      />
     </span>
   );
 }

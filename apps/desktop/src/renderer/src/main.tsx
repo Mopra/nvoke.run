@@ -6,6 +6,7 @@ import { ApiError } from './lib/api';
 import { refreshAuth } from './lib/auth';
 import { initChrome } from './lib/chrome';
 import { isGrabOverlay, isQuickWindow } from './lib/desktop';
+import { initLook } from './lib/look';
 import { initTheme } from './lib/theme';
 import { GrabOverlay } from './components/GrabOverlay';
 import { QuickWindow } from './components/QuickWindow';
@@ -21,6 +22,7 @@ if (grab) document.documentElement.dataset['grab'] = '';
 
 void initChrome();
 initTheme();
+initLook();
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({

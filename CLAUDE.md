@@ -238,6 +238,9 @@ it through `protocols` in `electron-builder.yml`.
    `border-border`, `ring-ring`, `bg-sidebar` and so on. ESLint enforces this in
    `apps/desktop/src/renderer` and `apps/site`. All colors live in
    `packages/theme/theme.css`, so a theme swaps in one file for both apps.
+   The desktop has a second look, Field (an instrument panel, orange on warm
+   grey), behind `data-look="field"` and the `field:` variant; its parts and
+   rules are in `docs/desktop/look.md`. Calm stays the default.
 2. **Theme direction.** How Apple would design a native app in 2030: calm,
    extreme whitespace, premium. Cool near-neutral grays (oklch hue about 265,
    chroma under 0.01) and one accent, "iris" (oklch about 0.57 0.215 268),

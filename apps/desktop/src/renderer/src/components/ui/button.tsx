@@ -3,25 +3,26 @@ import { Slot } from 'radix-ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
+// In the Field look every filled button is a keycap: square, a mono label in capitals, and it sinks when pressed.
 const buttonVariants = cva(
-  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap text-sm font-medium outline-none transition-[background-color,box-shadow,color,transform,filter] duration-150 active:scale-[0.97] focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap text-sm font-medium outline-none transition-[background-color,box-shadow,color,transform,filter] duration-150 active:scale-[0.97] focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 field:rounded-[4px] field:font-mono field:text-[10.5px] field:font-medium field:tracking-[0.09em] field:uppercase field:active:scale-100",
   {
     variants: {
       variant: {
         // The one place the accent glows: the primary action on a screen.
-        default: 'bg-primary text-primary-foreground shadow-glow hover:brightness-110',
-        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',
-        outline: 'bg-foreground/[0.055] text-foreground hover:bg-foreground/[0.09]',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-foreground/10',
+        default: 'bg-primary text-primary-foreground shadow-glow hover:brightness-110 field:key field:key-primary',
+        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110 field:key',
+        outline: 'bg-foreground/[0.055] text-foreground hover:bg-foreground/[0.09] field:key field:bg-secondary field:text-secondary-foreground field:hover:bg-secondary field:hover:brightness-[0.97]',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-foreground/10 field:key field:hover:bg-secondary field:hover:brightness-[0.97]',
         ghost: 'text-foreground/75 hover:bg-foreground/[0.06] hover:text-foreground',
-        glass: 'glass text-foreground/85 hover:text-foreground',
-        link: 'text-primary underline-offset-4 hover:underline active:scale-100',
+        glass: 'glass text-foreground/85 hover:text-foreground field:key field:bg-secondary field:text-secondary-foreground field:hover:brightness-[0.97]',
+        link: 'text-primary underline-offset-4 hover:underline active:scale-100 field:normal-case field:tracking-normal field:font-sans field:text-sm',
       },
       size: {
-        default: 'h-9 rounded-full px-4 has-[>svg]:px-3.5',
-        sm: 'h-7 rounded-full px-3 text-[12.5px] has-[>svg]:px-2.5',
-        lg: 'h-11 rounded-full px-6 text-[15px] has-[>svg]:px-5',
-        icon: 'size-9 rounded-full',
+        default: 'h-9 rounded-full px-4 has-[>svg]:px-3.5 field:h-8',
+        sm: 'h-7 rounded-full px-3 text-[12.5px] has-[>svg]:px-2.5 field:text-[10px]',
+        lg: 'h-11 rounded-full px-6 text-[15px] has-[>svg]:px-5 field:h-10 field:text-[11.5px]',
+        icon: 'size-9 rounded-full field:size-8',
         'icon-sm': 'size-7 rounded-full',
       },
     },

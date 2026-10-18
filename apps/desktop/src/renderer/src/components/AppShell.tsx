@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { transportMode } from '@/lib/api';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
+import { useLook } from '@/lib/look';
 import { CountUp } from '@/lib/motion';
 import { useMe, useSearches } from '@/lib/queries';
 import { navigate, routeHref, type Route } from '@/lib/router';
@@ -12,6 +13,7 @@ import { Avatar } from '@/components/Avatar';
 import { CommandBar } from '@/components/CommandBar';
 import { FileDrop } from '@/components/FileDrop';
 import { LogoMark } from '@/components/Logo';
+import { LedMeter, litSegments } from '@/components/SearchProgress';
 import { UpdateButton } from '@/components/UpdateButton';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -60,6 +62,7 @@ export function Aura({ on }: { on: boolean }) {
  * it carries that search's progress, like a live activity.
  */
 function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen: () => void }) {
+  const look = useLook();
   const current = live[0];
   // On the running search's own page, the page already shows the progress.
   const showLive = current && !(route.name === 'search' && route.id === current.id);
@@ -73,39 +76,54 @@ function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen:
         onClick={onOpen}
         aria-label="Search or jump to"
         className={cn(
-          'glass app-no-drag pointer-events-auto flex h-9 items-center gap-2.5 rounded-full pr-2 pl-3.5 text-sm outline-none',
-          'transition-[width,background-color,transform] duration-500 ease-spring hover:bg-glass-strong active:scale-[0.98]',
+          // Field: the island is the black LCD strip, so it drops the glass for the screen.
+          look === 'field'
+            ? 'screen h-8 min-w-[300px] max-w-[min(520px,calc(100vw-520px))] justify-center rounded-[4px] px-4 hover:bg-screen'
+            : 'glass h-9 rounded-full pr-2 pl-3.5 hover:bg-glass-strong',
+          'app-no-drag pointer-events-auto flex items-center gap-2.5 text-sm outline-none',
+          'transition-[width,background-color,transform] duration-500 ease-spring active:scale-[0.98]',
           'focus-visible:ring-[3px] focus-visible:ring-ring/40',
         )}
       >
         {showLive ? (
           <>
-            <span className="relative flex size-2 shrink-0">
+            <span className="relative flex size-2 shrink-0 field:size-1.5">
               <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
-              <span className="relative size-2 rounded-full bg-primary" />
+              <span className="relative size-2 rounded-full bg-primary field:led field:led-on" />
             </span>
-            <span className="max-w-40 truncate font-medium" title={searchTitle(current)}>
+            <span
+              className="max-w-40 truncate font-medium field:lcd field:max-w-44 field:text-[15px] field:uppercase field:text-screen-foreground"
+              title={searchTitle(current)}
+            >
               {searchTitle(current)}
             </span>
             {/* The stage note is the progress, in words; narrow windows keep the bar instead. */}
             {current.stageNote && (
-              <span data-island-stage className="hidden max-w-52 truncate text-xs text-muted-foreground min-[1100px]:inline" title={current.stageNote}>
+              <span
+                data-island-stage
+                className="hidden max-w-52 truncate text-xs text-muted-foreground min-[1100px]:inline field:cap field:text-screen-foreground/50 field:min-[1100px]:hidden field:min-[1320px]:inline"
+                title={current.stageNote}
+              >
                 {current.stageNote}
               </span>
             )}
-            <span
-              className={cn(
-                'h-[3px] w-12 shrink-0 overflow-hidden rounded-full bg-foreground/10',
-                current.stageNote && 'min-[1100px]:hidden',
-              )}
-            >
+            {look === 'field' ? (
+              <LedMeter lit={litSegments(Math.max(done, 4))} className={cn('w-16 shrink-0', current.stageNote && 'min-[1320px]:hidden')} />
+            ) : (
               <span
-                className="block h-full rounded-full bg-primary transition-[width] duration-700 ease-out-soft"
-                style={{ width: `${Math.max(done, 4)}%` }}
-              />
-            </span>
-            <span className="shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground">
-              <span className="text-foreground">
+                className={cn(
+                  'h-[3px] w-12 shrink-0 overflow-hidden rounded-full bg-foreground/10',
+                  current.stageNote && 'min-[1100px]:hidden',
+                )}
+              >
+                <span
+                  className="block h-full rounded-full bg-primary transition-[width] duration-700 ease-out-soft"
+                  style={{ width: `${Math.max(done, 4)}%` }}
+                />
+              </span>
+            )}
+            <span className="shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground field:cap field:pr-0 field:text-screen-foreground/50">
+              <span className="text-foreground field:lcd field:text-[17px] field:text-screen-foreground">
                 <CountUp value={current.emailsValid} />
               </span>{' '}
               verified
@@ -114,9 +132,11 @@ function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen:
           </>
         ) : (
           <>
-            <SearchIcon className="size-[15px] shrink-0 text-muted-foreground" />
-            <span className="w-44 text-left text-muted-foreground">Search or jump to</span>
-            <Kbd className="bg-transparent">{modKey} K</Kbd>
+            <SearchIcon className="size-[15px] shrink-0 text-muted-foreground field:size-3 field:text-screen-foreground/50" />
+            <span className="w-44 text-left text-muted-foreground field:cap field:w-auto field:flex-1 field:text-screen-foreground/50">
+              Search or jump to
+            </span>
+            <Kbd className="bg-transparent field:text-screen-foreground/50">{modKey} K</Kbd>
           </>
         )}
       </button>
@@ -215,8 +235,13 @@ export function PageHeader({
         {newSearch && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="glass" className="pr-4 pl-3" onClick={() => navigate({ name: 'new', kind: null })}>
-                <Plus className="size-[18px] text-primary" strokeWidth={2.25} />
+              {/* Field: the orange key. Important, since the glass plate rule in index.css sits outside the layers. */}
+              <Button
+                variant="glass"
+                className="pr-4 pl-3 field:bg-primary field:text-primary-foreground field:key-primary"
+                onClick={() => navigate({ name: 'new', kind: null })}
+              >
+                <Plus className="size-[18px] text-primary field:text-primary-foreground" strokeWidth={2.25} />
                 New search
               </Button>
             </TooltipTrigger>
@@ -243,8 +268,8 @@ export function DisplayTitle({
 }) {
   return (
     <div className={cn('pt-10 pb-10', className)}>
-      <h1 className="font-display text-4xl font-semibold text-balance">{children}</h1>
-      {subtitle && <p className="mt-2 text-base text-muted-foreground">{subtitle}</p>}
+      <h1 className="font-display text-4xl font-semibold text-balance field:font-light field:tracking-[-0.02em]">{children}</h1>
+      {subtitle && <p className="mt-2 text-base text-muted-foreground field:cap field:mt-3 field:text-primary">{subtitle}</p>}
     </div>
   );
 }

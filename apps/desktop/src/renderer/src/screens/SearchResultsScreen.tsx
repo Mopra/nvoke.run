@@ -88,6 +88,7 @@ import {
   SHARED_INBOXES,
   shownEmails,
 } from '@/lib/people';
+import { useLook } from '@/lib/look';
 import { useCountUp } from '@/lib/motion';
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
@@ -129,13 +130,25 @@ function useDebounced<T>(value: T, ms: number): T {
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   // While a search runs the figures glide up between polls.
   const shown = useCountUp(value);
+  // In Field each stat is a small display: the figure lit over unlit segments, the label a cap row below.
+  const field = useLook() === 'field';
   return (
-    <div className="min-w-0">
-      <div className="flex items-baseline gap-2">
-        <span className="font-display text-4xl font-extralight tabular-nums">{formatNumber(shown)}</span>
-        {sub && <span className="truncate text-sm tabular-nums text-muted-foreground">{sub}</span>}
+    <div className="min-w-0 field:screen field:flex field:flex-col field:px-3.5 field:py-3">
+      <div className="flex items-baseline gap-2 field:relative field:justify-end">
+        {field && (
+          <span aria-hidden className="pointer-events-none absolute right-0 font-lcd text-4xl leading-none font-extrabold tracking-normal tabular-nums text-screen-dim select-none">
+            888
+          </span>
+        )}
+        <span className="font-display text-4xl font-extralight tabular-nums field:lcd field:relative field:leading-none field:tracking-normal field:text-screen-foreground">
+          {formatNumber(shown)}
+        </span>
+        {sub && <span className="truncate text-sm tabular-nums text-muted-foreground field:hidden">{sub}</span>}
       </div>
-      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm text-muted-foreground field:cap field:mt-2.5 field:flex field:justify-between field:gap-2 field:text-screen-foreground/45">
+        <span className="truncate">{label}</span>
+        {field && sub && <span className={cn('shrink-0', sub.endsWith('%') && 'text-primary')}>{sub}</span>}
+      </div>
     </div>
   );
 }
@@ -163,8 +176,8 @@ function Overview({
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
     <section className="px-6 pt-8 pb-10">
-      <h1 className="font-display text-3xl font-semibold text-balance">{searchTitle(search)}</h1>
-      <div className="mt-2 flex items-center gap-2.5 text-sm text-muted-foreground">
+      <h1 className="font-display text-3xl font-semibold text-balance field:font-light field:tracking-[-0.02em]">{searchTitle(search)}</h1>
+      <div className="mt-2 flex items-center gap-2.5 text-sm text-muted-foreground field:cap field:text-muted-foreground">
         <StatusLabel status={search.status} />
         <span className="truncate" title={`${searchSubtitle(search)}, ${timing}`}>
           {searchSubtitle(search)}, {timing}
@@ -175,7 +188,7 @@ function Overview({
         <SearchMoreEditor search={search} onClose={onCloseMore} />
       ) : (
         <>
-          <div className="mt-10 grid grid-cols-4 gap-8">
+          <div className="mt-10 grid grid-cols-4 gap-8 field:gap-2.5">
             <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
             <Stat label="Websites crawled" value={search.companiesCrawled} />
             <Stat label="Emails found" value={search.emailsFound} />
@@ -580,7 +593,7 @@ function CompanyRow({
       style={entering === null ? undefined : { animationDelay: `${entering * 28}ms` }}
       className={cn(
         COLUMNS,
-        'group items-start gap-y-2 rounded-[20px] px-6 py-4 transition-colors duration-150',
+        'group items-start gap-y-2 rounded-[20px] px-6 py-4 transition-colors duration-150 field:rounded-none field:border-t field:border-border',
         entering !== null && 'motion-safe:animate-item-in',
         selected ? 'bg-primary/[0.09] dark:bg-primary/[0.16]' : 'hover:bg-foreground/[0.035]',
         selected && joinAbove && 'rounded-t-none',
@@ -588,7 +601,7 @@ function CompanyRow({
       )}
     >
         <div className="min-w-0 leading-5">
-          <div className="truncate text-[14px] font-medium" title={company.name}>
+          <div className="truncate text-[14px] font-medium field:text-[15px] field:font-normal" title={company.name}>
             {company.name}
           </div>
           <button
@@ -691,7 +704,7 @@ function TableSkeleton() {
 
 /* Toolbar */
 
-/** A filter that is on or off, as a pill in the dock. */
+/** A filter that is on or off, as a pill in the dock. In Field it is a keycap whose LED lights when on. */
 function FilterPill({
   on,
   onChange,
@@ -710,10 +723,12 @@ function FilterPill({
       onClick={() => onChange(!on)}
       className={cn(
         'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50',
+        'field:key field:gap-2 field:rounded-[4px] field:bg-secondary field:px-3.5 field:font-mono field:text-[10px] field:tracking-[0.09em] field:text-secondary-foreground field:uppercase field:hover:bg-secondary field:hover:brightness-[0.97] field:hover:text-secondary-foreground',
         on ? 'bg-primary/10 text-foreground dark:bg-primary/20' : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
       )}
     >
-      <Icon className={cn('size-3.5', on ? 'text-primary' : 'opacity-70')} />
+      <span aria-hidden className={cn('hidden field:led', on && 'field:led-on')} />
+      <Icon className={cn('size-3.5 field:hidden', on ? 'text-primary' : 'opacity-70')} />
       {children}
     </button>
   );
@@ -776,6 +791,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const [exportNotice, setExportNotice] = useState(false);
   const [editingMore, setEditingMore] = useState(false);
   const q = useDebounced(text.trim(), 250);
+  const look = useLook();
   const live = search ? isActive(search.status) : false;
   const companies = useCompanies(
     id,
@@ -1065,7 +1081,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
           <div className="px-6 pt-8 pb-10">
             <Skeleton className="h-8 w-80" />
             <Skeleton className="mt-3 h-3.5 w-56" />
-            <div className="mt-10 grid grid-cols-4 gap-8">
+            <div className="mt-10 grid grid-cols-4 gap-8 field:gap-2.5">
               {Array.from({ length: 4 }, (_, i) => (
                 <div key={i} className="flex flex-col gap-2.5">
                   <Skeleton className="h-9 w-16" />
@@ -1165,7 +1181,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
           />
 
           <div>
-            <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground')}>
+            <div className={cn(COLUMNS, 'px-6 py-2 text-xs text-muted-foreground field:cap field:text-muted-foreground')}>
               <span>Company</span>
               <span className="flex items-center gap-1.5">
                 People
@@ -1326,7 +1342,13 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
             {inboxChecking(search.inboxesPending)}
           </div>
         )}
-        <div className="glass pointer-events-auto flex h-12 items-center gap-1 rounded-full pr-1.5 pl-1.5 motion-safe:animate-rise">
+        <div
+          className={cn(
+            // In Field the dock is a key bar: a flat plate with a hairline, not glass (the glass override in index.css would win over the plate).
+            look === 'field' ? 'rounded-[6px] bg-background shadow-[0_0_0_1px_var(--border)]' : 'glass rounded-full',
+            'pointer-events-auto flex h-12 items-center gap-1 pr-1.5 pl-1.5 motion-safe:animate-rise field:h-auto field:gap-2.5 field:px-3 field:pt-4 field:pb-3',
+          )}
+        >
           <div className="relative w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -1343,7 +1365,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
               aria-label="Filter people and companies"
               spellCheck={false}
               autoComplete="off"
-              className="h-9 w-full rounded-full bg-foreground/[0.045] pr-12 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
+              className="h-9 w-full rounded-full bg-foreground/[0.045] pr-12 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25 field:h-8 field:rounded-[4px] field:bg-card field:font-mono field:text-xs field:shadow-[inset_0_1px_2px_var(--shadow-strong)] field:placeholder:tracking-[0.08em] field:placeholder:uppercase field:hover:bg-card field:focus-visible:bg-card field:focus-visible:ring-2 field:focus-visible:ring-ring/50"
             />
             {text ? (
               <button
@@ -1376,7 +1398,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
               {inboxesOff ? SHARED_INBOXES.title : showInboxes ? SHARED_INBOXES.hintOn : SHARED_INBOXES.hintOff}
             </TooltipContent>
           </Tooltip>
-          <span className="flex min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground">
+          <span className="flex min-w-24 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground field:cap field:text-muted-foreground">
             {offline ? (
               <Tooltip>
                 <TooltipTrigger asChild>

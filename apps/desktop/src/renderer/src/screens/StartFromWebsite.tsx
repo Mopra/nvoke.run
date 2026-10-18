@@ -7,6 +7,7 @@ import { Aura, BackButton, PageHeader } from '@/components/AppShell';
 import { CountryPicker } from '@/components/CountryPicker';
 import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { Line, Pill, SentenceInput } from '@/components/Sentence';
+import { FIELD_GRID, FIELD_NOTE, FIELD_PLATE, FIELD_WORD } from '@/components/SearchForm';
 import { ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,7 +122,7 @@ export function StartFromWebsite({ fresh = false }: { fresh?: boolean }) {
 /** The link to the manual tabs form, on every state of the step. */
 function ByHand({ className }: { className?: string }) {
   return (
-    <Pill onClick={() => navigate({ name: 'new', kind: 'local' })} className={cn('inline-flex items-center gap-1.5', className)}>
+    <Pill onClick={() => navigate({ name: 'new', kind: 'local' })} className={cn('inline-flex items-center gap-1.5 field:cap field:rounded-[3px]', className)}>
       Set up a search by hand
       <ArrowRight className="size-3" />
     </Pill>
@@ -169,12 +170,12 @@ function WebsiteStep({
     <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in">
       <h1 className="sr-only">Start from your website</h1>
       {onBack && (
-        <Pill onClick={onBack} className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start">
+        <Pill onClick={onBack} className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start field:cap field:rounded-[3px]">
           <ArrowLeft className="size-3" />
           Back to your suggestions
         </Pill>
       )}
-      <div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3">
+      <div className={cn('grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3', FIELD_GRID)}>
         <Line lead="Start from" htmlFor="website">
           <SentenceInput
             id="website"
@@ -188,11 +189,11 @@ function WebsiteStep({
             inputMode="url"
             aria-invalid={invalid || !!failed}
             aria-describedby="website-hint"
-            className="font-mono font-normal tracking-tight"
+            className={cn('font-mono font-normal tracking-tight', FIELD_WORD)}
           />
         </Line>
       </div>
-      <p id="website-hint" className="mt-5 max-w-xl text-pretty text-sm text-muted-foreground">
+      <p id="website-hint" className={cn('mt-5 max-w-xl text-pretty text-sm text-muted-foreground', FIELD_NOTE)}>
         nvoke reads your homepage and its about, pricing and services pages, works out who buys from you and plans the searches
         that find them. About 20 seconds. robots.txt is honored.
       </p>
@@ -203,7 +204,7 @@ function WebsiteStep({
           <CornerDownLeft className="size-3.5 opacity-70" />
         </Button>
         {failed || invalid ? (
-          <span role="alert" className="max-w-md text-sm text-destructive">
+          <span role="alert" className="max-w-md text-sm text-destructive field:font-mono field:text-[10.5px]">
             {failed ?? 'Type your website, like yourcompany.com.'}
           </span>
         ) : null}
@@ -229,14 +230,18 @@ function Building({ website, startedAt }: { website: string; startedAt: number }
     <div className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" aria-busy="true">
       <h1 className="sr-only">Reading {domain}</h1>
       <LogoMark motion="loading" className="mb-8 size-10" />
-      <p className="font-mono text-lg tracking-tight text-muted-foreground">{domain}</p>
-      <p key={phase} aria-live="polite" className="mt-3 min-h-[2.6em] font-display text-4xl font-semibold text-balance motion-safe:animate-rise">
+      <p className="font-mono text-lg tracking-tight text-muted-foreground field:cap field:text-primary">{domain}</p>
+      <p
+        key={phase}
+        aria-live="polite"
+        className="mt-3 min-h-[2.6em] font-display text-4xl font-semibold text-balance motion-safe:animate-rise field:font-light"
+      >
         {phase}
       </p>
       <div className="relative mt-6 h-[3px] w-72 overflow-hidden rounded-full bg-foreground/[0.07]" role="progressbar" aria-label="Reading your site">
         <div className="absolute inset-y-0 left-0 w-1/4 rounded-full bg-primary/60 motion-safe:animate-indeterminate" />
       </div>
-      <p className="mt-6 text-sm text-muted-foreground">Usually 10 to 30 seconds. Leave if you like, the plan waits here.</p>
+      <p className={cn('mt-6 text-sm text-muted-foreground', FIELD_NOTE)}>Usually 10 to 30 seconds. Leave if you like, the plan waits here.</p>
     </div>
   );
 }
@@ -279,7 +284,7 @@ function Suggestions({
       )}
 
       <section aria-labelledby="suggestions-title" className="mt-14">
-        <h2 id="suggestions-title" className="px-6 text-sm text-muted-foreground">
+        <h2 id="suggestions-title" className="px-6 text-sm text-muted-foreground field:cap">
           Searches that find your buyers
         </h2>
         <div className="mt-2 flex flex-col gap-1">
@@ -325,30 +330,32 @@ function ProfileReadout({
   const p = profile.profile;
   return (
     <div className="px-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground field:cap">
         <Globe className="size-3.5" />
-        <span className="font-mono" data-selectable>
+        <span className="font-mono field:text-primary" data-selectable>
           {profile.domain}
         </span>
         <span>read {relativeTime(profile.createdAt)}</span>
       </div>
-      <h1 className="mt-3 font-display text-4xl font-semibold text-balance">{p.name}</h1>
-      <p className="mt-2 max-w-2xl text-pretty text-base text-muted-foreground">{p.summary}</p>
-      <p className="mt-5 max-w-2xl text-pretty text-sm">
-        <span className="text-muted-foreground">Sells to </span>
+      <h1 className="mt-3 font-display text-4xl font-semibold text-balance field:font-light">{p.name}</h1>
+      <p className={cn('mt-2 max-w-2xl text-pretty text-base text-muted-foreground', FIELD_NOTE)}>{p.summary}</p>
+      <p className="mt-5 max-w-2xl text-pretty text-sm field:font-mono field:text-[10.5px] field:leading-[1.6]">
+        <span className="text-muted-foreground field:cap">Sells to </span>
         {p.audience}
       </p>
-      <div className="mt-5 -ml-3 flex flex-wrap gap-1">
-        <Pill onClick={onEdit} className="inline-flex items-center gap-1.5">
+      <div className="mt-5 -ml-3 flex flex-wrap gap-1 field:ml-0 field:gap-2">
+        <Pill onClick={onEdit} className={cn('inline-flex items-center gap-1.5', FIELD_KEY)}>
           <Pencil className="size-3" />
           Edit
         </Pill>
-        <Pill onClick={onReadAgain} className="inline-flex items-center gap-1.5">
+        <Pill onClick={onReadAgain} className={cn('inline-flex items-center gap-1.5', FIELD_KEY)}>
           <RotateCw className="size-3" />
           Read again
         </Pill>
-        <Pill onClick={onReadAnother}>Read another site</Pill>
-        <Pill onClick={onRemove} className="inline-flex items-center gap-1.5">
+        <Pill onClick={onReadAnother} className={FIELD_KEY}>
+          Read another site
+        </Pill>
+        <Pill onClick={onRemove} className={cn('inline-flex items-center gap-1.5', FIELD_KEY)}>
           <Trash2 className="size-3" />
           Remove
         </Pill>
@@ -370,13 +377,16 @@ function SuggestionRow({
 }) {
   const title = searchTitle(suggestion.search);
   return (
-    <div data-suggestion className="flex items-center gap-6 rounded-[24px] px-6 py-5 transition-colors duration-200 hover:bg-foreground/[0.035]">
+    <div
+      data-suggestion
+      className="flex items-center gap-6 rounded-[24px] px-6 py-5 transition-colors duration-200 hover:bg-foreground/[0.035] field:rounded-[6px]"
+    >
       <div className="min-w-0 flex-1">
-        <div className="truncate font-display text-lg font-medium" title={title}>
+        <div className="truncate font-display text-lg font-medium field:font-normal" title={title}>
           {title}
         </div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{suggestionCaption(suggestion.search)}</div>
-        <p className="mt-2 text-pretty text-sm text-muted-foreground">{suggestion.why}</p>
+        <div className="mt-0.5 text-xs text-muted-foreground field:cap">{suggestionCaption(suggestion.search)}</div>
+        <p className={cn('mt-2 text-pretty text-sm text-muted-foreground', FIELD_NOTE)}>{suggestion.why}</p>
       </div>
       <Button variant="outline" onClick={onStart} disabled={disabled} aria-label={`Start ${title}`} className="shrink-0">
         {starting ? <Loader2 className="motion-safe:animate-spin" /> : <Play className="size-3.5" />}
@@ -386,8 +396,13 @@ function SuggestionRow({
   );
 }
 
-const FIELD_AREA =
-  'block w-full min-w-0 resize-none rounded-md border border-input bg-card px-2.5 py-1.5 text-sm shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:border-destructive/70 aria-invalid:ring-destructive/15 dark:bg-foreground/5';
+const FIELD_AREA = cn(
+  'block w-full min-w-0 resize-none rounded-md border border-input bg-card px-2.5 py-1.5 text-sm shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:border-destructive/70 aria-invalid:ring-destructive/15 dark:bg-foreground/5',
+  FIELD_PLATE,
+  'field:border-0 field:px-2.5 field:py-1.5 field:text-xs field:dark:bg-card',
+);
+/** The profile's actions in Field: small keycaps instead of pills. */
+const FIELD_KEY = 'field:key field:rounded-[3px] field:bg-secondary field:text-secondary-foreground field:hover:bg-secondary field:hover:brightness-[0.97] field:cap';
 
 /** Every profile field inline, saved with one PATCH of what changed. */
 function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () => void }) {
@@ -427,7 +442,7 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
 
   return (
     <form onSubmit={save} noValidate className="flex flex-col gap-5 px-6">
-      <h1 className="font-display text-2xl font-semibold">Edit your profile</h1>
+      <h1 className="font-display text-2xl font-semibold field:font-light">Edit your profile</h1>
       <Field id="p-name" label="Name" problem={bad('name') ? problem!.message : null}>
         <Input id="p-name" value={draft.name} onChange={(e) => set('name')(e.target.value)} aria-invalid={bad('name')} />
       </Field>
@@ -464,7 +479,11 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
             id="p-country"
             value={draft.country}
             onChange={set('country')}
-            triggerClassName="h-8 rounded-md border border-input bg-card px-2.5 text-sm shadow-xs dark:bg-foreground/5 [&>svg]:size-4"
+            triggerClassName={cn(
+              'h-8 rounded-md border border-input bg-card px-2.5 text-sm shadow-xs dark:bg-foreground/5 [&>svg]:size-4',
+              FIELD_PLATE,
+              'field:border-0 field:px-2.5 field:py-0 field:text-xs field:dark:bg-card',
+            )}
           />
         </Field>
       </div>
@@ -496,11 +515,13 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground field:cap">
         {label}
       </label>
       {children}
-      {(problem || hint) && <p className={cn('text-xs', problem ? 'text-destructive' : 'text-muted-foreground')}>{problem ?? hint}</p>}
+      {(problem || hint) && (
+        <p className={cn('text-xs field:font-mono field:text-[10.5px]', problem ? 'text-destructive' : 'text-muted-foreground')}>{problem ?? hint}</p>
+      )}
     </div>
   );
 }
