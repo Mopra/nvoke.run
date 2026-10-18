@@ -290,15 +290,15 @@ export function LoopScene() {
               style={{ left: s.x, top: s.y, '--at': s.at } as CSSProperties}
             >
               {Icon ? (
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground">
+                <span className="hidden size-6 shrink-0 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground sm:flex">
                   <Icon className="size-3.5" strokeWidth={1.75} />
                 </span>
               ) : (
-                <LogoMark className="size-6" />
+                <LogoMark className="hidden size-6 sm:inline-flex" />
               )}
               <span className="min-w-0">
                 <span className="block truncate text-[12px] leading-4 font-medium">{s.title}</span>
-                <span className="block truncate text-[10.5px] leading-[14px] text-muted-foreground">{s.note}</span>
+                <span className="line-clamp-2 block text-[10.5px] leading-[14px] text-muted-foreground">{s.note}</span>
               </span>
             </div>
           );
@@ -314,12 +314,12 @@ export function LoopScene() {
               </span>
             </span>
           </div>
-          <div className="flex h-10 items-end gap-1.5 sm:h-12 sm:gap-2">
+          <div className="flex h-16 items-end gap-2 sm:h-20 sm:gap-2.5">
             {DAYS.map((d, i) => (
-              <div key={d} className="flex h-full w-4 flex-col items-center justify-end gap-1 sm:w-5">
+              <div key={d} className="flex h-full w-2.5 flex-col items-center justify-end gap-1.5 sm:w-3">
                 <div
                   className="j-day w-full origin-bottom rounded-full bg-primary"
-                  style={{ height: `${(DAY_HEIGHTS[i] ?? 0.5) * 70}%`, '--i': i } as CSSProperties}
+                  style={{ height: `${(DAY_HEIGHTS[i] ?? 0.5) * 78}%`, '--i': i } as CSSProperties}
                 />
                 <span className="text-[9px] leading-none text-muted-foreground">{d[0]}</span>
               </div>

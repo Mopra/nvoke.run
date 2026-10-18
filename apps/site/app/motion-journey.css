@@ -29,6 +29,8 @@
 }
 .journey .j-fill {
   height: 100%;
+  left: -0.5px;
+  right: -0.5px;
 }
 .journey .j-dot {
   display: none;
