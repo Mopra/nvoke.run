@@ -548,7 +548,7 @@ export function MacSignedOutWindow() {
     <AppWindow platform="mac">
       <div className="relative flex flex-1 flex-col items-center justify-center px-10 text-center">
         <div className="aura absolute top-[40%] left-1/2 h-[520px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full motion-safe:animate-breathe" />
-        <LogoMark className="relative size-[64px]" />
+        <LogoMark className="relative size-[64px]" motion="intro" />
         <div className="relative mt-9 max-w-[420px] font-display text-[40px] leading-[46px] font-semibold tracking-[-0.036em] text-balance">
           Find companies. Get emails that actually work.
         </div>
