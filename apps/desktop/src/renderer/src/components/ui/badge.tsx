@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
   // A printed tag: a small keycap without the travel.
-  'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] px-2 font-mono text-[10px] font-medium tracking-[0.08em] uppercase shadow-[0_1px_0_var(--glass-edge)] [&>svg]:size-3',
+  'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] px-2 font-mono text-[11px] font-medium tracking-[0.08em] uppercase shadow-[0_1px_0_var(--glass-edge)] [&>svg]:size-3',
   {
     variants: {
       variant: {

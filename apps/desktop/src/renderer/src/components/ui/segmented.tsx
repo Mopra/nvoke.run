@@ -98,7 +98,7 @@ export function Segmented<T extends string>({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] font-mono text-[11px] font-medium tracking-[0.06em] uppercase outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring/50',
+              'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] font-mono text-[12px] font-medium tracking-[0.05em] uppercase outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring/50',
               size === 'sm' ? 'h-6 px-3' : 'h-8 px-4',
               stretch && 'flex-1',
               active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',

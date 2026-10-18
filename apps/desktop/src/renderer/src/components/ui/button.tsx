@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 // Every filled button is a keycap: square, a mono label in capitals, and it sinks when pressed.
 const buttonVariants = cva(
-  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] font-mono text-[11.5px] font-medium tracking-[0.08em] uppercase outline-none transition-[background-color,box-shadow,color,transform,filter] duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] font-mono text-[12px] font-medium tracking-[0.07em] uppercase outline-none transition-[background-color,box-shadow,color,transform,filter] duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -22,8 +22,8 @@ const buttonVariants = cva(
       },
       size: {
         default: 'h-8 px-4 has-[>svg]:px-3.5',
-        sm: 'h-7 px-3 text-[10.5px] has-[>svg]:px-2.5',
-        lg: 'h-10 px-6 text-[11.5px] has-[>svg]:px-5',
+        sm: 'h-7 px-3 text-[11.5px] has-[>svg]:px-2.5',
+        lg: 'h-10 px-6 text-[12.5px] has-[>svg]:px-5',
         icon: 'size-8',
         'icon-sm': 'size-7',
       },

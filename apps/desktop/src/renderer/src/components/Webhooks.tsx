@@ -89,7 +89,7 @@ function WebhookRow({
         <div className="truncate font-mono text-[13px]" title={webhook.url} data-selectable>
           {webhook.url}
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[11.5px] tracking-[0.04em] text-muted-foreground uppercase">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[12px] tracking-[0.04em] text-muted-foreground uppercase">
           <span>{webhook.events.map((e, i) => (i === 0 ? EVENT_LABEL[e] : EVENT_LABEL[e].toLowerCase())).join(' and ')}</span>
           <span>{scopeLabel(webhook, drops)}</span>
           <span className={cn(state.tone === 'bad' && 'text-destructive')}>{state.text}</span>
