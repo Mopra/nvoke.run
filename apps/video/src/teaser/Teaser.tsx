@@ -22,13 +22,16 @@ export interface TeaserProps extends Record<string, unknown> {
   voice: string;
 }
 
+/** Master level: the parts stack (beat, sub, voice, pings), so the whole mix sits below full scale. */
+const MIX = 0.62;
+
 const files = () => new Set(getStaticFiles().map((f) => f.name.replace(/\\/g, '/').replace(/^\/+/, '')));
 
 /** A sound at a frame, skipped quietly while the kit is not generated yet. */
 const Sfx: React.FC<{ src: string; from: number; volume?: number; have: Set<string> }> = ({ src, from, volume = 1, have }) =>
   have.has(src) ? (
     <Sequence from={from} layout="none" name={src}>
-      <Audio src={staticFile(src)} volume={volume} />
+      <Audio src={staticFile(src)} volume={volume * MIX} />
     </Sequence>
   ) : null;
 
