@@ -241,7 +241,7 @@ export function DescribeCustomer() {
             </QuietLine>
           </div>
 
-          <label htmlFor="icp-ongoing" className="mt-7 flex cursor-default items-start gap-4 self-start">
+          <label htmlFor="icp-ongoing" className="mt-7 flex cursor-pointer items-start gap-4 self-start">
             <Switch id="icp-ongoing" checked={ongoing} onCheckedChange={setOngoing} className="mt-0.5" />
             <span>
               <span className="cap block text-foreground">Keep finding new leads</span>

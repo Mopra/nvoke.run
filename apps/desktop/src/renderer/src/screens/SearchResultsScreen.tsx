@@ -252,7 +252,7 @@ function OngoingSwitch({ search }: { search: Search }) {
       : 'nvoke looks for new companies a few times a day and adds the people it finds here.'
     : 'Off. The list stays as it is.';
   return (
-    <label data-ongoing className="mt-8 flex cursor-default items-center gap-3.5">
+    <label data-ongoing className="mt-8 flex cursor-pointer items-center gap-3.5">
       <Switch
         checked={on}
         disabled={saving}

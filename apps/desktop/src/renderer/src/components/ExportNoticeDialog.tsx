@@ -56,7 +56,7 @@ export function ExportNoticeDialog({
             <ArrowUpRight className="size-3.5" />
           </button>
         </AlertDialogHeader>
-        <label className="flex w-fit cursor-default items-center gap-2 text-sm text-muted-foreground select-none">
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
           <input
             type="checkbox"
             checked={skip}

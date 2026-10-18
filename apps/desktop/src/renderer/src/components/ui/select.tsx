@@ -55,7 +55,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        'relative flex h-8 cursor-default select-none items-center rounded-[4px] pr-9 pl-3 text-sm text-screen-foreground/80 outline-none',
+        'relative flex h-8 cursor-pointer select-none items-center rounded-[4px] pr-9 pl-3 text-sm text-screen-foreground/80 outline-none',
         'data-[highlighted]:bg-screen-dim/60 data-[highlighted]:text-screen-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45',
         className,
       )}

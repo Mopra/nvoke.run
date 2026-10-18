@@ -34,7 +34,7 @@ function DropdownMenuContent({
 
 // The menu is a black screen: the highlighted item lights up a shade, the accent stays for shortcuts.
 const itemClass =
-  "relative flex h-8 cursor-default select-none items-center gap-2.5 rounded-[4px] px-2.5 text-sm text-screen-foreground/80 outline-none data-[highlighted]:bg-screen-dim/60 data-[highlighted]:text-screen-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
+  "relative flex h-8 cursor-pointer select-none items-center gap-2.5 rounded-[4px] px-2.5 text-sm text-screen-foreground/80 outline-none data-[highlighted]:bg-screen-dim/60 data-[highlighted]:text-screen-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:opacity-75";
 
 function DropdownMenuItem({
   className,

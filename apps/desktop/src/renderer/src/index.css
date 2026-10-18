@@ -123,14 +123,22 @@
   ::selection {
     background: color-mix(in oklab, var(--primary) 32%, transparent);
   }
-  /* Native buttons keep the arrow; only hyperlinks to the web get the hand, as in native apps. */
+  /* Everything that can be pressed shows the hand, like the keys on a panel. */
   button,
+  a,
+  summary,
+  label[for],
   [role="button"],
-  a {
-    cursor: default;
-  }
-  a[href^="http"],
-  a[href^="mailto:"],
+  [role="link"],
+  [role="radio"],
+  [role="checkbox"],
+  [role="switch"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"],
+  [role="option"],
+  [role="slider"],
   [data-link] {
     cursor: pointer;
   }
