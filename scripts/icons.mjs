@@ -110,3 +110,24 @@ write(
   'apps/site/app/favicon.ico',
   ico(await Promise.all([16, 32, 48].map(async (size) => ({ size, data: await png(fav, size) })))),
 );
+
+// The macOS DMG window: 540 by 380 points, the app at (150, 190) and the
+// Applications folder at (390, 190), as electron-builder.yml places them.
+// Light like Finder, with the iris aura behind the arrow. dmg-builder joins
+// the @2x file into a retina tiff.
+const dmg = `<svg xmlns="http://www.w3.org/2000/svg" width="540" height="380" viewBox="0 0 540 380">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfdfe"/><stop offset="1" stop-color="#f3f4f7"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="${BOTTOM}" stop-opacity="0.16"/><stop offset="1" stop-color="${BOTTOM}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="540" height="380" fill="url(#bg)"/>
+  <ellipse cx="270" cy="180" rx="250" ry="150" fill="url(#aura)"/>
+  <path d="M238 180h60M288 170l10 10-10 10" stroke="${BOTTOM}" stroke-opacity="0.7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <text x="270" y="334" text-anchor="middle" font-family="SF Pro Text, Helvetica Neue, Segoe UI, Arial, sans-serif" font-size="13" fill="#8a8e99">Drag nvoke to Applications</text>
+</svg>`;
+write('apps/desktop/build/background.png', await sharp(Buffer.from(dmg), { density: 72 }).png().toBuffer());
+write('apps/desktop/build/background@2x.png', await sharp(Buffer.from(dmg), { density: 144 }).png().toBuffer());

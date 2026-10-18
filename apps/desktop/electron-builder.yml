@@ -40,11 +40,35 @@ win:
   target:
     - target: nsis
       arch: [x64]
+# One click, like Slack or Linear: no wizard and no admin prompt. A small
+# window with the icon shows while it copies, then nvoke opens by itself and
+# the first launch greets you (SignedOutScreen). Installs per user under
+# %LOCALAPPDATA%\Programs\nvoke, where the assisted installer put it too.
 nsis:
-  oneClick: false
+  oneClick: true
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  runAfterFinish: true
   createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: nvoke
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  deleteAppDataOnUninstall: false
+
+# The DMG window: build/background.png (and @2x), drawn by `pnpm icons`.
+dmg:
+  iconSize: 96
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 150
+      y: 190
+    - x: 390
+      y: 190
+      type: link
+      path: /Applications
 
 mac:
   target:

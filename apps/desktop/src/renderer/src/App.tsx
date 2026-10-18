@@ -11,6 +11,7 @@ import { useDesktopCommands } from '@/lib/desktop';
 import { useModHotkey } from '@/lib/hotkeys';
 import { useLocalSync } from '@/lib/queries';
 import { navigate, useRoute, type Route } from '@/lib/router';
+import { markWelcomed } from '@/lib/welcome';
 import { AccountScreen } from '@/screens/AccountScreen';
 import { DropEditorScreen } from '@/screens/DropEditorScreen';
 import { DropsScreen } from '@/screens/DropsScreen';
@@ -71,6 +72,7 @@ export function App() {
   // Never show one account's data to the next person who signs in.
   useEffect(() => {
     if (auth?.status === 'signed-out') client.clear();
+    if (auth?.status === 'signed-in') markWelcomed();
   }, [auth?.status, client]);
 
   return (
