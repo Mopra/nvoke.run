@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildQuery } from './api';
 import { companiesToCsv } from './csv';
-import { csvFileName, percent, relativeTime, runsAdded, searchTitle } from './format';
+import { csvFileName, percent, relativeTime, runsAdded, searchSubtitle, searchTitle } from './format';
 import { parseRoute, routeHref } from './router';
 import type { Company, Search } from './types';
 
@@ -20,6 +20,12 @@ const base = {
 } as const;
 
 describe('format', () => {
+  it('survives a search kind from a newer server', () => {
+    const future = { kind: 'someday', params: {} } as unknown as Search;
+    expect(searchTitle(future)).toBe('Search');
+    expect(searchSubtitle(future)).toBe('Search');
+  });
+
   it('titles a search that ran more than once by all its runs', () => {
     const run = (params: object, foundBefore: number) => ({ params, limit: 50, foundBefore, createdAt: base.createdAt });
     const local = {

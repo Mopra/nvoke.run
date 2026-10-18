@@ -9,6 +9,7 @@ import { isGrabOverlay, isQuickWindow } from './lib/desktop';
 import { initTheme } from './lib/theme';
 import { GrabOverlay } from './components/GrabOverlay';
 import { QuickWindow } from './components/QuickWindow';
+import { CrashBoundary } from './components/CrashScreen';
 import './index.css';
 
 // The quick window shares this bundle and shows through to the apps behind it.
@@ -40,7 +41,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      {grab ? <GrabOverlay /> : quick ? <QuickWindow /> : <App />}
+      <CrashBoundary>{grab ? <GrabOverlay /> : quick ? <QuickWindow /> : <App />}</CrashBoundary>
     </QueryClientProvider>
   </StrictMode>,
 );

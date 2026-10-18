@@ -124,6 +124,8 @@ export function runTitle(search: Pick<Search, 'kind' | 'params'> | Search): stri
     case 'icp':
       return s.params.description.length > 80 ? `${s.params.description.slice(0, 79).trimEnd()}…` : s.params.description;
   }
+  // A kind added on the server after this build shipped.
+  return 'Search';
 }
 
 /** "Aarhus", "Aarhus and Odense", "Aarhus, Odense and Vejle". */
@@ -144,7 +146,12 @@ export function searchSubtitle(search: Search): string {
   if (search.kind === 'launches') return `${KIND_LABEL.launches}, ${daysLabel(search.params.days)}`;
   if (search.kind === 'domains') return `${KIND_LABEL.domains}, ${formatNumber(search.params.items.length)} ${search.params.items.length === 1 ? 'company' : 'companies'}`;
   if (search.kind === 'drop') return search.params.keyword ? `${KIND_LABEL.drop}, "${search.params.keyword}"` : KIND_LABEL.drop;
-  return KIND_LABEL[search.kind];
+  return kindLabel(search.kind);
+}
+
+/** The label of a kind, with a fallback for one a newer server sends. */
+export function kindLabel(kind: string): string {
+  return (KIND_LABEL as Record<string, string | undefined>)[kind] ?? 'Search';
 }
 
 export function errorMessage(code: string | null): string {
