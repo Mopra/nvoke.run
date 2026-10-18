@@ -11,6 +11,7 @@ import { navigate, routeHref, type Route } from '@/lib/router';
 import type { Search } from '@/lib/types';
 import { CommandBar } from '@/components/CommandBar';
 import { FileDrop } from '@/components/FileDrop';
+import { LogoMark } from '@/components/Logo';
 import { LedMeter, litSegments } from '@/components/SearchProgress';
 import { UpdateButton } from '@/components/UpdateButton';
 import { Button } from '@/components/ui/button';
@@ -188,7 +189,8 @@ function Plate() {
   return (
     <div className="grid grid-cols-[1fr_auto] grid-rows-[1fr_auto] gap-x-7 rounded-tl-[3px] border border-glass-edge bg-card px-5 pt-3.5 pb-3 text-card-foreground">
       <div>
-        <div className="font-display text-[30px] leading-none font-light tracking-[-0.01em]">
+        <div className="flex items-center gap-3 font-display text-[30px] leading-none font-light tracking-[-0.01em]">
+          <LogoMark className="size-7" />
           nvoke
         </div>
         <div className="cap mt-2 text-primary">Find &#183; Crawl &#183; Verify</div>

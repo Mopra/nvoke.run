@@ -5,23 +5,24 @@ export type LogoMotion = 'loading' | 'intro' | 'hover';
 
 /**
  * The nvoke mark: a lowercase n drawn as a horseshoe magnet, its poles split
- * off, pulling a lead (the dot) in under the arch. An orange tile with the
- * keycap's glow, light glyph. Every color is a token.
+ * off, pulling a lead (the dot) in under the arch. The orange keycap of the
+ * panel, with its lip and glow, a light glyph on it and the lead lit like an
+ * LED. Every color is a token.
  */
 export function LogoMark({ className, motion }: { className?: string; motion?: LogoMotion }) {
   return (
     <span
       aria-hidden
       className={cn(
-        'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[28%] bg-primary text-primary-foreground shadow-glow',
+        'key key-primary relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[14%] bg-primary text-primary-foreground',
         className,
       )}
     >
-      <span className="absolute inset-0 bg-linear-to-b from-highlight/40 to-transparent" />
-      <svg viewBox="0 0 24 24" className={cn('relative size-[62%]', motion && `logo-motion logo-${motion}`)} fill="none">
-        <path className="logo-arch" d="M7 15V11a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="3" />
-        <path className="logo-poles" d="M7 16.3v3.2M17 16.3v3.2" stroke="currentColor" strokeWidth="3" />
-        <circle className="logo-lead" cx="12" cy="16.7" r="1.75" fill="currentColor" />
+      <span className="absolute inset-0 bg-linear-to-b from-highlight/35 to-transparent" />
+      <svg viewBox="0 0 24 24" className={cn('relative size-[66%]', motion && `logo-motion logo-${motion}`)} fill="none">
+        <path className="logo-arch" d="M7 15V11a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="3" strokeLinecap="square" />
+        <path className="logo-poles" d="M7 16.3v3.2M17 16.3v3.2" stroke="currentColor" strokeWidth="3" strokeLinecap="square" />
+        <circle className="logo-lead" cx="12" cy="16.7" r="1.9" fill="currentColor" style={{ filter: 'drop-shadow(0 0 2px currentColor)' }} />
       </svg>
     </span>
   );
