@@ -190,7 +190,6 @@ function Plate() {
       <div>
         <div className="font-display text-[30px] leading-none font-light tracking-[-0.01em]">
           nvoke
-          <sup className="relative top-px ml-0.5 text-[12px] font-normal">&#8545;</sup>
         </div>
         <div className="cap mt-2 text-primary">Find &#183; Crawl &#183; Verify</div>
       </div>
