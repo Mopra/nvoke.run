@@ -1,81 +1,83 @@
 import Link from 'next/link';
-import { ArrowRight, Download } from 'lucide-react';
-import { VERIFICATION, VerificationBadge } from '@/components/mockups/primitives';
-import {
-  CommandWindowScene,
-  ResultsWindowScene,
-} from '@/components/mockups/scenes';
-import { SEARCH_KINDS } from '@/components/mockups/screens';
-import { Stage } from '@/components/mockups/stage';
-import { VerificationTrace } from '@/components/mockups/verification-trace';
-import type { Verification } from '@/components/mockups/data';
+import { LiveSearch } from '@/components/mockups/live-search';
 import { Faq, type FaqItem } from '@/components/site/faq';
-import { Journey } from '@/components/site/journey';
-import { LogoMark } from '@/components/site/logo';
-import { PricingSlider } from '@/components/site/pricing-slider';
-import { Container, Section } from '@/components/site/section';
+import { Container, Eyebrow } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
 import { site } from '@/lib/site';
+import { cn } from '@/lib/utils';
 
 const freeEmails = formatCount(pricing.free.emailsPerMonth);
-const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCount(pricing.cheapest.emailsPerMonth)}`;
 
-const KINDS = [
+/** How it works, as channels. Row 01 carries the three ways in, row 03 the five answers. */
+const STEPS = [
   {
-    title: 'Local businesses',
-    body: 'A trade and a place. We pull them from OpenStreetMap and keep the ones with a website. Clinics, workshops, restaurants, shops.',
-    source: 'Source: OpenStreetMap',
+    cap: 'Find',
+    title: 'Pick where to look',
+    body: 'Three ways in. Same result: companies with a website.',
+    list: [
+      ['Local', 'A trade and a place, from OpenStreetMap'],
+      ['Web', 'A keyword and a country, from Brave Search'],
+      ['Launches', 'New products, from Product Hunt and Show HN'],
+    ],
   },
   {
-    title: 'Web search',
-    body: 'A keyword, optionally a country. We keep company domains and throw out social networks, marketplaces, Wikipedia and news.',
-    source: 'Source: Brave Search',
+    cap: 'Crawl',
+    title: 'Read their own website',
+    body: 'Home, contact, about, team, imprint, privacy. Today, not from a list bought last year. Social networks, marketplaces and news sites are thrown out.',
   },
   {
-    title: 'New launches',
-    body: 'Products shipped in the last days or weeks. Find the startups before everyone else does.',
-    source: 'Sources: Product Hunt and Show HN',
+    cap: 'Verify',
+    title: 'Ask the mail server',
+    body: 'nvoke asks if the mailbox exists and hangs up before a message would be sent. Answers are cached for 30 days.',
+    list: [
+      ['Valid', 'The mailbox exists. The only kind you pay for'],
+      ['Catch-all', 'The domain takes mail for any address'],
+      ['Risky', 'A temporary or unclear answer'],
+      ['Invalid', 'Bad syntax, disposable, or rejected'],
+      ['Unknown', 'The mailbox check could not run'],
+    ],
   },
-];
+  {
+    cap: 'Export',
+    title: 'Send it with your own tool',
+    body: 'CSV, API or MCP into your email tool or CRM. nvoke never sends. There is no send button.',
+  },
+] as const;
 
-const DESKTOP_POINTS = [
-  {
-    title: 'Reads the sites servers can’t',
-    body: 'Some sites refuse servers or need JavaScript. nvoke Desktop reads them from your own computer, when you allow it.',
-  },
-  {
-    title: 'Fresh leads every morning',
-    body: 'Daily drops watch Product Hunt, Show HN and Y Combinator for you, with a notification when new ones land.',
-  },
-  {
-    title: 'Over any app',
-    body: 'A shortcut opens search over whatever you are doing. Grab company names from the screen, or drop a CSV to enrich it.',
-  },
-  {
-    title: 'Yours, offline too',
-    body: 'A local copy of every result: instant to filter, there on a plane. Drag leads straight into Excel or your CRM.',
-  },
-];
+const LED: Record<string, string> = {
+  Valid: 'bg-chart-1',
+  'Catch-all': 'bg-chart-3',
+  Risky: 'bg-chart-2',
+  Invalid: 'bg-destructive',
+  Unknown: '',
+};
 
-const STATUSES: Verification[] = ['valid', 'catch_all', 'risky', 'invalid', 'unknown'];
+const DESKTOP = [
+  ['Local render', 'Reads the sites that refuse servers or need JavaScript, from your computer'],
+  ['Daily drops', 'Product Hunt, Show HN and Y Combinator every morning'],
+  ['Quick search', 'A shortcut over any app. Grab names off the screen'],
+  ['Local copy', 'Every result offline. Drag leads into Excel or your CRM'],
+] as const;
+
+const AGENTS = [
+  ['REST API', 'Everything the app does'],
+  ['MCP server', 'For Claude, Cursor and the rest'],
+  ['Self signup', 'Your agent signs up alone, you claim it'],
+] as const;
 
 const FAQ: FaqItem[] = [
   {
     q: 'Where do the email addresses come from?',
-    a: 'The company’s own website. nvoke reads a handful of pages per site (home, contact, about, team, imprint, privacy), including addresses written as "name [at] domain [dot] com". No bought lists. No guessed addresses.',
+    a: 'The company’s own website. nvoke reads a handful of pages per site, including addresses written as "name [at] domain [dot] com". No bought lists. No guessed addresses.',
   },
   {
     q: 'May I send marketing email to these addresses?',
-    a: 'Check the rules in the recipient’s country first. Under the EU ePrivacy rules, many countries require prior consent for marketing email, including to businesses, info@ addresses and employees. nvoke is a research tool. It tells you who a company is and how they publish contact details. It does not give you permission to email anyone. What you do with the results is on you.',
+    a: 'Check the rules in the recipient’s country first. Under the EU ePrivacy rules, many countries require prior consent for marketing email, including to businesses, info@ addresses and employees. nvoke is a research tool. It does not give you permission to email anyone. What you do with the results is on you.',
   },
   {
     q: 'What counts toward my monthly limit?',
-    a: `Only addresses that verify as valid, and each one counts once per 12 months. Invalid, risky, catch-all and unknown are free. The Free plan includes ${freeEmails} a month. Hit the limit and running searches stop. No overage charges. Upgrade, or wait for next month.`,
-  },
-  {
-    q: 'Does nvoke send any email?',
-    a: 'No. The check talks to the mail server and hangs up before a message would be sent. There is no send button.',
+    a: `Only addresses that verify as valid, each once per 12 months. Invalid, risky, catch-all and unknown are free. Free includes ${freeEmails} a month. Hit the limit and running searches stop. No overage. Upgrade, or wait for next month.`,
   },
   {
     q: 'Do I need to keep my computer on while a search runs?',
@@ -83,180 +85,171 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'Do I have to install anything?',
-    a: 'No. nvoke runs in your browser: sign up and search. nvoke Desktop is an optional app for Windows, macOS and Linux with extra power tools, on the same account and plan. Its installers are not code signed yet, so Windows and macOS ask for one extra click the first time. The download page shows where.',
+    a: 'No. nvoke runs in your browser. nvoke Desktop is optional, for Windows, macOS and Linux, on the same account and plan. Its installers are not code signed yet, so Windows and macOS ask for one extra click the first time.',
   },
   {
     q: 'I run a website. How do I keep nvoke off it?',
     a: (
       <>
-        Block <code className="font-mono text-sm text-foreground">nvokebot</code> in your robots.txt, or opt out your
-        domain or address on the{' '}
+        Block <code className="font-mono text-sm text-foreground">nvokebot</code> in robots.txt, or opt out your domain
+        or address on the{' '}
         <Link href="/opt-out" className="text-foreground underline underline-offset-4">
           opt-out page
         </Link>
-        . It takes effect immediately. The{' '}
+        . It takes effect at once. The{' '}
         <Link href="/bot" className="text-foreground underline underline-offset-4">
           nvokebot page
         </Link>{' '}
-        explains exactly what the crawler does.
+        says exactly what the crawler does.
       </>
     ),
   },
 ];
 
+const ch = (i: number) => String(i + 1).padStart(2, '0');
+
+/** A list in mono capitals: a hairline row per item, the name and its note. */
+function CapList({ items, leds }: { items: readonly (readonly [string, string])[]; leds?: Record<string, string> }) {
+  return (
+    <ul className="mt-5 border-b">
+      {items.map(([name, note]) => (
+        <li key={name} className="grid grid-cols-[7.5rem_1fr] items-baseline gap-3 border-t py-2.5 sm:grid-cols-[9rem_1fr]">
+          <span className="cap flex items-center gap-2 text-foreground">
+            {leds ? <span className={cn('led', leds[name])} /> : <span className="text-primary">+</span>}
+            {name}
+          </span>
+          <span className="cap text-muted-foreground normal-case tracking-[0.02em]">{note}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function HomePage() {
   return (
     <>
-      <section className="relative -mt-20 overflow-hidden pt-44 sm:pt-56">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute top-0 left-1/2 h-[46rem] w-[78rem] max-w-[180vw] -translate-x-1/2 -translate-y-1/3"
-        >
-          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
-        </div>
-        <Container className="relative flex flex-col items-center text-center">
-          <h1 className="max-w-5xl text-display font-semibold text-balance">{site.tagline}</h1>
-          <p className="mt-8 max-w-2xl text-lede text-pretty text-muted-foreground">
-            Bought lead lists are stale the day you get them. nvoke reads each company’s own website today and asks the
-            mail server if the address exists. You pay for the ones that do.
-          </p>
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="xl">
-              <Link href="/sign-up">Start free</Link>
-            </Button>
-            <Button asChild size="xl" variant="glass">
-              <Link href="/pricing">See pricing</Link>
-            </Button>
-          </div>
-          <p className="mt-6 text-sm text-muted-foreground">
-            Runs in your browser, nothing to install. {freeEmails} verified emails a month, free.
-          </p>
-        </Container>
-        <Container className="relative mt-16 pb-12 sm:mt-36 sm:pb-36">
-          <Stage
-            width={1200}
-            height={760}
-            motion="tilt"
-            halo="strong"
-            minScale={0.55}
-            label="The nvoke app on Windows, showing a running search for Shopify agencies in the UK, with named decision makers and verified emails arriving."
-          >
-            <ResultsWindowScene />
-          </Stage>
-        </Container>
-      </section>
-
-      <Section
-        id="how-it-works"
-        className="overflow-x-clip"
-        title="How it works"
-        intro="nvoke finds the companies and checks the emails. Your email tool sends. Then you put it on a schedule."
-      >
-        <Journey />
-      </Section>
-
-      <Section
-        id="searches"
-        title="Three ways to find companies"
-        intro="Three starting points. Same result: companies with checked emails."
-      >
-        <div className="grid gap-16 md:grid-cols-3 md:gap-14">
-            {KINDS.map((k, i) => {
-              const Icon = SEARCH_KINDS[i]?.icon;
-              return (
-                <article key={k.title} className="flex flex-col gap-4">
-                  {Icon ? <Icon className="size-7 text-muted-foreground/70" strokeWidth={1.25} /> : null}
-                  <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.03em]">{k.title}</h3>
-                  <p className="text-pretty text-muted-foreground">{k.body}</p>
-                  <p className="mt-auto text-sm text-muted-foreground/80">{k.source}</p>
-                </article>
-              );
-            })}
-        </div>
-      </Section>
-
-      <section id="desktop" aria-labelledby="desktop-title" className="overflow-hidden py-20 sm:py-36">
+      {/* The hero: a plate with the line and the keys, and the screen running a search. */}
+      <section className="pt-6 sm:pt-10">
         <Container>
-          <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
-            <h2 id="desktop-title" className="text-headline font-semibold text-balance">
-              nvoke Desktop. The power tools.
-            </h2>
-            <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
-              Everything in the browser, plus a native app for Windows, macOS and Linux. Same account, same plan, same
-              searches. No browser extension reading what you browse.
-            </p>
-            <Button asChild size="lg" variant="glass" className="mt-2">
-              <Link href="/download">
-                <Download />
-                Get nvoke Desktop
-              </Link>
-            </Button>
-          </div>
-        </Container>
-        <Container className="mt-12 sm:mt-28">
-          <Stage
-            width={1200}
-            height={680}
-            minScale={0.55}
-            label="The nvoke app on macOS: the list of searches, with the command bar open to jump to Dentists in Austin."
-          >
-            <CommandWindowScene />
-          </Stage>
-        </Container>
-        <Container>
-          <dl className="mt-20 grid gap-x-12 gap-y-12 sm:mt-32 sm:grid-cols-2 lg:grid-cols-4">
-            {DESKTOP_POINTS.map((p) => (
-              <div key={p.title} className="flex flex-col gap-2.5">
-                <dt className="font-display text-lg font-semibold tracking-[-0.015em]">{p.title}</dt>
-                <dd className="text-pretty text-muted-foreground">{p.body}</dd>
+          <div className="panel grid gap-10 p-5 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center lg:gap-12 lg:p-12">
+            <div className="flex flex-col items-start gap-6">
+              <Eyebrow className="text-primary">Find &#183; Crawl &#183; Verify</Eyebrow>
+              <h1 className="text-[clamp(2.75rem,2rem+3vw,4rem)] leading-[1.02] font-light tracking-[-0.035em]">{site.tagline}</h1>
+              <p className="max-w-xl text-lede text-pretty text-muted-foreground">
+                Bought lists are stale the day you get them. nvoke reads each company’s own website today and asks the
+                mail server if the address exists. You pay for the ones that do.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Button asChild size="xl" variant="dark">
+                  <Link href="/sign-up">Start free</Link>
+                </Button>
+                <Button asChild size="xl" variant="secondary">
+                  <Link href="/pricing">See pricing</Link>
+                </Button>
               </div>
-            ))}
-          </dl>
-        </Container>
-      </section>
-
-      <section id="verification" aria-labelledby="verification-title" className="overflow-x-clip py-20 sm:py-36">
-        <Container className="grid items-start gap-16 lg:grid-cols-[1fr_1.05fr] lg:gap-24">
-          <div className="flex flex-col gap-6">
-            <h2 id="verification-title" className="text-headline font-semibold text-balance">
-              Every address, checked with the mail server
-            </h2>
-            <p className="text-lede text-pretty text-muted-foreground">
-              Published is not the same as working. nvoke asks the mail server if the mailbox exists. Nothing gets
-              sent.
-            </p>
-            <dl className="mt-6 flex flex-col">
-              {STATUSES.map((s) => (
-                <div key={s} className="grid grid-cols-[6.5rem_1fr] items-baseline gap-4 py-4">
-                  <dt>
-                    <VerificationBadge value={s} className="h-6 px-2.5 text-xs" />
-                  </dt>
-                  <dd className="text-pretty text-muted-foreground">{VERIFICATION[s].meaning}</dd>
-                </div>
-              ))}
-            </dl>
-            <p className="text-sm text-muted-foreground">
-              Results are cached for 30 days. No hammering the same server twice.
-            </p>
-          </div>
-          <div className="reveal relative lg:sticky lg:top-28">
-            <div aria-hidden="true" className="aura absolute -inset-[12%] rounded-full opacity-80" />
-            <VerificationTrace className="relative" />
+              <p className="cap text-muted-foreground">In the browser &#183; {freeEmails} verified emails a month free</p>
+            </div>
+            <LiveSearch />
           </div>
         </Container>
       </section>
 
-      <section id="agents" aria-labelledby="agents-title" className="py-20 sm:py-36">
+      {/* How it works: four channels, the way the app lists things. */}
+      <section id="how-it-works" aria-labelledby="how-title" className="py-16 sm:py-24">
         <Container>
-          <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
-            <h2 id="agents-title" className="text-headline font-semibold text-balance">
-              Or let your agent do it
+          <div className="flex max-w-3xl flex-col gap-5">
+            <Eyebrow>How it works</Eyebrow>
+            <h2 id="how-title" className="text-headline font-light">
+              nvoke finds and checks. Your tool sends.
             </h2>
-            <p className="max-w-2xl text-lede text-pretty text-muted-foreground">
-              A REST API and an MCP server with everything the app does. Your agent can even sign you up on its own.
+          </div>
+          <ol className="mt-12 border-b">
+            {STEPS.map((step, i) => (
+              <li
+                key={step.cap}
+                className="grid gap-x-6 gap-y-3 border-t py-8 sm:grid-cols-[3rem_8rem_1fr] lg:grid-cols-[3rem_8rem_1fr_1fr]"
+              >
+                <span className="cap text-muted-foreground tabular-nums">{ch(i)}</span>
+                <span className="cap text-primary">{step.cap}</span>
+                <div className="lg:col-span-1">
+                  <h3 className="text-[22px] leading-tight font-light tracking-[-0.01em] sm:text-[26px]">{step.title}</h3>
+                  <p className="mt-2 max-w-md text-[15px] text-pretty text-muted-foreground sm:text-base">{step.body}</p>
+                </div>
+                <div className="sm:col-start-3 lg:col-start-4">
+                  {'list' in step ? (
+                    <CapList items={step.list} leds={step.cap === 'Verify' ? LED : undefined} />
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Container>
+      </section>
+
+      {/* Pricing: the ladder printed in mono capitals. */}
+      <section id="pricing" aria-labelledby="pricing-title" className="py-6 sm:py-8">
+        <Container>
+          <div className="panel grid gap-10 p-5 sm:p-10 lg:grid-cols-[1fr_1.1fr] lg:gap-16 lg:p-12">
+            <div className="flex flex-col items-start gap-5">
+              <Eyebrow>Pricing</Eyebrow>
+              <h2 id="pricing-title" className="text-headline font-light">
+                Pay for emails that work.
+              </h2>
+              <p className="max-w-md text-lede text-pretty text-muted-foreground">
+                One plan, every feature. Only valid addresses count. The rest are free.
+              </p>
+              <Button asChild size="lg" variant="secondary" className="mt-2">
+                <Link href="/pricing">See pricing</Link>
+              </Button>
+            </div>
+            <div>
+              <div className="grid grid-cols-[1fr_auto] gap-3 pb-3">
+                <span className="cap text-muted-foreground">Verified a month</span>
+                <span className="cap text-muted-foreground">Price</span>
+              </div>
+              <ul className="border-b">
+                {pricing.tiers.map((t) => (
+                  <li key={t.plan} className="grid grid-cols-[1fr_auto] items-baseline gap-3 border-t py-2.5">
+                    <span className="cap text-foreground tabular-nums">{formatCount(t.emailsPerMonth)}</span>
+                    <span className={cn('cap tabular-nums', t.price === 0 ? 'text-primary' : 'text-foreground')}>
+                      {t.price === 0 ? 'Free' : formatPrice(t.price)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="cap mt-3 text-muted-foreground normal-case tracking-[0.02em]">{pricing.vatNote}</p>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      {/* The desktop app and the agents: two plates side by side. */}
+      <section aria-label="nvoke Desktop and agents" className="py-6 sm:py-8">
+        <Container className="grid gap-6 lg:grid-cols-2">
+          <div id="desktop" className="panel flex flex-col items-start p-5 sm:p-10">
+            <Eyebrow>nvoke Desktop</Eyebrow>
+            <h2 className="mt-5 text-title font-light">The power tools.</h2>
+            <p className="mt-3 max-w-md text-[15px] text-pretty text-muted-foreground sm:text-base">
+              Everything in the browser, plus a native app for Windows, macOS and Linux. Same account, same plan.
             </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-3">
-              <Button asChild size="lg" variant="glass">
+            <div className="w-full">
+              <CapList items={DESKTOP} />
+            </div>
+            <Button asChild size="lg" variant="secondary" className="mt-8">
+              <Link href="/download">Get nvoke Desktop</Link>
+            </Button>
+          </div>
+          <div id="agents" className="panel flex flex-col items-start p-5 sm:p-10">
+            <Eyebrow>Agents</Eyebrow>
+            <h2 className="mt-5 text-title font-light">Or let your agent do it.</h2>
+            <p className="mt-3 max-w-md text-[15px] text-pretty text-muted-foreground sm:text-base">
+              Every search, export and check, over HTTP or MCP.
+            </p>
+            <div className="w-full">
+              <CapList items={AGENTS} />
+            </div>
+            <div className="mt-8 flex flex-wrap gap-3 lg:mt-auto lg:pt-8">
+              <Button asChild size="lg" variant="secondary">
                 <Link href="/agents">nvoke for agents</Link>
               </Button>
               <Button asChild size="lg" variant="ghost">
@@ -267,56 +260,37 @@ export default function HomePage() {
         </Container>
       </section>
 
-      <Section
-        id="pricing"
-        title="Pay for emails that work"
-        intro={`One plan. Every feature. You pay for verified emails and nothing else: ${freeEmails} free a month, then from ${cheapest}.`}
-      >
-        <PricingSlider />
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          {pricing.vatNote}{' '}
-          <Link href="/pricing" className="text-foreground underline underline-offset-4">
-            How pricing works
-          </Link>
-        </p>
-      </Section>
-
-      <Section id="faq" title="Questions">
-        <div className="mx-auto max-w-3xl">
-          <Faq items={FAQ} />
-        </div>
-      </Section>
-
-      <section className="relative overflow-hidden py-32 sm:py-52">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-1/2 h-[40rem] w-[66rem] max-w-[160vw] -translate-x-1/2 -translate-y-1/2"
-        >
-          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
-        </div>
-        <Container className="relative flex flex-col items-center text-center">
-          <LogoMark className="size-16 sm:size-20" />
-          <h2 className="mt-12 max-w-4xl text-headline font-semibold text-balance">
-            Your first search is one minute away.
-          </h2>
-          <p className="mt-5 max-w-xl text-lede text-pretty text-muted-foreground">
-            Sign up. Search. Right here in your browser. {freeEmails} verified emails a month are on the house.
-          </p>
-          <div className="mt-12 flex flex-wrap justify-center gap-3">
-            <Button asChild size="xl">
-              <Link href="/sign-up">Start free</Link>
-            </Button>
-            <Button asChild size="xl" variant="glass">
-              <Link href="/pricing">See pricing</Link>
-            </Button>
+      <section id="faq" aria-labelledby="faq-title" className="py-16 sm:py-24">
+        <Container className="grid gap-10 lg:grid-cols-[1fr_2fr] lg:gap-16">
+          <div className="flex flex-col gap-5">
+            <Eyebrow>Questions</Eyebrow>
+            <h2 id="faq-title" className="text-headline font-light">
+              Asked often.
+            </h2>
           </div>
-          <Link
-            href="/download"
-            className="mt-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Prefer a native app? Get nvoke Desktop
-            <ArrowRight className="size-3.5" />
-          </Link>
+          <Faq items={FAQ} />
+        </Container>
+      </section>
+
+      <section aria-labelledby="cta-title" className="pb-10">
+        <Container>
+          <div className="panel flex flex-col items-center gap-6 px-5 py-14 text-center sm:py-20">
+            <Eyebrow>Start</Eyebrow>
+            <h2 id="cta-title" className="max-w-3xl text-headline font-light">
+              Your first search is one minute away.
+            </h2>
+            <p className="max-w-lg text-lede text-pretty text-muted-foreground">
+              Sign up and search, right here in the browser. {freeEmails} verified emails a month are on the house.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
+              <Button asChild size="xl" variant="dark">
+                <Link href="/sign-up">Start free</Link>
+              </Button>
+              <Button asChild size="xl" variant="secondary">
+                <Link href="/download">Get the desktop app</Link>
+              </Button>
+            </div>
+          </div>
         </Container>
       </section>
     </>

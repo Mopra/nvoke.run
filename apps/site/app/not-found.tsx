@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Figure } from '@/components/mockups/parts';
 import { Container } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
 
@@ -7,28 +8,26 @@ export const metadata: Metadata = { title: 'Page not found' };
 
 export default function NotFound() {
   return (
-    <section className="relative overflow-hidden">
-      <div
-        aria-hidden="true"
-        className="halo pointer-events-none absolute top-1/2 left-1/2 h-96 w-[48rem] max-w-[140vw] -translate-x-1/2 -translate-y-1/2 opacity-30 dark:opacity-50"
-      />
-      <Container className="relative flex flex-col items-center gap-6 py-28 text-center sm:py-40">
-        <p className="bg-linear-to-b from-foreground/25 to-foreground/5 bg-clip-text text-[clamp(6rem,4rem+12vw,12rem)] leading-none font-semibold tracking-[-0.06em] text-transparent tabular-nums">
-          404
-        </p>
-        <h1 className="max-w-xl text-title font-semibold text-balance">Nothing here.</h1>
+    <Container className="py-16 sm:py-24">
+      <div className="panel flex flex-col items-center gap-6 px-5 py-14 text-center sm:py-20">
+        <div className="screen flex items-center gap-4 px-6 py-5">
+          <span className="led bg-destructive shadow-[0_0_6px_var(--destructive)]" />
+          <span className="cap text-screen-foreground/50">Error</span>
+          <Figure value="404" ghost="888" className="text-[56px] sm:text-[72px]" />
+        </div>
+        <h1 className="text-headline font-light">Nothing here.</h1>
         <p className="max-w-md text-lede text-pretty text-muted-foreground">
           Old link or a typo. Either way, this page does not exist.
         </p>
-        <div className="mt-3 flex flex-wrap justify-center gap-3">
-          <Button asChild size="lg">
-            <Link href="/">Go to the home page</Link>
+        <div className="flex flex-wrap justify-center gap-3 pt-2">
+          <Button asChild size="lg" variant="dark">
+            <Link href="/">Home page</Link>
           </Button>
           <Button asChild size="lg" variant="secondary">
-            <Link href="/download">Download nvoke</Link>
+            <Link href="/download">nvoke Desktop</Link>
           </Button>
         </div>
-      </Container>
-    </section>
+      </div>
+    </Container>
   );
 }

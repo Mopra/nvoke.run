@@ -96,7 +96,7 @@ gtag('config', '${GA_ID}');`}
           <div
             role="dialog"
             aria-label="Cookie consent"
-            className="glass-strong pointer-events-auto flex w-full max-w-[560px] flex-col gap-3 rounded-[28px] py-3 pr-3 pl-5 text-[13px] text-foreground/80 sm:flex-row sm:items-center sm:rounded-full"
+            className="panel pointer-events-auto flex w-full max-w-[560px] flex-col gap-3 py-3 pr-3 pl-4 text-[14px] text-foreground/80 sm:flex-row sm:items-center"
           >
             <p className="flex-1">
               Can we count visits with Google Analytics? No ads, no tracking across sites.{' '}
@@ -105,10 +105,10 @@ gtag('config', '${GA_ID}');`}
               </a>
             </p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => choose('denied')}>
+              <Button variant="secondary" size="sm" onClick={() => choose('denied')}>
                 Decline
               </Button>
-              <Button size="sm" onClick={() => choose('granted')}>
+              <Button variant="dark" size="sm" onClick={() => choose('granted')}>
                 Accept
               </Button>
             </div>

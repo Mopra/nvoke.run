@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Faq, type FaqItem } from '@/components/site/faq';
 import { PricingSlider } from '@/components/site/pricing-slider';
-import { Container, PageHeader, Section } from '@/components/site/section';
+import { Container, Eyebrow, PageHeader } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
 import { site } from '@/lib/site';
@@ -44,57 +44,74 @@ const FAQ: FaqItem[] = [
   },
 ];
 
+const INCLUDED = [
+  'Every search kind',
+  'Mailbox verification',
+  'CSV export',
+  'API and MCP',
+  'Unlimited searches',
+  'Unlimited companies',
+];
+
 export default function PricingPage() {
   return (
     <>
       <PageHeader
-        title="Pay for emails that work"
+        eyebrow="Pricing"
+        title="Pay for emails that work."
         intro={`One plan. You pay for verified emails and nothing else. ${free} free a month, then from ${cheapest}.`}
       />
-      <Container className="pb-24 sm:pb-36">
+      <Container className="pb-6">
         <PricingSlider />
-        <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-pretty text-muted-foreground">
-          Every plan gets{' '}
-          <span className="font-medium text-foreground">
-            every search kind, mailbox verification, CSV export, unlimited searches and companies
-          </span>
-          . {pricing.vatNote}
-        </p>
-        <p className="mt-3 text-center text-sm text-muted-foreground">
-          Need more than {top} a month?{' '}
-          <a href={`mailto:${site.email.hello}`} className="text-foreground underline underline-offset-4">
-            Talk to us
-          </a>
-          .
-        </p>
+        <div className="mx-auto mt-10 max-w-3xl">
+          <p className="cap text-muted-foreground">Every plan</p>
+          <ul className="mt-3 grid border-b sm:grid-cols-2 sm:gap-x-8">
+            {INCLUDED.map((item) => (
+              <li key={item} className="cap flex items-center gap-2 border-t py-2.5 text-foreground">
+                <span className="text-primary">+</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-[15px] text-pretty text-muted-foreground">
+            {pricing.vatNote} Need more than {top} a month?{' '}
+            <a href={`mailto:${site.email.hello}`} className="text-foreground underline underline-offset-4">
+              Talk to us
+            </a>
+            .
+          </p>
+        </div>
       </Container>
 
-      <Section title="Questions">
-        <div className="mx-auto max-w-3xl">
+      <section aria-labelledby="pricing-faq" className="py-16 sm:py-24">
+        <Container className="grid gap-10 lg:grid-cols-[1fr_2fr] lg:gap-16">
+          <div className="flex flex-col gap-5">
+            <Eyebrow>Questions</Eyebrow>
+            <h2 id="pricing-faq" className="text-headline font-light">
+              The fine print.
+            </h2>
+          </div>
           <Faq items={FAQ} />
-        </div>
-      </Section>
+        </Container>
+      </section>
 
-      <section className="relative overflow-hidden py-28 sm:py-44">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-1/2 h-[34rem] w-[60rem] max-w-[160vw] -translate-x-1/2 -translate-y-1/2"
-        >
-          <div className="aura absolute inset-0 rounded-full motion-safe:animate-breathe" />
-        </div>
-        <Container className="relative flex flex-col items-center gap-12 text-center">
-          <h2 className="text-headline font-semibold text-balance">Start free. Pay when it works.</h2>
-          <div className="flex flex-col items-center gap-5">
-            <Button asChild size="xl">
-              <Link href="/sign-up">Start free</Link>
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              In your browser, nothing to install. Power user?{' '}
-              <Link href="/download" className="text-foreground underline underline-offset-4">
-                Get nvoke Desktop
-              </Link>
-              .
+      <section aria-labelledby="pricing-cta" className="pb-10">
+        <Container>
+          <div className="panel flex flex-col items-center gap-6 px-5 py-14 text-center sm:py-20">
+            <h2 id="pricing-cta" className="text-headline font-light">
+              Start free. Pay when it works.
+            </h2>
+            <p className="max-w-lg text-lede text-pretty text-muted-foreground">
+              In your browser, nothing to install. Power user? Get nvoke Desktop.
             </p>
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
+              <Button asChild size="xl" variant="dark">
+                <Link href="/sign-up">Start free</Link>
+              </Button>
+              <Button asChild size="xl" variant="secondary">
+                <Link href="/download">nvoke Desktop</Link>
+              </Button>
+            </div>
           </div>
         </Container>
       </section>

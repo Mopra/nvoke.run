@@ -6,44 +6,41 @@ import { Container } from '@/components/site/section';
 import { ThemeToggle } from '@/components/site/theme';
 import { nav } from '@/lib/site';
 
-const link =
-  'rounded-full px-3.5 py-1.5 text-[13px] text-foreground/65 outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40';
-
 /**
- * The island: one floating glass capsule across the page frame, like the one
- * in the desktop app. Its edges line up with the content. The page scrolls
- * under it.
+ * A slim strip of chassis across the top: the keycap mark and the wordmark,
+ * the links printed in mono capitals, then the keys. Start free is the one
+ * orange key on every page, so the pages below it use dark and light keys.
  */
 export function SiteHeader() {
   return (
-    <header className="pointer-events-none sticky top-0 z-40 pt-4">
+    <header className="sticky top-0 z-40 border-b bg-background">
       <Container>
-        <nav
-          aria-label="Main"
-          className="glass pointer-events-auto flex h-12 w-full items-center gap-1 rounded-full pr-1.5 pl-4 md:grid md:grid-cols-[1fr_auto_1fr]"
-        >
+        <nav aria-label="Main" className="flex h-14 items-center gap-6">
           <Link
             href="/"
-            className="mr-auto rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 md:mr-0 md:justify-self-start"
             aria-label="nvoke home"
+            className="mr-auto rounded-[4px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 md:mr-0"
           >
             <Logo />
           </Link>
-          <ul className="hidden items-center md:flex">
+          <ul className="mr-auto hidden items-center gap-1 md:flex">
             {nav.map((item) => (
               <li key={item.href}>
-                <Link href={item.href} className={link}>
+                <Link
+                  href={item.href}
+                  className="cap rounded-[4px] px-2.5 py-2 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                >
                   {item.label}
                 </Link>
               </li>
             ))}
           </ul>
-          <div className="flex items-center gap-1 md:justify-self-end">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link href="/app" className={`${link} hidden sm:inline-flex`}>
-              Sign in
-            </Link>
-            <Button asChild size="sm" className="h-9 px-4">
+            <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
+              <Link href="/app">Sign in</Link>
+            </Button>
+            <Button asChild size="sm">
               <Link href="/sign-up">Start free</Link>
             </Button>
             <MobileMenu />

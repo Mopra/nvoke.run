@@ -1,8 +1,10 @@
 'use client';
 
 import { Moon, Sun } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { THEME_STORAGE_KEY } from '@/components/site/theme-script';
 
+/** The finish: a small light key that flips between the light and the black edition. */
 export function ThemeToggle() {
   function toggle() {
     const dark = !document.documentElement.classList.contains('dark');
@@ -15,14 +17,14 @@ export function ThemeToggle() {
   }
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="secondary"
+      size="icon-sm"
       onClick={toggle}
       aria-label="Switch between light and dark appearance"
-      className="inline-flex size-8 items-center justify-center rounded-full text-foreground/60 outline-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
     >
-      <Sun className="size-4 dark:hidden" />
-      <Moon className="hidden size-4 dark:block" />
-    </button>
+      <Sun className="size-3.5 dark:hidden" />
+      <Moon className="hidden size-3.5 dark:block" />
+    </Button>
   );
 }

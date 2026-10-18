@@ -5,18 +5,20 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { nav } from '@/lib/site';
 
-const links = [...nav, { href: '/tools', label: 'Free tools' }, { href: '/download', label: 'nvoke Desktop' }];
-
-const item =
-  'flex h-12 items-center rounded-[16px] px-4 text-base text-foreground/80 outline-none transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40';
+const links = [
+  ...nav,
+  { href: '/tools', label: 'Free tools' },
+  { href: '/download', label: 'nvoke Desktop' },
+  { href: '/app', label: 'Sign in' },
+];
 
 /**
- * The header's links on phones, where the island has no room for them: a
- * button that drops a glass panel under the island. Closes on navigation,
- * Escape and a tap outside. The panel is portaled to the body: inside the
- * island's backdrop filter its own blur would see nothing behind it.
+ * The header's links on phones: a light key that drops a plate under the
+ * header, its links as hairline rows with channel numbers. Closes on
+ * navigation, Escape and a tap outside.
  */
 export function MobileMenu() {
   // Remembers the page it was opened on, so any navigation closes it.
@@ -37,38 +39,34 @@ export function MobileMenu() {
 
   return (
     <div className="md:hidden">
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="icon-sm"
         aria-expanded={open}
         aria-controls="mobile-menu"
         aria-label={open ? 'Close menu' : 'Open menu'}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full text-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
       >
-        {open ? <X className="size-[18px]" /> : <Menu className="size-[18px]" />}
-      </button>
+        {open ? <X className="size-3.5" /> : <Menu className="size-3.5" />}
+      </Button>
       {open
         ? createPortal(
             <>
               <div aria-hidden="true" className="fixed inset-0 z-40 md:hidden" onClick={() => setOpen(false)} />
-              <nav
-                id="mobile-menu"
-                aria-label="Menu"
-                className="glass-strong fixed inset-x-5 top-[4.5rem] z-50 rounded-[24px] p-2 md:hidden"
-              >
+              <nav id="mobile-menu" aria-label="Menu" className="panel fixed inset-x-4 top-[4rem] z-50 px-4 py-2 md:hidden">
                 <ul className="flex flex-col">
-                  {links.map((link) => (
-                    <li key={link.href}>
-                      <Link href={link.href} onClick={() => setOpen(false)} className={item}>
-                        {link.label}
+                  {links.map((link, i) => (
+                    <li key={link.href} className="border-t first:border-t-0">
+                      <Link
+                        href={link.href}
+                        onClick={() => setOpen(false)}
+                        className="grid h-12 grid-cols-[2.25rem_1fr] items-center outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                      >
+                        <span className="cap text-muted-foreground tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="cap text-foreground">{link.label}</span>
                       </Link>
                     </li>
                   ))}
-                  <li className="mt-1 border-t border-border/60 pt-1">
-                    <Link href="/app" onClick={() => setOpen(false)} className={item}>
-                      Sign in
-                    </Link>
-                  </li>
                 </ul>
               </nav>
             </>,

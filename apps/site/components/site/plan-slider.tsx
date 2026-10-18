@@ -1,13 +1,17 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Figure } from '@/components/mockups/parts';
+import { Knob } from '@/components/ui/knob';
 import { formatCount, formatPrice, pricePerThousand, type Tier } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
 
 /**
- * One slider over the plan ladder: the volume you pick, its price, and the
- * effective price per 1,000 verified emails. The action under it is up to the
- * caller (a download link on the pricing page, a checkout on billing).
+ * The plan ladder as an instrument: the knob turns through the steps, the
+ * screen reads off the emails, the price and the price per 1,000 verified
+ * emails. Click, drag, scroll or the arrow keys turn it; the step keys under
+ * the screen jump straight to a step. The action under it is up to the
+ * caller (sign up on the pricing page, a checkout on billing).
  */
 export function PlanSlider({
   tiers,
@@ -20,72 +24,72 @@ export function PlanSlider({
   tiers: Tier[];
   index: number;
   onIndexChange: (index: number) => void;
-  /** Shown next to the price, for example "Current plan". */
+  /** Shown on the screen next to the price, for example "Current plan". */
   badge?: ReactNode;
   children?: ReactNode;
   className?: string;
 }) {
   const t = tiers[index] ?? tiers[0]!;
-  const fill = tiers.length > 1 ? (index / (tiers.length - 1)) * 100 : 0;
+  const steps = tiers.map((_, i) => i);
+  const free = t.price === 0;
+  const price = free ? 'FREE' : formatPrice(t.price);
   return (
-    <div
-      className={cn(
-        'glass-strong mx-auto flex w-full max-w-2xl flex-col gap-10 rounded-[32px] p-7 text-card-foreground sm:p-12',
-        className,
-      )}
-    >
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-sm text-muted-foreground">Verified emails a month</p>
-          <p className="font-display text-5xl font-extralight tracking-[-0.045em] tabular-nums sm:text-7xl">
-            {formatCount(t.emailsPerMonth)}
-          </p>
+    <div className={cn('panel mx-auto flex w-full max-w-3xl flex-col gap-8 p-5 sm:p-8', className)}>
+      <div className="grid items-center gap-8 sm:grid-cols-[auto_1fr]">
+        <div className="flex flex-col items-center gap-2">
+          <Knob
+            value={index}
+            options={steps}
+            onChange={onIndexChange}
+            label="Verified emails a month"
+            format={(i) => shortLabel(tiers[i])}
+            size={190}
+          />
+          <span className="cap text-muted-foreground">Emails a month</span>
         </div>
-        <div className="flex flex-col gap-1.5 sm:items-end">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            {badge}
-            {t.price === 0 ? 'No card needed' : `${pricePerThousand(t)} per 1,000`}
-          </p>
-          <p className="flex items-baseline gap-1.5">
-            <span className="font-display text-5xl font-extralight tracking-[-0.045em] tabular-nums sm:text-7xl">
-              {t.price === 0 ? 'Free' : formatPrice(t.price)}
+
+        <div className="screen flex min-w-0 flex-col gap-5 p-5 sm:p-6" aria-live="polite">
+          <div className="flex items-center gap-3">
+            <span className="led led-on" />
+            <span className="cap text-screen-foreground/50">Plan</span>
+            <span className="cap ml-auto flex items-center gap-2 text-screen-foreground/50">{badge}</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="cap text-screen-foreground/50">Verified emails</span>
+            <Figure
+              value={formatCount(t.emailsPerMonth)}
+              ghost="888,888"
+              className="self-start text-[34px] sm:text-[44px]"
+            />
+          </div>
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-t border-screen-dim pt-5">
+            <div className="flex flex-col gap-2">
+              <span className="cap text-screen-foreground/50">A month</span>
+              <Figure value={price} ghost="$888" className="self-start text-[34px] sm:text-[44px]" />
+            </div>
+            <span className="cap pb-1 text-screen-foreground/50">
+              {free ? 'No card' : `${pricePerThousand(t)} per 1,000`}
             </span>
-            {t.price === 0 ? null : <span className="text-sm text-muted-foreground">per month</span>}
-          </p>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <input
-          type="range"
-          min={0}
-          max={tiers.length - 1}
-          step={1}
-          value={index}
-          onChange={(e) => onIndexChange(Number(e.target.value))}
-          aria-label="Verified emails a month"
-          aria-valuetext={`${formatCount(t.emailsPerMonth)} verified emails a month, ${t.price === 0 ? 'free' : `${formatPrice(t.price)} per month`}`}
-          className="plan-range w-full cursor-pointer"
-          style={{ ['--fill' as string]: `${fill}%` }}
-        />
-        <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-          {tiers.map((tier, i) => (
-            <button
-              key={tier.plan}
-              type="button"
-              onClick={() => onIndexChange(i)}
-              className={cn(
-                // The padding makes a finger sized target; the negative margin keeps the row's spacing.
-                '-mx-1 -my-2.5 rounded-md px-2 py-3 transition-colors hover:text-foreground',
-                i === index && 'font-medium text-foreground',
-                // Narrow screens: keep the ends and the picked tier only.
-                i !== 0 && i !== tiers.length - 1 && i !== index && 'hidden sm:inline',
-              )}
-            >
-              {tier.price === 0 ? 'Free' : shortCount(tier.emailsPerMonth)}
-            </button>
-          ))}
-        </div>
+      <div role="group" aria-label="Plan steps" className="grid grid-cols-4 gap-2 min-[520px]:grid-cols-7">
+        {tiers.map((tier, i) => (
+          <button
+            key={tier.plan}
+            type="button"
+            onClick={() => onIndexChange(i)}
+            aria-pressed={i === index}
+            className={cn(
+              'key flex h-11 flex-col items-center justify-center gap-1 bg-secondary font-mono text-[11.5px] font-medium tracking-[0.07em] text-secondary-foreground uppercase outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40',
+              i === index && 'key-down',
+            )}
+          >
+            <span className={cn('led', i === index && 'led-on')} />
+            {shortLabel(tier)}
+          </button>
+        ))}
       </div>
 
       {children}
@@ -93,6 +97,9 @@ export function PlanSlider({
   );
 }
 
-function shortCount(n: number): string {
-  return n >= 1000 ? `${formatCount(n / 1000)}k` : formatCount(n);
+function shortLabel(tier: Tier | undefined): string {
+  if (!tier) return '';
+  if (tier.price === 0) return 'Free';
+  const n = tier.emailsPerMonth;
+  return n >= 1000 ? `${formatCount(n / 1000)}K` : formatCount(n);
 }

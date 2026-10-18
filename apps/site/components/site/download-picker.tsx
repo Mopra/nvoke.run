@@ -34,7 +34,7 @@ function FileButton({ file, primary }: { file: DownloadTarget['files'][number]; 
     );
   }
   return (
-    <Button asChild size="lg" variant={primary ? 'default' : 'secondary'} className="w-full">
+    <Button asChild size="lg" variant={primary ? 'dark' : 'secondary'} className="w-full">
       <a href={file.url} download>
         <Download />
         {file.label}
@@ -43,33 +43,32 @@ function FileButton({ file, primary }: { file: DownloadTarget['files'][number]; 
   );
 }
 
+/**
+ * One plate per system, its keys under an LED. The visitor's system comes
+ * first with its LED lit and its first download as the dark key.
+ */
 export function DownloadPicker({ downloads }: { downloads: Downloads }) {
   const os = useOs();
   const detected = downloads.targets.find((t) => t.os === os) ?? null;
   const ordered = detected ? [detected, ...downloads.targets.filter((t) => t !== detected)] : downloads.targets;
 
   return (
-    <div className="flex flex-col gap-8">
-      <p className="min-h-6 text-center text-muted-foreground" aria-live="polite">
-        {detected
-          ? `You are on ${detected.name}. That download is first.`
-          : 'Pick the download for your computer.'}{' '}
-        {downloads.available ? `Version ${downloads.version}.` : null}
+    <div className="flex flex-col gap-5">
+      <p className="cap min-h-4 text-center text-muted-foreground" aria-live="polite">
+        {detected ? `You are on ${detected.name}` : 'Pick your system'}
+        {downloads.available ? ` · Version ${downloads.version}` : null}
       </p>
       <div className="grid w-full gap-4 md:grid-cols-3">
         {ordered.map((t) => {
           const isDetected = t === detected;
           return (
-            <article
-              key={t.os}
-              className={cn(
-                'glass-strong flex flex-col gap-7 rounded-[28px] p-8 text-card-foreground',
-                isDetected && 'ring-1 ring-ring/60 shadow-[var(--shadow-float),0_32px_80px_-32px_var(--glow)]',
-              )}
-            >
-              <div className="flex flex-col gap-1">
-                <h2 className="text-2xl font-semibold tracking-[-0.025em]">{t.name}</h2>
-                <p className="text-sm text-muted-foreground">{t.requirement}</p>
+            <article key={t.os} className="panel flex flex-col gap-6 p-5 sm:p-6">
+              <div className="flex flex-col gap-2">
+                <span className="flex items-center gap-2">
+                  <span className={cn('led', isDetected && 'led-on')} />
+                  <h2 className="cap text-foreground">{t.name}</h2>
+                </span>
+                <p className="text-[15px] text-muted-foreground">{t.requirement}</p>
               </div>
               <div className="flex flex-col gap-2">
                 {downloads.available ? (
@@ -80,14 +79,18 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
                   </Button>
                 )}
               </div>
-              <ul className="flex flex-col gap-1">
+              <ul className="border-b">
                 {t.files.map((f) => (
-                  <li key={f.fileName} className="truncate font-mono text-xs text-muted-foreground" title={f.fileName}>
+                  <li
+                    key={f.fileName}
+                    className="truncate border-t py-2 font-mono text-[12px] text-muted-foreground"
+                    title={f.fileName}
+                  >
                     {f.fileName}
                   </li>
                 ))}
               </ul>
-              <p className="mt-auto text-sm text-pretty text-muted-foreground">{t.firstRun}</p>
+              <p className="mt-auto text-[14px] text-pretty text-muted-foreground">{t.firstRun}</p>
             </article>
           );
         })}

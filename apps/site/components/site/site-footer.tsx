@@ -4,28 +4,34 @@ import { Logo } from '@/components/site/logo';
 import { Container } from '@/components/site/section';
 import { footerNav, site } from '@/lib/site';
 
+const row = 'cap flex h-10 items-center border-t text-foreground/80 transition-colors hover:text-foreground';
+
+/** The foot of the sheet: the name plate line, then the links as hairline rows in mono capitals. */
 export function SiteFooter() {
   return (
-    <footer className="text-[13px] text-muted-foreground">
-      <Container className="grid gap-12 pt-24 pb-14 md:grid-cols-[1fr_auto] md:gap-16">
-        <div className="flex max-w-xs flex-col gap-3">
-          <Logo className="text-foreground" />
-          <p>Find companies. Get emails that actually work. Windows, macOS and Linux.</p>
+    <footer className="mt-10 border-t">
+      <Container className="grid gap-10 pt-12 pb-10 md:grid-cols-[1fr_2fr] md:gap-16">
+        <div className="flex flex-col gap-3">
+          <Logo />
+          <p className="cap text-primary">Find &#183; Crawl &#183; Verify</p>
+          <p className="max-w-xs text-[15px] text-muted-foreground">
+            Companies and emails that work. In the browser, and on Windows, macOS and Linux.
+          </p>
           <a
             href={`mailto:${site.email.hello}`}
-            className="w-fit font-mono text-xs underline-offset-4 hover:text-foreground hover:underline"
+            className="w-fit font-mono text-[13px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             {site.email.hello}
           </a>
         </div>
-        <nav aria-label="Footer" className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 md:gap-x-16">
+        <nav aria-label="Footer" className="grid grid-cols-1 gap-8 min-[480px]:grid-cols-3 min-[480px]:gap-6">
           {footerNav.map((group) => (
-            <div key={group.label} className="flex flex-col gap-4">
-              <h2 className="text-xs text-muted-foreground/70">{group.label}</h2>
-              <ul className="flex flex-col gap-3">
+            <div key={group.label}>
+              <h2 className="cap pb-3 text-muted-foreground">{group.label}</h2>
+              <ul className="border-b">
                 {group.links.map((item) => (
                   <li key={item.href}>
-                    <Link href={item.href} className="hover:text-foreground">
+                    <Link href={item.href} className={row}>
                       {item.label}
                     </Link>
                   </li>
@@ -36,8 +42,11 @@ export function SiteFooter() {
           ))}
         </nav>
       </Container>
-      <Container className="pb-10 text-xs text-muted-foreground/70">
-        © {new Date().getFullYear()} {site.name}
+      <Container className="flex flex-wrap items-center justify-between gap-2 border-t py-5">
+        <span className="cap text-muted-foreground">
+          &#169; {new Date().getFullYear()} {site.name}
+        </span>
+        <span className="cap text-muted-foreground">NV-1</span>
       </Container>
     </footer>
   );
