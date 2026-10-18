@@ -5,6 +5,13 @@ sections the user has not seen yet on the first start after an update, and the
 release workflow uses the section as the GitHub release notes. One `## x.y.z`
 heading per version, then a short bullet per change, written for the user.
 
+## 0.1.1
+
+- Describe your customer in plain words and nvoke plans the searches itself. Or start from your own website.
+- Search more into the same list, and results show the people first.
+- Fixed a blank window on start when your account had a search this version did not know.
+- Installing is one click now, and the first start says hello.
+
 ## 0.1.0
 
 - First public build. Search by place and keyword, or paste a list of domains.
