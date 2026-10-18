@@ -30,7 +30,7 @@ const COUNTRIES_MAX = 30;
 
 /** One click fills the description. */
 export const ICP_EXAMPLES = [
-  'Founders of B2B SaaS startups in the Nordics',
+  'Founders of B2B SaaS startups in the US',
   'Lead gen and outbound agencies in the UK and US',
   'Dental clinics in Manchester',
   'Shopify agencies in Germany with 5 to 50 people',

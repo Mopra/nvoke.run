@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const freeEmails = formatCount(pricing.free.emailsPerMonth);
 
 const PROMPT = `Find me leads with nvoke. Read ${urls.agentsMd} first and follow it.
-If I have no nvoke account, sign me up with my email. Then find 50 dentists in Aarhus and give me the ones with a valid email as a CSV.`;
+If I have no nvoke account, sign me up with my email. Then find 50 dentists in Austin and give me the ones with a valid email as a CSV.`;
 
 const SIGNUP = `curl -X POST "${urls.apiBase}/agents/signup" \\
   -H "Content-Type: application/json" \\

@@ -17,7 +17,7 @@ const SIGNUP = `curl -X POST "${urls.apiBase}/agents/signup" \\
 const START = `curl -X POST "${urls.apiBase}/searches" \\
   -H "Authorization: Bearer $NVOKE_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"kind":"local","params":{"niche":"dentists","location":"Aarhus"},"limit":50}'`;
+  -d '{"kind":"local","params":{"niche":"dentists","location":"Austin"},"limit":50}'`;
 
 const POLL = `curl "${urls.apiBase}/searches/$SEARCH_ID" \\
   -H "Authorization: Bearer $NVOKE_API_KEY"`;

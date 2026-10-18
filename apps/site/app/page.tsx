@@ -139,7 +139,7 @@ export default function HomePage() {
             motion="tilt"
             halo="strong"
             minScale={0.55}
-            label="The nvoke app on Windows, showing a running search for bakeries in Lisbon with verified emails arriving."
+            label="The nvoke app on Windows, showing a running search for Shopify agencies in the UK, with named decision makers and verified emails arriving."
           >
             <ResultsWindowScene />
           </Stage>

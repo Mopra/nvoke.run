@@ -290,7 +290,7 @@ function ListField({
       autoComplete="off"
       aria-invalid={invalid}
       aria-describedby="list-summary"
-      placeholder={'acme.com\nhttps://linear.app\nNovo Nordisk'}
+      placeholder={'acme.com\nhttps://linear.app\nStripe'}
       className={cn(SENTENCE, 'block w-full resize-none overflow-y-auto font-mono text-2xl leading-[1.45] font-normal tracking-tight')}
     />
   );

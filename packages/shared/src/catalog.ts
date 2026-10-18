@@ -176,7 +176,7 @@ export const ENDPOINTS: Endpoint[] = [
     status: 201,
     response: Search,
     errors: ['invalid_request', 'quota_exceeded', 'source_unavailable'],
-    example: { kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 50 },
+    example: { kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 50 },
   },
   {
     id: 'listSearches',
@@ -647,13 +647,13 @@ export const MCP_TOOLS: McpTool[] = [
     input: z.object({
       kind: z.enum(['local', 'web', 'launches', 'domains', 'icp']),
       niche: z.string().optional().describe('local: the trade, e.g. "dentists".'),
-      location: z.string().optional().describe('local: a city, region or country, e.g. "Aarhus".'),
+      location: z.string().optional().describe('local: a city, region or country, e.g. "Austin".'),
       keyword: z.string().optional().describe('web: required. launches: optional filter.'),
       items: z
         .array(z.string())
         .max(1000)
         .optional()
-        .describe('domains: required. Domains ("acme.com"), URLs, email addresses or company names ("Novo Nordisk"), up to 1,000.'),
+        .describe('domains: required. Domains ("acme.com"), URLs, email addresses or company names ("Stripe"), up to 1,000.'),
       country: z.string().optional().describe('web and domains: ISO 3166-1 alpha-2 country code, e.g. "dk". For domains it helps find the right website for a name.'),
       description: z.string().max(2000).optional().describe('icp: required. Who you sell to, in plain words, e.g. "B2B SaaS founders in Germany who run their own outbound".'),
       product: z.string().max(1000).optional().describe('icp: what you sell, so competitors are told apart from buyers.'),

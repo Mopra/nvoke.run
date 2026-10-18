@@ -20,12 +20,12 @@ export type MockSearch = {
 
 export const SEARCHES: MockSearch[] = [
   {
-    title: 'Bakeries in Lisbon',
+    title: 'Shopify agencies in the UK with 5 to 30 people',
     status: 'running',
-    kind: 'local businesses',
+    kind: 'describe your customer',
     found: 55,
     crawled: 34,
-    caption: '27 of 44 websites crawled',
+    caption: '27 of 44 websites read',
     emails: 36,
     valid: 15,
     when: 'just now',
@@ -42,18 +42,18 @@ export const SEARCHES: MockSearch[] = [
     when: 'yesterday',
   },
   {
-    title: 'Launches matching "ai"',
-    status: 'failed',
-    kind: 'new launches, last 7 days',
+    title: 'B2B SaaS startups hiring their first sales rep',
+    status: 'done',
+    kind: 'describe your customer',
     found: 100,
-    crawled: 75,
-    caption: 'Stopped at your monthly email limit.',
-    emails: 116,
-    valid: 62,
+    crawled: 100,
+    caption: '212 companies, 212 crawled',
+    emails: 268,
+    valid: 171,
     when: '2 days ago',
   },
   {
-    title: '"headless cms" in DE',
+    title: '"headless cms" in US',
     status: 'done',
     kind: 'web search',
     found: 100,
@@ -64,87 +64,116 @@ export const SEARCHES: MockSearch[] = [
     when: '3 days ago',
   },
   {
-    title: '"accounting software" in GB',
-    status: 'canceled',
-    kind: 'web search',
+    title: 'Launches matching "ai"',
+    status: 'done',
+    kind: 'new launches, last 7 days',
     found: 100,
-    crawled: 64,
-    caption: '50 companies, 32 crawled',
-    emails: 44,
-    valid: 31,
+    crawled: 100,
+    caption: '96 companies, 96 crawled',
+    emails: 116,
+    valid: 62,
     when: '6 days ago',
   },
 ];
 
-export type MockEmail = { address: string; status: Verification; personal?: boolean };
-export type MockCompany = { name: string; domain: string; location: string; phone: string; emails: MockEmail[] };
+export type MockEmail = {
+  address: string;
+  status: Verification;
+  personal?: boolean;
+  /** A named person, as a people search lists them. */
+  name?: string;
+  title?: string;
+  decisionMaker?: boolean;
+};
+export type MockCompany = {
+  name: string;
+  domain: string;
+  location: string;
+  phone: string;
+  /** 0 to 100, judged from the company's own site. People searches only. */
+  fit?: number;
+  emails: MockEmail[];
+};
 
-export const BAKERIES: MockCompany[] = [
+const person = (name: string, title: string, address: string, status: Verification, decisionMaker = false): MockEmail => ({
+  address,
+  status,
+  personal: true,
+  name,
+  title,
+  decisionMaker,
+});
+
+export const AGENCIES: MockCompany[] = [
   {
-    name: 'Padaria Alfama',
-    domain: 'padariaalfama.pt',
-    location: 'Alfama, Lisbon',
-    phone: '+351 218 864 211',
+    name: 'Northwind Commerce',
+    domain: 'northwindcommerce.co.uk',
+    location: 'Manchester',
+    phone: '+44 161 496 0732',
+    fit: 92,
     emails: [
-      { address: 'ola@padariaalfama.pt', status: 'valid' },
-      { address: 'joao.silva@padariaalfama.pt', status: 'valid', personal: true },
-      { address: 'rita.silva@padariaalfama.pt', status: 'unknown', personal: true },
+      person('Hannah Reid', 'Founder and CEO', 'hannah@northwindcommerce.co.uk', 'valid', true),
+      person('Tom Ashworth', 'Head of Growth', 'tom.ashworth@northwindcommerce.co.uk', 'valid'),
     ],
   },
   {
-    name: 'Forno do Chiado',
-    domain: 'fornodochiado.pt',
-    location: 'Chiado, Lisbon',
-    phone: '+351 213 425 019',
+    name: 'Bramble & Co',
+    domain: 'brambleandco.com',
+    location: 'Bristol',
+    phone: '+44 117 496 0281',
+    fit: 88,
+    emails: [person('James Okafor', 'Managing Director', 'james@brambleandco.com', 'valid', true)],
+  },
+  {
+    name: 'Fieldwork Digital',
+    domain: 'fieldworkdigital.co.uk',
+    location: 'Leeds',
+    phone: '+44 113 496 0915',
+    fit: 81,
     emails: [
-      { address: 'geral@fornodochiado.pt', status: 'risky' },
-      { address: 'encomendas@fornodochiado.pt', status: 'valid' },
+      person('Sophie Turner', 'Co-founder', 'sophie@fieldworkdigital.co.uk', 'catch_all', true),
+      person('Ravi Patel', 'Lead Shopify Developer', 'ravi@fieldworkdigital.co.uk', 'valid'),
     ],
   },
   {
-    name: 'Pão & Co Belém',
-    domain: 'paoecobelem.pt',
-    location: 'Belém, Lisbon',
-    phone: '+351 213 627 450',
-    emails: [{ address: 'encomendas@paoecobelem.pt', status: 'valid' }],
+    name: 'Kiln Studio',
+    domain: 'kilnstudio.co.uk',
+    location: 'London',
+    phone: '+44 20 7946 0418',
+    fit: 77,
+    emails: [person('Emily Clarke', 'Partner', 'emily@kilnstudio.co.uk', 'valid', true)],
   },
   {
-    name: 'Graça Bakery',
-    domain: 'gracabakery.pt',
-    location: 'Graça, Lisbon',
-    phone: '+351 218 870 336',
-    emails: [{ address: 'hello@gracabakery.pt', status: 'valid' }],
+    name: 'Harbour Lane',
+    domain: 'harbourlane.agency',
+    location: 'Brighton',
+    phone: '+44 1632 960 027',
+    fit: 74,
+    emails: [person('Callum Fraser', 'Founder', 'callum@harbourlane.agency', 'risky', true)],
   },
   {
-    name: 'Campo de Ourique Pão',
-    domain: 'campodeouriquepao.pt',
-    location: 'Campo de Ourique, Lisbon',
-    phone: '+351 213 961 774',
-    emails: [{ address: 'info@campodeouriquepao.pt', status: 'catch_all' }],
-  },
-  {
-    name: 'Estrela Bakehouse',
-    domain: 'estrelabakehouse.pt',
-    location: 'Estrela, Lisbon',
-    phone: '+351 213 951 208',
-    emails: [
-      { address: 'mail@estrelabakehouse.pt', status: 'valid' },
-      { address: 'ana.costa@estrelabakehouse.pt', status: 'valid', personal: true },
-    ],
-  },
-  {
-    name: 'Padaria do Bairro',
-    domain: 'padariadobairro.pt',
-    location: 'Bairro Alto, Lisbon',
-    phone: '+351 213 470 582',
+    name: 'Copperline',
+    domain: 'copperline.io',
+    location: 'Edinburgh',
+    phone: '+44 131 496 0603',
+    fit: 69,
     emails: [],
   },
   {
-    name: 'Príncipe Real Fornos',
-    domain: 'principerealfornos.pt',
-    location: 'Príncipe Real, Lisbon',
-    phone: '+351 213 460 915',
-    emails: [{ address: 'ola@principerealfornos.pt', status: 'valid' }],
+    name: 'Tandem Commerce',
+    domain: 'tandemcommerce.co.uk',
+    location: 'Birmingham',
+    phone: '+44 121 496 0350',
+    fit: 66,
+    emails: [person('Priya Shah', 'Client Services Director', 'priya.shah@tandemcommerce.co.uk', 'valid', true)],
+  },
+  {
+    name: 'Lantern Works',
+    domain: 'lanternworks.co.uk',
+    location: 'Glasgow',
+    phone: '+44 141 496 0177',
+    fit: 61,
+    emails: [person('Ollie Grant', 'Owner', 'ollie@lanternworks.co.uk', 'valid', true)],
   },
 ];
 

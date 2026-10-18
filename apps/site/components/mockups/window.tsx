@@ -110,7 +110,7 @@ function AccountRing({ used = 0.8 }: { used?: number }) {
         />
       </svg>
       <span className="flex size-7 items-center justify-center rounded-full bg-linear-to-b from-foreground/10 to-foreground/20 text-[10.5px] font-semibold text-foreground/80">
-        ML
+        JC
       </span>
     </span>
   );

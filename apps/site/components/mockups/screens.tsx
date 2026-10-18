@@ -1,20 +1,23 @@
 import type { CSSProperties, ReactNode } from 'react';
 import {
   ArrowUpRight,
+  BadgeCheck,
   Ban,
   ChevronDown,
   CircleUser,
   CornerDownLeft,
   Download,
   Globe,
+  Inbox,
   MapPin,
   Moon,
   Rocket,
   Rows3,
   Search as SearchIcon,
   Sun,
+  UserRoundCheck,
 } from 'lucide-react';
-import { BAKERIES, SEARCHES, type MockCompany, type MockSearch } from '@/components/mockups/data';
+import { AGENCIES, SEARCHES, type MockCompany, type MockSearch } from '@/components/mockups/data';
 import { Caret, Kbd, MockButton, SearchBar, Segmented, StatusDot, VerificationBadge } from '@/components/mockups/primitives';
 import { AppWindow, Island, MoreButton, TopBar, type Platform } from '@/components/mockups/window';
 import { LogoMark } from '@/components/site/logo';
@@ -48,6 +51,9 @@ function Stat({ value, sub, label }: { value: string; sub?: string; label: strin
  * asking the mail servers, 3 verified. Leave it out for the finished row.
  */
 export type RowPhase = 0 | 1 | 2 | 3;
+
+/** The app's fit words for a 0 to 100 score. */
+const fitLabel = (fit: number) => (fit >= 75 ? 'Strong fit' : fit >= 50 ? 'Good fit' : fit >= 25 ? 'Loose fit' : 'Weak fit');
 
 /** A placeholder line while the website is read, at the height of an email line. */
 function PendingLine({ width }: { width: string }) {
@@ -86,14 +92,22 @@ export function CompanyRow({
       <div className="min-w-0 leading-5">
         <div className="truncate text-[14px] font-medium">{company.name}</div>
         <div className="truncate font-mono text-[10.5px] text-muted-foreground">{company.domain}</div>
+        {company.fit !== undefined && (
+          <span className="mt-1.5 inline-flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+            <span className="h-[3px] w-10 overflow-hidden rounded-full bg-foreground/10">
+              <span className="block h-full rounded-full bg-foreground/45" style={{ width: `${company.fit}%` }} />
+            </span>
+            {fitLabel(company.fit)}
+          </span>
+        )}
       </div>
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className={cn('flex min-w-0 flex-col', company.fit === undefined ? 'gap-1' : 'gap-2.5')}>
         {company.emails.length === 0 ? (
           p < 2 ? (
             <PendingLine width="40%" />
           ) : (
             <span key="none" className={cn('text-[11.5px] leading-5 text-muted-foreground', phase && 'animate-fade-in')}>
-              No public email
+              {company.fit === undefined ? 'No public email' : 'No named person found yet'}
             </span>
           )
         ) : (
@@ -101,7 +115,19 @@ export function CompanyRow({
             p < 2 ? (
               <PendingLine key={e.address} width={`${48 + ((i * 17) % 22)}%`} />
             ) : (
-              <div key={e.address} className="flex min-w-0 items-center gap-2">
+              <div key={e.address} className="flex min-w-0 flex-col gap-0.5">
+                {e.name && (
+                  <div className={cn('flex min-w-0 items-baseline gap-2 leading-5', phase && 'animate-fade-in')}>
+                    <span className="shrink-0 text-[13px] font-medium">{e.name}</span>
+                    <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">{e.title}</span>
+                    {e.decisionMaker && (
+                      <span className="shrink-0 self-center rounded-full bg-foreground/[0.06] px-2 py-px text-[10.5px] font-medium text-foreground/70">
+                        Decision maker
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex min-w-0 items-center gap-2">
                 <span
                   className={cn(
                     'truncate font-mono text-[11.5px] leading-5 text-foreground/80 dark:text-foreground/65',
@@ -110,13 +136,14 @@ export function CompanyRow({
                 >
                   {e.address}
                 </span>
-                {e.personal && <span className="shrink-0 text-[10.5px] text-muted-foreground">person</span>}
+                {e.personal && !e.name && <span className="shrink-0 text-[10.5px] text-muted-foreground">person</span>}
                 <span className="ml-auto" />
                 <VerificationBadge
                   key={p}
                   value={p === 2 ? 'checking' : e.status}
                   className={phase === 3 ? 'mock-badge-in' : undefined}
                 />
+                </div>
               </div>
             ),
           )
@@ -139,18 +166,22 @@ function Dock({ platform }: { platform: Platform }) {
       <div className="glass flex h-12 items-center gap-1 rounded-full px-1.5">
         <div className="flex h-9 w-64 items-center gap-2 rounded-full bg-foreground/[0.045] px-3.5 text-muted-foreground/70">
           <SearchIcon className="size-3.5" />
-          <span className="flex-1">Filter companies and emails</span>
+          <span className="flex-1">Filter people</span>
           <Kbd className="bg-transparent">{platform === 'mac' ? '⌘ F' : 'Ctrl F'}</Kbd>
         </div>
-        <span className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-medium text-muted-foreground">
-          Any verification
-          <ChevronDown className="size-3 opacity-60" />
-        </span>
-        <Segmented
-          options={[{ label: 'All' }, { label: 'Generic' }, { label: 'Personal' }]}
-          selected={0}
-          className="bg-transparent [&>span]:text-[11.5px]"
-        />
+        {[
+          { icon: UserRoundCheck, label: 'Decision makers' },
+          { icon: BadgeCheck, label: 'Verified' },
+          { icon: Inbox, label: 'Shared inboxes' },
+        ].map((f) => (
+          <span
+            key={f.label}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-medium text-muted-foreground"
+          >
+            <f.icon className="size-3.5" />
+            {f.label}
+          </span>
+        ))}
         <span className="px-3 text-[11.5px] text-muted-foreground tabular-nums">70 companies</span>
         <MockButton icon={Download}>Export CSV</MockButton>
       </div>
@@ -216,16 +247,16 @@ export function ResultsScreen({
       <Island platform={platform} />
       <div className="relative min-h-0 flex-1 overflow-hidden px-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-140px),transparent)]">
         <section className="px-6 pt-8 pb-10">
-          <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">Bakeries in Lisbon</div>
+          <div className="font-display text-[34px] leading-[40px] font-semibold tracking-[-0.03em]">{search.title}</div>
           <div className="mt-2 flex items-center gap-2.5 text-[13px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium">
               <StatusDot status="running" />
               Running
             </span>
-            Local businesses, just now, running for {f.seconds}s
+            Describe your customer, just now, running for {f.seconds}s
           </div>
           <div className="mt-10 grid grid-cols-4 gap-8">
-            <Stat value={String(f.companies)} sub="of 80" label="Companies" />
+            <Stat value={String(f.companies)} sub="of 100" label="Companies" />
             <Stat value={String(f.crawled)} label="Websites crawled" />
             <Stat value={String(f.emails)} label="Emails found" />
             <Stat
@@ -243,10 +274,10 @@ export function ResultsScreen({
         </section>
         <div className={cn(COLUMNS, 'px-6 py-2 text-[11.5px] text-muted-foreground')}>
           <span>Company</span>
-          <span>Emails</span>
+          <span>People</span>
           <span>Location</span>
         </div>
-        {BAKERIES.slice(0, rows).map((c, i) => (
+        {AGENCIES.slice(0, rows).map((c, i) => (
           <CompanyRow
             key={c.domain}
             company={c}
@@ -405,7 +436,7 @@ export function NewSearchForm({
       hint: 'Company websites from a web search. No social networks, no marketplaces.',
       lines: [
         { lead: 'Find', value: 'headless CMS' },
-        { lead: 'in', value: 'Germany', chevron: true },
+        { lead: 'in', value: 'United States', chevron: true },
       ],
     },
     {
@@ -442,9 +473,9 @@ export function NewSearchForm({
 }
 
 const COMMAND_SEARCHES: { title: string; status: 'running' | 'done'; kind: string; meta: string }[] = [
-  { title: 'Bakeries in Lisbon', status: 'running', kind: 'Local businesses', meta: '36 emails' },
+  { title: 'Shopify agencies in the UK', status: 'running', kind: 'Describe your customer', meta: '36 emails' },
   { title: 'Dentists in Austin', status: 'done', kind: 'Local businesses', meta: '83 emails' },
-  { title: '"headless cms" in DE', status: 'done', kind: 'Web search', meta: '903 emails' },
+  { title: '"headless cms" in US', status: 'done', kind: 'Web search', meta: '903 emails' },
 ];
 
 /**

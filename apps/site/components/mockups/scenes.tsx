@@ -46,8 +46,8 @@ function heroFrame(tick: number): ResultsLive {
   const k = Object.fromEntries(
     (Object.keys(HERO_END) as (keyof typeof HERO_END)[]).map((key) => [key, lerp(HERO_START[key], HERO_END[key], t)]),
   ) as Omit<ResultsLive, 'phases'>;
-  // The first three rows were in before the page loaded; the rest stream in.
-  const phases = Array.from({ length: 7 }, (_, i) => (i < 3 ? undefined : phaseAt(tick, 1 + (i - 3) * 2)));
+  // People rows are tall, so only the first was in before the page loaded; the rest stream in where they show.
+  const phases = Array.from({ length: 7 }, (_, i) => (i < 1 ? undefined : phaseAt(tick, 1 + (i - 1) * 2)));
   return { ...k, phases };
 }
 
