@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutationState } from '@tanstack/react-query';
-import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
+import { ArrowUpRight, Check, Copy } from 'lucide-react';
+import { LogoLoader } from '@/components/Logo';
 import { Commands } from '@/components/CommandBar';
 import { GrabPanel } from '@/components/GrabPanel';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
@@ -76,7 +77,7 @@ export function QuickWindow() {
       <div ref={panel} className="overflow-hidden rounded-[28px] glass-strong text-popover-foreground">
         {auth === undefined ? (
           <div className="flex h-20 items-center justify-center">
-            <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />
+            <LogoLoader size="sm" />
           </div>
         ) : auth.status === 'signed-in' ? (
           <Session key={opening} clipboard={clipboard} frontTab={frontTab} grab={grab} onGrabClose={() => setGrab(null)} />
@@ -195,7 +196,7 @@ function Running({ id, onNew }: { id: string; onNew: () => void }) {
 
   return (
     <div className="px-6 pt-5 pb-5">
-      {search ? <Progress search={search} /> : <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />}
+      {search ? <Progress search={search} /> : <LogoLoader size="sm" className="items-start" />}
       {search?.kind === 'domains' && <Addresses id={id} search={search} />}
       {switchFailed && (
         <div role="alert" className="mt-3 text-sm text-destructive">

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import { ArrowRight, ArrowUpRight, Keyboard, Loader2, MailCheck, Search, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Keyboard, MailCheck, Search, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { LogoMark } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
@@ -67,16 +67,18 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
               : 'flex w-full max-w-[460px] flex-col items-center text-center motion-safe:animate-rise'
           }
         >
-          <LogoMark className={welcome ? 'size-[88px] motion-safe:animate-arrive' : 'size-[72px]'} />
+          <LogoMark
+            motion={waiting ? 'loading' : 'intro'}
+            className={welcome ? 'size-[88px] motion-safe:animate-arrive' : 'size-[72px]'}
+          />
 
           {waiting ? (
             <>
-              <h1 className="mt-10 font-display text-4xl font-semibold">Finish in your browser</h1>
-              <div className="mt-10 flex h-11 items-center gap-2.5 text-sm text-muted-foreground">
-                <Loader2 className="size-4 motion-safe:animate-spin" />
+              <h1 className="mt-10 font-display text-4xl font-semibold motion-safe:animate-view-in">Finish in your browser</h1>
+              <div role="status" className="mt-10 flex h-11 items-center text-sm text-muted-foreground motion-safe:animate-view-in">
                 Waiting on your browser
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex gap-2 motion-safe:animate-view-in">
                 <Button variant="glass" onClick={() => void signIn()}>
                   Reopen the page
                 </Button>

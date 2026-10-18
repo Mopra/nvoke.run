@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useMutationState } from '@tanstack/react-query';
+import { LogoMark } from '@/components/Logo';
 import { ArrowLeft, ArrowRight, CornerDownLeft, Globe, Loader2, Pencil, Play, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Aura, BackButton, PageHeader } from '@/components/AppShell';
@@ -164,7 +165,7 @@ function WebsiteStep({
   const invalid = touched && !parsed;
 
   return (
-    <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-rise">
+    <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in">
       <h1 className="sr-only">Start from your website</h1>
       {onBack && (
         <Pill onClick={onBack} className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start">
@@ -224,8 +225,9 @@ function Building({ website, startedAt }: { website: string; startedAt: number }
   const phase = buildPhase(now - (startedAt || now), domain);
 
   return (
-    <div className="mx-auto flex max-w-[760px] flex-col pt-[9vh]" aria-busy="true">
+    <div className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" aria-busy="true">
       <h1 className="sr-only">Reading {domain}</h1>
+      <LogoMark motion="loading" className="mb-8 size-10" />
       <p className="font-mono text-lg tracking-tight text-muted-foreground">{domain}</p>
       <p key={phase} aria-live="polite" className="mt-3 min-h-[2.6em] font-display text-4xl font-semibold text-balance motion-safe:animate-rise">
         {phase}
@@ -261,7 +263,7 @@ function Suggestions({
   const start = useStartSearch();
 
   return (
-    <div className="mx-auto flex max-w-[760px] flex-col pt-10 motion-safe:animate-rise">
+    <div className="mx-auto flex max-w-[760px] flex-col pt-10 motion-safe:animate-view-in">
       {editing ? (
         <ProfileEditor profile={profile} onDone={() => setEditing(false)} />
       ) : (

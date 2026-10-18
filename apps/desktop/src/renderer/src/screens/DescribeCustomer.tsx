@@ -120,7 +120,7 @@ export function DescribeCustomer() {
     <>
       <PageHeader leading={<BackButton />} newSearch={false} />
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
-        <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[4vh] motion-safe:animate-rise">
+        <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[4vh] motion-safe:animate-view-in">
           <label htmlFor="icp-description" className="font-display text-4xl font-semibold text-balance">
             Who do you sell to?
           </label>

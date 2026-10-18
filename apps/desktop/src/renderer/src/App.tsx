@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
+import { LogoLoader } from '@/components/Logo';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { WhatsNew } from '@/components/WhatsNew';
 import { Toaster } from '@/components/ui/sonner';
@@ -79,7 +79,7 @@ export function App() {
     <TooltipProvider>
       {auth === undefined ? (
         <div className="app-drag flex h-full items-center justify-center bg-background">
-          <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" />
+          <LogoLoader size="lg" />
         </div>
       ) : auth.status === 'signed-in' ? (
         <SignedIn />

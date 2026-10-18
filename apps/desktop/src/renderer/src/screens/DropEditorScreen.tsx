@@ -118,7 +118,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
     <>
       <PageHeader leading={<BackButton />} newSearch={false} />
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
-        <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-rise" noValidate>
+        <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" noValidate>
           <h1 className="font-display text-xl font-semibold text-muted-foreground">{drop ? 'Edit drop' : 'New drop'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Once a day, the launches that are new since the last run, crawled and verified.

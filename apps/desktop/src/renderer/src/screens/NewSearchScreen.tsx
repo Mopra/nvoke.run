@@ -51,7 +51,7 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
     <>
       <PageHeader leading={<BackButton />} newSearch={false} />
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
-        <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-rise" noValidate>
+        <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" noValidate>
           <h1 className="sr-only">New search</h1>
           <Pill onClick={() => navigate({ name: 'new', kind: null })} className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start">
             <ArrowLeft className="size-3" />

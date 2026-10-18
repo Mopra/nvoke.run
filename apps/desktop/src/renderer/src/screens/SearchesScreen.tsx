@@ -241,7 +241,7 @@ export function SearchesScreen() {
         }
       />
       <main ref={scrollRef} className="fade-edges flex-1 overflow-auto px-8 pb-24">
-        <div className="mx-auto max-w-[880px] motion-safe:animate-rise">
+        <div className="mx-auto max-w-[880px] motion-safe:animate-view-in">
           <DisplayTitle className="px-6" subtitle={subtitle}>
             Searches
           </DisplayTitle>

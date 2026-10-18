@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Plus, ScanText, X } from 'lucide-react';
+import { LogoMark } from '@/components/Logo';
 import { itemDomain } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -39,7 +40,7 @@ export function GrabPanel({
   if (state.status === 'reading') {
     return (
       <div className="flex items-center gap-4 px-6 py-6">
-        <Loader2 className="size-5 shrink-0 text-primary motion-safe:animate-spin" />
+        <LogoMark motion="loading" className="size-8" />
         <div className="min-w-0">
           <div className="font-display text-xl tracking-[-0.02em]">Reading the box</div>
           <div className="mt-1 text-sm text-muted-foreground">On this computer. The image never leaves it.</div>

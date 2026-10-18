@@ -199,9 +199,9 @@ export function PageHeader({
         <a
           href={routeHref({ name: 'searches' })}
           aria-label="Searches"
-          className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          className="group flex items-center gap-2 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
         >
-          <LogoMark className="size-[22px]" />
+          <LogoMark motion="hover" className="size-[22px]" />
           {transportMode === 'mock' && <span className="text-xs text-muted-foreground">Demo</span>}
         </a>
       )}

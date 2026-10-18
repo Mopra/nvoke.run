@@ -42,7 +42,7 @@ export function AccountScreen() {
     <>
       <PageHeader leading={<BackButton />} />
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
-        <div className="mx-auto flex max-w-[620px] flex-col pt-14 motion-safe:animate-rise">
+        <div className="mx-auto flex max-w-[620px] flex-col pt-14 motion-safe:animate-view-in">
           {isPending ? (
             <AccountSkeleton />
           ) : error ? (
