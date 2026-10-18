@@ -57,6 +57,10 @@
   /* The first launch: the mark lands, the aura opens behind it. */
   --animate-arrive: arrive 900ms var(--ease-spring) both;
   --animate-bloom: bloom 1600ms var(--ease-out-soft) both;
+  /* A running search with nothing found yet (SearchWorking). */
+  --animate-sonar: sonar 3.3s var(--ease-out-soft) infinite;
+  --animate-pull-in: pull-in 6.4s var(--ease-out-soft) infinite;
+  --animate-ping-soft: ping-soft 1.8s var(--ease-out-soft) infinite;
 }
 
 @layer base {
@@ -312,6 +316,52 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes sonar {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.28);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* A lead shows at the edge of the sonar and is pulled in under the mark. */
+@keyframes pull-in {
+  0% {
+    opacity: 0;
+    transform: translate(var(--blip-x), var(--blip-y)) scale(0.4);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(var(--blip-x), var(--blip-y)) scale(1);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(var(--blip-x), var(--blip-y)) scale(1);
+  }
+  40% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+}
+
+@keyframes ping-soft {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
   }
 }
 

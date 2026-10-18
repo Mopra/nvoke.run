@@ -13,7 +13,6 @@ import {
   Loader2,
   MoreHorizontal,
   PenLine,
-  Radar,
   RotateCw,
   SearchX,
   Search as SearchIcon,
@@ -28,6 +27,7 @@ import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
+import { SearchWorking } from '@/components/SearchWorking';
 import { canSearchMore, fewFoundLine, RunsLine, SearchMoreEditor } from '@/components/SearchMore';
 import { EmptyState, ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
@@ -1216,9 +1216,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                   }
                 />
               ) : live ? (
-                <EmptyState icon={Radar} title={search.kind === 'icp' ? 'Looking for your customers' : 'Looking for companies'}>
-                  They show up here the moment we find them.
-                </EmptyState>
+                <SearchWorking search={search} />
               ) : editingMore ? null : (
                 <EmptyState
                   icon={Inbox}

@@ -11,6 +11,7 @@ import { peopleShots } from './shots/people';
 import { resultsShots } from './shots/results';
 import { searchMoreShots } from './shots/search-more';
 import { searchesShots } from './shots/searches';
+import { searchWorkingShots } from './shots/search-working';
 import { siteProfileShots } from './shots/site-profile';
 import { updatesShots } from './shots/updates';
 
@@ -22,6 +23,7 @@ export const CAPTURE_STEPS: CaptureStep[] = [
   newSearchShots,
   csvDropShots,
   resultsShots,
+  searchWorkingShots,
   peopleShots,
   localCopyShots,
   accountShots,
