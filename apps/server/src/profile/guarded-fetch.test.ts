@@ -12,6 +12,11 @@ beforeAll(async () => {
       res.writeHead(302, { location: `http://127.0.0.1:${port}/page` });
       return res.end();
     }
+    if (req.url === '/odd') {
+      // A server answering with a status Response() refuses, written raw.
+      req.socket.end(['HTTP/1.1 999 Odd', 'content-length: 0', '', ''].join('\r\n'));
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end(`<p>${req.url}</p>`);
   });
@@ -46,5 +51,10 @@ describe('guardedFetch', () => {
     const manual = await fetch(`http://127.0.0.1:${port}/hop`, { redirect: 'manual' });
     expect(manual.status).toBe(302);
     expect(manual.headers.get('location')).toBe(`http://127.0.0.1:${port}/page`);
+  });
+
+  it('rejects a status outside 200 to 599 instead of crashing the process', async () => {
+    const fetch = guardedFetch({ allowPrivate: true });
+    await expect(fetch(`http://127.0.0.1:${port}/odd`)).rejects.toThrow('unusable HTTP status 999');
   });
 });

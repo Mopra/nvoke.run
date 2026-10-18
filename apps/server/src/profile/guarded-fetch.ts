@@ -30,6 +30,13 @@ export function guardedFetch(policy: UrlPolicy, resolve?: Resolve): FetchLike {
           else if (v !== undefined) outHeaders.set(k, v);
         }
         const status = res.statusCode ?? 0;
+        // new Response() throws outside 200 to 599, and a throw in this
+        // callback is uncaught and kills the process: refuse odd statuses.
+        if (status < 200 || status > 599) {
+          res.destroy();
+          reject(new TypeError(`unusable HTTP status ${status}`));
+          return;
+        }
         const empty = status === 204 || status === 304 || (init?.method ?? 'GET') === 'HEAD';
         const body = empty ? null : (Readable.toWeb(res) as ReadableStream<Uint8Array>);
         if (empty) res.resume();

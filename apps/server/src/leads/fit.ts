@@ -206,7 +206,7 @@ export async function scoreBatch(opts: FitOptions, batch: FitCandidate[]): Promi
     toolName: 'save_fit_scores',
     toolDescription: 'Saves a fit score and a one line reason for each candidate, by its number.',
     // About 40 tokens an entry with a 10 word reason; room to spare, as an answer cut short is lost whole.
-    maxTokens: 400 + batch.length * 90,
+    maxTokens: 600 + batch.length * 140,
   });
   opts.onCost?.(res.costUsd);
   const keys = batch.map(keyOf);
