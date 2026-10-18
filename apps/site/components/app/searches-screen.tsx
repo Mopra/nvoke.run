@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MessageSquareText, MoreHorizontal, Repeat, Rocket, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,6 +23,7 @@ import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, sea
 import { useCancelSearch, useLatestProfileBuild, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
 import { displayDomain, PROFILE_PATH, WEBSITE_PATH } from '@/lib/app/site-profile';
 import { cn } from '@/lib/utils';
+import { Figure, useArrivals } from '@/components/app/motion';
 
 const href = (search: Search): string => `/app/searches/${search.id}`;
 
@@ -88,11 +89,14 @@ function OngoingBadge() {
   );
 }
 
-function SearchRow({ search }: { search: Search }) {
+function SearchRow({ search, style }: { search: Search; style?: CSSProperties }) {
   const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
   return (
-    <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+    <div
+      style={style}
+      className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]"
+    >
       <Link
         href={href(search)}
         data-search-status={search.status}
@@ -132,7 +136,9 @@ function SearchRow({ search }: { search: Search }) {
           </div>
         </div>
         <div className="hidden shrink-0 text-right sm:block">
-          <div className="font-display text-3xl font-light tabular-nums">{formatNumber(search.emailsFound)}</div>
+          <div className="font-display text-3xl font-light tabular-nums">
+            <Figure value={search.emailsFound} />
+          </div>
           <div className="text-xs tabular-nums text-muted-foreground">
             {stopped && search.emailsFound === 0 ? 'no emails' : `emails, ${formatNumber(search.emailsValid)} valid`}
           </div>
@@ -164,12 +170,12 @@ function ListSkeleton() {
   );
 }
 
-function Section({ searches }: { searches: Search[] }) {
+function Section({ searches, arrive }: { searches: Search[]; arrive: (key: string) => CSSProperties }) {
   if (searches.length === 0) return null;
   return (
-    <section className="flex flex-col gap-1 [&+&]:mt-10">
+    <section className="stagger flex flex-col gap-1 [&+&]:mt-10">
       {searches.map((s) => (
-        <SearchRow key={s.id} search={s} />
+        <SearchRow key={s.id} search={s} style={arrive(s.id)} />
       ))}
     </section>
   );
@@ -272,6 +278,8 @@ export function SearchesScreen() {
   const { data, error, isPending, refetch } = useSearches();
   const active = data?.filter((s) => isActive(s.status)) ?? [];
   const earlier = data?.filter((s) => !isActive(s.status)) ?? [];
+  // The list is polled: a new search, or one that just finished and moved down, comes in; the rest stay still.
+  const arrive = useArrivals([...active, ...earlier].map((s) => s.id));
 
   // The list is polled; the account needs a refresh when the last search ends.
   useRefreshWhenFinished(active.length > 0, null);
@@ -302,8 +310,8 @@ export function SearchesScreen() {
         ) : (
           <>
             <WebsiteRow />
-            <Section searches={active} />
-            <Section searches={earlier} />
+            <Section searches={active} arrive={arrive} />
+            <Section searches={earlier} arrive={arrive} />
           </>
         )}
       </div>

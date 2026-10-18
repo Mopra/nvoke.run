@@ -163,10 +163,13 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
               </button>
             ))}
           </div>
-          <p className="pl-1 text-sm text-muted-foreground">{SOURCES[form.kind]}</p>
+          <p key={form.kind} className="tab-in pl-1 text-sm text-muted-foreground">
+            {SOURCES[form.kind]}
+          </p>
         </div>
 
-        <div className="mt-12">
+        {/* Keyed by the tab, so a switch brings the new fields in. */}
+        <div key={form.kind} className="tab-in mt-12">
           <SearchFields form={form} onChange={setForm} touched={touched} maxLimit={maxLimit} firstField={firstField} listField={listField} />
         </div>
 

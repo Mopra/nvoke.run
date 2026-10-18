@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -30,6 +30,7 @@ import type { Company, CreateSearchInput, DraftOpenersInput, Email, Opener, Sear
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
 import { StatusLabel, VerificationBadge } from '@/components/app/indicators';
+import { Figure, useArrivals } from '@/components/app/motion';
 import { copy, PEOPLE_COLUMNS, PeopleSkeleton, PersonRowView } from '@/components/app/people-list';
 import { Pill } from '@/components/app/sentence';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
@@ -128,11 +129,13 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /* Overview */
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value, plus = false, sub }: { label: string; value: number; plus?: boolean; sub?: string }) {
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-3xl font-extralight tabular-nums sm:text-4xl">{value}</span>
+        <span className="font-display text-3xl font-extralight tabular-nums sm:text-4xl">
+          <Figure value={value} suffix={plus ? '+' : ''} />
+        </span>
         {sub && <span className="truncate text-sm tabular-nums text-muted-foreground">{sub}</span>}
       </div>
       <div className="mt-1 text-sm text-muted-foreground">{label}</div>
@@ -226,7 +229,6 @@ function Overview({
   const active = isActive(search.status);
   const showLive = active || Boolean(search.ongoing);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
-  const n = (v: number): string => (partial ? `${formatNumber(v)}+` : formatNumber(v));
   return (
     <section className={cn(APP_INSET, 'pt-6 pb-10')}>
       <h1 className="font-display text-2xl font-semibold tracking-[-0.03em] text-balance sm:text-3xl" title={search.kind === 'icp' ? search.params.description : undefined}>
@@ -244,10 +246,10 @@ function Overview({
         <OngoingSwitch search={search} onChange={onOngoing} saving={savingOngoing} />
       )}
       <div className="mt-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
-        <Stat label="Companies" value={formatNumber(search.companiesFound)} sub={search.ongoing ? undefined : `of ${formatNumber(search.limit)}`} />
-        <Stat label="Named people" value={counts ? n(counts.people) : '0'} />
-        <Stat label="Decision makers" value={counts ? n(counts.decisionMakers) : '0'} />
-        <Stat label="Verified emails" value={formatNumber(search.emailsValid)} sub={validShare === null ? undefined : `${validShare}%`} />
+        <Stat label="Companies" value={search.companiesFound} sub={search.ongoing ? undefined : `of ${formatNumber(search.limit)}`} />
+        <Stat label="Named people" value={counts?.people ?? 0} plus={Boolean(counts) && partial} />
+        <Stat label="Decision makers" value={counts?.decisionMakers ?? 0} plus={Boolean(counts) && partial} />
+        <Stat label="Verified emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
       </div>
       {search.status === 'failed' && (
         <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
@@ -413,9 +415,12 @@ function CompanyRow({
   live,
   onDraftOpener,
   onCheckInboxes,
+  style,
 }: {
   company: Company;
   live: boolean;
+  /** Carries the row's stagger index (`--i`). */
+  style?: CSSProperties;
   onDraftOpener: (company: Company) => void;
   /** Switches on the search's shared inboxes; null when they are on already. */
   onCheckInboxes: (() => void) | null;
@@ -427,6 +432,7 @@ function CompanyRow({
   return (
     <div
       data-company-row
+      style={style}
       className={cn(COLUMNS, 'group flex flex-col gap-2 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start sm:px-6')}
     >
       <div className="min-w-0 leading-5">
@@ -599,6 +605,8 @@ export function ResultsScreen({ id }: { id: string }) {
   const people = view === 'people' ? peopleRows(loaded, peopleFilters) : [];
   const rows = view === 'companies' ? filterCompanies(loaded, peopleFilters) : [];
   const shown = view === 'people' ? people.length : rows.length;
+  // Rows found by a poll, a filter or the next page come in; the rows on screen stay still.
+  const arrive = useArrivals(view === 'people' ? people.map((r) => `p:${r.key}`) : rows.map((c) => `c:${c.id}`));
 
   // The counts come from the companies loaded without filters, so filtering keeps the last ones.
   const [counts, setCounts] = useState<PeopleCounts | null>(null);
@@ -899,14 +907,14 @@ export function ResultsScreen({ id }: { id: string }) {
       </div>
 
       {view === 'people' ? (
-        <div className={cn(PEOPLE_COLUMNS, 'hidden px-6 py-2 text-xs text-muted-foreground')}>
+        <div key="people" className={cn(PEOPLE_COLUMNS, 'tab-in hidden px-6 py-2 text-xs text-muted-foreground')}>
           <span>Person</span>
           <span>Email</span>
           <span>Company</span>
           <span />
         </div>
       ) : (
-        <div className={cn(COLUMNS, 'hidden px-6 py-2 text-xs text-muted-foreground')}>
+        <div key="companies" className={cn(COLUMNS, 'tab-in hidden px-6 py-2 text-xs text-muted-foreground')}>
           <span>Company</span>
           <span>Emails</span>
           <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
@@ -961,11 +969,12 @@ export function ResultsScreen({ id }: { id: string }) {
             </EmptyState>
           )
         ) : (
-          <div className="flex flex-col">
+          <div className="stagger flex flex-col">
             {view === 'people'
               ? people.map((row) => (
                   <PersonRowView
                     key={row.key}
+                    style={arrive(`p:${row.key}`)}
                     row={row}
                     live={live || inboxesFollowing}
                     onOpenCompany={(domain) => {
@@ -977,6 +986,7 @@ export function ResultsScreen({ id }: { id: string }) {
               : rows.map((company) => (
                   <CompanyRow
                     key={company.id}
+                    style={arrive(`c:${company.id}`)}
                     company={company}
                     live={live || inboxesFollowing}
                     onDraftOpener={draftOpener}

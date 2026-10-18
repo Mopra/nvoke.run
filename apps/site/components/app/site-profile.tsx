@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, CornerDownLeft, Loader2, Pencil, Play, RotateCw } from 'lucide-react';
@@ -449,7 +449,7 @@ function ProfileView({
             No searches came out of this site. Read it again, or <ManualLink>set one up by hand</ManualLink>.
           </p>
         ) : (
-          <div className="-mx-4 mt-6 flex flex-col gap-1 sm:-mx-6">
+          <div className="stagger -mx-4 mt-6 flex flex-col gap-1 sm:-mx-6">
             {profile.suggestions.map((suggestion, i) => (
               <SuggestionRow
                 key={i}
@@ -568,6 +568,7 @@ function SuggestionRow({
   return (
     <div
       data-suggestion-kind={search.kind}
+      style={{ '--i': index } as CSSProperties}
       className="flex items-start gap-4 rounded-[24px] px-4 py-6 transition-colors duration-200 hover:bg-foreground/[0.035] sm:gap-6 sm:px-6"
     >
       <span aria-hidden className="hidden w-8 shrink-0 pt-1 font-display text-xl font-extralight tabular-nums text-muted-foreground/60 sm:block">

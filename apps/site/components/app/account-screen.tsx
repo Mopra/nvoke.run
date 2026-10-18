@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useClerk } from '@clerk/nextjs';
 import { ArrowUpRight, Check, Copy, Download, Loader2, LogOut, Plus } from 'lucide-react';
@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { LogoLoader } from '@/components/app/motion';
+import { Figure, LogoLoader, useArrivals } from '@/components/app/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiUrl } from '@/lib/api';
 import { formatNumber, periodLabel, relativeTime, resetDate } from '@/lib/app/desktop';
@@ -84,7 +84,9 @@ function UsageAndPlan({ me }: { me: MeResponse }) {
   return (
     <section data-usage>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="font-display text-5xl font-extralight tabular-nums">{formatNumber(quota.used)}</span>
+        <span className="font-display text-5xl font-extralight tabular-nums">
+          <Figure value={quota.used} />
+        </span>
         <span className="text-base text-muted-foreground">of {formatNumber(quota.limit)} verified emails</span>
       </div>
       <div
@@ -125,9 +127,9 @@ function UsageAndPlan({ me }: { me: MeResponse }) {
 
 /* API keys */
 
-function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: () => void }) {
+function KeyRow({ apiKey, onRevoke, style }: { apiKey: ApiKey; onRevoke: () => void; style?: CSSProperties }) {
   return (
-    <li className="flex items-center gap-6 py-4" data-api-key={apiKey.prefix}>
+    <li className="flex items-center gap-6 py-4" data-api-key={apiKey.prefix} style={style}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-[15px] font-medium" title={apiKey.name}>
@@ -265,6 +267,7 @@ function ApiKeys() {
   const { data: keys, error, isPending, refetch } = useApiKeys();
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
+  const arrive = useArrivals(keys?.map((k) => k.id) ?? []);
 
   return (
     <section data-api-keys>
@@ -298,9 +301,9 @@ function ApiKeys() {
         ) : keys.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">No keys yet.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
+          <ul className="stagger flex flex-col divide-y divide-border">
             {keys.map((k) => (
-              <KeyRow key={k.id} apiKey={k} onRevoke={() => setRevoking(k)} />
+              <KeyRow key={k.id} apiKey={k} onRevoke={() => setRevoking(k)} style={arrive(k.id)} />
             ))}
           </ul>
         )}

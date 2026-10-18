@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { VerificationBadge } from '@/components/app/indicators';
@@ -126,9 +127,12 @@ export function PersonRowView({
   row,
   live,
   onOpenCompany,
+  style,
 }: {
   row: PersonRow;
   live: boolean;
+  /** Carries the row's stagger index (`--i`). */
+  style?: CSSProperties;
   /** Shows the company with all its addresses, openers and crawl state. */
   onOpenCompany: (domain: string) => void;
 }) {
@@ -136,6 +140,7 @@ export function PersonRowView({
   return (
     <div
       data-person-row
+      style={style}
       className={cn(
         PEOPLE_COLUMNS,
         'group flex flex-col gap-2.5 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start sm:px-6',

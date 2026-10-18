@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowUpRight, ChevronLeft, Plus } from 'lucide-react';
 import { Avatar } from '@/components/app/avatar';
+import { Figure } from '@/components/app/motion';
 import { LogoMark } from '@/components/site/logo';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -69,9 +70,9 @@ function TopBar() {
         <Link
           href="/app"
           aria-label="nvoke searches"
-          className="mr-1 flex items-center gap-2 rounded-full pr-1 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          className="group mr-1 flex items-center gap-2 rounded-full pr-1 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
         >
-          <LogoMark className="size-[22px]" />
+          <LogoMark motion="hover" className="size-[22px]" />
           <span className="hidden text-[15px] font-semibold tracking-[-0.02em] sm:inline">nvoke</span>
         </Link>
         <Link href="/app" className={navLink} aria-current={onSearches ? 'page' : undefined}>
@@ -121,7 +122,7 @@ function LiveSearch({ hide }: { hide: string }) {
         />
       </span>
       <span className="shrink-0 tabular-nums text-muted-foreground">
-        {formatNumber(current.emailsFound)} emails{live.length > 1 && `, ${live.length - 1} more`}
+        <Figure value={current.emailsFound} /> emails{live.length > 1 && `, ${live.length - 1} more`}
       </span>
     </Link>
   );
