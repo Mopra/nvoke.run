@@ -11,6 +11,7 @@ function AlertDialogTrigger(props: React.ComponentProps<typeof AlertDialogPrimit
   return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;
 }
 
+/** A plate in the middle of the window: a light display title, mono copy, keycaps below. */
 function AlertDialogContent({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
   return (
     <AlertDialogPrimitive.Portal>
@@ -21,7 +22,7 @@ function AlertDialogContent({ className, ...props }: React.ComponentProps<typeof
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[28px] glass-strong p-7 text-popover-foreground outline-none',
+          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[380px] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-[8px] glass-strong p-6 text-popover-foreground outline-none',
           'duration-300 ease-spring data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.94] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.97] data-[state=closed]:duration-150',
           className,
         )}
@@ -43,7 +44,7 @@ function AlertDialogTitle({ className, ...props }: React.ComponentProps<typeof A
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn('text-base font-semibold', className)}
+      className={cn('font-display text-xl font-light', className)}
       {...props}
     />
   );
@@ -56,7 +57,7 @@ function AlertDialogDescription({
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('font-mono text-xs text-muted-foreground', className)}
       {...props}
     />
   );

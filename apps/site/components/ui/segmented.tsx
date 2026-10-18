@@ -1,3 +1,5 @@
+'use client';
+
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,8 +11,8 @@ export interface SegmentedOption<T extends string> {
 }
 
 /**
- * A segmented control: one choice out of a few, with a thumb that springs to
- * the selected segment. Radio semantics; arrow keys move the selection.
+ * A segmented control: one choice out of a few, with a keycap thumb that
+ * springs to the selected segment in a recessed bed. Radio semantics; arrow keys move the selection.
  */
 export function Segmented<T extends string>({
   value,
@@ -67,7 +69,7 @@ export function Segmented<T extends string>({
       aria-label={label}
       onKeyDown={onKeyDown}
       className={cn(
-        'relative isolate inline-flex shrink-0 rounded-full bg-foreground/[0.055] p-[3px]',
+        'relative isolate inline-flex shrink-0 rounded-[6px] bg-foreground/[0.08] p-[3px] shadow-[inset_0_1px_2px_var(--shadow-color)]',
         stretch && 'flex w-full',
         className,
       )}
@@ -76,7 +78,7 @@ export function Segmented<T extends string>({
         <span
           aria-hidden
           className={cn(
-            'absolute inset-y-[3px] left-0 -z-10 rounded-full bg-card shadow-float dark:bg-foreground/15',
+            'key absolute inset-y-[3px] left-0 -z-10 bg-secondary',
             animate && 'transition-[transform,width] duration-[380ms] ease-spring',
           )}
           style={{ width: thumb.width, transform: `translateX(${thumb.left}px)` }}
@@ -98,8 +100,8 @@ export function Segmented<T extends string>({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring/50',
-              size === 'sm' ? 'h-6 px-3 text-xs' : 'h-8 px-4 text-sm',
+              'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] font-mono text-[12px] font-medium tracking-[0.05em] uppercase outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring/50',
+              size === 'sm' ? 'h-6 px-3' : 'h-8 px-4',
               stretch && 'flex-1',
               active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
             )}

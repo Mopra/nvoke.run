@@ -3,14 +3,15 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex h-[18px] w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-2xs font-medium [&>svg]:size-3',
+  // A printed tag: a small keycap without the travel.
+  'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] px-2 font-mono text-[11px] font-medium tracking-[0.08em] uppercase shadow-[0_1px_0_var(--glass-edge)] [&>svg]:size-3',
   {
     variants: {
       variant: {
-        default: 'bg-primary/12 text-primary dark:bg-primary/25 dark:text-foreground',
-        secondary: 'bg-foreground/[0.06] text-muted-foreground',
-        destructive: 'bg-destructive/12 text-destructive',
-        outline: 'border text-foreground/80',
+        default: 'bg-primary text-primary-foreground',
+        secondary: 'bg-secondary text-secondary-foreground',
+        destructive: 'bg-destructive text-destructive-foreground',
+        outline: 'bg-foreground text-background',
       },
     },
     defaultVariants: { variant: 'secondary' },
