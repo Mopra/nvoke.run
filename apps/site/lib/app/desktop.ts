@@ -33,3 +33,11 @@ export {
 } from '../../../desktop/src/renderer/src/lib/format';
 export { countries, countryName, matchCountries, type Country } from '../../../desktop/src/renderer/src/lib/countries';
 export { dismissExportNotice, shouldShowExportNotice } from '../../../desktop/src/renderer/src/lib/export-notice';
+export {
+  emailsLeft,
+  inboxChecking,
+  inboxCost,
+  INBOX_FOLLOW_MS,
+  inboxPollMs,
+  SHARED_INBOXES,
+} from '../../../desktop/src/renderer/src/lib/people';

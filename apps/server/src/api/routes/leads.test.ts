@@ -108,14 +108,21 @@ describe('lead routes', () => {
     }
   });
 
-  it('refuses web searches while Brave is paused, and nothing else', async () => {
-    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes')`;
+  it('refuses web searches while Brave and the free search are paused, and nothing else', async () => {
+    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes'), ('free_search', 'mwmbl refused us (429)', now() + interval '5 minutes')`;
     const web = await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } });
     expect(web.statusCode).toBe(503);
     expect(web.json()).toEqual({ error: 'source_unavailable' });
     expect((await createSearch('alice')).statusCode).toBe(201);
     await db.sql`update source_pauses set until = now() - interval '1 second'`;
     expect((await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } })).statusCode).toBe(201);
+  });
+
+  it('takes web searches while Brave is paused when the free search can answer, until it is paused too', async () => {
+    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes')`;
+    expect((await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } })).statusCode).toBe(201);
+    await db.sql`insert into source_pauses (source, reason, until) values ('free_search', 'mwmbl refused us (429)', now() + interval '5 minutes')`;
+    expect((await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' } })).statusCode).toBe(503);
   });
 
   it('sizes a domains search by its list, cut by a smaller limit', async () => {
@@ -127,8 +134,8 @@ describe('lead routes', () => {
     expect((await createSearch('alice', { kind: 'domains', params: { items: [] } })).statusCode).toBe(400);
   });
 
-  it('refuses a list with names while Brave is paused, but not a list of only domains', async () => {
-    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes')`;
+  it('refuses a list with names while Brave and the free search are paused, but not a list of only domains', async () => {
+    await db.sql`insert into source_pauses (source, reason, until) values ('brave', 'limit', now() + interval '5 minutes'), ('free_search', 'mwmbl refused us (429)', now() + interval '5 minutes')`;
     const names = await createSearch('alice', { kind: 'domains', params: { items: ['acme.com', 'Pleo'] } });
     expect(names.statusCode).toBe(503);
     const domains = await createSearch('alice', { kind: 'domains', params: { items: ['acme.com', 'https://linear.app'] } });
@@ -233,6 +240,93 @@ describe('lead routes', () => {
     const refused = await patch(local.id, { ongoing: true });
     expect(refused.statusCode).toBe(400);
     expect(refused.json()).toEqual({ error: 'ongoing_not_supported' });
+  });
+
+  it('checks shared inboxes when asked, up front or later, for any kind', async () => {
+    const patch = (id: string, payload: unknown, user = 'alice') =>
+      app.inject({ method: 'PATCH', url: `/v1/searches/${id}`, headers: as(user), payload: payload as object });
+    const upFront = Search.parse((await createSearch('alice', { kind: 'web', params: { keyword: 'dentists' }, checkInboxes: true })).json());
+    expect(upFront.checkInboxes).toBe(true);
+
+    const local = Search.parse((await createSearch('alice')).json());
+    expect(local.checkInboxes).toBe(false);
+    const companyId = await seedCompany(local.id, 'alice', 'Acme', 'acme.dk', [
+      ['info@acme.dk', 'generic', null],
+      ['sales@acme.dk', 'generic', null],
+      ['jens@acme.dk', 'personal', null],
+      ['hello@acme.dk', 'generic', 'valid'],
+    ]);
+    await db.sql`update emails set skipped = 'role_inbox' where company_id = ${companyId} and kind = 'generic' and verification is null`;
+    await db.sql`update emails set skipped = 'unnamed' where address = 'jens@acme.dk'`;
+    // sales@ already has a check waiting: no second one.
+    const [sales] = await db.sql<{ id: string }[]>`select id from emails where address = 'sales@acme.dk'`;
+    await db.sql`insert into jobs (type, payload, search_id) values ('verify', ${db.sql.json({ emailId: sales!.id })}, ${local.id})`;
+    await db.sql`delete from jobs where type = 'find'`;
+    // A company with a valid person: its skipped inbox stays out, the policy would skip it again.
+    const beta = await seedCompany(local.id, 'alice', 'Beta', 'beta.dk', [
+      ['info@beta.dk', 'generic', null],
+      ['ole@beta.dk', 'personal', 'valid'],
+    ]);
+    await db.sql`update emails set skipped = 'role_inbox' where address = 'info@beta.dk'`;
+
+    const before = Search.parse((await app.inject({ method: 'GET', url: `/v1/searches/${local.id}`, headers: as('alice') })).json());
+    expect(before).toMatchObject({ inboxesSkipped: 2, inboxesPending: 0 });
+    const listed = CompaniesPage.parse((await app.inject({ method: 'GET', url: `/v1/searches/${local.id}/companies`, headers: as('alice') })).json());
+    expect(Object.fromEntries(listed.companies.map((c) => [c.domain, [c.inboxesSkipped, c.inboxesPending]]))).toEqual({
+      'acme.dk': [2, 0],
+      'beta.dk': [0, 0],
+    });
+
+    const on = await patch(local.id, { checkInboxes: true });
+    expect(on.statusCode).toBe(200);
+    expect(Search.parse(on.json())).toMatchObject({ id: local.id, checkInboxes: true, ongoing: false, inboxesSkipped: 0, inboxesPending: 2 });
+    expect((await db.sql`select skipped from emails where company_id = ${beta} and kind = 'generic'`)[0]).toEqual({ skipped: 'role_inbox' });
+    const emails = await db.sql<{ address: string; skipped: string | null }[]>`
+      select address, skipped from emails where company_id = ${companyId} order by address`;
+    expect(emails).toEqual([
+      { address: 'hello@acme.dk', skipped: null },
+      { address: 'info@acme.dk', skipped: null },
+      { address: 'jens@acme.dk', skipped: 'unnamed' },
+      { address: 'sales@acme.dk', skipped: null },
+    ]);
+    const jobs = await db.sql<{ address: string; priority: number }[]>`
+      select e.address, j.priority from jobs j join emails e on e.id::text = j.payload->>'emailId'
+      where j.type = 'verify' order by e.address`;
+    expect(jobs).toEqual([
+      { address: 'info@acme.dk', priority: -10 },
+      { address: 'sales@acme.dk', priority: 0 },
+    ]);
+
+    // Off stops future checks only.
+    expect(Search.parse((await patch(local.id, { checkInboxes: false })).json())).toMatchObject({ checkInboxes: false });
+    const [still] = await db.sql<{ n: number }[]>`select count(*)::int as n from jobs where type = 'verify'`;
+    expect(still?.n).toBe(2);
+
+    // An unchecked inbox whose check got lost is queued again by switching on once more.
+    await db.sql`delete from jobs where type = 'verify'`;
+    await patch(local.id, { checkInboxes: true });
+    const [again] = await db.sql<{ n: number }[]>`select count(*)::int as n from jobs where type = 'verify' and priority = -10`;
+    expect(again?.n).toBe(2);
+
+    // Refused on a canceled search and once the allowance is used up.
+    const canceled = Search.parse((await createSearch('alice')).json());
+    await db.sql`update searches set status = 'canceled' where id = ${canceled.id}`;
+    expect((await patch(canceled.id, { checkInboxes: true })).json()).toEqual({ error: 'search_canceled' });
+    expect((await patch(canceled.id, { checkInboxes: false })).statusCode).toBe(200);
+    await db.sql`insert into usage (clerk_user_id, period, emails_verified) values ('alice', ${new Date().toISOString().slice(0, 7)}, 50)`;
+    const broke = await patch(local.id, { checkInboxes: true });
+    expect(broke.statusCode).toBe(403);
+    expect(broke.json()).toMatchObject({ error: 'quota_exceeded' });
+    expect((await patch('00000000-0000-0000-0000-000000000000', { checkInboxes: true })).statusCode).toBe(404);
+    await db.sql`delete from usage`;
+
+    // Both at once on a plain words search; ongoing on another kind changes nothing.
+    const icp = Search.parse((await createSearch('alice', { kind: 'icp', params: { description: 'Outbound agencies in Europe' } })).json());
+    expect(Search.parse((await patch(icp.id, { ongoing: true, checkInboxes: true })).json())).toMatchObject({ ongoing: true, checkInboxes: true });
+    expect((await patch(local.id, { ongoing: true, checkInboxes: true })).json()).toEqual({ error: 'ongoing_not_supported' });
+    expect((await app.inject({ method: 'GET', url: `/v1/searches/${local.id}`, headers: as('alice') })).json()).toMatchObject({ checkInboxes: true, ongoing: false });
+    expect((await patch(local.id, { checkInboxes: 'yes' })).statusCode).toBe(400);
+    expect((await patch(local.id, { checkInboxes: true }, 'mallory')).statusCode).toBe(404);
   });
 
   it('deletes a search with its companies, emails and jobs', async () => {

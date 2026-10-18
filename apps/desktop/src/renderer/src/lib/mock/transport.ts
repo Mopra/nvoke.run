@@ -51,6 +51,8 @@ import { generateCompany, mockOpener, mockSiteProfile, sourceYield, type MockCom
 const QUEUE_MS = 1500;
 /** How long Claude takes over one opener, before the stagger across a batch. */
 const OPENER_MS = 1800;
+/** A shared inbox check settles this long after the switch, staggered per company. */
+const INBOX_MS = 2500;
 /** How long a mock site profile build takes, long enough to show the phases. */
 const SITE_PROFILE_MS = 5200;
 /** The built profile survives a reload in dev, like the server keeps it. */
@@ -87,6 +89,10 @@ interface SearchRecord {
   runAt: number;
   /** Plain words searches keep finding new companies after they end, while on. */
   ongoing?: boolean;
+  /** Shared inboxes are checked too. Off by default, like the server: they stay hidden. */
+  checkInboxes?: boolean;
+  /** When the shared inbox switch went on after the search had run, so their checks settle from then. */
+  inboxesAt?: number;
 }
 
 interface RunRecord {
@@ -197,17 +203,41 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         crawlStatus: crawled ? s.crawlOutcome : 'pending',
         crawledAt: crawled ? stamp : null,
         localCrawl: crawled ? s.localCrawl : null,
-        emails: crawled
-          ? s.emails.map((e, k) => ({
-              ...e,
-              verification: verified ? s.verifications[k]! : null,
-              checkedAt: verified ? stamp : null,
-            }))
-          : [],
+        ...(crawled ? emailsOf(rec, s, i, verified, stamp) : { emails: [], inboxesSkipped: 0, inboxesPending: 0 }),
         opener: openerOf(rec, i),
       });
     }
     return out;
+  }
+
+  /**
+   * A crawled company's emails as the server lists them, with its shared
+   * inbox counts. Shared inboxes are skipped unless the search checks them
+   * (counted where no personal address is valid, like the server); switched
+   * on later, each stays hidden until it settles a moment after the switch,
+   * staggered like a queue draining.
+   */
+  function emailsOf(
+    rec: SearchRecord,
+    seed: MockCompanySeed,
+    index: number,
+    verified: boolean,
+    stamp: string,
+  ): Pick<Company, 'emails' | 'inboxesSkipped' | 'inboxesPending'> {
+    const emails: Company['emails'] = [];
+    let inboxes = 0;
+    let pending = 0;
+    // A valid personal address makes the inboxes unnecessary: the policy leaves them out either way.
+    const personValid = seed.emails.some((e, k) => e.kind === 'personal' && verified && seed.verifications[k] === 'valid');
+    seed.emails.forEach((e, k) => {
+      const inbox = e.kind === 'generic' && !e.person;
+      const settled = inbox && rec.inboxesAt !== undefined ? now() >= rec.inboxesAt + INBOX_MS + (index % 10) * 300 : verified;
+      if (inbox && personValid) return;
+      if (inbox && !rec.checkInboxes) inboxes += 1;
+      else if (inbox && !settled) pending += 1;
+      else emails.push({ ...e, verification: settled ? seed.verifications[k]! : null, checkedAt: settled ? stamp : null });
+    });
+    return { emails, inboxesSkipped: inboxes, inboxesPending: pending };
   }
 
   /** Queued for a moment after it was asked for, then drafted. Staggered, like batches finishing. */
@@ -291,6 +321,9 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       startedAt: iso(p.startedAt),
       finishedAt: iso(p.finishedAt),
       ...(rec.input.kind === 'icp' ? { stage: stage?.stage ?? null, stageNote: stage?.stageNote ?? null, ongoing: rec.ongoing ?? false } : {}),
+      checkInboxes: rec.checkInboxes ?? false,
+      inboxesSkipped: companies.reduce((n, c) => n + (c.inboxesSkipped ?? 0), 0),
+      inboxesPending: companies.reduce((n, c) => n + (c.inboxesPending ?? 0), 0),
     } as Search;
     if (!rec.dropRun) return search;
     const { runs: _runs, ...rest } = search as Search & { runs?: unknown };
@@ -370,7 +403,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       frozenAt: t0 - 2 * day + QUEUE_MS + 21000,
       terminal: { status: 'failed', error: 'quota_exceeded' },
     });
-    add({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 100 }, t0 - day - 3 * 60 * min);
+    // A local search that asked for shared inboxes: a clinic's front desk is often the only address.
+    add({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 100 }, t0 - day - 3 * 60 * min, { checkInboxes: true });
     add(
       {
         kind: 'domains',
@@ -535,7 +569,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       if (method === 'POST') {
         const input = validInput(body);
         if (!input) return fail(400, 'invalid_request');
-        return json(201, toSearch(add(input, now())));
+        return json(201, toSearch(add(input, now(), { checkInboxes: (body as { checkInboxes?: unknown }).checkInboxes === true })));
       }
     }
 
@@ -546,8 +580,11 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (parts.length === 3 && method === 'PATCH') {
       const req = UpdateSearchRequest.safeParse(body);
       if (!req.success) return fail(400, 'invalid_request');
-      if (rec.input.kind !== 'icp' || rec.dropRun) return fail(400, 'not_ongoing');
-      rec.ongoing = req.data.ongoing;
+      const { ongoing, checkInboxes } = req.data;
+      if (ongoing !== undefined && (rec.input.kind !== 'icp' || rec.dropRun)) return fail(400, 'not_ongoing');
+      if (ongoing !== undefined) rec.ongoing = ongoing;
+      if (checkInboxes === true && !rec.checkInboxes) rec.inboxesAt = now();
+      if (checkInboxes !== undefined) rec.checkInboxes = checkInboxes;
       return json(200, toSearch(rec));
     }
     if (parts.length === 3 && method === 'DELETE') {

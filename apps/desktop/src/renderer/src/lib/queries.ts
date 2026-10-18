@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClie
 import { toast } from 'sonner';
 import { api, ApiError } from './api';
 import { isActive } from './format';
+import { inboxPollMs } from './people';
 import type { ApiKey, CreateWebhookRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
 import type { CompaniesPage, CompaniesQuery, DraftOpenersInput, Drop,DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
@@ -285,6 +286,55 @@ export function useUpdateSearch() {
     },
     onSuccess: put,
   });
+}
+
+/** The shared inbox switch's mutation key. */
+export const CHECK_INBOXES = ['searches', 'check-inboxes'] as const;
+
+/**
+ * Switches on checking a search's shared inboxes (`PATCH /v1/searches/:id
+ * { checkInboxes: true }`). The server queues the ones it skipped; the
+ * screen follows them with useFollowInboxChecks.
+ */
+export function useCheckInboxes() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: CHECK_INBOXES,
+    mutationFn: ({ id }: { id: string }) => api.updateSearch(id, { checkInboxes: true }),
+    onSuccess: async (search) => {
+      client.setQueryData(keys.search(search.id), search);
+      client.setQueryData<Search[]>(keys.searches, (list) => list?.map((s) => (s.id === search.id ? search : s)));
+      await reloadCompanies(client, search.id);
+    },
+  });
+}
+
+/**
+ * Re-reads an ended search and its companies while the shared inbox checks
+ * it asked for at `since` settle (inboxPollMs: fast at first, then slower).
+ * The screen passes null once none is pending or the follow ran out.
+ */
+export function useFollowInboxChecks(id: string, since: number | null, live: boolean): void {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (since === null || live) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = (): void => {
+      timer = setTimeout(() => {
+        // The counters move too: a valid inbox counts as a verified email, and inboxesPending says when to stop.
+        void client.invalidateQueries({ queryKey: keys.search(id), exact: true });
+        void reloadCompanies(client, id).finally(() => {
+          if (!stopped) tick();
+        });
+      }, inboxPollMs(since, Date.now()));
+    };
+    tick();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [id, since, live, client]);
 }
 
 /** True while an ongoing switch for this search is on its way, from any screen. */

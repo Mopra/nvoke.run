@@ -56,7 +56,7 @@ function Who({ row }: { row: PersonRow }) {
     return (
       <div className="min-w-0 leading-5">
         <div className="text-[14px] text-muted-foreground">{row.fallback ? 'Shared inbox' : 'No name on the site'}</div>
-        {row.fallback && <div className="text-xs text-muted-foreground/75">Nobody named at this company</div>}
+        {row.fallback && <div className="text-xs text-muted-foreground/75">No named person found yet</div>}
       </div>
     );
   }

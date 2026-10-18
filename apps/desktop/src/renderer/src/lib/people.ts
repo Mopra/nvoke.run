@@ -1,5 +1,6 @@
 import { isDecisionMaker, type Seniority } from '@nvoke/shared';
-import type { Company, Email } from './types';
+import { formatNumber } from './format';
+import type { Company, Email, Me } from './types';
 
 /**
  * People first: how the results read a company's emails. Pure, so the site
@@ -9,6 +10,58 @@ import type { Company, Email } from './types';
  * Role inboxes (info@, sales@) only show for a company with no person,
  * unless the user asks for all of them.
  */
+
+/**
+ * Shared inboxes (info@, sales@) are not checked unless the search asks
+ * (`Search.checkInboxes`, `PATCH /v1/searches/:id`). The same words on the
+ * desktop and the web app.
+ */
+export const SHARED_INBOXES = {
+  pill: 'Shared inboxes',
+  label: 'Shared inbox',
+  title: 'Shared inboxes aren’t checked',
+  body: 'info@ and sales@ don’t reach a person, so nvoke skips them unless you ask.',
+  action: 'Check shared inboxes for this search',
+  short: 'Check shared inboxes',
+  failed: 'Couldn’t switch on shared inboxes',
+  noPerson: 'No named person found yet',
+  hintOn: 'Showing info@ and sales@ next to people.',
+  hintOff: 'Shown only where a company has no person. Turn on to see them all.',
+} as const;
+
+/** Verified emails left this month, or null before the account is known. */
+export function emailsLeft(me: Pick<Me, 'usage'> | undefined): number | null {
+  return me ? Math.max(0, me.usage.emailsLimit - me.usage.emailsVerified) : null;
+}
+
+const inboxes = (n: number): string => `${formatNumber(n)} shared ${n === 1 ? 'inbox' : 'inboxes'}`;
+
+/**
+ * What switching shared inboxes on costs, for the card: how many it checks
+ * (`Search.inboxesSkipped`), that only valid ones count, how many verified
+ * emails are left, and a warning when the checks could use more than that.
+ */
+export function inboxCost(skipped: number | null | undefined, left: number | null): string {
+  if (skipped === 0) return 'None skipped so far. Switch it on and nvoke checks the ones it finds next.';
+  const what = skipped == null ? 'Only valid ones' : `${inboxes(skipped)} to check. Only valid ones`;
+  const allowance = left === null ? 'count against your allowance.' : `count against your allowance: ${formatNumber(left)} verified emails left this month.`;
+  const over = skipped != null && left !== null && skipped > left ? ' That could be more than you have left, and checks stop when it runs out.' : '';
+  return `${what} ${allowance}${over}`;
+}
+
+/** The line over the dock while the checks settle. */
+export function inboxChecking(pending: number | null | undefined): string {
+  return `Checking ${pending ? inboxes(pending) : 'shared inboxes'}. Valid ones land here as they settle.`;
+}
+
+/**
+ * How a screen follows the checks it just asked for: every 3 seconds for 2
+ * minutes, then every 15, until none is pending, for 30 minutes at most.
+ */
+export const INBOX_FOLLOW_MS = 30 * 60_000;
+export function inboxPollMs(since: number, now: number): number {
+  return now - since < 2 * 60_000 ? 3000 : 15_000;
+}
 
 export function isPersonEmail(email: Email): boolean {
   return email.person != null || email.kind === 'personal';

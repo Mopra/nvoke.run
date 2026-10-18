@@ -607,7 +607,20 @@ async function decideCheck(
     const now = deps.now?.() ?? new Date();
     const since = job.waited.since ?? now.toISOString();
     const force = job.waited.defers >= MAX_CHECK_DEFERS || now.getTime() - new Date(since).getTime() >= MAX_CHECK_WAIT_MS;
-    const decision = checkPolicy(self, around.others, { ...around.ctx, force });
+    let decision = checkPolicy(self, around.others, { ...around.ctx, force });
+    if (decision === 'skip' && checkTier(self) === 'role_inbox' && !around.ctx.checkInboxes) {
+      // The shared inbox switch may have gone on since it was read: the write reads it again, and decides afresh when it did.
+      const [kept] = await tx`
+        update emails set skipped = 'role_inbox' where id = ${emailId}
+          and not coalesce((select check_inboxes from searches where id = ${self.search_id}), false)
+        returning id
+      `;
+      if (kept) {
+        await leadSettled(tx, self.company_id);
+        return decision;
+      }
+      decision = checkPolicy(self, around.others, { ...around.ctx, checkInboxes: true, force });
+    }
     if (decision === 'skip') {
       await tx`update emails set skipped = ${checkTier(self)} where id = ${emailId}`;
       await leadSettled(tx, self.company_id);

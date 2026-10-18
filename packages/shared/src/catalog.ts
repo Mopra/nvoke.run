@@ -158,7 +158,7 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Searches',
     summary: 'Start a search',
     description:
-      'Queues a search and returns it at once with status `queued`. Our servers find the companies, read their websites and check every address. Poll `GET /v1/searches/{id}` until the status is `done`, `failed` or `canceled`. `limit` caps the companies looked at (default 100, at most 1,000). Kind `domains` takes a list you already have in `params.items`: domains, URLs, email addresses (for their domain) or company names, up to 1,000. Domains are read as given; each name is looked up on the web and its website kept. Its `limit` defaults to the length of the list. Kind `icp` takes who you sell to in plain words (`params.description`, optionally `product`, `countries` and `locations`): nvoke plans the queries, reads agency directories and list pages, keeps the companies that fit and reports what it does in `stage` and `stageNote`.',
+      'Queues a search and returns it at once with status `queued`. Our servers find the companies, read their websites and check every address. Poll `GET /v1/searches/{id}` until the status is `done`, `failed` or `canceled`. `limit` caps the companies looked at (default 100, at most 1,000). Kind `domains` takes a list you already have in `params.items`: domains, URLs, email addresses (for their domain) or company names, up to 1,000. Domains are read as given; each name is looked up on the web and its website kept. Its `limit` defaults to the length of the list. Kind `icp` takes who you sell to in plain words (`params.description`, optionally `product`, `countries` and `locations`): nvoke plans the queries, reads agency directories and list pages, keeps the companies that fit and reports what it does in `stage` and `stageNote`. Shared inboxes (info@, sales@) are found but not checked: they reach no person, so they stay hidden and free. Send `checkInboxes: true` to check them too, or switch it on later with `PATCH /v1/searches/{id}`.',
     auth: 'key',
     body: CreateSearchRequest,
     status: 201,
@@ -213,16 +213,16 @@ export const ENDPOINTS: Endpoint[] = [
     method: 'PATCH',
     path: '/v1/searches/:id',
     group: 'Searches',
-    summary: 'Keep a search going',
+    summary: 'Keep a search going, check shared inboxes',
     description:
-      'Switches `ongoing` on or off for a Describe your customer (`icp`) search. An ongoing search runs a fresh round once a day, at the time of day it was created, whenever it is not running: new niches, countries, cities and list pages it has not searched yet, so new leads arrive over days. It pauses while the month’s verified emails are used up and resumes when they renew; `stageNote` says what it does. Off by default; canceling a search switches it off. Every `icp` search also pushes on by itself when it comes up short, up to 3 fresh rounds in 24 hours, ongoing or not. Other kinds answer 400 `ongoing_not_supported`.',
+      'Send `ongoing`, `checkInboxes` or both. `checkInboxes` works on every kind: on checks the shared inboxes (info@, sales@) the search left unchecked at companies with no valid personal address (`inboxesSkipped` says how many), low priority after the named people, and shows the valid ones as they settle (`inboxesPending` counts what is still to settle). Only valid ones count against your allowance, like any verified email. A canceled search answers 400 `search_canceled` and a used up allowance 403 `quota_exceeded`. Off stops checking new ones and keeps what was checked. `ongoing` switches daily rounds on or off for a Describe your customer (`icp`) search. An ongoing search runs a fresh round once a day, at the time of day it was created, whenever it is not running: new niches, countries, cities and list pages it has not searched yet, so new leads arrive over days. It pauses while the month’s verified emails are used up and resumes when they renew; `stageNote` says what it does. Off by default; canceling a search switches it off. Every `icp` search also pushes on by itself when it comes up short, up to 3 fresh rounds in 24 hours, ongoing or not. Other kinds answer 400 `ongoing_not_supported`.',
     auth: 'key',
     params: SearchIdParams,
     body: UpdateSearchRequest,
     status: 200,
     response: Search,
-    errors: ['invalid_request', 'not_found', 'ongoing_not_supported'],
-    example: { ongoing: true },
+    errors: ['invalid_request', 'not_found', 'ongoing_not_supported', 'search_canceled', 'quota_exceeded'],
+    example: { checkInboxes: true },
   },
   {
     id: 'cancelSearch',
@@ -584,6 +584,7 @@ export const ERROR_CODES: Record<string, string> = {
   search_running: 'The search is still running. Wait for it to finish, or cancel it, then search again.',
   kind_mismatch: 'A search runs again with its own kind. Start a new search for another kind.',
   ongoing_not_supported: 'Only Describe your customer (`icp`) searches can be ongoing.',
+  search_canceled: 'The search was canceled, so it checks nothing more. Search again into it first.',
   not_claimed: 'The company is not claimed for a local crawl right now. Claim it again with `POST /v1/local-crawl/claim`.',
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
   account_exists: 'An account with this email exists. Ask the human for an API key.',
@@ -648,6 +649,10 @@ export const MCP_TOOLS: McpTool[] = [
       locations: z.array(z.string()).max(30).optional().describe('icp: cities or regions to favour, for customers that are local businesses.'),
       days: z.number().int().min(1).max(30).optional().describe('launches: how many days back, default 7.'),
       limit: z.number().int().min(1).max(1000).optional().describe('Companies to look at, default 100. domains: the length of the list.'),
+      checkInboxes: z
+        .boolean()
+        .optional()
+        .describe('Check shared inboxes (info@, sales@) too. Off by default: they reach no person. Only valid ones count against your allowance.'),
     }),
     readOnly: false,
     destructive: false,
@@ -747,6 +752,15 @@ export const MCP_TOOLS: McpTool[] = [
     description:
       'Switches ongoing on or off for a Describe your customer (icp) search. Ongoing searches run a fresh round every day, so new leads arrive over days; they pause while the month’s allowance is used up. Only icp searches.',
     input: z.object({ searchId, ongoing: z.boolean().describe('true keeps it going every day, false stops that.') }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'set_check_inboxes',
+    title: 'Check shared inboxes',
+    description:
+      'Switches checking of shared inboxes (info@, sales@) on or off for a search of any kind. Off by default: they reach no person. On checks the ones the search left unchecked (inboxesSkipped on the search says how many), after the named people; only valid ones count against the allowance. Refused on a canceled search or a used up allowance. Off stops new checks and keeps what was checked.',
+    input: z.object({ searchId, checkInboxes: z.boolean().describe('true checks them, false stops new checks.') }),
     readOnly: false,
     destructive: false,
   },

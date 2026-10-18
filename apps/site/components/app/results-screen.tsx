@@ -54,10 +54,15 @@ import {
   duration,
   errorMessage,
   formatNumber,
+  emailsLeft,
+  inboxChecking,
+  inboxCost,
+  INBOX_FOLLOW_MS,
   isActive,
   relativeTime,
   searchSubtitle,
   searchTitle,
+  SHARED_INBOXES,
   shouldShowExportNotice,
 } from '@/lib/app/desktop';
 import {
@@ -79,6 +84,8 @@ import {
   useCompanies,
   useCreateSearch,
   useDraftOpeners,
+  useFollowInboxChecks,
+  useMe,
   useRefreshWhenFinished,
   useSearch,
   useUpdateSearch,
@@ -295,7 +302,26 @@ function EmailLine({ email, checking }: { email: Email; checking: boolean }) {
   );
 }
 
-function EmailsCell({ company, live }: { company: Company; live: boolean }) {
+/** A read company with no person on the list, and the way to its shared inboxes when they are off. */
+function NoPersonLine({ company, onCheckInboxes }: { company: Company; onCheckInboxes: (() => void) | null }) {
+  return (
+    <span data-no-person className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs leading-5 text-muted-foreground">
+      {SHARED_INBOXES.noPerson}
+      {onCheckInboxes && (
+        <button
+          type="button"
+          onClick={onCheckInboxes}
+          aria-label={`${SHARED_INBOXES.short} for this search, ${company.name} included`}
+          className="rounded-sm font-medium text-foreground/75 underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {SHARED_INBOXES.short}
+        </button>
+      )}
+    </span>
+  );
+}
+
+function EmailsCell({ company, live, onCheckInboxes }: { company: Company; live: boolean; onCheckInboxes: (() => void) | null }) {
   const quiet = 'text-xs leading-5 text-muted-foreground';
   if (company.crawlStatus === 'pending') {
     return (
@@ -318,6 +344,11 @@ function EmailsCell({ company, live }: { company: Company; live: boolean }) {
         can read it from your computer
       </span>
     );
+  }
+  // Read, nothing named, but a shared inbox skipped or still checking: it is there, just not shown.
+  const skipped = company.inboxesSkipped ?? 0;
+  if (company.emails.length === 0 && skipped + (company.inboxesPending ?? 0) > 0) {
+    return <NoPersonLine company={company} onCheckInboxes={skipped > 0 ? onCheckInboxes : null} />;
   }
   if (company.emails.length === 0) return <span className={quiet}>No public email</span>;
   return (
@@ -381,10 +412,13 @@ function CompanyRow({
   company,
   live,
   onDraftOpener,
+  onCheckInboxes,
 }: {
   company: Company;
   live: boolean;
   onDraftOpener: (company: Company) => void;
+  /** Switches on the search's shared inboxes; null when they are on already. */
+  onCheckInboxes: (() => void) | null;
 }) {
   const source = SOURCE_LABEL[company.source] ?? company.source;
   const opener = company.opener;
@@ -409,7 +443,7 @@ function CompanyRow({
           {company.domain}
         </a>
       </div>
-      <EmailsCell company={company} live={live} />
+      <EmailsCell company={company} live={live} onCheckInboxes={onCheckInboxes} />
       <div className="min-w-0 text-xs leading-5 text-muted-foreground">
         <div className="truncate" title={company.location ?? source}>
           {company.location ?? source}
@@ -539,21 +573,22 @@ export function ResultsScreen({ id }: { id: string }) {
   }
   const ongoing = Boolean(search?.ongoing);
   // The filters that narrow by address run on the server, so the list, its total and the pages stay small.
-  const companies = useCompanies(
-    id,
-    {
-      q: q || undefined,
-      verification: peopleFilters.verifiedOnly ? 'valid' : undefined,
-      decisionMakers: peopleFilters.decisionMakersOnly || undefined,
-    },
-    live,
-    ongoing,
-  );
+  const listFilters = {
+    q: q || undefined,
+    verification: peopleFilters.verifiedOnly ? ('valid' as const) : undefined,
+    decisionMakers: peopleFilters.decisionMakersOnly || undefined,
+  };
+  const companies = useCompanies(id, listFilters, live, ongoing);
   useRefreshWhenFinished(live, id);
   const cancel = useCancelSearch();
   const create = useCreateSearch();
   const draft = useDraftOpeners(id);
   const update = useUpdateSearch();
+  const left = emailsLeft(useMe().data);
+  // When the screen asked for the shared inbox checks it follows, until none is pending or INBOX_FOLLOW_MS passed.
+  const [inboxesSince, setInboxesSince] = useState<number | null>(null);
+  const inboxesFollowing = inboxesSince !== null && Boolean(search?.checkInboxes) && search?.inboxesPending !== 0;
+  useFollowInboxChecks(id, listFilters, inboxesFollowing && !live ? inboxesSince : null);
   const sentinel = useRef<HTMLDivElement>(null);
 
   const loaded = companies.data?.pages.flatMap((p) => p.companies) ?? [];
@@ -633,6 +668,29 @@ export function ResultsScreen({ id }: { id: string }) {
     );
   }
 
+  /** Switches on the search's shared inboxes, shows them and follows their checks as they settle. */
+  function startInboxChecks(): void {
+    if (update.isPending) return;
+    update.mutate(
+      { id, patch: { checkInboxes: true } },
+      {
+        onSuccess: () => {
+          setPeopleFilters((f) => ({ ...f, showAll: true }));
+          setInboxesSince(Date.now());
+          void companies.refetch();
+        },
+        onError: (err) => toast.error(SHARED_INBOXES.failed, { description: err.message }),
+      },
+    );
+  }
+
+  // The follow ends after INBOX_FOLLOW_MS even when some check is still waiting.
+  useEffect(() => {
+    if (inboxesSince === null) return;
+    const t = setTimeout(() => setInboxesSince(null), Math.max(0, inboxesSince + INBOX_FOLLOW_MS - Date.now()));
+    return () => clearTimeout(t);
+  }, [inboxesSince]);
+
   function doCancel(): void {
     cancel.mutate(id, {
       onSuccess: () => toast('Search stopped', { description: 'Everything found so far is kept.' }),
@@ -643,7 +701,12 @@ export function ResultsScreen({ id }: { id: string }) {
   /** Starts a fresh search with the same parameters and opens it. */
   function runAgain(): void {
     if (!search || create.isPending) return;
-    const input = { kind: search.kind, params: search.params, limit: search.limit } as CreateSearchInput;
+    const input = {
+      kind: search.kind,
+      params: search.params,
+      limit: search.limit,
+      ...(search.checkInboxes ? { checkInboxes: true } : {}),
+    } as CreateSearchInput;
     create.mutate(input, {
       onSuccess: (next) => {
         toast.success('Search started', { description: searchTitle(next) });
@@ -781,6 +844,7 @@ export function ResultsScreen({ id }: { id: string }) {
     ? `${relativeTime(search.createdAt)}, ${live ? 'running for' : 'took'} ${duration(search.startedAt, search.finishedAt)}`
     : relativeTime(search.createdAt);
 
+  const inboxesOff = !search.checkInboxes;
   const more = hasNextPage ? '+' : '';
   const dockCount =
     view === 'people'
@@ -828,7 +892,7 @@ export function ResultsScreen({ id }: { id: string }) {
           </TooltipTrigger>
           <TooltipContent className="max-w-80 rounded-2xl px-3 py-2 leading-relaxed">
             People and addresses from each company’s own website, or built from the domain’s address pattern and accepted by
-            its mail server. Shared inboxes (info@, hello@) show only where nobody is named. Many EU countries require prior
+            its mail server. Shared inboxes (info@, hello@) are skipped unless you ask for them. Many EU countries require prior
             consent for marketing email, even to businesses. Results are deleted 12 months after the search.
           </TooltipContent>
         </Tooltip>
@@ -903,14 +967,22 @@ export function ResultsScreen({ id }: { id: string }) {
                   <PersonRowView
                     key={row.key}
                     row={row}
-                    live={live}
+                    live={live || inboxesFollowing}
                     onOpenCompany={(domain) => {
                       setView('companies');
                       setText(domain);
                     }}
                   />
                 ))
-              : rows.map((company) => <CompanyRow key={company.id} company={company} live={live} onDraftOpener={draftOpener} />)}
+              : rows.map((company) => (
+                  <CompanyRow
+                    key={company.id}
+                    company={company}
+                    live={live || inboxesFollowing}
+                    onDraftOpener={draftOpener}
+                    onCheckInboxes={inboxesOff ? startInboxChecks : null}
+                  />
+                ))}
             <div ref={sentinel} className="flex h-10 items-center justify-center">
               {isFetchingNextPage && <Loader2 className="size-4 text-muted-foreground motion-safe:animate-spin" />}
             </div>
@@ -919,7 +991,36 @@ export function ResultsScreen({ id }: { id: string }) {
       </div>
 
       {/* The dock: filters and export float over the list, in glass. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-3 sm:bottom-6">
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex flex-col items-center gap-2 px-3 sm:bottom-6">
+        {view === 'people' && peopleFilters.showAll && inboxesOff && (
+          <div
+            data-inbox-notice
+            className="glass pointer-events-auto flex w-full max-w-[640px] flex-col gap-3 rounded-[24px] py-3 pr-3 pl-5 motion-safe:animate-rise sm:flex-row sm:items-center sm:gap-4"
+          >
+            <div className="min-w-0 leading-5">
+              <div className="text-sm font-medium">{SHARED_INBOXES.title}</div>
+              <div className="text-xs text-muted-foreground">{SHARED_INBOXES.body}</div>
+              <div data-inbox-cost className="mt-1 text-xs text-foreground/80">
+                {inboxCost(search.inboxesSkipped, left)}
+              </div>
+            </div>
+            <Button size="sm" className="shrink-0 self-start sm:self-auto" onClick={startInboxChecks} disabled={update.isPending}>
+              {update.isPending ? <Loader2 className="motion-safe:animate-spin" /> : <Inbox />}
+              {SHARED_INBOXES.action}
+            </Button>
+          </div>
+        )}
+        {inboxesFollowing && (
+          <div
+            data-inbox-checking
+            role="status"
+            aria-live="polite"
+            className="glass pointer-events-auto flex min-h-9 items-center gap-2 rounded-full px-4 py-2 text-xs text-muted-foreground motion-safe:animate-rise"
+          >
+            <Loader2 className="size-3.5 shrink-0 text-primary motion-safe:animate-spin" aria-hidden />
+            {inboxChecking(search.inboxesPending)}
+          </div>
+        )}
         <div className="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-[24px] p-1.5 motion-safe:animate-rise lg:flex-nowrap lg:rounded-full">
           <div className="relative w-full lg:w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -963,13 +1064,11 @@ export function ResultsScreen({ id }: { id: string }) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Pill pressed={peopleFilters.showAll} onClick={() => setFilter('showAll')(!peopleFilters.showAll)} className="h-8">
-                  Shared inboxes
+                  {SHARED_INBOXES.pill}
                 </Pill>
               </TooltipTrigger>
               <TooltipContent>
-                {peopleFilters.showAll
-                  ? 'Showing info@ and the like at every company.'
-                  : 'Show info@ and the like at companies with people too.'}
+                {inboxesOff ? SHARED_INBOXES.title : peopleFilters.showAll ? SHARED_INBOXES.hintOn : SHARED_INBOXES.hintOff}
               </TooltipContent>
             </Tooltip>
           )}

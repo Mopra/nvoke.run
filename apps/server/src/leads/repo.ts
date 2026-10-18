@@ -44,6 +44,9 @@ interface SearchRow {
   stage?: string | null;
   stage_note?: string | null;
   ongoing?: boolean;
+  check_inboxes?: boolean;
+  inboxes_skipped?: number;
+  inboxes_pending?: number;
 }
 
 const iso = (d: Date | string | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -67,11 +70,26 @@ export function toSearch(r: SearchRow): Search {
     stage: r.stage ?? null,
     stageNote: r.stage_note ?? null,
     ongoing: r.ongoing ?? null,
+    checkInboxes: r.check_inboxes ?? null,
+    inboxesSkipped: r.inboxes_skipped ?? null,
+    inboxesPending: r.inboxes_pending ?? null,
   } as Search;
 }
 
+/**
+ * Shared inboxes left out by the switch (`skipped = 'role_inbox'`) at a
+ * company with no valid personal address: what switching it on would check,
+ * since the policy leaves the others out again at once (check-policy.ts).
+ */
+const INBOX_WOULD_CHECK = `e.skipped = 'role_inbox' and e.verification is null
+  and not exists (select 1 from emails pe where pe.company_id = e.company_id and pe.kind = 'personal' and pe.verification = 'valid')`;
+/** A shared inbox queued or waiting for its check. */
+const INBOX_PENDING = `e.kind = 'generic' and e.verification is null and e.skipped is null`;
+
 const SEARCH_COLUMNS = `id, kind, params, "limit", runs, status, error, companies_found, companies_crawled,
-  emails_found, emails_valid, created_at, started_at, finished_at, stage, stage_note, ongoing`;
+  emails_found, emails_valid, created_at, started_at, finished_at, stage, stage_note, ongoing, check_inboxes,
+  (select count(*)::int from emails e where e.search_id = searches.id and ${INBOX_WOULD_CHECK}) as inboxes_skipped,
+  (select count(*)::int from emails e where e.search_id = searches.id and ${INBOX_PENDING}) as inboxes_pending`;
 
 /** Inserts the search and its find job in one transaction. */
 export async function createSearch(
@@ -83,8 +101,9 @@ export async function createSearch(
   return sql.begin(async (tx) => {
     const run = { params: req.params, limit, foundBefore: 0, createdAt: new Date().toISOString() };
     const [row] = await tx<SearchRow[]>`
-      insert into searches (clerk_user_id, kind, params, "limit", runs)
-      values (${userId}, ${req.kind}, ${tx.json(req.params)}, ${limit}, ${tx.json([run])})
+      insert into searches (clerk_user_id, kind, params, "limit", runs, check_inboxes)
+      values (${userId}, ${req.kind}, ${tx.json(req.params)}, ${limit}, ${tx.json([run])},
+        ${req.checkInboxes === undefined ? tx`default` : req.checkInboxes})
       returning ${tx.unsafe(SEARCH_COLUMNS)}
     `;
     if (!row) throw new Error('insert into searches returned nothing');
@@ -234,23 +253,68 @@ export async function startAutoRun(
   });
 }
 
+/** Priority of a shared inbox check queued by the switch: after every named person (worker/queue.ts verifyPriority). */
+export const INBOX_CHECK_PRIORITY = -10;
+
 /**
- * Switches ongoing on or off (`PATCH /v1/searches/:id`). Only plain words
- * (`icp`) searches can be ongoing: `kind` for the others, null when the
- * search does not exist. Switching off a search paused for the allowance
- * ends the pause note.
+ * `PATCH /v1/searches/:id`: the fields sent, in one transaction. Null when
+ * the search does not exist, `kind` when ongoing is sent for a kind other
+ * than plain words (`icp`), `canceled` when checkInboxes is switched on for
+ * a canceled search (it would check nothing), and then nothing changes.
+ * The caller checks the allowance first.
+ *
+ * ongoing: switching off a search paused for the allowance ends the pause
+ * note. checkInboxes: on clears `skipped` on the role inboxes the switch
+ * left out where no personal address is valid, and queues a check at low
+ * priority for every unchecked role inbox with none on its way (those, and
+ * any a stopped run left behind), so they go after the named people and
+ * settle through the usual check policy. The search row is locked first,
+ * as the worker's check decision does (worker/pipeline.ts decideCheck), so
+ * a decision never writes a skip from a stale switch. Off only stops future
+ * checks: what was checked stays.
  */
-export async function setSearchOngoing(sql: Sql, userId: string, id: string, ongoing: boolean): Promise<Search | null | 'kind'> {
-  const [row] = await sql<SearchRow[]>`
-    update searches set
-      ongoing = ${ongoing},
-      stage = case when ${!ongoing} and stage = 'paused' then 'done' else stage end,
-      stage_note = case when ${!ongoing} and stage = 'paused' then 'Ongoing is off' else stage_note end
-    where id = ${id} and clerk_user_id = ${userId} and kind = 'icp'
-    returning ${sql.unsafe(SEARCH_COLUMNS)}
-  `;
-  if (row) return toSearch(row);
-  return (await getSearch(sql, userId, id)) ? 'kind' : null;
+export async function updateSearch(
+  sql: Sql,
+  userId: string,
+  id: string,
+  update: { ongoing?: boolean; checkInboxes?: boolean },
+): Promise<Search | null | 'kind' | 'canceled'> {
+  return sql.begin(async (tx) => {
+    const [current] = await tx<{ kind: SearchKind; status: SearchStatus }[]>`
+      select kind, status from searches where id = ${id} and clerk_user_id = ${userId} for update
+    `;
+    if (!current) return null;
+    if (update.ongoing !== undefined && current.kind !== 'icp') return 'kind';
+    if (update.checkInboxes === true && current.status === 'canceled') return 'canceled';
+    if (update.checkInboxes === true) {
+      await tx`update emails e set skipped = null where e.search_id = ${id} and ${tx.unsafe(INBOX_WOULD_CHECK)}`;
+      const open = await tx<{ id: string }[]>`
+        select e.id from emails e
+        where e.search_id = ${id} and ${tx.unsafe(INBOX_PENDING)}
+          -- A running check may be deciding on the old switch: a second one costs nothing, it finds the row settled.
+          and not exists (
+            select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status = 'queued'
+              and j.payload->>'emailId' = e.id::text
+          )
+      `;
+      await enqueue(
+        tx,
+        open.map((e) => ({ type: 'verify' as const, payload: { emailId: e.id }, searchId: id, priority: INBOX_CHECK_PRIORITY })),
+      );
+    }
+    const ongoing = update.ongoing;
+    const [row] = await tx<SearchRow[]>`
+      update searches set
+        ongoing = coalesce(${ongoing ?? null}::boolean, ongoing),
+        stage = case when ${ongoing === false} and stage = 'paused' then 'done' else stage end,
+        stage_note = case when ${ongoing === false} and stage = 'paused' then 'Ongoing is off' else stage_note end,
+        check_inboxes = coalesce(${update.checkInboxes ?? null}::boolean, check_inboxes)
+      where id = ${id}
+      returning ${tx.unsafe(SEARCH_COLUMNS)}
+    `;
+    if (!row) throw new Error('update of searches returned nothing');
+    return toSearch(row);
+  });
 }
 
 /**
@@ -320,6 +384,8 @@ interface CompanyRow extends OpenerColumns {
   /** Full microsecond precision, for the cursor. */
   created_at_text: string;
   emails: EmailJson[];
+  inboxes_skipped: number;
+  inboxes_pending: number;
 }
 
 /**
@@ -383,7 +449,9 @@ export async function listCompanies(
                'found_via', e.found_via, 'confidence', e.confidence
              ) order by ${sql.unsafe(EMAIL_ORDER)}) filter (where e.id is not null),
              '[]'::json
-           ) as emails
+           ) as emails,
+           (select count(*)::int from emails e where e.company_id = c.id and ${sql.unsafe(INBOX_WOULD_CHECK)}) as inboxes_skipped,
+           (select count(*)::int from emails e where e.company_id = c.id and ${sql.unsafe(INBOX_PENDING)}) as inboxes_pending
     from companies c
     left join emails e on e.company_id = c.id ${emailFilter(sql, query)}
     where c.search_id = ${searchId} and c.clerk_user_id = ${userId}
@@ -450,6 +518,8 @@ export async function listCompanies(
     })),
     fit: r.fit,
     opener: toOpener(r),
+    inboxesSkipped: r.inboxes_skipped,
+    inboxesPending: r.inboxes_pending,
   }));
   return {
     companies,

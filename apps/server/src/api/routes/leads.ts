@@ -39,7 +39,7 @@ import {
   getSearch,
   listCompanies,
   listSearches,
-  setSearchOngoing,
+  updateSearch,
 } from '../../leads/repo.js';
 import type { Ai } from '../../ai/client.js';
 import { queueOpeners } from '../../openers/openers.js';
@@ -132,14 +132,23 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
   });
 
   // Ongoing: a plain words search keeps finding new companies every day after it ends (leads/ongoing.ts).
+  // checkInboxes: any search checks its shared inboxes too (leads/check-policy.ts).
   app.patch('/searches/:id', async (req, reply): Promise<Search | void> => {
     const params = parse(SearchIdParams, req.params);
     if (!params.ok) return sendError(reply, 404, 'not_found');
     const body = parse(UpdateSearchRequest, req.body);
     if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
-    const result = await setSearchOngoing(opts.getSql(), req.userId!, params.data.id, body.data.ongoing);
+    const sql = opts.getSql();
+    const userId = req.userId!;
+    // Shared inbox checks spend the allowance: refused like a new search once it is used up.
+    if (body.data.checkInboxes === true && (await quotaExhausted(sql, userId))) {
+      if (!(await getSearch(sql, userId, params.data.id))) return sendError(reply, 404, 'not_found');
+      return reply.code(403).send({ error: 'quota_exceeded', ...(opts.billingUrl ? { billingUrl: opts.billingUrl } : {}) });
+    }
+    const result = await updateSearch(sql, userId, params.data.id, body.data);
     if (result === null) return sendError(reply, 404, 'not_found');
     if (result === 'kind') return sendError(reply, 400, 'ongoing_not_supported');
+    if (result === 'canceled') return sendError(reply, 400, 'search_canceled');
     return result;
   });
 

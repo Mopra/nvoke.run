@@ -112,14 +112,19 @@ export const IcpSearchParams = z.object({
 });
 export type IcpSearchParams = z.infer<typeof IcpSearchParams>;
 const limit = z.number().int().min(1).max(SEARCH_LIMIT_MAX).optional();
+/**
+ * Check the search's shared inboxes (info@, sales@) too. Off by default:
+ * they reach no person, so they stay unchecked, hidden and free.
+ */
+const checkInboxes = z.boolean().optional();
 
 export const CreateSearchRequest = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('local'), params: LocalSearchParams, limit }),
-  z.object({ kind: z.literal('web'), params: WebSearchParams, limit }),
-  z.object({ kind: z.literal('launches'), params: LaunchesSearchParams, limit }),
+  z.object({ kind: z.literal('local'), params: LocalSearchParams, limit, checkInboxes }),
+  z.object({ kind: z.literal('web'), params: WebSearchParams, limit, checkInboxes }),
+  z.object({ kind: z.literal('launches'), params: LaunchesSearchParams, limit, checkInboxes }),
   /** `limit` defaults to the number of items; a smaller one takes the first ones. */
-  z.object({ kind: z.literal('domains'), params: DomainsSearchParams, limit }),
-  z.object({ kind: z.literal('icp'), params: IcpSearchParams, limit }),
+  z.object({ kind: z.literal('domains'), params: DomainsSearchParams, limit, checkInboxes }),
+  z.object({ kind: z.literal('icp'), params: IcpSearchParams, limit, checkInboxes }),
 ]);
 export type CreateSearchRequest = z.infer<typeof CreateSearchRequest>;
 /** What a client sends: `limit` and `days` may be left out for the defaults. */
@@ -134,13 +139,18 @@ export const SearchMoreRequest = CreateSearchRequest;
 export type SearchMoreRequest = z.infer<typeof SearchMoreRequest>;
 
 /**
- * `PATCH /v1/searches/:id`. ongoing: keep finding new companies after the
- * search ends, a few a day, until it is switched off. Only plain words
- * (`icp`) searches can be ongoing.
+ * `PATCH /v1/searches/:id`, at least one field. ongoing: keep finding new
+ * companies after the search ends, a few a day, until it is switched off.
+ * Only plain words (`icp`) searches can be ongoing. checkInboxes: check the
+ * search's shared inboxes (info@, sales@) too, any kind; on queues the ones
+ * it left unchecked, off only stops future checks.
  */
-export const UpdateSearchRequest = z.object({
-  ongoing: z.boolean(),
-});
+export const UpdateSearchRequest = z
+  .object({
+    ongoing: z.boolean().optional(),
+    checkInboxes: z.boolean().optional(),
+  })
+  .refine((r) => r.ongoing !== undefined || r.checkInboxes !== undefined, { message: 'Send ongoing, checkInboxes or both.' });
 export type UpdateSearchRequest = z.infer<typeof UpdateSearchRequest>;
 
 const SearchBase = z.object({
@@ -162,6 +172,16 @@ const SearchBase = z.object({
   stageNote: z.string().nullish(),
   /** Keeps finding new companies after the first run ends. */
   ongoing: z.boolean().nullish(),
+  /** Checks shared inboxes (info@, sales@) too. Off by default. */
+  checkInboxes: z.boolean().nullish(),
+  /**
+   * Shared inboxes left unchecked because the switch is off, at companies
+   * with no valid personal address: what switching it on would check.
+   * Absent on readers that do not count them.
+   */
+  inboxesSkipped: z.number().int().nonnegative().nullish(),
+  /** Shared inboxes queued or waiting for their check. */
+  inboxesPending: z.number().int().nonnegative().nullish(),
 });
 
 /**
@@ -297,6 +317,10 @@ export const Company = z.object({
   fit: z.number().int().min(0).max(100).nullish(),
   /** Null until openers are drafted for it (`POST /v1/searches/:id/openers`). Older local copies lack it. */
   opener: Opener.nullable().default(null),
+  /** Shared inboxes left unchecked while the search's switch is off, as `Search.inboxesSkipped` counts them. */
+  inboxesSkipped: z.number().int().nonnegative().nullish(),
+  /** Shared inboxes queued or waiting for their check: hidden until it settles. */
+  inboxesPending: z.number().int().nonnegative().nullish(),
 });
 export type Company = z.infer<typeof Company>;
 
@@ -413,6 +437,7 @@ export const LeadsErrorCode = z.enum([
   'search_running',
   'kind_mismatch',
   'ongoing_not_supported',
+  'search_canceled',
   'not_claimed',
   'database_unavailable',
   'source_unavailable',

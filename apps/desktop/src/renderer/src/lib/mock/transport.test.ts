@@ -58,6 +58,33 @@ describe('mock transport', () => {
     await expect(api.updateSearch(s.id, { ongoing: true })).rejects.toMatchObject({ code: 'not_ongoing' });
   });
 
+  it('hides shared inboxes until the search checks them, then settles them', async () => {
+    const { api, advance } = setup();
+    const s = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 60 });
+    expect(s.checkInboxes).toBe(false);
+    advance(600_000);
+    const inboxes = async (): Promise<{ verification: string | null }[]> =>
+      (await api.listCompanies(s.id, {}, true)).companies.flatMap((c) => c.emails).filter((e) => e.kind === 'generic' && !e.person);
+    expect(await inboxes()).toEqual([]);
+
+    const off = await api.getSearch(s.id);
+    expect(off.inboxesSkipped).toBeGreaterThan(0);
+
+    // Switched on, they wait hidden and counted, then settle.
+    const on = await api.updateSearch(s.id, { checkInboxes: true });
+    expect(on).toMatchObject({ checkInboxes: true, inboxesSkipped: 0 });
+    expect(on.inboxesPending).toBeGreaterThan(0);
+    expect(await inboxes()).toEqual([]);
+    advance(10_000);
+    expect((await api.getSearch(s.id)).inboxesPending).toBe(0);
+    const settled = await inboxes();
+    expect(settled.length).toBeGreaterThan(0);
+    expect(settled.every((e) => e.verification !== null)).toBe(true);
+
+    const upFront = await api.createSearch({ kind: 'web', params: { keyword: 'cms' }, checkInboxes: true });
+    expect(upFront.checkInboxes).toBe(true);
+  });
+
   it('moves a search from queued through running to done', async () => {
     const { api, advance } = setup();
     const created = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 40 });

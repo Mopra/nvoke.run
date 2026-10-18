@@ -156,7 +156,7 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     /** Runs an ended search again with new params of its kind; only companies it does not hold yet are added. */
     searchMore: (id: string, input: CreateSearchInput): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/more`, input),
     cancelSearch: (id: string): Promise<Search> => call('POST', `/v1/searches/${enc(id)}/cancel`),
-    /** Switches ongoing on or off: a plain words search keeps finding new companies until it is off. */
+    /** ongoing: a plain words search keeps finding new companies until it is off. checkInboxes: shared inboxes are checked too. */
     updateSearch: (id: string, patch: UpdateSearchRequest): Promise<Search> => call('PATCH', `/v1/searches/${enc(id)}`, patch),
     deleteSearch: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/searches/${enc(id)}`);

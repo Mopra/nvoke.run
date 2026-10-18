@@ -47,7 +47,7 @@ function searchBody(a: McpToolArgs): unknown {
           : kind === 'icp'
             ? { description: a['description'], product: a['product'], countries: a['countries'], locations: a['locations'] }
             : { keyword: a['keyword'], days: a['days'] };
-  return { kind, params, limit: a['limit'] };
+  return { kind, params, limit: a['limit'], checkInboxes: a['checkInboxes'] };
 }
 
 /** Maps a tool call to the REST route it stands for. */
@@ -63,6 +63,8 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
       return { method: 'GET', url: `/v1/searches/${id}` };
     case 'set_search_ongoing':
       return { method: 'PATCH', url: `/v1/searches/${id}`, body: { ongoing: a['ongoing'] } };
+    case 'set_check_inboxes':
+      return { method: 'PATCH', url: `/v1/searches/${id}`, body: { checkInboxes: a['checkInboxes'] } };
     case 'cancel_search':
       return { method: 'POST', url: `/v1/searches/${id}/cancel` };
     case 'delete_search':

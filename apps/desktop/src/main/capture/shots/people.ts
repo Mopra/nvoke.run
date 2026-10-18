@@ -47,9 +47,15 @@ export const peopleShots: CaptureStep = async ({ win, js, go, until, sleep, shot
   await sleep(700);
   await shot('17c-people-decision-makers');
   await js(click('Decision makers'));
-  await js(click('Role inboxes'));
+  // Shared inboxes are off on the demo search: the pill raises the card that switches them on.
+  await js(click('Shared inboxes'));
   await sleep(700);
   await shot('17d-people-inboxes');
-  await js(click('Role inboxes'));
+  await js(click('Check shared inboxes for this search'));
+  await sleep(900);
+  await shot('17e-people-inboxes-checking');
+  await sleep(5000);
+  await shot('17f-people-inboxes-settled');
+  await js(click('Shared inboxes'));
   await sleep(300);
 };

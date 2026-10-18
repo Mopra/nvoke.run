@@ -56,11 +56,32 @@ Columns: Company, People, Found on (Location for local searches), actions.
   checked), with the long version on hover.
 - Order: founders, executives, directors, managers, staff, other personal
   addresses, then role inboxes (`orderEmails`, `lib/people.ts`).
-- Role inboxes are hidden where a company has a person. A company with no
-  person shows its inboxes, marked "Role inbox" and "No named person found
-  yet". The Role inboxes pill in the dock shows them everywhere.
+- Shared inboxes (info@, sales@) are not checked unless the search asks
+  (`Search.checkInboxes`, off by default): they reach no person and each
+  check uses the allowance, so the server leaves them unchecked and hidden.
+  A company with nothing listed but a skipped or pending shared inbox
+  (`Company.inboxesSkipped`, `inboxesPending`) shows "No named person found
+  yet" and, while the search's inboxes are off, a "Check shared inboxes"
+  link next to it (its accessible name names the company). One with none
+  keeps "No public email". Checked inboxes are hidden where a company has a person; a company
+  with no person shows them, marked "Shared inbox" and "No named person
+  found yet". The Shared inboxes pill in the dock shows them everywhere.
+- Pressing the Shared inboxes pill on a search with inboxes off raises a
+  glass card over the dock: "Shared inboxes aren’t checked", why, what it
+  costs (`inboxCost`: "12 shared inboxes to check. Only valid ones count
+  against your allowance: 1,830 verified emails left this month", and a
+  warning when the count is higher than what is left) and one action,
+  "Check shared inboxes for this search" (`PATCH /v1/searches/:id
+  { checkInboxes: true }`, `useCheckInboxes`, its own mutation key). On
+  success the pill stays on and a status line over the dock (`role=status`)
+  says "Checking 12 shared inboxes" while the screen re-reads the search and
+  its list (`useFollowInboxChecks`): every 3 seconds for 2 minutes, then
+  every 15, until `inboxesPending` is 0, for 30 minutes at most. The web app
+  re-reads only the pages holding a pending inbox. The copy lives in
+  `lib/people.ts` (`SHARED_INBOXES`, `inboxCost`, `inboxChecking`), shared
+  with the web app. Run again keeps the switch.
 - Dock filters, all pills: Decision makers, Verified (verification
-  `valid`), Role inboxes. The text filter, the count, Export CSV, copy (Cmd
+  `valid`), Shared inboxes. The text filter, the count, Export CSV, copy (Cmd
   or Ctrl C on selected rows), drag out and openers are as before. The CSV
   carries first_name, last_name, title, seniority, found_via and confidence.
 - Decision makers and Verified are server filters (`decisionMakers=true`,
@@ -108,9 +129,12 @@ or upgraded is deleted and refilled by sync.
 The mock returns people with titles, seniority, found via and confidence,
 catch-all domains whose pattern guesses stay guesses, fit on `icp`
 companies, stage notes while an `icp` search runs (planning, directories,
-web search, team pages, mail servers) and answers `PATCH` (400
-`not_ongoing` for other kinds). It seeds an ongoing `icp` search that ended
-and one that runs for a few minutes. `capture` shoots `04a` to `04d`
-(Describe your customer, filled, the country panel, details) and `17` to
-`17d` (the island with a stage note, a running and an ended `icp` search,
-the Decision makers and Role inboxes filters).
+web search, team pages, mail servers) and answers `PATCH` (`ongoing`, 400
+`not_ongoing` for other kinds, and `checkInboxes` for any). Like the server
+it hides shared inboxes until a search checks them; switched on, they show
+unchecked and settle a few seconds later. It seeds an ongoing `icp` search
+that ended, one that runs for a few minutes and a local search with shared
+inboxes on. `capture` shoots `04a` to `04d` (Describe your customer,
+filled, the country panel, details) and `17` to `17f` (the island with a
+stage note, a running and an ended `icp` search, the Decision makers
+filter, the Shared inboxes card, the checks running and settled).

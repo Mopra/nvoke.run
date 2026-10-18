@@ -186,3 +186,24 @@ and plain words searches fail the same way until the owner tops up
 (Horadric quest filed). Decision: add a free web search provider as a
 fallback behind `FREE_SEARCH` (agent running), stopping at any challenge
 or CAPTCHA, never working around it. It also lowers cost per verified.
+
+### 2026-10-18 spend stopped, Brave topped up, cost and people round (no paid calls)
+
+The owner stopped all paid testing ("never use my money without asking").
+Testing had spent about 730 Brave requests and $2 to $3 of OpenRouter.
+The Brave account turned out to run only on Brave's free $5 a month, so
+Brave cost no cash; the owner then approved a $5 top-up (added from the
+dashboard) and one final test capped at $2.50.
+
+Changes, all measured without paid calls:
+- Free search fallback (Mwmbl, owner approved its terms) when Brave refuses
+  or is paused; challenge pages stop it, never worked around.
+- Shared inboxes on request: PATCH checkInboxes, a card that says how many
+  will be checked and how many verified emails are left.
+- Cost: fit batches of 30 with 10 word reasons, no site scored twice in a
+  search, deeper Brave pages only after a page that kept 3 or more, the
+  replan sees which queries kept companies.
+- People: a filter that wiped whole WordPress pages (it matched the body
+  tag) is fixed, plus imprint names on the line after the label. Free
+  re-crawl of 246 companies: sites with a decision maker 120 to 149, with a
+  named person 157 to 187.
