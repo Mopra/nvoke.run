@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Hourly round: the human committed the launch film (cfe1e48, new apps/video package, lockfile) past green aaaf5ae; filed 'Checks on main after the launch film' (sonnet), told to leave the 4 dirty human files alone. No aim.
 - 2026-10-18 Round as the human left, after 'Checks on main after the US and UK examples and v0.1.2' landed: done with no fix commits, so main green at aaaf5ae. Only the human's 3 dirty renderer files. No aim, nothing to file; shipping is the human's.
 - 2026-10-18 Hourly round: the human shipped desktop v0.1.2 (aedcf2f) and committed site hero, How it works and US/UK demo data (1e2ef02 to aaaf5ae) past green d63866f; only their 3 renderer files dirty, so filed 'Checks on main after the US and UK examples and v0.1.2' (sonnet). No aim.
 - 2026-10-18 Round after 'Checks on main after the working scene and site profile delete' landed: done with no fix commits, so main green at d63866f. Only the human's 3 dirty renderer files remain. No aim, nothing to file; shipping is the human's.
