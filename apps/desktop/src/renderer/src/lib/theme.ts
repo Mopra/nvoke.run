@@ -1,10 +1,10 @@
 /**
  * Light and dark mode. The user picks system, light or dark (stored locally);
  * system follows the OS. Applied by toggling the `dark` class on <html>, and
- * mirrored to the main process so the window material and caption buttons match.
+ * mirrored to the main process so the OS side (menus, dialogs) matches.
  */
 import { useSyncExternalStore } from 'react';
-import { syncThemeSource, syncTitleBar } from './chrome';
+import { syncThemeSource } from './chrome';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
@@ -24,7 +24,6 @@ function apply(): void {
   document.documentElement.classList.toggle('dark', resolved === 'dark');
   document.documentElement.style.colorScheme = resolved;
   snapshot = { preference, resolved };
-  syncTitleBar();
   for (const l of listeners) l();
 }
 

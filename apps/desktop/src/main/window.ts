@@ -1,4 +1,3 @@
-import { release } from 'node:os';
 import { join } from 'node:path';
 import {
   app,
@@ -8,12 +7,7 @@ import {
   screen,
   type BrowserWindowConstructorOptions,
 } from 'electron';
-import {
-  IpcChannel,
-  type TitleBarColors,
-  type WindowChrome,
-  type WindowState,
-} from '../ipc/contract';
+import { IpcChannel, type WindowChrome, type WindowState } from '../ipc/contract';
 import {
   DEFAULT_SIZE,
   MIN_SIZE,
@@ -25,83 +19,36 @@ import {
 } from './window-state';
 
 /**
- * The frameless main window. Native controls stay native: traffic lights on
- * macOS, the Window Controls Overlay caption buttons on Windows and Linux.
- * The renderer draws everything else and marks drag regions in CSS.
+ * The frameless main window. No native controls on any platform: the
+ * renderer draws the device, its power nub closes the window (to the tray),
+ * a double click on the drag region maximizes it and the edges resize it.
  */
 
-const MAC_TITLE_BAR = 52;
-const OVERLAY_TITLE_BAR = 48;
-/** Centers the traffic lights in the 52px sidebar header. */
-const TRAFFIC_LIGHTS = { x: 18, y: 19 };
+const TITLE_BAR = 48;
 
 /**
- * Paint colors before the renderer has loaded, so the window never flashes
- * white in dark mode. The renderer replaces the caption button colors with
- * the real theme values as soon as it starts (see setTitleBarColors).
+ * Paint the chassis before the renderer has loaded, so the window never
+ * flashes white in dark mode. The values follow packages/theme/field.css.
  */
 const BOOT_COLORS = {
-  light: { background: '#f6f6f8', symbol: '#1d1d22' },
-  dark: { background: '#1a1a1d', symbol: '#ececf0' },
+  light: '#dcdbd6',
+  dark: '#262625',
 };
-
-const HEX = /^#[0-9a-f]{6}$/i;
 
 function stateFile(): string {
   return join(app.getPath('userData'), 'window-state.json');
 }
 
-/** Mica needs Windows 11, build 22000 or later. */
-function supportsMica(): boolean {
-  if (process.platform !== 'win32') return false;
-  const build = Number(release().split('.')[2]);
-  return Number.isFinite(build) && build >= 22000;
-}
-
 function chromeFor(): Pick<WindowChrome, 'platform' | 'material' | 'controls' | 'titleBarHeight'> {
-  switch (process.platform) {
-    case 'darwin':
-      return { platform: 'darwin', material: 'vibrancy', controls: 'traffic-lights', titleBarHeight: MAC_TITLE_BAR };
-    case 'win32':
-      return {
-        platform: 'win32',
-        material: supportsMica() ? 'mica' : 'none',
-        controls: 'overlay',
-        titleBarHeight: OVERLAY_TITLE_BAR,
-      };
-    case 'linux':
-      return { platform: 'linux', material: 'none', controls: 'overlay', titleBarHeight: OVERLAY_TITLE_BAR };
-    default:
-      return { platform: 'other', material: 'none', controls: 'overlay', titleBarHeight: OVERLAY_TITLE_BAR };
-  }
+  const platform = process.platform === 'darwin' || process.platform === 'win32' || process.platform === 'linux' ? process.platform : 'other';
+  return { platform, material: 'none', controls: 'none', titleBarHeight: TITLE_BAR };
 }
 
-function bootColors(): { background: string; symbol: string } {
-  return nativeTheme.shouldUseDarkColors ? BOOT_COLORS.dark : BOOT_COLORS.light;
-}
-
-function platformOptions(chrome: ReturnType<typeof chromeFor>): BrowserWindowConstructorOptions {
-  const boot = bootColors();
-  if (chrome.platform === 'darwin') {
-    return {
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: TRAFFIC_LIGHTS,
-      vibrancy: 'sidebar',
-      visualEffectState: 'followWindow',
-      // Transparent so the sidebar material shows through the page.
-      backgroundColor: '#00000000',
-    };
-  }
-  const overlay = { color: boot.background, symbolColor: boot.symbol, height: chrome.titleBarHeight };
-  if (chrome.material === 'mica') {
-    return {
-      titleBarStyle: 'hidden',
-      titleBarOverlay: { ...overlay, color: '#00000000' },
-      backgroundMaterial: 'mica',
-      backgroundColor: '#00000000',
-    };
-  }
-  return { titleBarStyle: 'hidden', titleBarOverlay: overlay, backgroundColor: boot.background };
+function platformOptions(): BrowserWindowConstructorOptions {
+  return {
+    frame: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? BOOT_COLORS.dark : BOOT_COLORS.light,
+  };
 }
 
 function windowState(win: BrowserWindow): WindowState {
@@ -115,11 +62,7 @@ export function loadWindowPreferences(): void {
   if (saved.theme) nativeTheme.themeSource = saved.theme;
 }
 
-/** Windows with caption buttons. The quick window and the grab overlay have none. */
-const captioned = new WeakSet<BrowserWindow>();
-
 export function createMainWindow(): BrowserWindow {
-  const chrome = chromeFor();
   const bounds = restorableBounds(
     saved.bounds,
     screen.getAllDisplays().map((d) => d.workArea),
@@ -133,7 +76,7 @@ export function createMainWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     title: 'nvoke',
-    ...platformOptions(chrome),
+    ...platformOptions(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -174,7 +117,6 @@ export function createMainWindow(): BrowserWindow {
   win.on('enter-full-screen', push);
   win.on('leave-full-screen', push);
 
-  captioned.add(win);
   return win;
 }
 
@@ -196,15 +138,7 @@ export function registerWindowIpc(): void {
     writeSavedWindow(stateFile(), saved);
   });
 
-  ipcMain.handle(IpcChannel.windowSetTitleBarColors, (event, colors: unknown) => {
-    const c = colors as Partial<TitleBarColors> | null;
-    // `transparent` lets the caption buttons sit clear over Mica.
-    const clear = c?.color === 'transparent';
-    if (!c || typeof c.color !== 'string' || typeof c.symbolColor !== 'string' || !(clear || HEX.test(c.color)) || !HEX.test(c.symbolColor)) {
-      throw new Error('title bar colors must be #rrggbb or transparent');
-    }
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || !captioned.has(win) || process.platform === 'darwin') return;
-    win.setTitleBarOverlay({ color: clear ? '#00000000' : c.color, symbolColor: c.symbolColor, height: chromeFor().titleBarHeight });
+  ipcMain.handle(IpcChannel.windowClose, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
   });
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { transportMode } from '@/lib/api';
+import { closeWindow } from '@/lib/chrome';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
 import { CountUp } from '@/lib/motion';
@@ -20,7 +21,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
  * The window is one instrument. Along the top edge sit the ports, the way
  * around; below them the name plate and the speaker grille, which pulses
  * while nvoke works; then the display strip, which carries the running
- * search; then the panel, where the screens live.
+ * search; then the panel, where the screens live. The window has no native
+ * controls: the power nub closes it, the top edge drags it and a double
+ * click there maximizes it.
  */
 export function AppShell({ route, children }: { route: Route; children: ReactNode }) {
   const { data } = useSearches();
@@ -59,7 +62,7 @@ export function Aura({ on }: { on: boolean }) {
 /* The ports */
 
 const PORT =
-  'inline-flex h-7 min-w-[78px] items-center justify-center gap-1.5 self-start rounded-b-[4px] px-3 cap outline-none transition-[filter,transform] duration-100 hover:brightness-[1.06] active:translate-y-px focus-visible:ring-2 focus-visible:ring-ring/60';
+  'inline-flex h-[34px] min-w-[86px] items-center justify-center gap-1.5 self-start rounded-b-[5px] px-3.5 cap text-[10px] outline-none transition-[filter,transform] duration-100 hover:brightness-[1.06] active:translate-y-px focus-visible:ring-2 focus-visible:ring-ring/60';
 const PORT_TONE = {
   dark: 'bg-foreground text-background',
   light: 'bg-secondary text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]',
@@ -110,7 +113,7 @@ function Notch() {
 function Ports({ route, onFind }: { route: Route; onFind: () => void }) {
   const onSearch = route.name === 'search';
   return (
-    <header className="app-drag relative z-20 flex h-(--titlebar-height) shrink-0 items-start gap-2.5 pr-titlebar pl-4 mac:pl-[84px] mac:fullscreen:pl-4">
+    <header className="app-drag rim relative z-20 flex h-(--titlebar-height) shrink-0 items-start gap-2.5 px-5">
       <Port href={routeHref({ name: 'searches' })} current={route.name === 'searches'} tone="dark">
         Searches
       </Port>
@@ -147,13 +150,23 @@ function Ports({ route, onFind }: { route: Route; onFind: () => void }) {
   );
 }
 
-/** The power nub: lit while signed in, which is always, here. */
+/** The power nub is the window's only control: it closes the window, and nvoke stays in the tray. */
 function Power() {
   return (
-    <div aria-hidden className="flex flex-col items-center gap-1">
-      <span className="h-1.5 w-3.5 rounded-b-[2px] bg-primary shadow-[0_0_6px_var(--primary)]" />
-      <span className="cap text-muted-foreground">Power</span>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={closeWindow}
+          aria-label="Close window"
+          className="group flex flex-col items-center gap-1 rounded-b-[4px] px-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        >
+          <span className="h-2 w-4 rounded-b-[2px] bg-primary shadow-[0_0_6px_var(--primary)] transition-[transform,filter] duration-100 group-hover:brightness-110 group-active:translate-y-px group-active:brightness-90" />
+          <span className="cap text-muted-foreground">Power</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Close. nvoke stays in the tray.</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -162,7 +175,7 @@ function Power() {
 /** The name plate on the left, the speaker grille on the right. */
 function Head({ working }: { working: boolean }) {
   return (
-    <div className="app-drag grid shrink-0 grid-cols-[1fr_232px] px-3.5">
+    <div className="app-drag grid shrink-0 grid-cols-[1fr_232px] px-3.5 pt-1">
       <Plate />
       <Grille working={working} />
     </div>

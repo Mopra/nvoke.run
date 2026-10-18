@@ -13,7 +13,9 @@ LED status dots. Light and dark are two finishes of the same device.
 - **Ports**, along the top edge: the navigation, labelled like the sockets on
   a sampler (Searches, New, Results while a search is open, Drops; Find,
   Account and the power nub on the right). The lit one is where you are. The
-  row is the window's drag handle, with room for the caption buttons.
+  power nub is the window's only control: it closes the window and nvoke
+  stays in the tray. The row is the window's drag handle; a double click
+  maximizes, the edges resize. There are no native caption buttons.
 - **The head**: the name plate (brand, katakana, the model line and a PLAN /
   USED / LEFT readout from `useMe`) and the speaker grille, which lights up
   as a spectrum while a search runs and goes dark at rest.

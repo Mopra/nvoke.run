@@ -12,7 +12,6 @@
 
 /* Window chrome variants, set on <html> by lib/chrome.ts. */
 @custom-variant mac (&:is([data-platform="darwin"] *));
-@custom-variant material (&:is([data-material="vibrancy"] *, [data-material="mica"] *));
 @custom-variant blurred (&:is([data-focused="false"] *));
 @custom-variant fullscreen (&:is([data-fullscreen="true"] *));
 
@@ -271,6 +270,10 @@
   background-color: var(--primary);
   box-shadow: 0 0 6px var(--primary);
 }
+/* The device's top edge: the chassis catches the light along its lip, where the ports hang. */
+@utility rim {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--background) 86%, oklch(1 0 0)), var(--background));
+}
 /* The orange cap of a knob: a highlight at the top left, a collar on the chassis. */
 @utility knob-cap {
   background: radial-gradient(
@@ -299,11 +302,6 @@
 /* Fades content out under the floating bars instead of a hard edge. */
 @utility fade-edges {
   mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 96px), transparent 100%);
-}
-
-/* Clear room for the Windows and Linux caption buttons in the toolbar. */
-@utility pr-titlebar {
-  padding-right: max(1.25rem, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.75rem));
 }
 
 /* Running searches: a soft band of light travels along the filled part. */
