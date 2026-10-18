@@ -1,1 +1,323 @@
 /* Motion for the lead journey illustration on the landing page. See packages/theme/motion.css for the shared pieces. */
+
+/*
+ * components/site/journey.tsx and journey-scenes.tsx. The list carries
+ * `data-js` once it hydrates; each stage `data-seen` once it is reached,
+ * `data-visible` while it is on screen and `data-next` once the next stage is
+ * reached (its rail segment fills and the lead dot travels down it).
+ *
+ * The markup is the finished picture. Everything that moves is a "from" state
+ * applied only with motion allowed and JavaScript running, so no script and
+ * reduced motion both show every stage complete and still.
+ */
+
+/* Rail: markers, segments and the travelling lead. */
+.journey .j-marker {
+  background: var(--background);
+  box-shadow: inset 0 0 0 1.5px var(--border);
+  transition:
+    background-color 500ms var(--ease-out-expo),
+    box-shadow 500ms var(--ease-out-expo);
+}
+.journey .j-stage[data-seen] .j-marker,
+.journey:not([data-js]) .j-marker {
+  background: var(--primary);
+  box-shadow:
+    inset 0 0 0 1.5px var(--primary),
+    0 0 0 5px color-mix(in oklab, var(--primary) 14%, transparent),
+    0 0 18px var(--glow);
+}
+.journey .j-fill {
+  height: 100%;
+}
+.journey .j-dot {
+  display: none;
+}
+.journey .j-check {
+  display: none;
+}
+.journey .j-aura {
+  opacity: 0;
+}
+/* The aura rises only where nvoke is working: the running search and the loop. */
+.journey .j-stage:nth-child(3)[data-seen] .j-aura,
+.journey .j-stage:nth-child(5)[data-seen] .j-aura {
+  opacity: 0.55;
+  transition: opacity 1.6s ease-out;
+}
+.journey .j-trail {
+  opacity: 0.35;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .journey[data-js] .j-fill {
+    height: 0;
+    transition: height 1.4s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  .journey[data-js] .j-stage[data-next] .j-fill {
+    height: 100%;
+  }
+  .journey[data-js] .j-dot {
+    display: block;
+    top: 0;
+    opacity: 0;
+  }
+  .journey[data-js] .j-stage[data-next] .j-dot {
+    animation: j-travel 1.4s cubic-bezier(0.65, 0, 0.35, 1) both;
+  }
+
+  /* Everything waits for its stage. */
+  .journey[data-js] .j-stage:not([data-seen]) :is(.j-in, .j-text) {
+    opacity: 0;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-text {
+    animation: j-in 800ms var(--ease-out-expo) both;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-in {
+    animation: j-in 760ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--d, 0ms) + 120ms);
+  }
+
+  /* Off screen, nothing runs. */
+  .journey[data-js] .j-stage:not([data-visible]) * {
+    animation-play-state: paused !important;
+  }
+
+  /* 1. The one lead still out there, breathing. */
+  .journey[data-js] .j-stage[data-seen] .j-seed::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--primary);
+    animation: j-ripple 2.8s ease-out 900ms 3 both;
+  }
+
+  /* 2. The sentence types itself, then Start is pressed. */
+  .journey[data-js] .j-type {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: bottom;
+    max-width: 40ch;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-type {
+    animation: j-type 2.1s steps(36, end) 500ms both;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-caret {
+    animation: j-blink 1s steps(2, jump-none) 6;
+  }
+  .journey[data-js] .j-stage:nth-child(2)[data-seen] .j-press {
+    animation: j-press 700ms var(--ease-out-expo) 2.9s both;
+  }
+
+  /* 3. The search runs: progress fills, rows land, checks settle. */
+  .journey[data-js] .j-progress {
+    transform: scaleX(0.03);
+  }
+  .journey[data-js] .j-stage[data-seen] .j-progress {
+    animation: j-progress 3.4s cubic-bezier(0.33, 0, 0.2, 1) 300ms both;
+  }
+  .journey[data-js] .j-check {
+    display: inline-flex;
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-check {
+    animation: j-out 240ms ease-out both;
+    animation-delay: calc(var(--d, 0ms) + 1500ms);
+  }
+  .journey[data-js] .j-stage[data-seen] .j-final {
+    animation: j-pop 420ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--d, 0ms) + 1560ms);
+  }
+
+  /* 4. Export is pressed, the lead drops into your tool, Send waits there. */
+  .journey[data-js] .j-handoff {
+    top: 0;
+    opacity: 0;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-handoff {
+    animation: j-travel 900ms cubic-bezier(0.65, 0, 0.35, 1) 700ms both;
+  }
+  .journey[data-js] .j-stage:nth-child(4)[data-seen] .j-press {
+    animation: j-press 700ms var(--ease-out-expo) 300ms both;
+  }
+
+  /* 5. The loop, slow and forever: a lead goes round once every 9 seconds. */
+  .journey[data-js] .j-stage[data-seen] .j-lead {
+    animation: j-round 9s linear infinite;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-trail {
+    animation: j-round-trail 9s linear infinite;
+  }
+  .journey[data-js] .j-stage[data-seen] .j-stop {
+    animation: j-stop 9s linear infinite;
+    animation-delay: calc(var(--at) * 9s);
+  }
+  .journey[data-js] .j-stage[data-seen] .j-toast {
+    animation: j-toast 9s var(--ease-out-expo) infinite;
+  }
+  /* A rolling week: one more day lights up each round. */
+  .journey[data-js] .j-stage[data-seen] .j-day {
+    animation: j-day 63s linear infinite;
+    animation-delay: calc(var(--i) * 9s - 63s + 2s);
+  }
+  .journey[data-js] .j-marker-loop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--primary);
+  }
+  .journey[data-js] .j-stage[data-seen] .j-marker-loop::after {
+    animation: j-ripple 3s ease-out infinite;
+  }
+}
+
+@keyframes j-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes j-travel {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+@keyframes j-ripple {
+  from {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+@keyframes j-type {
+  from {
+    max-width: 0;
+  }
+}
+@keyframes j-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes j-press {
+  0% {
+    transform: none;
+  }
+  35% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes j-progress {
+  from {
+    transform: scaleX(0.03);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes j-out {
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+@keyframes j-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes j-round {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes j-round-trail {
+  from {
+    stroke-dashoffset: 114;
+  }
+  to {
+    stroke-dashoffset: 14;
+  }
+}
+/* A stop lights up as the lead passes it, then settles. */
+@keyframes j-stop {
+  0% {
+    box-shadow:
+      var(--shadow-float),
+      0 0 0 1.5px var(--primary),
+      0 0 24px var(--glow);
+  }
+  12%,
+  100% {
+    box-shadow: var(--shadow-float);
+  }
+}
+@keyframes j-toast {
+  0%,
+  32% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  38%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes j-day {
+  0% {
+    opacity: 0.18;
+    transform: scaleY(0.2);
+  }
+  2%,
+  84% {
+    opacity: 1;
+    transform: none;
+  }
+  86%,
+  100% {
+    opacity: 0.18;
+    transform: scaleY(0.2);
+  }
+}
