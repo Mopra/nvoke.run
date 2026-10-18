@@ -9,21 +9,27 @@ export const alt = `${site.name}: ${site.tagline}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-const ROWS = [
-  { company: 'Smile Studio South Congress', email: 'hello@smilestudiosoco.com', status: 'Valid', dot: 'chart-1' },
-  { company: 'Zilker Dental', email: 'noah.hayes@zilkerdental.com', status: 'Valid', dot: 'chart-1' },
-  { company: 'Mueller Family Dentistry', email: 'contact@muellerfamilydental.com', status: 'Catch-all', dot: 'chart-3' },
-  { company: 'Hyde Park Dental', email: 'booking@hydeparkdental.com', status: 'Risky', dot: 'chart-2' },
-  { company: 'Barton Creek Smiles', email: 'mail@bartoncreeksmiles.com', status: 'Valid', dot: 'chart-1' },
-];
-
 function font(file: string): Buffer {
   return readFileSync(join(process.cwd(), 'node_modules', 'geist', 'dist', 'fonts', file));
 }
 
-/** The share card: dark, like the app at night, with a slice of a results window. */
+const FIGURES = [
+  { label: 'COMPANIES', value: '48' },
+  { label: 'EMAILS', value: '112' },
+  { label: 'VALID', value: '71' },
+];
+
+/**
+ * The share card: a plate on the light chassis, the mark and the line on it,
+ * and the black screen with a finished search's figures. Satori reads no
+ * woff2, so Geist and Geist Mono stand in for the device's faces.
+ */
 export default function OpengraphImage() {
-  const t = themeColors('dark');
+  const t = themeColors('light');
+  const screen = t.get('screen');
+  const lit = t.get('screen-foreground');
+  const dim = t.get('screen-dim');
+  const label = t.get('muted-foreground');
 
   return new ImageResponse(
     (
@@ -32,138 +38,104 @@ export default function OpengraphImage() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          position: 'relative',
+          padding: 40,
           background: t.get('background'),
-          color: t.get('foreground'),
           fontFamily: 'Geist',
-          overflow: 'hidden',
         }}
       >
-        {/* The accent's halo, low and to the right, behind the window. */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 300,
-            top: 160,
-            width: 1000,
-            height: 760,
-            display: 'flex',
-            backgroundImage: `radial-gradient(ellipse at center, ${t.get('primary')} 0%, transparent 60%)`,
-            opacity: 0.5,
-          }}
-        />
-
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            padding: '64px 0 64px 72px',
-            width: 600,
-            position: 'relative',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 13,
-                background: t.get('primary'),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: `0 8px 28px -6px ${t.get('glow')}`,
-              }}
-            >
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-                <path d={`${LOGO.arch}${LOGO.poles}`} stroke={t.get('primary-foreground')} strokeWidth={LOGO.stroke} />
-                <circle cx={LOGO.lead.cx} cy={LOGO.lead.cy} r={LOGO.lead.r} fill={t.get('primary-foreground')} />
-              </svg>
-            </div>
-            <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: -1 }}>{site.name}</div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-            <div style={{ fontSize: 66, fontWeight: 600, lineHeight: 1.02, letterSpacing: -2.2 }}>{site.tagline}</div>
-            <div style={{ fontSize: 25, lineHeight: 1.35, color: t.get('muted-foreground') }}>
-              Companies and their public contact details, verified. Windows, macOS and Linux.
-            </div>
-          </div>
-        </div>
-
-        {/* A slice of the app window, running off the right and bottom edges. */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 650,
-            top: 120,
-            width: 600,
-            height: 560,
-            display: 'flex',
-            flexDirection: 'column',
-            borderRadius: 16,
-            border: `1px solid ${t.get('border')}`,
+            flex: 1,
+            gap: 48,
+            padding: 56,
+            borderRadius: 10,
             background: t.get('card'),
-            boxShadow: `0 30px 80px -20px ${t.get('shadow-strong')}`,
-            overflow: 'hidden',
+            border: `2px solid ${t.get('border')}`,
+            color: t.get('foreground'),
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '20px 24px' }}>
-            <div style={{ width: 13, height: 13, borderRadius: 7, background: t.get('window-close') }} />
-            <div style={{ width: 13, height: 13, borderRadius: 7, background: t.get('window-minimize') }} />
-            <div style={{ width: 13, height: 13, borderRadius: 7, background: t.get('window-zoom') }} />
-            <div style={{ marginLeft: 18, fontSize: 19, fontWeight: 600, letterSpacing: -0.3 }}>
-              Dentists in Austin
-            </div>
-          </div>
-          <div style={{ display: 'flex', margin: '0 24px 14px', height: 6, borderRadius: 3, background: t.get('border') }}>
-            <div style={{ width: '78%', height: 6, borderRadius: 3, background: t.get('primary') }} />
-          </div>
-          {ROWS.map((row) => (
-            <div
-              key={row.email}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '14px 24px',
-                borderTop: `1px solid ${t.get('border')}`,
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: 17, fontWeight: 600 }}>{row.company}</div>
-                <div style={{ fontFamily: 'Geist Mono', fontSize: 15, color: t.get('muted-foreground') }}>
-                  {row.email}
-                </div>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: 560 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div
                 style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 8,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  fontSize: 14,
-                  padding: '4px 12px 4px 10px',
-                  borderRadius: 999,
-                  background: t.get('accent'),
-                  marginRight: 56,
+                  justifyContent: 'center',
+                  background: t.get('primary'),
+                  boxShadow: `0 4px 0 ${t.get('shadow-strong')}`,
                 }}
               >
-                <div style={{ width: 8, height: 8, borderRadius: 4, background: t.get(row.dot) }} />
-                {row.status}
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                  <path d={LOGO.arch} stroke={t.get('primary-foreground')} strokeWidth={LOGO.stroke} strokeLinecap="square" />
+                  <path d={LOGO.poles} stroke={t.get('primary-foreground')} strokeWidth={LOGO.stroke} strokeLinecap="square" />
+                  <circle {...LOGO.lead} fill={t.get('primary-foreground')} />
+                </svg>
+              </div>
+              <div style={{ fontSize: 44, fontWeight: 300, letterSpacing: -0.5 }}>{site.name}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+              <div
+                style={{ fontFamily: 'Geist Mono', fontSize: 20, letterSpacing: 2, color: t.get('primary') }}
+              >
+                FIND · CRAWL · VERIFY
+              </div>
+              <div style={{ fontSize: 64, fontWeight: 300, lineHeight: 1.04, letterSpacing: -2 }}>{site.tagline}</div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              flex: 1,
+              padding: 36,
+              borderRadius: 6,
+              background: screen,
+              color: lit,
+              fontFamily: 'Geist Mono',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 18, letterSpacing: 2 }}>
+              <div style={{ width: 12, height: 12, borderRadius: 6, background: t.get('chart-1') }} />
+              <span style={{ color: label }}>RUN</span>
+              <span style={{ color: t.get('primary') }}>DONE</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: 0 }}>DENTISTS IN AUSTIN</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {Array.from({ length: 16 }, (_, i) => (
+                  <div key={i} style={{ flex: 1, height: 14, borderRadius: 2, background: t.get('primary') }} />
+                ))}
               </div>
             </div>
-          ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              {FIGURES.map((f) => (
+                <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <span style={{ fontSize: 14, letterSpacing: 1.5, color: f.label === 'VALID' ? t.get('primary') : label }}>
+                    {f.label}
+                  </span>
+                  <div style={{ display: 'flex', position: 'relative', fontSize: 46, fontWeight: 700 }}>
+                    <span style={{ color: dim }}>888</span>
+                    <span style={{ position: 'absolute', right: 0, top: 0 }}>{f.value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-
       </div>
     ),
     {
       ...size,
       fonts: [
-        { name: 'Geist', data: font('geist-sans/Geist-SemiBold.ttf'), weight: 600, style: 'normal' },
-        { name: 'Geist', data: font('geist-sans/Geist-Regular.ttf'), weight: 400, style: 'normal' },
+        { name: 'Geist', data: font('geist-sans/Geist-Light.ttf'), weight: 300, style: 'normal' },
         { name: 'Geist Mono', data: font('geist-mono/GeistMono-Regular.ttf'), weight: 400, style: 'normal' },
+        { name: 'Geist Mono', data: font('geist-mono/GeistMono-Bold.ttf'), weight: 700, style: 'normal' },
       ],
     },
   );

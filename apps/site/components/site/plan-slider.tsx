@@ -42,7 +42,7 @@ export function PlanSlider({
             options={steps}
             onChange={onIndexChange}
             label="Verified emails a month"
-            format={(i) => shortLabel(tiers[i])}
+            format={(i) => shortLabel(tiers[i]).toUpperCase()}
             size={190}
           />
           <span className="cap text-muted-foreground">Emails a month</span>

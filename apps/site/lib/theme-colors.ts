@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
-// Reads the color tokens from packages/theme/theme.css and converts them to
+// Reads the color tokens from packages/theme/theme.css (and field.css over it) and converts them to
 // rgb() and rgba() strings. Used where CSS variables do not work, such as the
 // Open Graph image, so those images still follow the one theme file.
 //
@@ -128,15 +128,17 @@ export function parseTheme(css: string, mode: ThemeMode): ThemePalette {
   return { colors, get: (name, fallback = FALLBACK) => colors[name] ?? fallback };
 }
 
-function themeCssPath(): string {
+function themeCssPath(file: 'theme.css' | 'field.css'): string {
   try {
     const require = createRequire(join(process.cwd(), 'package.json'));
-    return join(dirname(require.resolve('@nvoke/theme/theme.css')), 'theme.css');
+    return join(dirname(require.resolve('@nvoke/theme/theme.css')), file);
   } catch {
-    return join(process.cwd(), 'node_modules', '@nvoke', 'theme', 'theme.css');
+    return join(process.cwd(), 'node_modules', '@nvoke', 'theme', file);
   }
 }
 
+/** The site's palette: theme.css with the device tokens of field.css over it, as globals.css imports them. */
 export function themeColors(mode: ThemeMode): ThemePalette {
-  return parseTheme(readFileSync(themeCssPath(), 'utf8'), mode);
+  const css = ['theme.css', 'field.css'] as const;
+  return parseTheme(css.map((file) => readFileSync(themeCssPath(file), 'utf8')).join('\n'), mode);
 }

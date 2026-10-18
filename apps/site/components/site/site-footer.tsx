@@ -42,11 +42,13 @@ export function SiteFooter() {
           ))}
         </nav>
       </Container>
-      <Container className="flex flex-wrap items-center justify-between gap-2 border-t py-5">
-        <span className="cap text-muted-foreground">
-          &#169; {new Date().getFullYear()} {site.name}
-        </span>
-        <span className="cap text-muted-foreground">NV-1</span>
+      <Container>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t py-5">
+          <span className="cap text-muted-foreground">
+            &#169; {new Date().getFullYear()} {site.name}
+          </span>
+          <span className="cap text-muted-foreground">NV-1</span>
+        </div>
       </Container>
     </footer>
   );

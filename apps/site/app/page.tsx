@@ -4,7 +4,6 @@ import { Faq, type FaqItem } from '@/components/site/faq';
 import { Container, Eyebrow } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
-import { site } from '@/lib/site';
 import { cn } from '@/lib/utils';
 
 const freeEmails = formatCount(pricing.free.emailsPerMonth);
@@ -134,7 +133,10 @@ export default function HomePage() {
           <div className="panel grid gap-10 p-5 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center lg:gap-12 lg:p-12">
             <div className="flex flex-col items-start gap-6">
               <Eyebrow className="text-primary">Find &#183; Crawl &#183; Verify</Eyebrow>
-              <h1 className="text-[clamp(2.75rem,2rem+3vw,4rem)] leading-[1.02] font-light tracking-[-0.035em]">{site.tagline}</h1>
+              <h1 className="text-[clamp(2.5rem,1.9rem+3vw,4rem)] leading-[1.02] font-light tracking-[-0.035em]">
+                <span className="block">Find companies.</span>
+                <span className="block">Get emails that actually work.</span>
+              </h1>
               <p className="max-w-xl text-lede text-pretty text-muted-foreground">
                 Bought lists are stale the day you get them. nvoke reads each company’s own website today and asks the
                 mail server if the address exists. You pay for the ones that do.
@@ -167,15 +169,15 @@ export default function HomePage() {
             {STEPS.map((step, i) => (
               <li
                 key={step.cap}
-                className="grid gap-x-6 gap-y-3 border-t py-8 sm:grid-cols-[3rem_8rem_1fr] lg:grid-cols-[3rem_8rem_1fr_1fr]"
+                className="grid grid-cols-[2.25rem_1fr] gap-x-3 gap-y-3 border-t py-8 sm:grid-cols-[3rem_8rem_1fr] sm:gap-x-6 lg:grid-cols-[3rem_8rem_1fr_1fr]"
               >
                 <span className="cap text-muted-foreground tabular-nums">{ch(i)}</span>
                 <span className="cap text-primary">{step.cap}</span>
-                <div className="lg:col-span-1">
+                <div className="col-start-2 sm:col-start-3">
                   <h3 className="text-[22px] leading-tight font-light tracking-[-0.01em] sm:text-[26px]">{step.title}</h3>
                   <p className="mt-2 max-w-md text-[15px] text-pretty text-muted-foreground sm:text-base">{step.body}</p>
                 </div>
-                <div className="sm:col-start-3 lg:col-start-4">
+                <div className="col-start-2 empty:hidden sm:col-start-3 lg:col-start-4">
                   {'list' in step ? (
                     <CapList items={step.list} leds={step.cap === 'Verify' ? LED : undefined} />
                   ) : null}

@@ -76,7 +76,7 @@ export function LiveSearch({ className }: { className?: string }) {
 
         <p className="lcd mt-5 truncate text-[22px] leading-tight uppercase sm:text-[26px]">{run.title}</p>
         <p className="cap mt-2 truncate text-screen-foreground/50">
-          {done ? `${run.companies} companies read` : `${stageOf(p)} · ${crawled} of ${Math.max(found, 1)}`}
+          {done ? `${run.companies} companies read` : `${stageOf(p)} · ${crawled} of ${found}`}
         </p>
         <ScreenMeter lit={lit} dim={dim} className="mt-4" />
 
