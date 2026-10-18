@@ -330,11 +330,10 @@ export function sourceYield(searchId: string, limit: number): number {
 
 /** Country and language a TLD suggests, for the demo profile. */
 const TLD_LOCALE: Record<string, { country: string; language: string; city: string; city2: string }> = {
-  dk: { country: 'dk', language: 'da', city: 'Copenhagen', city2: 'Aarhus' },
-  se: { country: 'se', language: 'sv', city: 'Stockholm', city2: 'Gothenburg' },
-  no: { country: 'no', language: 'no', city: 'Oslo', city2: 'Bergen' },
-  de: { country: 'de', language: 'de', city: 'Berlin', city2: 'Hamburg' },
   uk: { country: 'gb', language: 'en', city: 'London', city2: 'Manchester' },
+  us: { country: 'us', language: 'en', city: 'New York', city2: 'Boston' },
+  ca: { country: 'ca', language: 'en', city: 'Toronto', city2: 'Vancouver' },
+  au: { country: 'au', language: 'en', city: 'Sydney', city2: 'Melbourne' },
 };
 
 /**
@@ -385,7 +384,7 @@ export function mockSiteProfile(domain: string, at: string): SiteProfile {
       },
       {
         why: 'Groups your site names as partners. Each runs several clinics.',
-        search: { kind: 'domains', params: { items: ['colosseumdental.com', 'smile.dk', 'tandlaegen.dk', 'fysioterapeuten.dk'] } },
+        search: { kind: 'domains', params: { items: ['colosseumdental.com', 'mydentist.co.uk', 'aspendental.com', 'athletico.com'] } },
       },
     ],
     pages: [`https://${domain}/`, `https://${domain}/about`, `https://${domain}/pricing`, `https://${domain}/cases`],

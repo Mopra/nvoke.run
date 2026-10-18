@@ -15,7 +15,7 @@ export const siteProfileShots: CaptureStep = async ({ win, js, go, until, reload
   await shot('03a-website-step');
 
   await js(`document.querySelector('input#website')?.focus()`);
-  await win.webContents.insertText('nordlys.dk');
+  await win.webContents.insertText('brightlane.co');
   await js(click('Read my site'));
   await sleep(2600);
   await shot('03b-website-reading');
@@ -32,7 +32,7 @@ export const siteProfileShots: CaptureStep = async ({ win, js, go, until, reload
   await js(click('Read another site'));
   await until('input#website');
   await js(`document.querySelector('input#website')?.focus()`);
-  await win.webContents.insertText('nordlys.invalid');
+  await win.webContents.insertText('brightlane.invalid');
   await js(click('Read my site'));
   await until('[role="alert"]', 15_000);
   await sleep(400);

@@ -64,8 +64,8 @@ const MOCK_PLAN: Plan = 'emails_2500';
 
 const MOCK_USER: User = {
   id: 'user_mock',
-  email: 'mette@nordlys.studio',
-  name: 'Mette Lindqvist',
+  email: 'jamie@brightlane.co',
+  name: 'Jamie Carter',
   imageUrl: null,
 };
 
@@ -408,7 +408,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     add(
       {
         kind: 'domains',
-        params: { items: ['linear.app', 'vercel.com', 'Pleo', 'https://www.figma.com', 'Too Good To Go', 'raycast.com', 'Lunar'] },
+        params: { items: ['linear.app', 'vercel.com', 'Notion', 'https://www.figma.com', 'Ramp', 'raycast.com', 'Loom'] },
       },
       t0 - day - 6 * 60 * min,
     );

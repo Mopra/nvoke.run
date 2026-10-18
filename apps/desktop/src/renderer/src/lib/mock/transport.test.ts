@@ -108,8 +108,8 @@ describe('mock transport', () => {
 
   it('runs an ended search again on top of what it holds', async () => {
     const { api, advance } = setup();
-    const s = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Aarhus' }, limit: 20 });
-    await expect(api.searchMore(s.id, { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 30 })).rejects.toMatchObject({
+    const s = await api.createSearch({ kind: 'local', params: { niche: 'dentists', location: 'Austin' }, limit: 20 });
+    await expect(api.searchMore(s.id, { kind: 'local', params: { niche: 'dentists', location: 'Denver' }, limit: 30 })).rejects.toMatchObject({
       code: 'search_running',
     });
     advance(120_000);
@@ -117,9 +117,9 @@ describe('mock transport', () => {
     expect(first.status).toBe('done');
 
     await expect(api.searchMore(s.id, { kind: 'web', params: { keyword: 'dentists' } })).rejects.toMatchObject({ code: 'kind_mismatch' });
-    const again = await api.searchMore(s.id, { kind: 'local', params: { niche: 'dentists', location: 'Odense' }, limit: 30 });
+    const again = await api.searchMore(s.id, { kind: 'local', params: { niche: 'dentists', location: 'Denver' }, limit: 30 });
     expect(again).toMatchObject({ status: 'queued', companiesFound: first.companiesFound, limit: first.companiesFound + 30 });
-    expect(again.params).toEqual({ niche: 'dentists', location: 'Odense' });
+    expect(again.params).toEqual({ niche: 'dentists', location: 'Denver' });
     expect(again.kind !== 'drop' && again.runs?.map((r) => r.foundBefore)).toEqual([0, first.companiesFound]);
 
     advance(120_000);
@@ -228,16 +228,16 @@ describe('local copy', () => {
   it('builds, reads and edits the site profile', async () => {
     const { api } = setup();
     expect(await api.getSiteProfile()).toBeNull();
-    const built = await api.buildSiteProfile('https://www.acme-clinics.dk/about');
-    expect(built.domain).toBe('acme-clinics.dk');
+    const built = await api.buildSiteProfile('https://www.acme-clinics.co.uk/about');
+    expect(built.domain).toBe('acme-clinics.co.uk');
     expect(built.profile.name).toBe('Acme Clinics');
-    expect(built.profile.country).toBe('dk');
+    expect(built.profile.country).toBe('gb');
     expect(built.suggestions.length).toBeGreaterThanOrEqual(3);
     expect(new Set(built.suggestions.map((s) => s.search.kind)).size).toBeGreaterThanOrEqual(3);
     for (const s of built.suggestions) await expect(api.createSearch(s.search)).resolves.toMatchObject({ kind: s.search.kind });
     expect(await api.getSiteProfile()).toEqual(built);
-    const edited = await api.updateSiteProfile({ audience: 'Clinics in Odense', country: null });
-    expect(edited.profile).toMatchObject({ audience: 'Clinics in Odense', country: null, name: 'Acme Clinics' });
+    const edited = await api.updateSiteProfile({ audience: 'Clinics in Denver', country: null });
+    expect(edited.profile).toMatchObject({ audience: 'Clinics in Denver', country: null, name: 'Acme Clinics' });
     expect(edited.suggestions).toEqual(built.suggestions);
   });
 

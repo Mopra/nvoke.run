@@ -12,7 +12,7 @@ export const newSearchShots: CaptureStep = async ({ win, js, go, sleep, shot }) 
   // Pasted for real, so the list reads back like it does for a user.
   await js(`document.querySelector('textarea#list')?.focus()`);
   await win.webContents.insertText(
-    ['linear.app', 'https://www.figma.com/about', 'hello@raycast.com', 'Pleo', 'Too Good To Go', 'Novo Nordisk A/S', 'vercel.com, supabase.com'].join('\n'),
+    ['linear.app', 'https://www.figma.com/about', 'hello@raycast.com', 'Notion', 'Ramp', 'Monzo Bank Ltd', 'vercel.com, supabase.com'].join('\n'),
   );
   await sleep(300);
   await shot('06b-new-list');

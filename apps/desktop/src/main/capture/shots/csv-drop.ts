@@ -8,7 +8,7 @@ export const csvDropShots: CaptureStep = async ({ win, js, go, sleep, shot }) =>
   const csvPath = join(tmpdir(), 'nvoke-capture-prospects.csv');
   writeFileSync(
     csvPath,
-    ['Company,Website,City', 'Linear,https://linear.app,Remote', 'Pleo,pleo.io,Copenhagen', 'Too Good To Go,,Copenhagen', 'Figma,figma.com,San Francisco'].join('\n'),
+    ['Company,Website,City', 'Linear,https://linear.app,Remote', 'Ramp,ramp.com,New York', 'Monzo,,London', 'Figma,figma.com,San Francisco'].join('\n'),
   );
   await go('#/');
   try {
