@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { useMutationState } from '@tanstack/react-query';
 import { ArrowRight, ArrowUpRight, Ban, Inbox, MoreHorizontal, Trash2, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,6 +28,7 @@ import {
 } from '@/lib/format';
 import { BUILD_SITE_PROFILE, useCancelSearch, useLocalStatus, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/queries';
 import { parseWebsite } from '@/lib/site-profile';
+import { CountUp, useStagger } from '@/lib/motion';
 import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -79,11 +80,11 @@ function RowMenu({ search }: { search: Search }) {
   );
 }
 
-function SearchRow({ search }: { search: Search }) {
+function SearchRow({ search, style }: { search: Search; style?: CSSProperties }) {
   const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
   return (
-    <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+    <div style={style} className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
       <a
         href={routeHref({ name: 'search', id: search.id })}
         data-search-status={search.status}
@@ -113,7 +114,9 @@ function SearchRow({ search }: { search: Search }) {
           )}
         </div>
         <div className="shrink-0 text-right">
-          <div className="font-display text-3xl font-light tabular-nums">{formatNumber(search.emailsFound)}</div>
+          <div className="font-display text-3xl font-light tabular-nums">
+            <CountUp value={search.emailsFound} />
+          </div>
           <div className="text-xs tabular-nums text-muted-foreground">
             {stopped && search.emailsFound === 0 ? 'no emails' : `emails, ${formatNumber(search.emailsValid)} valid`}
           </div>
@@ -197,12 +200,13 @@ function ListSkeleton() {
   );
 }
 
-function Section({ searches }: { searches: Search[] }) {
+function Section({ searches, offset = 0 }: { searches: Search[]; offset?: number }) {
+  const stagger = useStagger();
   if (searches.length === 0) return null;
   return (
-    <section className="flex flex-col gap-1 [&+&]:mt-10">
-      {searches.map((s) => (
-        <SearchRow key={s.id} search={s} />
+    <section className="stagger flex flex-col gap-1 [&+&]:mt-10">
+      {searches.map((s, i) => (
+        <SearchRow key={s.id} search={s} style={stagger.style(offset + i)} />
       ))}
     </section>
   );
@@ -269,7 +273,7 @@ export function SearchesScreen() {
             <>
               <WebsiteRow />
               <Section searches={active} />
-              <Section searches={earlier} />
+              <Section searches={earlier} offset={active.length} />
             </>
           )}
         </div>

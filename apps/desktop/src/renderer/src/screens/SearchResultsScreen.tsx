@@ -88,6 +88,7 @@ import {
   SHARED_INBOXES,
   shownEmails,
 } from '@/lib/people';
+import { useCountUp } from '@/lib/motion';
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
 import type { Company, DraftOpenersInput, Email, Opener, Search, SearchInput } from '@/lib/types';
@@ -126,10 +127,12 @@ function useDebounced<T>(value: T, ms: number): T {
 /* Overview */
 
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
+  // While a search runs the figures glide up between polls.
+  const shown = useCountUp(value);
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-4xl font-extralight tabular-nums">{formatNumber(value)}</span>
+        <span className="font-display text-4xl font-extralight tabular-nums">{formatNumber(shown)}</span>
         {sub && <span className="truncate text-sm tabular-nums text-muted-foreground">{sub}</span>}
       </div>
       <div className="mt-1 text-sm text-muted-foreground">{label}</div>
@@ -531,7 +534,7 @@ function OpenerLine({ opener }: { opener: Opener }) {
 function CompanyRow({
   company,
   live,
-  fresh,
+  entering,
   showInboxes,
   narrowed,
   onCheckInboxes,
@@ -543,8 +546,8 @@ function CompanyRow({
 }: {
   company: Company;
   live: boolean;
-  /** Arrived since the list was first shown: it rises in. */
-  fresh: boolean;
+  /** Its place in the cascade while it comes in (the first paint, or rows that just arrived), else null. */
+  entering: number | null;
   showInboxes: boolean;
   narrowed: boolean;
   onCheckInboxes: (() => void) | null;
@@ -574,10 +577,11 @@ function CompanyRow({
         onSelect(company.id, e);
       }}
       onDragStart={(e) => onDragOut(company.id, e)}
+      style={entering === null ? undefined : { animationDelay: `${entering * 28}ms` }}
       className={cn(
         COLUMNS,
         'group items-start gap-y-2 rounded-[20px] px-6 py-4 transition-colors duration-150',
-        fresh && 'motion-safe:animate-rise',
+        entering !== null && 'motion-safe:animate-item-in',
         selected ? 'bg-primary/[0.09] dark:bg-primary/[0.16]' : 'hover:bg-foreground/[0.035]',
         selected && joinAbove && 'rounded-t-none',
         selected && joinBelow && 'rounded-b-none',
@@ -715,27 +719,47 @@ function FilterPill({
   );
 }
 
+/** The longest a row's entrance runs: twelve steps of the cascade plus the rise itself. */
+const ENTRANCE_MS = 12 * 28 + 420;
+
 /**
- * Ids of rows that arrived after the list was first shown, while the search
- * runs, so they rise in. The first load and rows that only scrolled back into
- * view stay still.
+ * Rows coming in, by id, with their place in the cascade. The first rows
+ * cascade when the list first shows and again when a filter brings a new
+ * set. While the search runs, only rows that just arrived come in, so the
+ * results stream instead of the whole list replaying on each poll. Rows that
+ * only scroll back into view stay still: the map clears once the rise is done.
  */
-function useFreshRows(rows: Company[], live: boolean): Set<string> {
+function useEnteringRows(rows: Company[], live: boolean, filterKey: string, waiting: boolean): Map<string, number> {
   const seen = useRef<Set<string> | null>(null);
-  const [fresh, setFresh] = useState<Set<string>>(() => new Set());
+  const shownFor = useRef(filterKey);
+  const [entering, setEntering] = useState<Map<string, number>>(() => new Map());
   const ids = rows.map((r) => r.id).join(',');
   useEffect(() => {
+    // The previous filter's rows stay up while the next set loads.
+    if (waiting) return;
     const list = ids ? ids.split(',') : [];
-    if (seen.current === null) {
-      if (list.length > 0) seen.current = new Set(list);
-      return;
+    if (shownFor.current !== filterKey) {
+      shownFor.current = filterKey;
+      seen.current = null;
     }
-    const known = seen.current;
-    const arrived = live ? list.filter((id) => !known.has(id)) : [];
-    for (const id of list) known.add(id);
-    if (arrived.length > 0) setFresh(new Set(arrived));
-  }, [ids, live]);
-  return fresh;
+    let next: string[];
+    if (seen.current === null) {
+      if (list.length === 0) return;
+      seen.current = new Set(list);
+      next = list.slice(0, 12);
+    } else {
+      const known = seen.current;
+      next = live ? list.filter((id) => !known.has(id)) : [];
+      for (const id of list) known.add(id);
+    }
+    if (next.length > 0) setEntering(new Map(next.map((id, i) => [id, Math.min(i, 12)])));
+  }, [ids, live, filterKey, waiting]);
+  useEffect(() => {
+    if (entering.size === 0) return;
+    const timer = setTimeout(() => setEntering(new Map()), ENTRANCE_MS);
+    return () => clearTimeout(timer);
+  }, [entering]);
+  return entering;
 }
 
 /* Screen */
@@ -778,7 +802,12 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const rows = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
   const filtered = Boolean(q || verifiedOnly || decisionMakers);
-  const fresh = useFreshRows(rows, live);
+  const entering = useEnteringRows(
+    rows,
+    live,
+    `${q}|${verifiedOnly}|${decisionMakers}`,
+    companies.isPending || companies.isPlaceholderData,
+  );
   const drafting = rows.some((r) => r.opener?.status === 'queued');
   const drafted = rows.some((r) => r.opener != null && r.opener.status !== 'queued');
   useFollowOpeners(id, drafting, live);
@@ -1219,7 +1248,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                     <CompanyRow
                       company={rows[item.index]!}
                       live={live || inboxesFollowing}
-                      fresh={fresh.has(rows[item.index]!.id)}
+                      entering={entering.get(rows[item.index]!.id) ?? null}
                       showInboxes={showInboxes}
                       narrowed={verifiedOnly || decisionMakers}
                       onCheckInboxes={inboxesOff ? startInboxChecks : null}

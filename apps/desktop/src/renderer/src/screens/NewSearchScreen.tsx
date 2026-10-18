@@ -69,10 +69,13 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
                 { value: 'domains', label: 'Paste a list', icon: ClipboardList },
               ]}
             />
-            <p className="pl-1 text-sm text-muted-foreground">{SOURCES[kind]}</p>
+            <p key={kind} className="pl-1 text-sm text-muted-foreground motion-safe:animate-fade-in">
+              {SOURCES[kind]}
+            </p>
           </div>
 
-          <div className="mt-14">
+          {/* A tab switch brings its fields in; the form's values live in useSearchForm, so nothing is lost. */}
+          <div key={kind} className="mt-14 motion-safe:animate-view-in">
             <SearchFields form={form} firstField={firstField} listField={listField} />
           </div>
 

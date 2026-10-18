@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Inbox, MoreHorizontal, Pause, Pencil, Play, Plus, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FEED_SOURCES } from '@nvoke/shared';
@@ -25,6 +25,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { FEED_SOURCE_LABEL, formatNumber, nextRunLabel, relativeTime, sourcesLabel } from '@/lib/format';
 import { useDeleteDrop, useDrops, useRunDrop, useUpdateDrop } from '@/lib/queries';
+import { useStagger } from '@/lib/motion';
 import { navigate, routeHref } from '@/lib/router';
 import type { Drop, FeedSourceStatus } from '@/lib/types';
 
@@ -112,10 +113,21 @@ function DropMenu({ drop }: { drop: Drop }) {
   );
 }
 
-function DropRow({ drop }: { drop: Drop }) {
+function DropList({ drops }: { drops: Drop[] }) {
+  const stagger = useStagger();
+  return (
+    <section className="stagger flex flex-col gap-1">
+      {drops.map((d, i) => (
+        <DropRow key={d.id} drop={d} style={stagger.style(i)} />
+      ))}
+    </section>
+  );
+}
+
+function DropRow({ drop, style }: { drop: Drop; style?: CSSProperties }) {
   const what = drop.keyword ? `"${drop.keyword}"` : 'Every launch';
   return (
-    <div className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
+    <div style={style} className="group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]">
       <a
         href={routeHref({ name: 'drop', id: drop.id })}
         aria-label={drop.name}
@@ -215,11 +227,7 @@ export function DropsScreen() {
               crawled and verified.
             </EmptyState>
           ) : (
-            <section className="flex flex-col gap-1">
-              {data.drops.map((d) => (
-                <DropRow key={d.id} drop={d} />
-              ))}
-            </section>
+            <DropList drops={data.drops} />
           )}
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Check, ChevronDown, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { WEBHOOK_EVENTS, type Drop, type Webhook, type WebhookEvent } from '@nvoke/shared';
@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { WEBHOOK_DOCS_URL } from '@/lib/env';
 import { relativeTime } from '@/lib/format';
+import { useStagger } from '@/lib/motion';
 import { useCreateWebhook, useDeleteWebhook, useDrops, useTestWebhook, useUpdateWebhook, useWebhooks } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +51,17 @@ function status(webhook: Webhook): { text: string; tone: 'muted' | 'bad' } {
   return { text: 'Nothing sent yet', tone: 'muted' };
 }
 
-function WebhookRow({ webhook, drops, onDelete }: { webhook: Webhook; drops: Drop[]; onDelete: () => void }) {
+function WebhookRow({
+  webhook,
+  drops,
+  onDelete,
+  style,
+}: {
+  webhook: Webhook;
+  drops: Drop[];
+  onDelete: () => void;
+  style?: CSSProperties;
+}) {
   const test = useTestWebhook();
   const update = useUpdateWebhook();
   const state = status(webhook);
@@ -73,7 +84,7 @@ function WebhookRow({ webhook, drops, onDelete }: { webhook: Webhook; drops: Dro
   }
 
   return (
-    <li className="flex items-center gap-6 py-4">
+    <li style={style} className="flex items-center gap-6 py-4">
       <div className="min-w-0 flex-1">
         <div className="truncate font-mono text-[13px]" title={webhook.url} data-selectable>
           {webhook.url}
@@ -291,6 +302,7 @@ export function Webhooks() {
   const { data: dropList } = useDrops();
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Webhook | null>(null);
+  const stagger = useStagger();
 
   return (
     <section data-webhooks>
@@ -327,9 +339,9 @@ export function Webhooks() {
         ) : webhooks.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">No webhooks yet.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
-            {webhooks.map((w) => (
-              <WebhookRow key={w.id} webhook={w} drops={dropList?.drops ?? []} onDelete={() => setDeleting(w)} />
+          <ul className="stagger flex flex-col divide-y divide-border">
+            {webhooks.map((w, i) => (
+              <WebhookRow key={w.id} webhook={w} drops={dropList?.drops ?? []} onDelete={() => setDeleting(w)} style={stagger.style(i)} />
             ))}
           </ul>
         )}

@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { ArrowUpRight, Check, Copy, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ApiKey } from '@nvoke/shared';
@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
 import { API_DOCS_URL, DOCS_URL, MCP_DOCS_URL, MCP_URL } from '@/lib/env';
 import { relativeTime } from '@/lib/format';
+import { useStagger } from '@/lib/motion';
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
@@ -75,9 +76,9 @@ export function SectionHeading({ title, description, action }: { title: string; 
   );
 }
 
-function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: () => void }) {
+function KeyRow({ apiKey, onRevoke, style }: { apiKey: ApiKey; onRevoke: () => void; style?: CSSProperties }) {
   return (
-    <li className="flex items-center gap-6 py-4">
+    <li style={style} className="flex items-center gap-6 py-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-[15px] font-medium" title={apiKey.name}>
@@ -221,6 +222,7 @@ export function ApiKeys() {
   const { data: keys, error, isPending, refetch } = useApiKeys();
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
+  const stagger = useStagger();
 
   return (
     <section data-api-keys>
@@ -257,9 +259,9 @@ export function ApiKeys() {
         ) : keys.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">No keys yet.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
-            {keys.map((k) => (
-              <KeyRow key={k.id} apiKey={k} onRevoke={() => setRevoking(k)} />
+          <ul className="stagger flex flex-col divide-y divide-border">
+            {keys.map((k, i) => (
+              <KeyRow key={k.id} apiKey={k} onRevoke={() => setRevoking(k)} style={stagger.style(i)} />
             ))}
           </ul>
         )}

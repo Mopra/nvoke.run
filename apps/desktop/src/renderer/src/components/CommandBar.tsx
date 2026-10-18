@@ -3,6 +3,7 @@ import { Building2, CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, Map
 import { cn } from '@/lib/utils';
 import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
 import { useFindLeads, useSearches } from '@/lib/queries';
+import { useStagger } from '@/lib/motion';
 import { leadHint } from '@/lib/lead-find';
 import { quickApi } from '@/lib/desktop';
 import { parseQuickIcp, parseQuickSearch } from '@/lib/quick-search';
@@ -324,6 +325,7 @@ export function Commands({
   }
 
   let lastGroup: string | null = null;
+  const stagger = useStagger();
 
   return (
     <>
@@ -357,14 +359,19 @@ export function Commands({
         <Kbd>esc</Kbd>
       </div>
       {notice && <div className="px-5 pt-3 text-sm text-destructive">{notice}</div>}
-      <div ref={listRef} role="listbox" className="max-h-[min(460px,60vh)] overflow-y-auto p-2">
+      {/* The rows cascade in as the bar opens; after that they follow the typing at once, and found leads fade in. */}
+      <div ref={listRef} role="listbox" className={cn('max-h-[min(460px,60vh)] overflow-y-auto p-2', !stagger.settled && 'stagger')}>
         {filtered.length === 0 && <div className="px-3 py-8 text-center text-sm text-muted-foreground">No matches</div>}
         {filtered.map((command, index) => {
           const header = command.group !== lastGroup ? command.group : null;
           lastGroup = command.group;
           const selected = index === active;
           return (
-            <div key={command.id}>
+            <div
+              key={command.id}
+              style={stagger.style(index)}
+              className={cn(stagger.settled && command.group === 'Leads' && 'motion-safe:animate-fade-in')}
+            >
               {header && (
                 <div className="flex px-3 pt-3 pb-1.5 text-xs text-muted-foreground">
                   {header}

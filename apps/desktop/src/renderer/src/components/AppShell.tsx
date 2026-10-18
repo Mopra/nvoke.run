@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { transportMode } from '@/lib/api';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
+import { CountUp } from '@/lib/motion';
 import { useMe, useSearches } from '@/lib/queries';
 import { navigate, routeHref, type Route } from '@/lib/router';
 import type { Search } from '@/lib/types';
@@ -104,7 +105,10 @@ function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen:
               />
             </span>
             <span className="shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground">
-              <span className="text-foreground">{formatNumber(current.emailsValid)}</span> verified
+              <span className="text-foreground">
+                <CountUp value={current.emailsValid} />
+              </span>{' '}
+              verified
               {live.length > 1 && `, ${live.length - 1} more`}
             </span>
           </>
