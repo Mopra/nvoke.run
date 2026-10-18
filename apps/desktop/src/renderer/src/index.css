@@ -87,7 +87,15 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  /* The chassis is a solid: the window material (vibrancy, Mica) would thin it out. */
+  /*
+   * The window is transparent so the chassis can round its own corners; the
+   * canvas paints everything. Nothing else may, or it shows at the corners.
+   */
+  html,
+  body,
+  #root {
+    background: transparent;
+  }
   /* The quick window floats over other apps: nothing around its panel is painted. */
   html[data-quick],
   html[data-quick] body,
@@ -177,9 +185,19 @@
   }
 }
 
-/* The canvas: the window's one surface, the chassis. */
+/*
+ * The canvas: the window's one surface, the chassis. Rounded like a device,
+ * with a hairline of light along its edge; square when maximized or full
+ * screen, where the OS owns the edge.
+ */
 @utility canvas {
   background-color: var(--background);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--glass-edge);
+  :where([data-maximized="true"], [data-fullscreen="true"]) & {
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 /*

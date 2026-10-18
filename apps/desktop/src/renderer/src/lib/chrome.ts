@@ -4,7 +4,7 @@
  * - `data-platform`: darwin, win32, linux or web (a plain browser).
  * - `data-material` and `data-controls`: always none; the window is a
  *   solid chassis with no native controls.
- * - `data-focused`, `data-fullscreen`: live window state.
+ * - `data-focused`, `data-fullscreen`, `data-maximized`: live window state.
  *
  * Works without the bridge (VITE_MOCK in a browser): it guesses the platform
  * from the user agent and leaves the material off.
@@ -30,6 +30,7 @@ const root = document.documentElement;
 function applyState(state: WindowState): void {
   root.dataset['focused'] = String(state.focused);
   root.dataset['fullscreen'] = String(state.fullscreen);
+  root.dataset['maximized'] = String(state.maximized);
 }
 
 export async function initChrome(): Promise<void> {

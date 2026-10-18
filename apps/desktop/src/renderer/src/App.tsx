@@ -78,7 +78,7 @@ export function App() {
   return (
     <TooltipProvider>
       {auth === undefined ? (
-        <div className="app-drag flex h-full items-center justify-center bg-background">
+        <div className="canvas app-drag flex h-full items-center justify-center">
           <LogoLoader size="lg" />
         </div>
       ) : auth.status === 'signed-in' ? (

@@ -26,15 +26,6 @@ import {
 
 const TITLE_BAR = 36;
 
-/**
- * Paint the chassis before the renderer has loaded, so the window never
- * flashes white in dark mode. The values follow packages/theme/field.css.
- */
-const BOOT_COLORS = {
-  light: '#dcdbd6',
-  dark: '#262625',
-};
-
 function stateFile(): string {
   return join(app.getPath('userData'), 'window-state.json');
 }
@@ -44,11 +35,9 @@ function chromeFor(): Pick<WindowChrome, 'platform' | 'material' | 'controls' | 
   return { platform, material: 'none', controls: 'none', titleBarHeight: TITLE_BAR };
 }
 
+/** Transparent, so the chassis can round its own corners wider than the OS would. */
 function platformOptions(): BrowserWindowConstructorOptions {
-  return {
-    frame: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? BOOT_COLORS.dark : BOOT_COLORS.light,
-  };
+  return { frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: true };
 }
 
 function windowState(win: BrowserWindow): WindowState {

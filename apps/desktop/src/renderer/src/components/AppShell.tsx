@@ -113,7 +113,7 @@ function Notch() {
 function Ports({ route, onFind }: { route: Route; onFind: () => void }) {
   const onSearch = route.name === 'search';
   return (
-    <header className="app-drag rim relative z-20 flex h-(--titlebar-height) shrink-0 items-start gap-2.5 px-5">
+    <header className="app-drag rim relative z-20 flex h-(--titlebar-height) shrink-0 items-start gap-2.5 pr-7 pl-5">
       <Port href={routeHref({ name: 'searches' })} current={route.name === 'searches'} tone="dark">
         Searches
       </Port>
