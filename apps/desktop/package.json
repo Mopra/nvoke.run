@@ -1,7 +1,7 @@
 {
   "name": "@nvoke/desktop",
   "productName": "nvoke",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "nvoke desktop app, a prospecting research tool for finding companies and their public contact details",
   "author": "nvoke",
