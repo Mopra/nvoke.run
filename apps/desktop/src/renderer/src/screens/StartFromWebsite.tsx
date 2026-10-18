@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useMutationState } from '@tanstack/react-query';
 import { LogoMark } from '@/components/Logo';
-import { ArrowLeft, ArrowRight, CornerDownLeft, Globe, Loader2, Pencil, Play, RotateCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CornerDownLeft, Globe, Loader2, Pencil, Play, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Aura, BackButton, PageHeader } from '@/components/AppShell';
 import { CountryPicker } from '@/components/CountryPicker';
+import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { Line, Pill, SentenceInput } from '@/components/Sentence';
 import { ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
@@ -260,6 +261,7 @@ function Suggestions({
   onReadAnother: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const start = useStartSearch();
 
   return (
@@ -267,7 +269,13 @@ function Suggestions({
       {editing ? (
         <ProfileEditor profile={profile} onDone={() => setEditing(false)} />
       ) : (
-        <ProfileReadout profile={profile} onEdit={() => setEditing(true)} onReadAgain={onReadAgain} onReadAnother={onReadAnother} />
+        <ProfileReadout
+          profile={profile}
+          onEdit={() => setEditing(true)}
+          onReadAgain={onReadAgain}
+          onReadAnother={onReadAnother}
+          onRemove={() => setRemoving(true)}
+        />
       )}
 
       <section aria-labelledby="suggestions-title" className="mt-14">
@@ -290,6 +298,13 @@ function Suggestions({
       <div className="mt-8 px-3">
         <ByHand />
       </div>
+      {/* Leave first: with no profile on file this screen sends the user to New search. */}
+      <DeleteSiteProfileDialog
+        profile={profile}
+        open={removing}
+        onOpenChange={setRemoving}
+        onRemoving={() => navigate({ name: 'searches' }, { replace: true })}
+      />
     </div>
   );
 }
@@ -299,11 +314,13 @@ function ProfileReadout({
   onEdit,
   onReadAgain,
   onReadAnother,
+  onRemove,
 }: {
   profile: SiteProfile;
   onEdit: () => void;
   onReadAgain: () => void;
   onReadAnother: () => void;
+  onRemove: () => void;
 }) {
   const p = profile.profile;
   return (
@@ -331,6 +348,10 @@ function ProfileReadout({
           Read again
         </Pill>
         <Pill onClick={onReadAnother}>Read another site</Pill>
+        <Pill onClick={onRemove} className="inline-flex items-center gap-1.5">
+          <Trash2 className="size-3" />
+          Remove
+        </Pill>
       </div>
     </div>
   );

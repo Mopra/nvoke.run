@@ -185,6 +185,15 @@ export async function updateSiteProfile(sql: Sql, userId: string, patch: UpdateS
   return row ? toSiteProfile(row) : null;
 }
 
+/** Deletes the profile and its screenshot. False when there was none. */
+export async function deleteSiteProfile(sql: Sql, userId: string): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    await tx`delete from site_shots where clerk_user_id = ${userId}`;
+    const rows = await tx`delete from site_profiles where clerk_user_id = ${userId} returning 1`;
+    return rows.length > 0;
+  });
+}
+
 export type BuildResult =
   | { ok: true; profile: SiteProfile }
   | { ok: false; error: 'invalid_request' | 'rate_limited' | 'ai_unavailable' }

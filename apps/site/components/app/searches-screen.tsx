@@ -4,8 +4,9 @@ import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MessageSquareText, MoreHorizontal, Repeat, Rocket, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Search } from '@nvoke/shared';
+import type { Search, SiteProfile } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
+import { DeleteSiteProfileDialog } from '@/components/app/delete-site-profile-dialog';
 import { StatusDot } from '@/components/app/indicators';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
 import { APP_FRAME, APP_INSET, DisplayTitle } from '@/components/app/shell';
@@ -193,6 +194,40 @@ const BY_HAND = [
  * the site, then planned until the user picks its searches. New search always
  * starts fresh, so this row is the way back to it.
  */
+function WebsiteMenu({ profile }: { profile: SiteProfile }) {
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${profile.profile.name}`}
+            className="pointer-events-auto text-muted-foreground sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
+          >
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={PROFILE_PATH}>
+              <ArrowUpRight />
+              Open
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
+            <Trash2 />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DeleteSiteProfileDialog profile={profile} open={confirm} onOpenChange={setConfirm} />
+    </>
+  );
+}
+
 function WebsiteRow() {
   const profile = useSiteProfile();
   const latest = useLatestProfileBuild();
@@ -227,7 +262,7 @@ function WebsiteRow() {
               <div className="text-xs tabular-nums text-muted-foreground">{planned === 1 ? 'search planned' : 'searches planned'}</div>
             </div>
           )}
-          <div className="-mr-2 w-7" />
+          <div className="pointer-events-auto -mr-2 flex w-7 justify-end">{!reading && <WebsiteMenu profile={profile.data!} />}</div>
         </div>
       </div>
     </section>

@@ -536,3 +536,11 @@ export function useUpdateSiteProfile() {
     onSuccess: (profile) => client.setQueryData<SiteProfile | null>(keys.siteProfile, profile),
   });
 }
+
+export function useDeleteSiteProfile() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteSiteProfile(),
+    onSuccess: () => client.setQueryData<SiteProfile | null>(keys.siteProfile, null),
+  });
+}

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, CornerDownLeft, Loader2, Pencil, Play, RotateCw } from 'lucide-react';
+import { Check, CornerDownLeft, Loader2, Pencil, Play, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateSearchInput, SiteProfile, SuggestedSearch } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
+import { DeleteSiteProfileDialog } from '@/components/app/delete-site-profile-dialog';
 import { useStartSearch } from '@/components/app/new-search-screen';
 import { Pill, SENTENCE } from '@/components/app/sentence';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
@@ -65,6 +66,9 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
   // With a profile on file: typing another site, or editing the profile.
   const [entering, setEntering] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  // Set while Remove takes the user to Searches, so the empty page does not send them to New search first.
+  const [leaving, setLeaving] = useState(false);
   // The build watched while it ran: its screen outlives the request until the phases have played out.
   const [following, setFollowing] = useState<number | null>(null);
   // New search hands a finished read to its page, so Back and Searches lead to it.
@@ -100,7 +104,7 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
   }, [failed, outcome, forgetBuilds]);
 
   // Nothing on file and nothing running: this page has nothing to show, so New search.
-  const empty = !fresh && profile.data === null && !latest && !entering;
+  const empty = !fresh && profile.data === null && !latest && !entering && !leaving;
   useEffect(() => {
     if (empty) router.replace(WEBSITE_PATH);
   }, [empty, router]);
@@ -159,6 +163,7 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
         onEdit={setEditing}
         onReadAgain={() => run(current.website, 'profile')}
         onAnother={() => router.push(WEBSITE_PATH)}
+        onRemove={() => setRemoving(true)}
       />
     );
   }
@@ -169,6 +174,17 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
         <BackLink />
         <div className="mt-6">{body}</div>
       </div>
+      {profile.data && (
+        <DeleteSiteProfileDialog
+          profile={profile.data}
+          open={removing}
+          onOpenChange={setRemoving}
+          onRemoving={() => {
+            setLeaving(true);
+            router.replace('/app');
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -394,12 +410,14 @@ function ProfileView({
   onEdit,
   onReadAgain,
   onAnother,
+  onRemove,
 }: {
   profile: SiteProfile;
   editing: boolean;
   onEdit: (editing: boolean) => void;
   onReadAgain: () => void;
   onAnother: () => void;
+  onRemove: () => void;
 }) {
   const { profile: fields } = profile;
   const start = useStartSearch();
@@ -419,6 +437,10 @@ function ProfileView({
             Edit
           </Pill>
         )}
+        <Pill onClick={onRemove} className="inline-flex items-center gap-1.5">
+          <Trash2 className="size-3" />
+          Remove
+        </Pill>
       </div>
 
       {editing ? (

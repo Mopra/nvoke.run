@@ -205,6 +205,9 @@ export function createApi(transport: Transport) {
     /** Reads the site and plans searches. Takes 10 to 30 seconds. */
     buildSiteProfile: (website: string): Promise<SiteProfile> => call('POST', '/v1/site-profile', { website }),
     updateSiteProfile: (update: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', update),
+    deleteSiteProfile: async (): Promise<void> => {
+      await call<null>('DELETE', '/v1/site-profile');
+    },
     listWebhooks: async (): Promise<Webhook[]> => (await call<WebhookListResponse>('GET', '/v1/webhooks')).webhooks,
     createWebhook: (input: CreateWebhookRequest): Promise<CreateWebhookResponse> => call('POST', '/v1/webhooks', input),
     updateWebhook: (id: string, update: UpdateWebhookRequest): Promise<Webhook> =>

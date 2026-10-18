@@ -152,6 +152,18 @@ export const ENDPOINTS: Endpoint[] = [
     example: { audience: 'Dental clinics in Denmark with 3 to 20 chairs' },
   },
   {
+    id: 'deleteSiteProfile',
+    method: 'DELETE',
+    path: '/v1/site-profile',
+    group: 'Account',
+    summary: 'Delete your site profile',
+    description: 'Deletes the profile, its suggested searches and its screenshot. Searches you started from it stay. Openers stop using it.',
+    auth: 'key',
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
     id: 'createSearch',
     method: 'POST',
     path: '/v1/searches',

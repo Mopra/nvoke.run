@@ -4,6 +4,7 @@ import { ArrowRight, ArrowUpRight, Ban, Inbox, MoreHorizontal, Trash2, UsersRoun
 import { toast } from 'sonner';
 import { DisplayTitle, PageHeader } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
+import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { StatusDot } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { EmptyState, ErrorState } from '@/components/states';
@@ -31,6 +32,7 @@ import { parseWebsite } from '@/lib/site-profile';
 import { CountUp, useStagger } from '@/lib/motion';
 import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
+import type { SiteProfile } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
 
 function RowMenu({ search }: { search: Search }) {
@@ -76,6 +78,39 @@ function RowMenu({ search }: { search: Search }) {
         </DropdownMenuContent>
       </DropdownMenu>
       <DeleteSearchDialog search={search} open={confirm} onOpenChange={setConfirm} />
+    </>
+  );
+}
+
+function WebsiteMenu({ profile }: { profile: SiteProfile }) {
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${profile.profile.name}`}
+            className="pointer-events-auto text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem onSelect={() => navigate({ name: 'website' })}>
+            <ArrowUpRight />
+            Open
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
+            <Trash2 />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DeleteSiteProfileDialog profile={profile} open={confirm} onOpenChange={setConfirm} />
     </>
   );
 }
@@ -173,7 +208,9 @@ function WebsiteRow() {
               <div className="text-xs tabular-nums text-muted-foreground">{planned === 1 ? 'search planned' : 'searches planned'}</div>
             </div>
           )}
-          <div className="-mr-2 w-7" />
+          <div className="pointer-events-auto -mr-2 flex w-7 justify-end">
+            {reading === null && <WebsiteMenu profile={profile.data!} />}
+          </div>
         </div>
       </div>
     </section>

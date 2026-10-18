@@ -178,6 +178,15 @@ describe('site profile routes', () => {
     expect((await app.inject({ method: 'PATCH', url: '/v1/site-profile', headers: as('bob'), payload: { name: 'X' } })).statusCode).toBe(404);
   });
 
+  it('deletes the profile for its account only', async () => {
+    await build('alice', 'https://acme.dk');
+    await build('bob', 'https://acme.dk');
+    expect((await app.inject({ method: 'DELETE', url: '/v1/site-profile', headers: as('alice') })).statusCode).toBe(204);
+    expect((await app.inject({ method: 'GET', url: '/v1/site-profile', headers: as('alice') })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: '/v1/site-profile', headers: as('alice') })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/v1/site-profile', headers: as('bob') })).statusCode).toBe(200);
+  });
+
   it('rejects what is not a public website', async () => {
     expect((await build('alice', 'not a site')).statusCode).toBe(400);
     expect((await build('alice', 'localhost')).statusCode).toBe(400);

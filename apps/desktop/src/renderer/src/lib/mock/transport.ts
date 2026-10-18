@@ -616,7 +616,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   }
 
   /**
-   * GET, POST and PATCH /v1/site-profile. Any site works except one under
+   * GET, POST, PATCH and DELETE /v1/site-profile. Any site works except one under
    * `.invalid`, which answers like a site that does not resolve.
    */
   function siteProfileRoute(method: HttpMethod, body: unknown): BridgeResponse {
@@ -645,6 +645,11 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       const next: SiteProfile = { ...current, profile: { ...current.profile, ...req.data }, updatedAt: new Date(now()).toISOString() };
       storage.setItem(SITE_PROFILE_KEY, JSON.stringify(next));
       return json(200, next);
+    }
+    if (method === 'DELETE') {
+      if (!current) return fail(404, 'not_found');
+      storage.setItem(SITE_PROFILE_KEY, '');
+      return json(204, null);
     }
     return fail(404, 'not_found');
   }

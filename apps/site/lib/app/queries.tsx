@@ -417,3 +417,12 @@ export function useUpdateSiteProfile() {
     },
   });
 }
+
+export function useDeleteSiteProfile() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteSiteProfile(),
+    onSuccess: () => client.setQueryData<SiteProfile | null>(keys.siteProfile, null),
+  });
+}

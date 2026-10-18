@@ -1,5 +1,5 @@
-// Start from your website (docs/SPEC.md, "Site profile"): build, read and
-// edit the account's site profile. Building fetches a URL the user typed, so
+// Start from your website (docs/SPEC.md, "Site profile"): build, read, edit
+// and delete the account's site profile. Building fetches a URL the user typed, so
 // every hop must resolve to public addresses only (the webhook URL guard).
 // The homepage screenshot is served without auth from /site-shots/<token>.jpg.
 
@@ -13,7 +13,7 @@ import { RobotsCache } from '../../leads/robots.js';
 import { guardedFetch } from '../../profile/guarded-fetch.js';
 import { readSite } from '../../profile/read-site.js';
 import { siteShooter, type ShootSite } from '../../profile/site-shot.js';
-import { buildSiteProfile, getSiteProfile, getSiteShot, updateSiteProfile, type BuildDeps } from '../../profile/site-profile.js';
+import { buildSiteProfile, deleteSiteProfile, getSiteProfile, getSiteShot, updateSiteProfile, type BuildDeps } from '../../profile/site-profile.js';
 import { requireUser } from '../user.js';
 import { resolvePublic, type Resolve, type UrlPolicy } from '../../webhooks/address.js';
 
@@ -101,6 +101,11 @@ export async function siteProfileRoutes(app: FastifyInstance, opts: SiteProfileR
     const profile = await updateSiteProfile(opts.getSql(), req.userId!, body.data);
     if (!profile) return reply.code(404).send({ error: 'not_found' });
     return profile;
+  });
+
+  app.delete('/', async (req, reply) => {
+    if (!(await deleteSiteProfile(opts.getSql(), req.userId!))) return reply.code(404).send({ error: 'not_found' });
+    return reply.code(204).send();
   });
 }
 

@@ -189,6 +189,9 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     buildSiteProfile: (website: string, signal?: AbortSignal): Promise<SiteProfile> =>
       call('POST', '/v1/site-profile', { website }, signal),
     updateSiteProfile: (patch: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', patch),
+    deleteSiteProfile: async (): Promise<void> => {
+      await call<null>('DELETE', '/v1/site-profile');
+    },
   };
 }
 
