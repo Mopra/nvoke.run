@@ -101,12 +101,12 @@ export default function AgentDocs() {
       </DocsSection>
 
       <DocsSection id="errors" title="When it says no">
-        <dl className="divide-y rounded-2xl border">
+        <dl className="divide-y border-y">
           {ERRORS.map(([status, code, meaning]) => (
-            <div key={code} className="grid gap-1 px-4 py-3 sm:grid-cols-[3rem_11rem_1fr] sm:gap-4">
+            <div key={code} className="grid gap-1 py-3 sm:grid-cols-[3rem_11rem_1fr] sm:gap-4">
               <dt className="font-mono text-[13px] text-muted-foreground">{status}</dt>
               <dd className="font-mono text-[13px]">{code}</dd>
-              <dd className="text-sm text-muted-foreground">{meaning}</dd>
+              <dd className="text-[15px] text-muted-foreground">{meaning}</dd>
             </div>
           ))}
         </dl>

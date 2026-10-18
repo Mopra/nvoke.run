@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Faq, type FaqItem } from '@/components/site/faq';
-import { Container, PageHeader, Section } from '@/components/site/section';
+import { SheetClose, SheetHead, SheetSection } from '@/components/docs/sheet';
+import { Container } from '@/components/site/section';
 import { VsCalculator } from '@/components/site/vs-calculator';
 import { Button } from '@/components/ui/button';
 import { formatCount, formatPrice, pricing } from '@/lib/pricing';
@@ -136,50 +137,53 @@ export default async function VsPage({ params }: { params: Promise<{ slug: strin
   const others = Object.values(COMPETITORS).filter((o) => o.slug !== c.slug);
 
   return (
-    <>
-      <PageHeader title={content.headline} intro={content.intro} />
+    <Container>
+      <SheetHead
+        crumbs={[{ label: 'Compare' }, { label: `vs ${c.name}` }]}
+        title={content.headline}
+        intro={content.intro}
+      />
 
-      <Section
+      <SheetSection
+        id="cost"
+        label="Calculator"
         title="What your volume costs"
         intro={`Type how many verified emails you need each month. nvoke is free for ${free} a month, then from ${cheapest}.`}
       >
         <VsCalculator slug={c.slug} />
-      </Section>
+      </SheetSection>
 
-      <Section title="Who wins where" align="left">
-        <div className="grid gap-12 md:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            <h3 className="font-display text-2xl font-medium">Pick {c.name} when</h3>
-            <ul className="flex list-disc flex-col gap-3 pl-5 text-pretty text-muted-foreground">
-              {content.theyWin.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex flex-col gap-4">
-            <h3 className="font-display text-2xl font-medium">Pick nvoke when</h3>
-            <ul className="flex list-disc flex-col gap-3 pl-5 text-pretty text-muted-foreground">
-              {content.weWin.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </div>
+      <SheetSection id="where" label="Honest" title="Who wins where">
+        <div className="grid gap-12 md:grid-cols-2 md:gap-8">
+          {[
+            { title: `Pick ${c.name} when`, items: content.theyWin },
+            { title: 'Pick nvoke when', items: content.weWin },
+          ].map((side) => (
+            <div key={side.title} className="flex flex-col gap-4">
+              <h3 className="text-[21px] font-light tracking-[-0.02em]">{side.title}</h3>
+              <ul className="border-b">
+                {side.items.map((t, i) => (
+                  <li key={t} className="grid grid-cols-[2.25rem_1fr] gap-2 border-t py-3.5 text-[15px] text-pretty text-muted-foreground">
+                    <span className="cap pt-0.5">{String(i + 1).padStart(2, '0')}</span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
-      </Section>
+      </SheetSection>
 
-      <Section title="Questions">
-        <div className="mx-auto max-w-3xl">
+      <SheetSection id="faq" label="FAQ" title="Questions">
+        <div className="max-w-3xl">
           <Faq items={content.faq} />
         </div>
-      </Section>
+      </SheetSection>
 
-      <Container className="pb-24 text-center sm:pb-36">
-        <div className="flex flex-col items-center gap-5">
-          <h2 className="text-headline font-semibold text-balance">Try it on your own list</h2>
-          <Button asChild size="xl">
-            <Link href="/sign-up">Start free</Link>
-          </Button>
-          <p className="text-sm text-muted-foreground">
+      <SheetClose
+        title="Try it on your own list"
+        body={
+          <>
             In your browser, nothing to install. Other comparisons:{' '}
             {others.map((o, i) => (
               <span key={o.slug}>
@@ -190,9 +194,14 @@ export default async function VsPage({ params }: { params: Promise<{ slug: strin
               </span>
             ))}
             .
-          </p>
-        </div>
-      </Container>
-    </>
+          </>
+        }
+        action={
+          <Button asChild size="lg">
+            <Link href="/sign-up">Start free</Link>
+          </Button>
+        }
+      />
+    </Container>
   );
 }

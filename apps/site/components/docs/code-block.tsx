@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/** Monospace block with a copy button. `label` names the language or the file. */
+/** Code on the black screen, with a copy key. `label` names the language or the file. */
 export function CodeBlock({ code, label, className }: { code: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -19,20 +19,20 @@ export function CodeBlock({ code, label, className }: { code: string; label?: st
   }
 
   return (
-    <div className={cn('group relative min-w-0 overflow-hidden rounded-2xl bg-foreground/[0.045] dark:bg-foreground/[0.06]', className)}>
-      <div className="flex h-10 items-center justify-between pr-1.5 pl-5">
-        <span className="font-mono text-xs text-muted-foreground">{label ?? ''}</span>
+    <div className={cn('screen group relative min-w-0 overflow-hidden', className)}>
+      <div className="flex h-9 items-center justify-between border-b border-screen-dim/60 pr-1.5 pl-4">
+        <span className="cap text-screen-foreground/50">{label ?? ''}</span>
         <button
           type="button"
           onClick={() => void copy()}
           aria-label={copied ? 'Copied' : 'Copy to clipboard'}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          className="cap inline-flex h-6 items-center gap-1.5 rounded-[3px] px-2 text-screen-foreground/55 outline-none transition-colors hover:bg-screen-foreground/10 hover:text-screen-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
         >
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="overflow-x-auto px-5 pb-5 font-mono text-[13px] leading-relaxed text-foreground">
+      <pre className="overflow-x-auto px-4 py-4 font-mono text-[13px] leading-relaxed text-screen-foreground">
         <code>{code}</code>
       </pre>
     </div>

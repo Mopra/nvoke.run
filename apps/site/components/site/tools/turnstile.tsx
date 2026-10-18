@@ -75,7 +75,7 @@ export function useTurnstile(): { widget: ReactNode; getToken: () => Promise<str
         strategy="afterInteractive"
         onReady={mount}
       />
-      <div ref={box} className="flex justify-center empty:hidden" />
+      <div ref={box} className="flex empty:hidden" />
     </>
   ) : null;
 

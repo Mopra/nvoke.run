@@ -6,7 +6,7 @@ import { ToolVerifyEmailResponse, type Verification } from '@nvoke/shared';
 import { ERROR_COPY, postTool, shareInUrl } from './api';
 import { ResultCta } from './result-cta';
 import { StatusPill, type Tone } from './status-pill';
-import { ResultCard, ToolForm } from './tool-form';
+import { ResultCard, ResultScreen, ToolForm } from './tool-form';
 import { useTurnstile } from './turnstile';
 
 type Phase =
@@ -168,26 +168,25 @@ function VerifyResult({ result }: { result: ToolVerifyEmailResponse }) {
   return (
     <>
       <ResultCard>
-        <div className="flex flex-col gap-4">
-          <p className="font-mono text-[15px] break-all text-muted-foreground">{result.email}</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-4xl font-semibold tracking-[-0.035em] sm:text-5xl">{verdict.label}</h2>
-            <StatusPill tone={verdict.tone}>{result.verification.replace('_', '-')}</StatusPill>
-          </div>
-          <p className="text-lg text-pretty text-muted-foreground">{reasonText(result.reason)}</p>
+        <ResultScreen subject={result.email} />
+        <div className="flex flex-col gap-3">
+          <StatusPill tone={verdict.tone}>{result.verification.replace('_', '-')}</StatusPill>
+          <h2 className="text-[34px] leading-[1.05] font-light tracking-[-0.035em] sm:text-[44px]">{verdict.label}</h2>
+          <p className="text-[16px] text-pretty text-muted-foreground">{reasonText(result.reason)}</p>
         </div>
         {result.depth === 'domain' ? (
-          <p className="rounded-[20px] bg-foreground/[0.04] px-5 py-4 text-[15px] text-pretty">
+          <p className="flex items-center gap-2.5 border-y py-3 text-[15px] text-pretty">
+            <span aria-hidden="true" className="led bg-chart-2" />
             We checked the domain, not the mailbox. Sign up for the full mailbox check.
           </p>
         ) : null}
-        <dl className="grid gap-x-8 gap-y-4 border-t pt-6 text-sm sm:grid-cols-2">
+        <dl className="grid gap-x-8 gap-y-4 border-t pt-5 text-sm sm:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Mail server</dt>
+            <dt className="cap text-muted-foreground">Mail server</dt>
             <dd className="font-mono break-all">{result.mxHost ?? 'None found'}</dd>
           </div>
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Checked</dt>
+            <dt className="cap text-muted-foreground">Checked</dt>
             <dd>{result.depth === 'mailbox' ? 'Syntax, DNS and the mailbox' : 'Syntax and DNS'}</dd>
           </div>
         </dl>

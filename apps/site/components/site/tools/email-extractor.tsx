@@ -8,7 +8,7 @@ import { cleanDomain, DOMAIN } from '@/lib/domain';
 import { ERROR_COPY, postTool, shareInUrl } from './api';
 import { ResultCta } from './result-cta';
 import { StatusPill, type Tone } from './status-pill';
-import { ResultCard, ToolForm } from './tool-form';
+import { LedMeter, ResultCard, ResultScreen, ToolForm } from './tool-form';
 import { useTurnstile } from './turnstile';
 
 type Phase =
@@ -164,19 +164,13 @@ function Progress({ domain, startedAt }: { domain: string; startedAt: number }) 
   const line = [...PROGRESS].reverse().find(([at]) => seconds >= at)?.[1](domain) ?? '';
   return (
     <ResultCard>
-      <div className="flex items-center justify-between gap-4">
-        <p className="font-mono text-[15px] break-all text-muted-foreground">{domain}</p>
-        <span className="text-sm text-muted-foreground tabular-nums">{seconds}s</span>
+      <ResultScreen subject={domain} figure={String(seconds)} unit="sec" />
+      <div className="flex items-center gap-2.5">
+        <span aria-hidden="true" className="led led-on motion-safe:animate-pulse" />
+        <span className="cap text-foreground">Reading</span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-foreground/[0.06]">
-        <div
-          className="relative h-full overflow-hidden rounded-full bg-primary transition-[width] duration-1000 ease-out"
-          style={{ width: `${Math.min(95, 8 + seconds * 3.6)}%` }}
-        >
-          <div className="progress-sheen absolute inset-0 motion-safe:animate-sheen" />
-        </div>
-      </div>
-      <p className="text-lg text-pretty">{line}…</p>
+      <LedMeter value={Math.min(0.95, 0.08 + seconds * 0.036)} />
+      <p className="text-[16px] text-pretty">{line}…</p>
     </ResultCard>
   );
 }
@@ -194,15 +188,17 @@ function ExtractResult({ result }: { result: ToolExtractEmailsResponse }) {
   return (
     <>
       <ResultCard>
-        <div className="flex flex-col gap-4">
-          <p className="font-mono text-[15px] break-all text-muted-foreground">{result.domain}</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-4xl font-semibold tracking-[-0.035em] sm:text-5xl">{headline}</h2>
-            {result.status !== 'done' ? <StatusPill tone={status.tone}>{result.status.replace('_', ' ')}</StatusPill> : null}
-          </div>
-          {status.body ? <p className="text-lg text-pretty text-muted-foreground">{status.body}</p> : null}
+        <ResultScreen
+          subject={result.domain}
+          figure={result.status === 'done' ? String(count) : undefined}
+          unit={result.status === 'done' ? (count === 1 ? 'email' : 'emails') : undefined}
+        />
+        <div className="flex flex-col gap-3">
+          <StatusPill tone={status.tone}>{result.status === 'done' ? status.label : result.status.replace('_', ' ')}</StatusPill>
+          <h2 className="text-[34px] leading-[1.05] font-light tracking-[-0.035em] sm:text-[44px]">{headline}</h2>
+          {status.body ? <p className="text-[16px] text-pretty text-muted-foreground">{status.body}</p> : null}
           {result.status === 'done' && count === 0 && result.hiddenPersonal === 0 ? (
-            <p className="text-lg text-pretty text-muted-foreground">
+            <p className="text-[16px] text-pretty text-muted-foreground">
               We read the site and found no address on its own domain. Many companies hide behind a contact form.
             </p>
           ) : null}
@@ -227,7 +223,8 @@ function ExtractResult({ result }: { result: ToolExtractEmailsResponse }) {
           </ul>
         ) : null}
         {result.hiddenPersonal > 0 ? (
-          <p className="rounded-[20px] bg-foreground/[0.04] px-5 py-4 text-[15px] text-pretty">
+          <p className="flex items-center gap-2.5 text-[15px] text-pretty">
+            <span aria-hidden="true" className="led" />
             Plus {result.hiddenPersonal} {result.hiddenPersonal === 1 ? 'address' : 'addresses'} of people, hidden on the
             free tool.
           </p>

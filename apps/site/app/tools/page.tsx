@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, AtSign, Globe, ShieldCheck } from 'lucide-react';
 import { Faq } from '@/components/site/faq';
-import { Container, PageHeader, Section } from '@/components/site/section';
+import { ChannelSteps, SheetHead, SheetSection } from '@/components/docs/sheet';
+import { Container } from '@/components/site/section';
 import { JsonLd } from '@/components/site/tools/json-ld';
 import { ToolsCtaBand, type ToolFaq } from '@/components/site/tools/tool-page';
 import { site } from '@/lib/site';
@@ -112,128 +113,111 @@ export default function ToolsPage() {
   };
 
   return (
-    <>
+    <Container>
       <JsonLd data={jsonLd} />
-      <PageHeader
+      <SheetHead
+        eyebrow="Free tools"
         title="Free email tools"
         intro="Check an address, find the emails on a website, fix the records that send you to spam. No sign-up. The same engine that runs nvoke."
       />
 
-      <Container className="pb-24 sm:pb-36">
-        <ul className="grid gap-5 md:grid-cols-3">
-          {tools.map((tool) => {
-            const Icon = ICONS[tool.slug];
-            return (
-              <li key={tool.slug}>
-                <Link
-                  href={tool.href}
-                  className="glass group flex h-full flex-col gap-5 rounded-[28px] p-7 outline-none transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:p-8"
-                >
-                  <Icon className="size-7 text-muted-foreground/70" strokeWidth={1.25} aria-hidden="true" />
-                  <h2 className="mt-4 font-display text-2xl font-semibold tracking-[-0.025em] text-balance">
-                    {tool.name}
-                  </h2>
-                  <p className="text-pretty text-muted-foreground">{tool.description}</p>
-                  <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-medium">
-                    Open
-                    <ArrowRight
-                      className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </Container>
+      <ol className="mb-16 grid border-b md:grid-cols-3 md:gap-x-8 md:border-b-0 sm:mb-24">
+        {tools.map((tool, i) => {
+          const Icon = ICONS[tool.slug];
+          return (
+            <li key={tool.slug} className="md:border-b">
+              <Link
+                href={tool.href}
+                className="group flex h-full flex-col gap-3 border-t py-6 outline-none transition-colors hover:bg-foreground/[0.035] focus-visible:ring-[3px] focus-visible:ring-ring/40"
+              >
+                <span className="flex items-center justify-between">
+                  <span className="cap text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
+                  <Icon className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+                </span>
+                <h2 className="mt-2 text-[28px] leading-tight font-light tracking-[-0.03em] text-balance">{tool.name}</h2>
+                <p className="text-[15px] text-pretty text-muted-foreground">{tool.description}</p>
+                <span className="cap mt-auto inline-flex items-center gap-1.5 pt-3 text-foreground">
+                  Open
+                  <ArrowRight
+                    className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
 
-      <Section
+      <SheetSection
         id="problems"
+        label="Symptoms"
         title="Start from the problem"
         intro="You rarely need a tool. You need a symptom gone. Find yours."
-        className="pt-0 sm:pt-0"
       >
-        <div className="mx-auto max-w-3xl">
-          <table className="w-full text-left">
-            <caption className="sr-only">Symptoms and the tool that fixes each</caption>
-            <thead className="sr-only sm:not-sr-only">
-              <tr className="text-sm text-muted-foreground">
-                <th scope="col" className="pb-4 font-normal">
-                  If
-                </th>
-                <th scope="col" className="hidden pb-4 font-normal md:table-cell">
-                  Why
-                </th>
-                <th scope="col" className="pb-4 text-right font-normal">
-                  Use
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y border-y">
-              {PROBLEMS.map((p) => {
-                const tool = toolBySlug(p.tool);
-                return (
-                  <tr key={p.symptom} className="align-top">
-                    <th scope="row" className="py-6 pr-6 font-display text-lg font-medium tracking-[-0.015em]">
-                      {p.symptom}
-                      <p className="mt-1.5 font-sans text-[15px] font-normal tracking-normal text-pretty text-muted-foreground md:hidden">
-                        {p.why}
-                      </p>
-                    </th>
-                    <td className="hidden py-6 pr-6 text-pretty text-muted-foreground md:table-cell">{p.why}</td>
-                    <td className="py-6 text-right">
-                      <Link
-                        href={tool.href}
-                        className="inline-flex items-center gap-1 rounded-full text-sm font-medium whitespace-nowrap underline-offset-4 hover:underline"
-                      >
-                        {tool.short}
-                        <ArrowRight className="size-3.5" aria-hidden="true" />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Section>
+        <table className="w-full max-w-4xl text-left">
+          <caption className="sr-only">Symptoms and the tool that fixes each</caption>
+          <thead className="sr-only sm:not-sr-only">
+            <tr className="cap text-muted-foreground">
+              <th scope="col" className="pb-3 font-medium">
+                If
+              </th>
+              <th scope="col" className="hidden pb-3 font-medium md:table-cell">
+                Why
+              </th>
+              <th scope="col" className="pb-3 text-right font-medium">
+                Use
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y border-y">
+            {PROBLEMS.map((p) => {
+              const tool = toolBySlug(p.tool);
+              return (
+                <tr key={p.symptom} className="align-top">
+                  <th scope="row" className="py-5 pr-6 text-[17px] font-normal tracking-[-0.01em]">
+                    {p.symptom}
+                    <p className="mt-1.5 text-[15px] text-pretty text-muted-foreground md:hidden">{p.why}</p>
+                  </th>
+                  <td className="hidden py-5 pr-6 text-[15px] text-pretty text-muted-foreground md:table-cell">{p.why}</td>
+                  <td className="py-5 text-right">
+                    <Link
+                      href={tool.href}
+                      className="cap inline-flex items-center gap-1 whitespace-nowrap text-foreground underline-offset-4 hover:underline"
+                    >
+                      {tool.short}
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </SheetSection>
 
-      <Section
+      <SheetSection
         id="why"
+        label="Engine"
         title="Built on the real engine"
-        intro="These are not demo toys. Every check runs on the same verifier and crawler that nvoke customers use, with the same rules."
-        className="pt-0 sm:pt-0"
+        intro="Not demo toys. Every check runs on the verifier and crawler nvoke customers use, with the same rules."
       >
-        <dl className="grid gap-12 sm:grid-cols-3">
-          <div className="flex flex-col gap-2.5">
-            <dt className="font-display text-lg font-semibold tracking-[-0.015em]">Asks, never guesses</dt>
-            <dd className="text-pretty text-muted-foreground">
-              Verdicts come from the mail server. When it will not answer, we say so.
-            </dd>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            <dt className="font-display text-lg font-semibold tracking-[-0.015em]">Polite crawler</dt>
-            <dd className="text-pretty text-muted-foreground">
-              nvokebot reads robots.txt first, one page a second, at most eight pages a site.
-            </dd>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            <dt className="font-display text-lg font-semibold tracking-[-0.015em]">Nothing gets sent</dt>
-            <dd className="text-pretty text-muted-foreground">
-              No test email, no tracking pixel. nvoke has no send button anywhere.
-            </dd>
-          </div>
-        </dl>
-      </Section>
+        <ChannelSteps
+          steps={[
+            { title: 'Asks, never guesses', body: 'Verdicts come from the mail server. When it will not answer, we say so.' },
+            { title: 'Polite crawler', body: 'nvokebot reads robots.txt first, one page a second, at most eight pages a site.' },
+            { title: 'Nothing gets sent', body: 'No test email, no tracking pixel. nvoke has no send button anywhere.' },
+          ]}
+        />
+      </SheetSection>
 
-      <Section id="faq" title="Questions" className="pt-0 sm:pt-0">
-        <div className="mx-auto max-w-3xl">
+      <SheetSection id="faq" label="FAQ" title="Questions">
+        <div className="max-w-3xl">
           <Faq items={FAQ} />
         </div>
-      </Section>
+      </SheetSection>
 
       <ToolsCtaBand campaign="tools" />
-    </>
+    </Container>
   );
 }

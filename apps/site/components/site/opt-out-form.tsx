@@ -93,13 +93,17 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
     }
   }
 
-  const card = 'flex flex-col gap-5 rounded-2xl border bg-card p-6 text-card-foreground shadow-sm dark:bg-card/80';
+  const card = 'plate flex flex-col gap-5 rounded-[6px] p-5 text-card-foreground sm:p-6';
 
   if (phase.kind === 'done') {
     return (
       <div role="status" aria-live="polite" className={card}>
         <div className="flex flex-col gap-2">
-          <p className="text-lg font-semibold tracking-[-0.015em]">{t.doneTitle}</p>
+          <p className="cap flex items-center gap-2 text-foreground">
+            <span aria-hidden="true" className="led bg-chart-1" />
+            Done
+          </p>
+          <p className="text-[21px] font-light tracking-[-0.02em]">{t.doneTitle}</p>
           <p className="text-pretty text-muted-foreground">{t.doneBody(phase.target)}</p>
         </div>
         <Button type="button" variant="secondary" className="w-fit" onClick={() => setPhase({ kind: 'idle' })}>
@@ -110,9 +114,9 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
   }
 
   const field =
-    'w-full rounded-[10px] bg-foreground/[0.05] px-3 py-2.5 font-mono text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-card focus-visible:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/25 dark:focus-visible:bg-foreground/10';
+    'h-10 w-full rounded-[4px] bg-background/60 px-3 font-mono text-[15px] shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-shadow duration-150 placeholder:text-muted-foreground/90 focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/25';
   const option =
-    'flex flex-1 cursor-pointer items-center justify-center rounded-[8px] px-3 py-1.5 text-sm text-muted-foreground transition-colors has-checked:bg-card has-checked:text-foreground has-checked:shadow-sm has-focus-visible:ring-[3px] has-focus-visible:ring-ring/40 dark:has-checked:bg-foreground/10';
+    'key group/opt flex h-8 flex-1 cursor-pointer items-center justify-center gap-2 bg-secondary px-3 font-mono text-[11.5px] font-medium tracking-[0.07em] text-secondary-foreground uppercase has-checked:key-down has-focus-visible:ring-[3px] has-focus-visible:ring-ring/40';
 
   const inputId = `${id}-value`;
   const hintId = `${id}-hint`;
@@ -122,8 +126,8 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
   return (
     <form onSubmit={submit} noValidate className={card}>
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium">{t.legend}</legend>
-        <div className="flex gap-1 rounded-[10px] bg-foreground/[0.05] p-1">
+        <legend className="cap mb-2 text-muted-foreground">{t.legend}</legend>
+        <div className="flex gap-2">
           {(['email', 'domain'] as const).map((k) => (
             <label key={k} className={option}>
               <input
@@ -137,13 +141,14 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
                 }}
                 className="sr-only"
               />
+              <span aria-hidden="true" className="led group-has-checked/opt:led-on" />
               {t[k]}
             </label>
           ))}
         </div>
       </fieldset>
       <div className="flex flex-col gap-2">
-        <label htmlFor={inputId} className="text-sm font-medium">
+        <label htmlFor={inputId} className="cap text-muted-foreground">
           {kind === 'email' ? t.emailLabel : t.domainLabel}
         </label>
         <input
@@ -166,7 +171,8 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
           {kind === 'email' ? t.emailHint : t.domainHint}
         </p>
         {error ? (
-          <p id={errorId} role="alert" className="text-sm text-destructive">
+          <p id={errorId} role="alert" className="flex items-center gap-2 text-sm text-foreground">
+            <span aria-hidden="true" className="led bg-destructive" />
             {error}
           </p>
         ) : null}

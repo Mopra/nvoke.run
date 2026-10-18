@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { MCP_TOOLS, UNCLAIMED_ACTIVE_DAYS } from '@nvoke/shared';
 import { CodeBlock } from '@/components/docs/code-block';
-import { Container, PageHeader, Section } from '@/components/site/section';
+import { ChannelSteps, SheetHead, SheetSection } from '@/components/docs/sheet';
+import { Container } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
 import { urls } from '@/lib/docs';
 import { formatCount, pricing } from '@/lib/pricing';
@@ -63,90 +64,79 @@ const HUMAN = [
 
 export default function AgentsPage() {
   return (
-    <>
-      <PageHeader
+    <Container>
+      <SheetHead
+        eyebrow="For agents"
         title="Let your agent find the leads"
         intro="Tell it who you want. It signs up, runs the search on our servers and comes back with addresses the mail server said yes to."
       >
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <div className="mt-3 flex flex-wrap gap-3">
           <Button asChild size="lg">
             <Link href="/docs">Read the docs</Link>
           </Button>
-          <Button asChild size="lg" variant="glass">
+          <Button asChild size="lg" variant="secondary">
             <a href="/agents.md">agents.md</a>
           </Button>
         </div>
-      </PageHeader>
+      </SheetHead>
 
-      <Container className="overflow-x-clip pb-8">
-        <div className="relative mx-auto max-w-3xl">
-          <div aria-hidden="true" className="aura absolute -inset-[10%] rounded-full opacity-70" />
-          <div className="glass-strong relative flex flex-col gap-4 rounded-[28px] p-6 sm:p-8">
-            <p className="text-sm font-medium">Paste this into your agent</p>
-            <CodeBlock label="prompt" code={PROMPT} className="[&_pre]:whitespace-pre-wrap" />
-            <p className="text-sm text-muted-foreground">
-              Works with Claude, ChatGPT, Cursor or any agent that can make HTTP calls.
-            </p>
-          </div>
-        </div>
-      </Container>
+      <div className="flex max-w-3xl flex-col gap-3 pb-16 sm:pb-24">
+        <p className="cap text-muted-foreground">Paste this into your agent</p>
+        <CodeBlock label="prompt" code={PROMPT} className="[&_pre]:whitespace-pre-wrap" />
+        <p className="text-sm text-muted-foreground">Works with Claude, ChatGPT, Cursor or any agent that makes HTTP calls.</p>
+      </div>
 
-      <Section id="ways" title="Three doors, one product" intro="Same searches, same checks, same price as the web app and nvoke Desktop.">
-        <div className="grid gap-4 md:grid-cols-3">
-          {WAYS.map((w) => (
-            <div key={w.title} className="glass flex flex-col gap-3 rounded-[28px] p-7">
-              <h3 className="text-xl font-semibold tracking-[-0.02em]">{w.title}</h3>
-              <p className="flex-1 text-pretty text-muted-foreground">{w.body}</p>
-              <Link href={w.href} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+      <SheetSection
+        id="ways"
+        label="Interfaces"
+        title="Three doors, one product"
+        intro="Same searches, same checks, same price as the web app and nvoke Desktop."
+      >
+        <ol className="grid gap-x-8 md:grid-cols-3">
+          {WAYS.map((w, i) => (
+            <li key={w.title} className="flex flex-col gap-2 border-t py-5">
+              <span className="cap text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
+              <h3 className="text-[21px] font-light tracking-[-0.02em]">{w.title}</h3>
+              <p className="flex-1 text-[15px] text-pretty text-muted-foreground">{w.body}</p>
+              <Link href={w.href} className="cap mt-2 text-foreground underline underline-offset-4 hover:decoration-2">
                 {w.cta}
               </Link>
-            </div>
+            </li>
           ))}
-        </div>
-      </Section>
+        </ol>
+      </SheetSection>
 
-      <section className="py-24 sm:py-36">
-        <Container className="grid items-start gap-12 lg:grid-cols-2 lg:gap-20">
-          <div className="flex flex-col gap-6">
-            <h2 className="text-title font-semibold text-balance">Signs itself up</h2>
-            <p className="text-lede text-pretty text-muted-foreground">
-              No browser, no password, no human waiting on a form. One call, and the key is in the response.
-            </p>
-            <p className="text-pretty text-muted-foreground">
+      <SheetSection id="signup" label="Sign-up" title="Signs itself up">
+        <div className="grid items-start gap-8 lg:grid-cols-2 lg:gap-12">
+          <div className="flex flex-col gap-4 text-[16px] text-pretty text-muted-foreground">
+            <p className="text-foreground">No browser, no password, no human waiting on a form. One call, and the key is in the response.</p>
+            <p>
               The account belongs to you, not the agent. We send you one email to claim it, keep the agent’s key or
               revoke it. Someone else typed your address? Sign in and their key dies.
             </p>
           </div>
           <CodeBlock label="shell" code={SIGNUP} />
-        </Container>
-      </section>
+        </div>
+      </SheetSection>
 
-      <section className="pb-24 sm:pb-36">
-        <Container className="grid items-start gap-12 lg:grid-cols-2 lg:gap-20">
-          <div className="flex flex-col gap-6">
-            <h2 className="text-title font-semibold text-balance">Or just give it the URL</h2>
-            <p className="text-lede text-pretty text-muted-foreground">
-              MCP clients that do OAuth need nothing else. A browser opens, you sign in or sign up, done.
-            </p>
-          </div>
+      <SheetSection id="mcp" label="MCP" title="Or just give it the URL">
+        <div className="grid items-start gap-8 lg:grid-cols-2 lg:gap-12">
+          <p className="text-[16px] text-pretty text-muted-foreground">
+            MCP clients that do OAuth need nothing else. A browser opens, you sign in or sign up, done.
+          </p>
           <CodeBlock label="shell" code={MCP_ADD} />
-        </Container>
-      </section>
+        </div>
+      </SheetSection>
 
-      <Section
+      <SheetSection
         id="human"
+        label="Human"
         title="What still needs you"
         intro="Agents do the legwork. Three things stay human, on purpose."
+        className="pb-24 sm:pb-36"
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          {HUMAN.map((h) => (
-            <div key={h.title} className="flex flex-col gap-2 rounded-[28px] border p-7">
-              <h3 className="font-semibold tracking-[-0.01em]">{h.title}</h3>
-              <p className="text-pretty text-muted-foreground">{h.body}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
-    </>
+        <ChannelSteps steps={HUMAN} />
+      </SheetSection>
+    </Container>
   );
 }

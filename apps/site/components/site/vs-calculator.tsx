@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Segmented } from '@/components/ui/segmented';
 import { COMPETITORS, EUR_USD, nvokeQuote, quote, toUsd, type Competitor } from '@/lib/vs';
 import { formatCount, formatPrice } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
@@ -28,10 +29,10 @@ export function VsCalculator({ slug }: { slug: Competitor['slug'] }) {
   const saving = themUsd !== null && us ? themUsd - us.price : null;
 
   return (
-    <div className="glass-strong mx-auto flex w-full max-w-3xl flex-col gap-8 rounded-[32px] p-7 text-card-foreground sm:p-12">
+    <div className="plate flex w-full max-w-3xl flex-col gap-7 rounded-[6px] p-5 text-card-foreground sm:p-8">
       <div className="flex flex-col gap-3">
-        <label htmlFor="vs-emails" className="text-sm text-muted-foreground">
-          Verified emails you need a month
+        <label htmlFor="vs-emails" className="cap text-muted-foreground">
+          Verified emails a month
         </label>
         <input
           id="vs-emails"
@@ -41,17 +42,18 @@ export function VsCalculator({ slug }: { slug: Competitor['slug'] }) {
           max={200_000}
           value={emails}
           onChange={(e) => setEmails(Math.min(200_000, Math.max(1, Math.round(Number(e.target.value)) || 1)))}
-          className="w-full rounded-2xl border bg-background px-4 py-3 font-display text-4xl font-extralight tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          className="w-full rounded-[4px] bg-background/60 px-4 py-2 font-display text-4xl font-light tabular-nums shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25 [&::-webkit-inner-spin-button]:appearance-none"
         />
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((n) => (
             <button
               key={n}
               type="button"
+              aria-pressed={n === emails}
               onClick={() => setEmails(n)}
               className={cn(
-                'rounded-full px-3 py-1 text-xs tabular-nums transition-colors',
-                n === emails ? 'bg-foreground text-background' : 'bg-foreground/[0.05] text-muted-foreground hover:text-foreground',
+                'key h-7 bg-secondary px-2.5 font-mono text-[11.5px] font-medium tabular-nums text-secondary-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                n === emails ? 'key-down' : 'hover:brightness-[0.97]',
               )}
             >
               {formatCount(n)}
@@ -60,63 +62,49 @@ export function VsCalculator({ slug }: { slug: Competitor['slug'] }) {
         </div>
       </div>
 
-      <div className="flex gap-2 text-sm" role="group" aria-label="How you pay the competitor">
-        {(['monthly', 'annual'] as const).map((b) => (
-          <button
-            key={b}
-            type="button"
-            aria-pressed={billing === b}
-            onClick={() => setBilling(b)}
-            className={cn(
-              'rounded-full px-4 py-1.5 transition-colors',
-              billing === b ? 'bg-foreground text-background' : 'bg-foreground/[0.05] text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {c.name} {b === 'monthly' ? 'billed monthly' : 'billed yearly'}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label={`How you pay ${c.name}`}
+        value={billing}
+        onChange={setBilling}
+        options={[
+          { value: 'monthly', label: `${c.name} monthly` },
+          { value: 'annual', label: `${c.name} yearly` },
+        ]}
+        className="self-start"
+      />
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-sm text-muted-foreground">{c.name}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="screen flex min-h-32 flex-col justify-between gap-3 p-4">
+          <p className="cap text-screen-foreground/50">{c.name}</p>
           {them ? (
-            <>
-              <p className="font-display text-5xl font-extralight tracking-[-0.045em] tabular-nums">
-                {them.price === 0 ? 'Free' : money(them.price, c.currency)}
-              </p>
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col gap-1">
+              <p className="lcd text-[40px] leading-none">{them.price === 0 ? 'FREE' : money(them.price, c.currency)}</p>
+              <p className="cap text-screen-foreground/50">
                 {them.plan}
                 {them.seats > 1 ? `, ${them.seats} seats` : ''}
-                {them.price > 0 ? ' per month' : ''}
+                {them.price > 0 ? ' a month' : ''}
               </p>
-            </>
+            </div>
           ) : (
-            <p className="text-sm text-pretty text-muted-foreground">
-              More than {c.name} publishes a plan for. You would have to ask their sales team.
+            <p className="text-sm text-pretty text-screen-foreground/70">
+              More than {c.name} publishes a plan for. Ask their sales team.
             </p>
           )}
         </div>
-        <div className="flex flex-col gap-1.5">
-          <p className="text-sm text-muted-foreground">nvoke</p>
+        <div className="screen flex min-h-32 flex-col justify-between gap-3 p-4">
+          <p className="cap text-screen-foreground/50">nvoke</p>
           {us ? (
-            <>
-              <p className="font-display text-5xl font-extralight tracking-[-0.045em] tabular-nums">
-                {us.price === 0 ? 'Free' : formatPrice(us.price)}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {us.plan}
-              </p>
-            </>
+            <div className="flex flex-col gap-1">
+              <p className="lcd text-[40px] leading-none">{us.price === 0 ? 'FREE' : formatPrice(us.price)}</p>
+              <p className="cap text-screen-foreground/50">{us.plan}</p>
+            </div>
           ) : (
-            <p className="text-sm text-pretty text-muted-foreground">
-              More than our top plan. Write to hello@nvoke.run.
-            </p>
+            <p className="text-sm text-pretty text-screen-foreground/70">More than our top plan. Write to hello@nvoke.run.</p>
           )}
         </div>
       </div>
 
-      <p aria-live="polite" className="text-sm text-pretty text-muted-foreground">
+      <p aria-live="polite" className="text-[16px] text-pretty text-foreground">
         {saving !== null && saving > 0
           ? `About ${formatPrice(Math.round(saving))} a month less with nvoke at this volume.`
           : saving !== null && saving < 0
@@ -126,7 +114,7 @@ export function VsCalculator({ slug }: { slug: Competitor['slug'] }) {
               : ''}
       </p>
 
-      <div className="flex flex-col gap-3 text-xs text-pretty text-muted-foreground">
+      <div className="flex flex-col gap-3 border-t pt-5 text-xs text-pretty text-muted-foreground">
         <p>{c.creditNote}</p>
         <p>
           Prices read from{' '}

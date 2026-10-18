@@ -96,8 +96,8 @@ export default function WebsiteEmailExtractorPage() {
       terms={TERMS}
       faq={FAQ}
     >
-      <section className="pb-24 sm:pb-36">
-        <p className="mx-auto max-w-2xl px-5 text-center text-pretty text-muted-foreground">
+      <section className="border-t py-10">
+        <p className="max-w-2xl text-[15px] text-pretty text-muted-foreground">
           The crawler is nvokebot. Its user agent, limits and robots.txt rules are on the{' '}
           <Link href="/bot" className="text-foreground underline underline-offset-4">
             nvokebot page

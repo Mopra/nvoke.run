@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CodeBlock } from '@/components/docs/code-block';
-import { DocsSection, DocsTitle, Prose } from '@/components/docs/prose';
+import { ChannelRows, DocsSection, DocsTitle, Prose } from '@/components/docs/prose';
 import { urls } from '@/lib/docs';
 
 export const metadata: Metadata = {
@@ -40,20 +40,9 @@ export default function DocsIndex() {
         intro="Everything the app does, over HTTP. Start a search, wait a few minutes, take the addresses that check out. Your code or your agent drives it."
       />
 
-      <div className="grid gap-3 pb-12 sm:grid-cols-3">
-        {CARDS.map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className="glass flex flex-col gap-2 rounded-3xl p-6 outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          >
-            <span className="font-medium tracking-[-0.01em]">{c.title}</span>
-            <span className="text-sm text-pretty text-muted-foreground">{c.body}</span>
-          </Link>
-        ))}
-      </div>
+      <ChannelRows className="border-b-0" items={CARDS.map((c) => ({ key: c.href, href: c.href, title: c.title, body: c.body }))} />
 
-      <DocsSection id="key" title="1. Get a key">
+      <DocsSection id="key" channel="01" title="Get a key">
         <Prose>
           <p>Two ways. Pick one.</p>
           <p>
@@ -73,7 +62,7 @@ export default function DocsIndex() {
         </Prose>
       </DocsSection>
 
-      <DocsSection id="search" title="2. Start a search">
+      <DocsSection id="search" channel="02" title="Start a search">
         <Prose>
           <p>
             Four kinds: <code>local</code> (a trade in a place), <code>web</code> (a keyword, optionally a country),{' '}
@@ -85,7 +74,7 @@ export default function DocsIndex() {
         <CodeBlock label="shell" code={START} />
       </DocsSection>
 
-      <DocsSection id="poll" title="3. Wait for it">
+      <DocsSection id="poll" channel="03" title="Wait for it">
         <Prose>
           <p>
             Our servers find the companies, read their sites and check every address with its mail server. That takes a
@@ -96,7 +85,7 @@ export default function DocsIndex() {
         <CodeBlock label="shell" code={POLL} />
       </DocsSection>
 
-      <DocsSection id="leads" title="4. Take the leads">
+      <DocsSection id="leads" channel="04" title="Take the leads">
         <Prose>
           <p>
             <code>verification=valid</code> keeps the addresses the mail server accepted. Pages hold 50 companies; pass{' '}

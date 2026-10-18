@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { z } from 'zod';
 import { MCP_TOOLS } from '@nvoke/shared';
 import { CodeBlock } from '@/components/docs/code-block';
-import { DocsSection, DocsTitle, Inline, Prose } from '@/components/docs/prose';
+import { Badge } from '@/components/ui/badge';
+import { DocsSection, DocsTitle, Facts, Inline, Prose } from '@/components/docs/prose';
 import { urls } from '@/lib/docs';
 
 export const metadata: Metadata = {
@@ -61,20 +62,13 @@ export default function McpDocs() {
         intro="Give your agent nvoke as tools. Through the desktop app with no key, or with one URL and no install. It finds companies, waits for the checks and hands back the addresses that work."
       />
 
-      <div className="glass flex flex-col gap-3 rounded-3xl p-6 text-sm">
-        <div className="grid gap-1 sm:grid-cols-[7rem_1fr]">
-          <span className="text-muted-foreground">URL</span>
-          <code className="font-mono break-all">{urls.mcp}</code>
-        </div>
-        <div className="grid gap-1 sm:grid-cols-[7rem_1fr]">
-          <span className="text-muted-foreground">Transport</span>
-          <span>Streamable HTTP, stateless</span>
-        </div>
-        <div className="grid gap-1 sm:grid-cols-[7rem_1fr]">
-          <span className="text-muted-foreground">Auth</span>
-          <span>The desktop app’s sign-in, an API key header, or OAuth</span>
-        </div>
-      </div>
+      <Facts
+        rows={[
+          { label: 'URL', value: <code className="font-mono break-all">{urls.mcp}</code> },
+          { label: 'Transport', value: 'Streamable HTTP, stateless' },
+          { label: 'Auth', value: 'The desktop app’s sign-in, an API key header, or OAuth' },
+        ]}
+      />
 
       <DocsSection id="auth" title="Three ways in">
         <Prose>
@@ -169,17 +163,17 @@ export default function McpDocs() {
             same. Errors come back as tool errors with the API’s <code>{'{ "error": "code" }'}</code> body.
           </p>
         </Prose>
-        <div className="divide-y rounded-2xl border">
+        <div className="divide-y border-y">
           {MCP_TOOLS.map((t) => (
-            <div key={t.name} className="flex flex-col gap-2 px-5 py-4">
+            <div key={t.name} className="flex flex-col gap-2 py-4">
               <div className="flex flex-wrap items-center gap-2">
                 <code className="font-mono text-sm font-medium">{t.name}</code>
-                {t.readOnly ? <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">read only</span> : null}
+                {t.readOnly ? <Badge variant="secondary">read only</Badge> : null}
                 {t.destructive ? (
-                  <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive">destructive</span>
+                  <Badge variant="destructive">destructive</Badge>
                 ) : null}
               </div>
-              <p className="text-sm text-pretty text-muted-foreground">
+              <p className="text-[15px] text-pretty text-muted-foreground">
                 <Inline text={t.description} />
               </p>
               {argsOf(t.input).length > 0 ? (

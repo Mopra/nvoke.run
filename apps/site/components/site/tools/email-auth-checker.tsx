@@ -7,7 +7,7 @@ import { cleanDomain, DOMAIN } from '@/lib/domain';
 import { ERROR_COPY, postTool, shareInUrl } from './api';
 import { ResultCta } from './result-cta';
 import { StatusPill } from './status-pill';
-import { ResultCard, ToolForm } from './tool-form';
+import { ResultCard, ResultScreen, ToolForm } from './tool-form';
 
 type Phase =
   | { kind: 'idle' }
@@ -117,16 +117,16 @@ function Row({
   notes: string[];
 }) {
   return (
-    <li className="flex flex-col gap-4 py-7 first:pt-0 last:pb-0">
+    <li className="flex flex-col gap-3 py-5 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col">
-          <h3 className="font-display text-2xl font-semibold tracking-[-0.025em]">{name}</h3>
+          <h3 className="font-mono text-[15px] font-medium tracking-[0.04em]">{name}</h3>
           <p className="text-sm text-muted-foreground">{what}</p>
         </div>
         <StatusPill tone={GRADE[grade].tone}>{GRADE[grade].label}</StatusPill>
       </div>
       {record ? (
-        <pre className="overflow-x-auto rounded-[16px] bg-foreground/[0.04] px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-all">
+        <pre className="screen overflow-x-auto px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-all">
           {record}
         </pre>
       ) : null}
@@ -149,13 +149,9 @@ function AuthResult({ result }: { result: ToolEmailAuthResponse }) {
   return (
     <>
       <ResultCard>
-        <div className="flex flex-col gap-2">
-          <p className="font-mono text-[15px] break-all text-muted-foreground">{result.domain}</p>
-          <h2 className="font-display text-4xl font-semibold tracking-[-0.035em] sm:text-5xl">
-            {passed} of 4 pass
-          </h2>
-        </div>
-        <ul className="flex flex-col divide-y border-t pt-7">
+        <ResultScreen subject={result.domain} figure={`${passed}/4`} unit="pass" />
+        <h2 className="sr-only">{passed} of 4 pass</h2>
+        <ul className="flex flex-col divide-y">
           <Row
             name="MX"
             what="Where mail for the domain goes"
