@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Round as the human left, after 'Checks on main after the US and UK examples and v0.1.2' landed: done with no fix commits, so main green at aaaf5ae. Only the human's 3 dirty renderer files. No aim, nothing to file; shipping is the human's.
 - 2026-10-18 Hourly round: the human shipped desktop v0.1.2 (aedcf2f) and committed site hero, How it works and US/UK demo data (1e2ef02 to aaaf5ae) past green d63866f; only their 3 renderer files dirty, so filed 'Checks on main after the US and UK examples and v0.1.2' (sonnet). No aim.
 - 2026-10-18 Round after 'Checks on main after the working scene and site profile delete' landed: done with no fix commits, so main green at d63866f. Only the human's 3 dirty renderer files remain. No aim, nothing to file; shipping is the human's.
 - 2026-10-18 Hourly round: site profile delete landed (d63866f), only 3 renderer files dirty (the human's), so filed 'Checks on main after the working scene and site profile delete' (sonnet), told to leave those files alone. No aim.
@@ -149,7 +150,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at d63866f (2026-10-18, no fixes needed); checks on aaaf5ae filed. Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
+- Main checked green at aaaf5ae (2026-10-18, no fixes needed). Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
