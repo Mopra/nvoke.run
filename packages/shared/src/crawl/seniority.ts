@@ -65,6 +65,9 @@ const STAFF = [
   /^(marketing|sales|salg|vertrieb|finance|okonomi|hr|support|kundeservice|customer success|operations|drift|administration|it|design|development|udvikling|growth|communications|kommunikation|bd|business development)$/,
 ];
 
+/** An assistant to someone senior: "Assistant to the CEO", "Assistenz der Geschäftsführung". Staff, not the boss. */
+const ASSISTANT_TO = /(assist(ant|ent|ente|entin)|assistenz)\b,? (to|of|for|der|des|til|zur|zum|de|du|van|del|al)\b/;
+
 const RANKED: Array<[Seniority, RegExp[]]> = [
   ['founder', FOUNDER],
   ['executive', EXECUTIVE],
@@ -81,6 +84,7 @@ export function seniorityOf(title: string | null | undefined): Seniority | null 
   if (!title) return null;
   const t = foldTitle(title);
   if (!t) return null;
+  if (ASSISTANT_TO.test(t)) return 'staff';
   for (const [seniority, patterns] of RANKED) if (patterns.some((re) => re.test(t))) return seniority;
   return 'staff';
 }
@@ -127,7 +131,7 @@ const OFF_TARGET = [
 ];
 
 /** Assistants, interns, trainees and students: off target in any team, the commercial one too. */
-const JUNIOR = /assist(ant|ent|ente)\b|\bintern\b|internship|praktikant|trainee|working student|werkstudent|\bstudent\b|apprentice|\belev\b|laerling|auszubild|stagiaire/;
+const JUNIOR = /assist(ant|ent|ente|entin)\b|assistenz\b|\bintern\b|internship|praktikant|trainee|working student|werkstudent|\bstudent\b|apprentice|\belev\b|laerling|auszubild|stagiaire/;
 
 /** Whether a title is in sales, growth, marketing, business development or partnerships. */
 export function isCommercialTitle(title: string | null | undefined): boolean {
@@ -136,14 +140,22 @@ export function isCommercialTitle(title: string | null | undefined): boolean {
 }
 
 /**
+ * C level and VP roles that never buy a lead finder: finance, people and
+ * customer success. A founder holding one stays a founder.
+ */
+const EXECUTIVE_OFF_TARGET =
+  /\bcfo\b|chief financial|\bchro\b|chief (people|human|happiness|customer)|(vp|vice president|head)( of)? (customer|people|human resources|hr|finance|talent)/;
+
+/**
  * Whether a person is plainly not who a B2B seller writes to: an HR,
  * recruiting, privacy, support, bookkeeping or office title unless they sit
- * in the commercial team, or an assistant or intern anywhere. Never someone
- * who also runs the company (founder, C level).
+ * in the commercial team, an assistant or intern anywhere, or a C level or
+ * VP in finance, people or customer success. Never a founder.
  */
 export function isOffTargetTitle(title: string | null | undefined, seniority: Seniority | null | undefined = seniorityOf(title)): boolean {
-  if (!title || seniority === 'founder' || seniority === 'executive') return false;
+  if (!title || seniority === 'founder') return false;
   const t = foldTitle(title);
+  if (seniority === 'executive') return !COMMERCIAL.test(t) && EXECUTIVE_OFF_TARGET.test(t);
   if (JUNIOR.test(t)) return true;
   if (COMMERCIAL.test(t)) return false;
   return OFF_TARGET.some((re) => re.test(t));

@@ -721,7 +721,7 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
  * Records a check. A valid address is charged in the same transaction; when
  * the allowance ran out meanwhile, it stays unchecked (and hidden) and the
  * search stops with quota_exceeded. The policy is applied once more under
- * the company's lock: a role inbox, off-target or unnamed address that
+ * the company's lock: a role inbox, untitled or unnamed address that
  * became unnecessary while it was checked (a colleague came back valid) is
  * recorded skipped and not charged.
  */

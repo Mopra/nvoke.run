@@ -81,6 +81,12 @@ describe('partners and MDs', () => {
     expect(seniorityOf('MD & Founder')).toBe('founder');
     expect(seniorityOf('Cardiologist, MD')).toBe('staff');
   });
+
+  it('reads an assistant to the boss as staff, not the boss', () => {
+    expect(seniorityOf('Assistenz der Geschäftsführung')).toBe('staff');
+    expect(seniorityOf('Executive Assistant to the CEO')).toBe('staff');
+    expect(seniorityOf('Assistant Director')).toBe('director');
+  });
 });
 
 describe('who a B2B seller writes to', () => {
@@ -110,13 +116,20 @@ describe('who a B2B seller writes to', () => {
       'Marketing Intern',
       'Praktikant',
       'Personalleiterin',
+      'Chief Financial Officer',
+      'CFO',
+      'Chief People Officer',
+      'VP Customer Success',
+      'Assistenz der Geschäftsführung',
+      'Assistentin der Geschäftsleitung',
+      'Executive Assistant to the CEO',
     ]) {
       expect(isOffTargetTitle(title), title).toBe(true);
     }
   });
 
-  it('never marks founders, C level or the commercial team', () => {
-    for (const title of ['Founder & Head of People', 'CFO', 'Chief People Officer', 'Sales Support', 'Head of Sales', 'Developer', 'Designer', null]) {
+  it('never marks founders, buying C level or the commercial team', () => {
+    for (const title of ['Founder & Head of People', 'CEO', 'COO', 'Chief Revenue Officer', 'Sales Support', 'Head of Sales', 'Developer', 'Designer', null]) {
       expect(isOffTargetTitle(title), String(title)).toBe(false);
     }
   });

@@ -849,42 +849,55 @@ describe('check policy', () => {
     expect(v.asked).toEqual(['info@acme.dk']);
   });
 
-  it('leaves off-target staff and unnamed addresses out once a named lead is valid', async () => {
+  it('leaves untitled people and unnamed addresses out once a named lead is valid', async () => {
     const { searchId, ids } = await seedCompany([
-      { address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
+      { address: 'eva.lund@acme.dk', kind: 'personal', first: 'Eva', last: 'Lund' },
       { address: 'mh@acme.dk', kind: 'personal' },
       { address: 'ole.holm@acme.dk', kind: 'personal', first: 'Ole', last: 'Holm', title: 'Head of Sales', seniority: 'director' },
     ]);
-    const v = countingVerifier(['ole.holm@acme.dk', 'bo.dam@acme.dk', 'mh@acme.dk']);
+    const v = countingVerifier(['ole.holm@acme.dk', 'eva.lund@acme.dk', 'mh@acme.dk']);
     const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
-    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['eva.lund@acme.dk']!, searchId), signal);
     await runVerify(d, job(ids['mh@acme.dk']!, searchId), signal);
+    expect(await queued()).toHaveLength(2);
     await runVerify(d, job(ids['ole.holm@acme.dk']!, searchId), signal);
-    await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true }), signal);
+    await runVerify(d, job(ids['eva.lund@acme.dk']!, searchId, { deferred: true }), signal);
     await runVerify(d, job(ids['mh@acme.dk']!, searchId, { deferred: true }), signal);
     expect(v.asked).toEqual(['ole.holm@acme.dk']);
-    expect(await row(ids['bo.dam@acme.dk']!)).toEqual({ verification: null, skipped: 'off_target' });
+    expect(await row(ids['eva.lund@acme.dk']!)).toEqual({ verification: null, skipped: 'untitled' });
     expect(await row(ids['mh@acme.dk']!)).toEqual({ verification: null, skipped: 'unnamed' });
   });
 
-  it('checks two off-target directors at once instead of letting them wait on each other', async () => {
+  it('checks an untitled person when no decision maker or commercial person came back valid', async () => {
+    const { searchId, ids } = await seedCompany([
+      { address: 'eva.lund@acme.dk', kind: 'personal', first: 'Eva', last: 'Lund' },
+      { address: 'ole.holm@acme.dk', kind: 'personal', first: 'Ole', last: 'Holm', title: 'Developer', seniority: 'staff' },
+    ]);
+    const v = countingVerifier(['ole.holm@acme.dk', 'eva.lund@acme.dk']);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    await runVerify(d, job(ids['ole.holm@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['eva.lund@acme.dk']!, searchId), signal);
+    expect(v.asked).toEqual(['ole.holm@acme.dk', 'eva.lund@acme.dk']);
+    expect(await row(ids['eva.lund@acme.dk']!)).toEqual({ verification: 'valid', skipped: null });
+  });
+
+  it('never checks off-target people, not even with no lead around, and never lets them wait', async () => {
     const { searchId, ids } = await seedCompany([
       { address: 'hr@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Director', seniority: 'director' },
-      { address: 'fin@acme.dk', kind: 'personal', first: 'Ida', last: 'Lund', title: 'Finance Director', seniority: 'director' },
+      { address: 'fin@acme.dk', kind: 'personal', first: 'Ida', last: 'Lund', title: 'CFO', seniority: 'executive' },
     ]);
     const v = countingVerifier([]);
     const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
     await runVerify(d, job(ids['hr@acme.dk']!, searchId), signal);
     await runVerify(d, job(ids['fin@acme.dk']!, searchId), signal);
-    expect(v.asked).toEqual(['hr@acme.dk', 'fin@acme.dk']);
+    expect(v.asked).toEqual([]);
     expect(await queued()).toHaveLength(0);
+    expect(await row(ids['hr@acme.dk']!)).toEqual({ verification: null, skipped: 'off_target' });
+    expect(await row(ids['fin@acme.dk']!)).toEqual({ verification: null, skipped: 'off_target' });
   });
 
   it('stops waiting after MAX_CHECK_DEFERS defers or MAX_CHECK_WAIT_MS', async () => {
-    const { searchId, ids } = await seedCompany([
-      { address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
-      mette,
-    ]);
+    const { searchId, ids } = await seedCompany([{ address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam' }, mette]);
     const v = countingVerifier([]);
     const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
     await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true, defers: MAX_CHECK_DEFERS }), signal);
@@ -896,10 +909,7 @@ describe('check policy', () => {
   });
 
   it('records an address that became unnecessary during its check as skipped, not charged', async () => {
-    const { searchId, ids } = await seedCompany([
-      { address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam', title: 'HR Manager', seniority: 'manager' },
-      mette,
-    ]);
+    const { searchId, ids } = await seedCompany([{ address: 'bo.dam@acme.dk', kind: 'personal', first: 'Bo', last: 'Dam' }, mette]);
     // Mette comes back valid while Bo's check is on the wire.
     const v = {
       verify: async (address: string) => {
@@ -909,7 +919,7 @@ describe('check policy', () => {
     };
     const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
     await runVerify(d, job(ids['bo.dam@acme.dk']!, searchId, { deferred: true, defers: MAX_CHECK_DEFERS }), signal);
-    expect(await row(ids['bo.dam@acme.dk']!)).toEqual({ verification: null, skipped: 'off_target' });
+    expect(await row(ids['bo.dam@acme.dk']!)).toEqual({ verification: null, skipped: 'untitled' });
     expect(await db.sql`select 1 from usage where clerk_user_id = 'u1' and emails_verified > 0`).toHaveLength(0);
   });
 });

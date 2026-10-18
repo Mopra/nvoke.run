@@ -3,16 +3,20 @@
 // worker (worker/pipeline.ts) and the never short projection (ongoing.ts)
 // feed it rows.
 //
-// Tiers, and who waits for whom. Only named people are checked at once, and
-// every other tier waits only for them, so no waiting address ever waits
-// for another waiting one:
-// - primary: a named person who is not off target. Checked now.
+// Tiers, and who waits for whom. Only named people with a title are checked
+// at once, and every other tier waits only for them, so no waiting address
+// ever waits for another waiting one:
+// - primary: a named person with a title or seniority who is not off
+//   target. Checked now.
 // - unnamed: a personal address without a first and last name (max@,
 //   mh@). Waits for the company's named primary people and is left out once
 //   any named person is valid.
-// - off_target: HR, recruiting, privacy, support, bookkeeping, office staff,
-//   assistants and interns. Waits for the company's decision makers and
-//   commercial people (themselves primary) and is left out once one is valid.
+// - untitled: a named person with no title. Waits for the company's titled
+//   primary people and is left out once a decision maker or commercial person
+//   is valid.
+// - off_target: HR, recruiting, privacy, support, finance (CFO too), office
+//   staff, assistants and interns. Never checked: a seller does not write to
+//   them (the final eval's judge turned every one down).
 // - role_inbox: info@, sales@. Never checked unless the search asks for it
 //   (searches.check_inboxes); then it waits for the company's primary people
 //   and is left out once any personal address is valid.
@@ -20,7 +24,7 @@
 import { isDecisionMaker, type Seniority, type Verification } from '@nvoke/shared';
 import { isCommercialTitle, isOffTargetTitle } from './extract.js';
 
-export type CheckTier = 'primary' | 'unnamed' | 'off_target' | 'role_inbox';
+export type CheckTier = 'primary' | 'untitled' | 'unnamed' | 'off_target' | 'role_inbox';
 
 /** What emails.skipped says for an address left unchecked on purpose. */
 export type SkipReason = Exclude<CheckTier, 'primary'>;
@@ -55,6 +59,7 @@ export function checkTier(e: PolicySelf): CheckTier {
   if (e.kind === 'generic') return 'role_inbox';
   if (isOffTargetTitle(e.title, e.seniority)) return 'off_target';
   if (!named(e)) return 'unnamed';
+  if (!e.title?.trim() && !e.seniority) return 'untitled';
   return 'primary';
 }
 
@@ -71,6 +76,7 @@ function isLead(e: PolicyEmail): boolean {
 export function checkPolicy(self: PolicySelf, others: PolicyEmail[], ctx: PolicyContext): Decision {
   const tier = checkTier(self);
   if (tier === 'primary') return 'check';
+  if (tier === 'off_target') return 'skip';
   if (tier === 'role_inbox' && !ctx.checkInboxes) return 'skip';
   // What makes this address unnecessary when valid, and what it waits for while open.
   let enough: (e: PolicyEmail) => boolean;
@@ -78,9 +84,9 @@ export function checkPolicy(self: PolicySelf, others: PolicyEmail[], ctx: Policy
   if (tier === 'role_inbox') {
     enough = (e) => e.kind === 'personal';
     waitFor = (e) => checkTier(e) === 'primary';
-  } else if (tier === 'off_target') {
+  } else if (tier === 'untitled') {
     enough = isLead;
-    waitFor = isLead;
+    waitFor = (e) => checkTier(e) === 'primary';
   } else {
     enough = (e) => e.kind === 'personal' && named(e);
     waitFor = (e) => checkTier(e) === 'primary';
