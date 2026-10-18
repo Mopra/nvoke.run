@@ -76,17 +76,14 @@ const journey: Scene = {
     await d.click(await d.byText('Draft openers'));
     d.mark('drafting');
     await d.move({ x: 700, y: 430 }, 900);
-    await d.hold(4500);
+    // The device's head takes the top of the window: scroll the companies up to where the openers land.
+    await d.scroll(320, 900);
+    await d.hold(3600);
     d.mark('openers');
     await d.rect('first-company', '[data-company-row]');
     await d.rect('personRow', '[data-company-row] [data-person]');
-    await d.js(`(() => {
-      const row = document.querySelector('[data-company-row]');
-      // The deepest element reading "from /page", whose parent holds the opener line.
-      const from = row && [...row.querySelectorAll('*')].filter((e) => e.textContent.trim().startsWith('from /')).at(-1);
-      from?.parentElement?.setAttribute('data-film', 'opener');
-    })()`);
-    await d.rect('opener', '[data-film="opener"]');
+    await d.until('[data-company-row] [data-opener="done"]', 10_000);
+    await d.rect('opener', '[data-company-row] [data-opener="done"]');
     await d.hold(1500);
     const exportButton = await d.byText('Export CSV', 'button');
     await d.rect('exportButton', exportButton);

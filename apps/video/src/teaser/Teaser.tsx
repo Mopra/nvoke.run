@@ -82,7 +82,7 @@ const Week: React.FC = () => {
             {Array.from({ length: h }, (_, k) => {
               const t = d * (BEAT / 2) + k * 2;
               const on = frame >= t;
-              return <div key={k} style={{ width: 28 * u, height: 28 * u, borderRadius: 999, background: on ? ink.iris : ink.faint, boxShadow: on ? `0 0 ${16 * u}px ${ink.irisGlow}` : undefined }} />;
+              return <div key={k} style={{ width: 28 * u, height: 28 * u, borderRadius: 999, background: on ? ink.signal : ink.faint, boxShadow: on ? `0 0 ${16 * u}px ${ink.signalGlow}` : undefined }} />;
             })}
           </div>
         ))}
@@ -154,19 +154,13 @@ const Ending: React.FC = () => {
   );
 };
 
-/**
- * When the first rows' badges turn from Checking to Valid in the journey take,
- * ms after its `first-row` mark (measured on the recording: 19.7 s in, mark at
- * 15.65 s). Re-measure after recording the journey again.
- */
-const VALID_AFTER_FIRST_ROW = 4050;
-/** How far into the verify shot the badges flip. */
-const FLIP_IN_MS = 800;
+/** The verify shot runs the take this much faster, so the Valid screen counts up within the bar. */
+const COUNT_RATE = 3;
 
 export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
   const have = files();
   const journey = takes.journey.take;
-  const VALID_AT = markTime(journey, 'first-row') + VALID_AFTER_FIRST_ROW;
+  const counters = journey.rects['counters'];
   const keys = journey.events.filter((e) => e.type === 'key');
   const firstKey = keys[0]?.t ?? markTime(journey, 'paste') + 600;
   const typeFrom = firstKey - 450;
@@ -184,7 +178,7 @@ export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
           at(4),
           BAR,
           <>
-            <Macro duration={BAR} startFrom={typeFrom} focus={{ x: 1300, y: 274 }} zoom={[1.75, 2.05]} drift={{ x: 240, y: 0 }} />
+            <Macro duration={BAR} startFrom={typeFrom} focus={{ x: 1250, y: 668 }} zoom={[1.75, 2.05]} drift={{ x: 300, y: 0 }} />
             <Hud index="05 / 12" label="paste your site" />
           </>,
           'Typing',
@@ -193,8 +187,17 @@ export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
           at(5),
           BAR,
           <>
-            {/* Hannah's and Tom's rows: the address on the left, its badge flipping from Checking to Valid on the right. */}
-            <Macro duration={BAR} startFrom={VALID_AT - FLIP_IN_MS} focus={{ x: 1240, y: 925 }} zoom={[1.62, 1.78]} drift={{ x: 40, y: 0 }} tilt={6} band={0.26} />
+            {/* The black stat screens while the search runs: Emails found, then Valid emails counting up in the dot matrix. */}
+            <Macro
+              duration={BAR}
+              startFrom={markTime(journey, 'first-row') + 3000}
+              playbackRate={COUNT_RATE}
+              focus={{ x: counters ? counters.x + counters.w * 0.76 : 1750, y: counters ? counters.y + counters.h / 2 : 846 }}
+              zoom={[2.0, 2.2]}
+              drift={{ x: 200, y: 0 }}
+              tilt={6}
+              band={0.3}
+            />
             <Hud index="06 / 12" label="asks the mail server" />
           </>,
           'Verify',
@@ -203,13 +206,13 @@ export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
           at(6),
           BAR,
           <>
-            <Macro duration={BAR} startFrom={markTime(journey, 'openers') + 300} focus={{ x: 420, y: 932 }} zoom={[2.1, 2.35]} drift={{ x: 360, y: 0 }} tilt={6} band={0.16} />
+            <Macro duration={BAR} startFrom={markTime(journey, 'openers') + 300} focus={{ x: 420, y: 752 }} zoom={[2.1, 2.35]} drift={{ x: 360, y: 0 }} tilt={6} band={0.16} />
             <Hud index="07 / 12" label="writes the first line" />
           </>,
           'Opener',
         )}
         {shot(at(7), BAR, <><DotWords text="WE FIND." /><Hud index="08 / 12" label="nvoke" /></>, 'We find')}
-        {shot(at(8), BAR, <><DotWords text="YOU SEND." color={ink.iris} /><Hud index="09 / 12" label="you" /></>, 'You send')}
+        {shot(at(8), BAR, <><DotWords text="YOU SEND." color={ink.signal} /><Hud index="09 / 12" label="you" /></>, 'You send')}
         {shot(at(9), BAR, <><Week /><Hud index="10 / 12" label="drops, daily" /></>, 'Week')}
         {shot(at(10), TEASER_DURATION - at(10), <Ending />, 'Ending')}
       </AbsoluteFill>
@@ -227,7 +230,7 @@ export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
         <Sfx key={`k${i}`} have={have} src={`teaser/sfx/${['key', 'key2', 'key3'][i % 3]}.wav`} from={f} volume={0.8} />
       ))}
       <Sfx have={have} src="teaser/sfx/glitch.wav" from={at(5)} volume={0.6} />
-      <Sfx have={have} src="teaser/sfx/ping_hi.wav" from={at(5) + Math.round(msToFrames(FLIP_IN_MS))} volume={0.9} />
+      <Sfx have={have} src="teaser/sfx/ping_hi.wav" from={at(5, 2)} volume={0.9} />
       <Sfx have={have} src="teaser/sfx/glitch.wav" from={at(6)} volume={0.5} />
       {[...'WE FIND.'].map((ch, i) => (ch === ' ' ? null : <Sfx key={`w${i}`} have={have} src="teaser/sfx/tick.wav" from={at(7) + Math.round((i * BEAT) / 4)} volume={0.9} />))}
       {[...'YOU SEND.'].map((ch, i) => (ch === ' ' ? null : <Sfx key={`y${i}`} have={have} src="teaser/sfx/tick.wav" from={at(8) + Math.round((i * BEAT) / 4)} volume={0.9} />))}

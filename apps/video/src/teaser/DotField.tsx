@@ -6,7 +6,7 @@ import { ink } from './look';
 /*
  * Four bars of dots. Bar 0: one dot, the lead, blinking on the beat. Bar 1:
  * it becomes three hundred, rippling out from the middle. Bar 2: a scan line
- * crosses and most of them die. Bar 3: the ones that answer light up in iris,
+ * crosses and most of them die. Bar 3: the ones that answer light up in signal orange,
  * one per sixteenth, the lead first.
  */
 
@@ -78,7 +78,7 @@ export const DotField: React.FC = () => {
     <AbsoluteFill>
       <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
         <defs>
-          <filter id="iris-glow" x="-3" y="-3" width="7" height="7">
+          <filter id="signal-glow" x="-3" y="-3" width="7" height="7">
             <feGaussianBlur stdDeviation={size * 0.9} />
           </filter>
         </defs>
@@ -101,15 +101,15 @@ export const DotField: React.FC = () => {
           const passed = frame >= bar2 && x < scanX;
           const deadAt = bar2 + ((x + 0.05 * width) / (1.1 * width)) * BAR * 0.85;
           const die = cell.survives ? 0 : interpolate(frame, [deadAt, deadAt + 14], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          // Bar 3: the survivors light in iris.
+          // Bar 3: the survivors light in orange.
           const k = LIGHT_ORDER.get(cell.i);
           const lit = k === undefined ? 0 : interpolate(frame, [bar3 + lightFrame(k), bar3 + lightFrame(k) + 6], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const r = size * (lead && frame < bar1 + 12 ? 1.3 : 1) * grow * (1 - die * 0.45) * (1 + lit * 0.25);
-          const fill = lit > 0 ? ink.iris : die > 0.5 ? ink.faint : passed && cell.survives ? ink.white : ink.white;
+          const fill = lit > 0 ? ink.signal : die > 0.5 ? ink.faint : passed && cell.survives ? ink.white : ink.white;
           const opacity = lit > 0 ? 1 : 1 - die * 0.75;
           return (
             <g key={cell.i}>
-              {lit > 0 && <circle cx={x} cy={y} r={r * 2.4} fill={ink.irisGlow} opacity={lit} filter="url(#iris-glow)" />}
+              {lit > 0 && <circle cx={x} cy={y} r={r * 2.4} fill={ink.signalGlow} opacity={lit} filter="url(#signal-glow)" />}
               <circle cx={x} cy={y} r={r} fill={fill} opacity={opacity} />
             </g>
           );

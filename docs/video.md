@@ -10,7 +10,8 @@ The teaser (`Teaser` in `apps/video`) is the house style. The owner signed it
 off on 2026-10-18 as "almost perfect". Keep to it:
 
 - **Nothing teaser crossed with Teenage Engineering.** Black, white dots, one
-  accent (iris), dot matrix type (Doto), tiny mono labels in the corners.
+  accent (the app's signal orange, `ink.signal`), dot matrix type (Doto),
+  tiny mono labels in the corners. The mark at the end is the orange keycap.
   Cryptic and deadpan, not a demo.
 - **Short.** About 29 s, one idea per bar, cut on the beat.
 - **Sound design, not music.** Clicks, ticks, pings, a sub thump, a scan
@@ -96,7 +97,12 @@ Run renders through `horadric heavy`. Check the mix after a change with
 ## Gotchas
 
 - The takes show the app as it looked when recorded. After a redesign,
-  record again before cutting a new film.
+  record again before cutting a new film, then check the macro shots' `focus`
+  points on stills: they are take pixels. The teaser's shots are the site
+  field, the stat screens counting (`counters` rect) and the first opener.
+- The device's head (ports, plate, display strip) fills the top 40% of the
+  1200x675 film window, so the journey scrolls the companies up before the
+  openers land. A taller window does not fit the screen at device scale 2.
 - The quick window reads the front browser tab of whoever records. The film
   set turns that off (`readsFrontTab`); keep it off.
 - The Account page shows local paths in the MCP setup lines; the `agents`
