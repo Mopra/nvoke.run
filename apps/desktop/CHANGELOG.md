@@ -5,6 +5,11 @@ sections the user has not seen yet on the first start after an update, and the
 release workflow uses the section as the GitHub release notes. One `## x.y.z`
 heading per version, then a short bullet per change, written for the user.
 
+## 0.1.2
+
+- Remove your website from Searches: the row's menu and the website page both have Remove. Searches you started from it stay.
+- A search now shows a working scene while it finds its first leads, and results stream in live.
+
 ## 0.1.1
 
 - Describe your customer in plain words and nvoke plans the searches itself. Or start from your own website.
