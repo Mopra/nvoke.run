@@ -12,6 +12,7 @@ import {
   Loader2,
   MoreHorizontal,
   PenLine,
+  Play,
   RotateCw,
   SearchX,
   Search as SearchIcon,
@@ -26,7 +27,7 @@ import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VerificationBadge } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { SearchWorking } from '@/components/SearchWorking';
-import { canSearchMore, fewFoundLine, RunsLine, SearchMoreEditor } from '@/components/SearchMore';
+import { canSearchMore, continueInput, fewFoundLine, RunsLine, SearchMoreEditor } from '@/components/SearchMore';
 import { EmptyState, ErrorState } from '@/components/states';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +70,7 @@ import {
   useMe,
   useRefreshWhenFinished,
   useSearch,
+  useSearchMore,
   useUpdateSearch,
   useUpdatingSearch,
 } from '@/lib/queries';
@@ -149,6 +151,8 @@ function Overview({
   timing,
   onRunAgain,
   starting,
+  onContinue,
+  continuing,
   editing,
   onSearchMore,
   onCloseMore,
@@ -157,6 +161,9 @@ function Overview({
   timing: string;
   onRunAgain: () => void;
   starting: boolean;
+  /** Picks a stopped search up where it left off: the rest of its limit, into the same list. */
+  onContinue: () => void;
+  continuing: boolean;
   /** Search more is open in place of the numbers. */
   editing: boolean;
   onSearchMore: () => void;
@@ -201,6 +208,12 @@ function Overview({
           {search.kind === 'icp' && search.error !== 'quota_exceeded' && <OngoingSwitch search={search} />}
           {canSearchMore(search) && search.status !== 'failed' && (
             <div className="mt-8 flex items-center gap-4">
+              {continueInput(search) && (
+                <Button onClick={onContinue} disabled={continuing}>
+                  <Play />
+                  Continue
+                </Button>
+              )}
               <Button variant="secondary" onClick={onSearchMore}>
                 <ListPlus />
                 Search more
@@ -778,6 +791,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   const offline = offlineCaption(useLocalStatus().data);
   const cancel = useCancelSearch();
   const create = useCreateSearch();
+  const more = useSearchMore(id);
   const draft = useDraftOpeners(id);
   const checkInboxes = useCheckInboxes();
   const left = emailsLeft(useMe().data);
@@ -984,6 +998,23 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
   }, [live]);
 
   /** Starts a fresh search with the same parameters and opens it. */
+  // A stopped search goes on from where it was: the rest of its limit joins this list.
+  function continueSearch(): void {
+    if (!search || more.isPending) return;
+    const input = continueInput(search);
+    if (!input) return;
+    more.mutate(input, {
+      onSuccess: () => toast.success('Continuing', { description: `${formatNumber(input.limit ?? 0)} more into this list` }),
+      onError: (err) => {
+        const quota = err instanceof ApiError && err.code === 'quota_exceeded';
+        toast.error('Couldn’t continue', {
+          description: err.message,
+          action: quota ? { label: 'Upgrade', onClick: () => void api.openExternal(BILLING_URL) } : undefined,
+        });
+      },
+    });
+  }
+
   function runAgain(): void {
     if (!search || create.isPending) return;
     const input = {
@@ -1084,7 +1115,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
         actions={
           <>
             {live && (
-              <Button variant="secondary" onClick={doCancel} disabled={cancel.isPending}>
+              <Button variant="destructive" onClick={doCancel} disabled={cancel.isPending}>
                 <Ban />
                 Stop
               </Button>
@@ -1152,6 +1183,8 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
             timing={timing}
             onRunAgain={runAgain}
             starting={create.isPending}
+            onContinue={continueSearch}
+            continuing={more.isPending}
             editing={editingMore}
             onSearchMore={openSearchMore}
             onCloseMore={() => setEditingMore(false)}

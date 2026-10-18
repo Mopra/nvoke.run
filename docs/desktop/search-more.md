@@ -23,6 +23,12 @@ companies, the user widens it in place and the new finds join the same list.
 - Errors toast with the API's message: `search_running`, `kind_mismatch`,
   `source_unavailable`, and `quota_exceeded` with Upgrade.
 - Run again stays: it still starts a separate search.
+- **Continue** sits next to Search more on a stopped (`canceled`) search
+  of a kind that has a limit (not a pasted list) and that stopped short of
+  it. It sends `/more` with the latest run's words and the rest of that
+  run's limit, so the search goes on where it left off, into the same list,
+  without the editor (`continueInput` in `components/SearchMore.tsx`). The
+  Stop key on a running search is red.
 
 ## Local copy
 

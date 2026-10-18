@@ -7,7 +7,7 @@ import { api, ApiError } from '@/lib/api';
 import { BILLING_URL } from '@/lib/env';
 import { formatNumber, runsAdded, runTitle, searchRuns } from '@/lib/format';
 import { useSearchMore } from '@/lib/queries';
-import type { Search } from '@/lib/types';
+import type { Search, SearchInput } from '@/lib/types';
 
 /** What widening means for each kind, after "Widen it:". */
 const WIDEN: Record<FormKind, string> = {
@@ -20,6 +20,21 @@ const WIDEN: Record<FormKind, string> = {
 /** A search can take another run once it ended, unless a drop made it. Describe your customer keeps pushing on its own. */
 export function canSearchMore(search: Search): search is Exclude<Search, { kind: 'drop' | 'icp' }> {
   return search.kind !== 'drop' && search.kind !== 'icp' && search.status !== 'queued' && search.status !== 'running';
+}
+
+/**
+ * The run that picks a stopped search up where it left off: the latest run's
+ * words again, for the companies its limit still had room for. Null when the
+ * search was not stopped, is a pasted list (nothing left to find) or had
+ * already reached its limit.
+ */
+export function continueInput(search: Search): SearchInput | null {
+  if (search.status !== 'canceled' || !canSearchMore(search) || search.kind === 'domains') return null;
+  const last = searchRuns(search).at(-1);
+  if (!last) return null;
+  const left = last.limit - (search.companiesFound - last.foundBefore);
+  if (left < 1) return null;
+  return { kind: search.kind, params: last.params, limit: left } as SearchInput;
 }
 
 /**
