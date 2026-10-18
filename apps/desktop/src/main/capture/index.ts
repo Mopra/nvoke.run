@@ -50,7 +50,7 @@ export function registerCapture(ctx: MainContext, extras: CaptureExtras): void {
   const dir = ctx.captureDir;
   if (!dir) return;
   const scenes = filmScenes();
-  ctx.on('window', (win) => void (scenes ? runFilm(win, dir, scenes) : runCapture(win, dir, extras)));
+  ctx.on('window', (win) => void (scenes ? runFilm(win, dir, scenes, extras) : runCapture(win, dir, extras)));
 }
 
 export async function runCapture(win: BrowserWindow, dir: string, extras: CaptureExtras = { quick: null, grab: null }): Promise<void> {

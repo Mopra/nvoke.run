@@ -37,6 +37,10 @@ export class QuickWindow {
   private frontTab: FrontTab | null = null;
   /** True while macOS shows its Automation prompt, which takes focus without meaning to close the window. */
   private holding = false;
+  /** Dev only: the product film places the window itself (capture/film/set.ts). */
+  placer: ((win: BrowserWindow, height: number) => void) | null = null;
+  /** Dev only: off for the product film, which must never show the browser tab of whoever records it. */
+  readsFrontTab = true;
 
   constructor(private readonly options: QuickOptions) {}
 
@@ -129,7 +133,7 @@ export class QuickWindow {
     const show = ++this.shows;
     this.frontTab = null;
     void this.sendShown(win);
-    void this.sendFrontTab(win, show);
+    if (this.readsFrontTab) void this.sendFrontTab(win, show);
   }
 
   /** The one place the front browser tab is read: when the user opens the window. */
@@ -190,6 +194,7 @@ export class QuickWindow {
 
   private place(): void {
     if (!this.win) return;
+    if (this.placer) return this.placer(this.win, this.height);
     const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     this.win.setBounds(quickBounds(display.workArea, QUICK_WIDTH, this.height));
   }

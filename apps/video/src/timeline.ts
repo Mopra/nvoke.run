@@ -43,34 +43,9 @@ export function beats(bpm: number, { beatsPerBar = 4, offset = 0, fps = FPS } = 
 /** Placeholder tempo until the track is chosen: 120 BPM makes a bar exactly 2 s. */
 export const music = beats(120);
 
-export type TakeName =
-  | 'paste-site'
-  | 'start-search'
-  | 'results'
-  | 'opener'
-  | 'export'
-  | 'command-bar'
-  | 'quick'
-  | 'grab'
-  | 'people'
-  | 'csv-drop'
-  | 'mcp'
-  | 'ongoing';
+export type TakeName = 'journey' | 'command' | 'quick' | 'grab' | 'people' | 'drop' | 'agents' | 'ongoing';
 
-export const TAKE_NAMES: TakeName[] = [
-  'paste-site',
-  'start-search',
-  'results',
-  'opener',
-  'export',
-  'command-bar',
-  'quick',
-  'grab',
-  'people',
-  'csv-drop',
-  'mcp',
-  'ongoing',
-];
+export const TAKE_NAMES: TakeName[] = ['journey', 'command', 'quick', 'grab', 'people', 'drop', 'agents', 'ongoing'];
 
 export interface Scene {
   from: number;
@@ -85,21 +60,33 @@ export const SCENES = {
   start: scene(16, 22),
   results: scene(22, 33),
   opener: scene(33, 41),
-  export: scene(41, 46),
-  montage: scene(46, 60),
+  export: scene(41, 47),
+  montage: scene(47, 60),
   pullBack: scene(60, 66),
   end: scene(66, 70),
 } satisfies Record<string, Scene>;
 
-/** One montage cut per bar at the placeholder tempo. Word is the cut's one word of type. */
-export const MONTAGE: { take: TakeName; word: string; rect?: string }[] = [
-  { take: 'command-bar', word: 'Command.', rect: 'commandBar' },
-  { take: 'quick', word: 'Anywhere.', rect: 'quickWindow' },
-  { take: 'grab', word: 'Grab.', rect: 'grabBox' },
-  { take: 'people', word: 'People.', rect: 'personRow' },
-  { take: 'csv-drop', word: 'Drop.', rect: 'dropZone' },
-  { take: 'mcp', word: 'Agents.', rect: 'mcpPanel' },
-  { take: 'ongoing', word: 'Ongoing.', rect: 'dropList' },
+/**
+ * One montage cut per bar at the placeholder tempo. `word` is the cut's one
+ * word of type, `rect` what the camera drifts toward, and `from` the moment of
+ * the take the cut opens on (a mark the rig logged, plus ms).
+ */
+export interface MontageCut {
+  take: TakeName;
+  word: string;
+  rect?: string;
+  from?: { mark?: string; offset: number };
+  rate?: number;
+}
+
+export const MONTAGE: MontageCut[] = [
+  { take: 'command', word: 'Command.', rect: 'commandBar', from: { offset: 1100 } },
+  { take: 'quick', word: 'Anywhere.', rect: 'quickWindow', from: { offset: 8000 } },
+  { take: 'grab', word: 'Grab.', rect: 'grabBox', from: { mark: 'drag', offset: 300 }, rate: 1.5 },
+  { take: 'people', word: 'People.', rect: 'personRow', from: { offset: 250 } },
+  { take: 'drop', word: 'Drop.', from: { mark: 'over', offset: -200 }, rate: 1.2 },
+  { take: 'agents', word: 'Agents.', rect: 'mcpPanel', from: { offset: 500 } },
+  { take: 'ongoing', word: 'Ongoing.', rect: 'ongoing', from: { offset: 350 } },
 ];
 /** Length of one montage cut: one bar. */
 export const MONTAGE_CUT = music.beats(4);

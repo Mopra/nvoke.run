@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { sleep } from '../kit';
+import type { FilmSet, PixelRect } from './set';
 
 /**
  * Plays a film scene in the real window with real input events, so hover,
@@ -32,6 +33,7 @@ export class Director {
   constructor(
     readonly win: BrowserWindow,
     private readonly scale: number,
+    readonly set: FilmSet,
   ) {}
 
   /** Starts the clock: everything after is logged from here. */
@@ -107,6 +109,20 @@ export class Director {
     const b = await this.box(selector);
     const s = this.scale;
     this.log.rects[name] = { x: Math.round(b.x * s), y: Math.round(b.y * s), w: Math.round(b.w * s), h: Math.round(b.h * s) };
+  }
+
+  /** Records a rectangle given in physical screen pixels, as window pixels of the frame. */
+  rectAt(name: string, r: PixelRect): void {
+    const f = this.set.frame;
+    this.log.rects[name] = { x: r.x - f.x, y: r.y - f.y, w: r.w, h: r.h };
+  }
+
+  /** Presses a key in another window of the set, like the quick window. */
+  async keyIn(win: BrowserWindow, keyCode: string): Promise<void> {
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode });
+    this.log.events.push({ t: this.elapsed, type: 'key', label: keyCode });
+    await this.hold(60);
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode });
   }
 
   mark(label: string): void {

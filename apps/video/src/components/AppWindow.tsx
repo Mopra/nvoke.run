@@ -18,6 +18,8 @@ export interface AppWindowProps {
   cursor?: boolean;
   /** How strongly the window lifts off the canvas, 0 to 1. Scenes raise it for a hero moment. */
   lift?: number;
+  /** Drawn over the take in its own 2400x1350 pixels, given the take time in ms. */
+  overlay?: (t: number) => React.ReactNode;
   style?: React.CSSProperties;
 }
 
@@ -41,6 +43,7 @@ export const AppWindow: React.FC<AppWindowProps> = ({
   playbackRate = 1,
   cursor = true,
   lift = 0.6,
+  overlay,
   style,
 }) => {
   const { unit } = useStage();
@@ -82,6 +85,7 @@ export const AppWindow: React.FC<AppWindowProps> = ({
           ) : (
             <TakePlaceholder take={state.take} />
           )}
+          {overlay?.(t)}
         </div>
       </div>
       {/* Hairline rim and a top specular edge, above the content. */}

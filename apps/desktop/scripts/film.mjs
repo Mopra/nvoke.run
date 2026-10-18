@@ -46,19 +46,20 @@ function record(scenes) {
   });
 }
 
-/** The first frame where the flash in the corner went white. */
+/** When, in seconds, the flash in the corner went white. */
 function syncFrame(raw, flash) {
   const out = execFileSync(
     'ffmpeg',
     ['-hide_banner', '-i', raw, '-frames:v', '900', '-vf', `crop=${flash.size}:${flash.size}:${flash.x}:${flash.y},signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-`, '-f', 'null', '-'],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 },
   );
-  let frame = -1;
+  // The grab is variable rate, so frame 0 is found by time, not frame index.
+  let time = -1;
   for (const line of out.split('\n')) {
-    const f = /^frame:(\d+)/.exec(line);
-    if (f) frame = Number(f[1]);
+    const f = /pts_time:([\d.]+)/.exec(line);
+    if (f) time = Number(f[1]);
     const y = /YAVG=([\d.]+)/.exec(line);
-    if (y && Number(y[1]) > 128) return frame;
+    if (y && Number(y[1]) > 128) return time;
   }
   throw new Error(`${raw}: the flash never showed. Was the top left corner covered?`);
 }
@@ -72,12 +73,12 @@ function processTakes(only) {
     const start = syncFrame(raw, meta.flash);
     const { x, y, w, h } = meta.window;
     const even = (n) => n - (n % 2);
-    console.log(`[film] ${name}: frame 0 is raw frame ${start}, cropping ${w}x${h} at ${x},${y}`);
+    console.log(`[film] ${name}: frame 0 is raw ${start.toFixed(3)} s, cropping ${w}x${h} at ${x},${y}`);
     execFileSync(
       'ffmpeg',
       [
         '-hide_banner', '-loglevel', 'error', '-y', '-i', raw,
-        '-vf', `fps=60,trim=start_frame=${start},setpts=PTS-STARTPTS,crop=${even(w)}:${even(h)}:${x}:${y}`,
+        '-vf', `trim=start=${start},setpts=PTS-STARTPTS,fps=60,crop=${even(w)}:${even(h)}:${x}:${y}`,
         '-an', '-c:v', 'libx264', '-preset', 'slow', '-crf', '12', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
         join(takesDir, `${name}.mp4`),
       ],

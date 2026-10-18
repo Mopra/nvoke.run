@@ -13,7 +13,7 @@ const FIRST_LINE_OUT = sec(4.55);
  * 0:00 to 0:09. A bare canvas; the aura blooms (Film drives it). The first
  * line says the premise alone in the middle of the frame. Then the window
  * floats up out of a soft blur into its resting place and the second line
- * lands above it. The window holds the first frame of `paste-site`, so the
+ * lands above it. The window holds the first frame of `journey`, so the
  * next scene starts playing it with no visible cut.
  */
 export const ColdOpen: React.FC = () => {
@@ -54,7 +54,7 @@ export const ColdOpen: React.FC = () => {
           }}
         >
           <Freeze frame={0}>
-            <AppWindow take="paste-site" box={box} cursor={false} lift={0.4 + rise * 0.6} />
+            <AppWindow take="journey" box={box} cursor={false} lift={0.4 + rise * 0.6} />
           </Freeze>
         </div>
       )}

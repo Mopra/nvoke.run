@@ -145,7 +145,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
   /** Plain words searches plan, mine directories and read team pages, so they take a few minutes. */
   function findDuration(total: number, kind: SearchInput['kind'] = 'web'): number {
     if (kind === 'icp') return clamp(total * 0.25, 30, 200) / (options.film ? FILM_PACE : 1);
-    return clamp(total * 0.18, 5, 45);
+    return clamp(total * 0.18, 5, 45) / (options.film ? FILM_PACE : 1);
   }
 
   /** Companies discovered after `t` seconds of running. */
@@ -923,7 +923,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       const rec = searches.get(searchId);
       if (!rec) return { saved: false, error: 'That search no longer exists.' };
       const csv = companiesToCsv(companiesOf(rec, progress(rec)));
-      if (typeof document !== 'undefined') {
+      // The film records in Electron, where a download would open a save dialog on camera.
+      if (typeof document !== 'undefined' && !options.film) {
         const href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
         const a = document.createElement('a');
         a.href = href;

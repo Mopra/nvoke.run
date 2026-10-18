@@ -209,7 +209,7 @@ function brandSeed(searchId: string, index: number, b: Brand): MockCompanySeed {
  * the list reads like the head.
  */
 export function filmCompany(searchId: string, input: SearchInput, index: number): MockCompanySeed {
-  const brand = input.kind === 'icp' ? BRANDS[index] : undefined;
+  const brand = brandAt(input, index);
   if (brand) return brandSeed(searchId, index, brand);
   const base = generateCompany(searchId, input, index);
   if (input.kind !== 'icp') return base;
@@ -224,9 +224,17 @@ export function filmCompany(searchId: string, input: SearchInput, index: number)
   };
 }
 
+/** The hand made brand a search finds at `index`: in order on a plain words search, by domain or name on a list. */
+function brandAt(input: SearchInput, index: number): Brand | undefined {
+  if (input.kind === 'icp') return BRANDS[index];
+  if (input.kind !== 'domains') return undefined;
+  const item = (input.params.items[index % input.params.items.length] ?? '').toLowerCase();
+  return BRANDS.find((b) => item.includes(b.domain) || item === b.name.toLowerCase());
+}
+
 /** The opener for a hand made brand, or undefined to fall back to the generated one. */
 export function filmOpener(index: number, input: SearchInput, at: string): Opener | undefined {
-  const brand = input.kind === 'icp' ? BRANDS[index] : undefined;
+  const brand = brandAt(input, index);
   if (!brand) return undefined;
   if (!brand.opener) return { status: 'none', line: null, sourceUrl: null, quote: null, draftedAt: at };
   return {
@@ -281,10 +289,11 @@ export function filmSiteProfile(domain: string, at: string): SiteProfile {
 
 /** Earlier searches on the list, all finished, so nothing but the film's search runs. */
 export const FILM_HISTORY: { input: SearchInput; daysAgo: number }[] = [
+  { input: { kind: 'icp', params: { description: FILM_SEARCH, countries: ['gb'] }, limit: 300 }, daysAgo: 0.1 },
   { input: { kind: 'local', params: { niche: 'coffee roasters', location: 'London' }, limit: 100 }, daysAgo: 1 },
   { input: { kind: 'web', params: { keyword: 'sustainable fashion brand', country: 'GB' }, limit: 200 }, daysAgo: 3 },
   { input: { kind: 'launches', params: { keyword: 'shopify', days: 30 }, limit: 50 }, daysAgo: 6 },
 ];
 
-/** Plain words searches finish this many times faster than the demo default, so a take fits a cut. */
+/** Searches finish this many times faster than the demo default, so a take fits a cut. */
 export const FILM_PACE = 3;

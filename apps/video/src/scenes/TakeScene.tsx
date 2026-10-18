@@ -4,7 +4,7 @@ import { AppWindow } from '../components/AppWindow';
 import { Camera, type CameraKey } from '../components/Camera';
 import { Caption, type CaptionProps } from '../components/Caption';
 import { useStage } from '../layout';
-import { useTake } from '../takes';
+import { markTime, useTake } from '../takes';
 import type { TakeName } from '../timeline';
 
 export interface TakeSceneProps {
@@ -16,6 +16,8 @@ export interface TakeSceneProps {
   camera?: CameraKey[];
   /** Ms into the take where the scene starts. */
   startFrom?: number;
+  /** Or start at a mark the rig logged, plus an offset in ms, so a re-shoot stays in sync. */
+  fromMark?: { mark: string; offset?: number };
   playbackRate?: number;
 }
 
@@ -24,9 +26,10 @@ export interface TakeSceneProps {
  * the take playing, and a camera that pushes in once the caption has said its
  * line. The caption sits outside the camera so a push never scales the type.
  */
-export const TakeScene: React.FC<TakeSceneProps> = ({ take, duration, caption, camera = [], startFrom = 0, playbackRate = 1 }) => {
+export const TakeScene: React.FC<TakeSceneProps> = ({ take, duration, caption, camera = [], startFrom = 0, fromMark, playbackRate = 1 }) => {
   const stage = useStage();
   const state = useTake(take);
+  if (fromMark) startFrom = Math.max(0, markTime(state.take, fromMark.mark) + (fromMark.offset ?? 0));
   return (
     <AbsoluteFill>
       <Camera box={stage.window} keys={camera} take={state.take}>

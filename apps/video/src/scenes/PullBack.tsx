@@ -4,7 +4,7 @@ import { AppWindow } from '../components/AppWindow';
 import { Camera } from '../components/Camera';
 import { Caption } from '../components/Caption';
 import { useStage } from '../layout';
-import { useTake } from '../takes';
+import { markTime, useTake } from '../takes';
 import { SCENES, sec } from '../timeline';
 import { EASE_IN_OUT } from '../theme';
 
@@ -18,7 +18,7 @@ const OFFER_IN = sec(1.7);
 export const PullBack: React.FC = () => {
   const frame = useCurrentFrame();
   const stage = useStage();
-  const state = useTake('ongoing');
+  const state = useTake('journey');
   const fade = interpolate(frame, [sec(0.6), sec(2.2)], [1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -30,7 +30,7 @@ export const PullBack: React.FC = () => {
       {fade > 0 && (
         <AbsoluteFill style={{ opacity: fade, filter: blur > 0.1 ? `blur(${blur}px)` : undefined }}>
           <Camera box={stage.window} take={state.take} keys={[{ at: 0, dur: sec(2.4), zoom: 0.72 }]}>
-            <AppWindow take="ongoing" box={stage.window} startFrom={4000} cursor={false} />
+            <AppWindow take="journey" box={stage.window} startFrom={markTime(state.take, 'openers') + 800} cursor={false} />
           </Camera>
         </AbsoluteFill>
       )}

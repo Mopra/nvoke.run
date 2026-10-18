@@ -90,34 +90,26 @@ const r = (x: number, y: number, w: number, h: number): Rect => ({ x: x * 2, y: 
  * rig should measure and emit the same names.
  */
 export const PLACEHOLDER_RECTS: Record<TakeName, Record<string, Rect>> = {
-  'paste-site': { siteField: r(330, 300, 540, 52), suggestions: r(250, 390, 700, 170) },
-  'start-search': { suggestion: r(250, 390, 700, 52), island: r(470, 14, 260, 36) },
-  results: { counters: r(72, 96, 560, 92), rows: r(72, 220, 1056, 400), firstRow: r(72, 220, 1056, 52) },
-  opener: { personRow: r(72, 272, 1056, 52), opener: r(620, 300, 500, 220) },
-  export: { exportButton: r(1010, 92, 118, 40) },
-  'command-bar': { commandBar: r(300, 120, 600, 380) },
-  quick: { quickWindow: r(320, 140, 560, 340) },
-  grab: { grabBox: r(260, 160, 520, 300) },
-  people: { personRow: r(72, 272, 1056, 52) },
-  'csv-drop': { dropZone: r(300, 200, 600, 280) },
-  mcp: { mcpPanel: r(240, 120, 720, 420) },
-  ongoing: { dropList: r(160, 140, 880, 420) },
+  journey: { siteField: r(330, 300, 540, 52), suggestion: r(250, 390, 700, 52), counters: r(72, 96, 560, 92) },
+  command: { commandBar: r(300, 0, 600, 140) },
+  quick: { quickWindow: r(260, 108, 680, 180) },
+  grab: { grabBox: r(230, 320, 740, 420) },
+  people: { personRow: r(330, 120, 560, 40) },
+  drop: { dropZone: r(300, 200, 600, 280) },
+  agents: { mcpPanel: r(280, 100, 620, 120) },
+  ongoing: { ongoing: r(28, 150, 30, 18) },
 };
 
 /** Which placeholder rect the synthesized cursor travels to and clicks. */
 const CLICK_TARGET: Record<TakeName, string> = {
-  'paste-site': 'siteField',
-  'start-search': 'suggestion',
-  results: 'firstRow',
-  opener: 'personRow',
-  export: 'exportButton',
-  'command-bar': 'commandBar',
+  journey: 'siteField',
+  command: 'commandBar',
   quick: 'quickWindow',
   grab: 'grabBox',
   people: 'personRow',
-  'csv-drop': 'dropZone',
-  mcp: 'mcpPanel',
-  ongoing: 'dropList',
+  drop: 'dropZone',
+  agents: 'mcpPanel',
+  ongoing: 'ongoing',
 };
 
 /** A stand-in take: 12 s, the cursor glides to its target, clicks, then rests. */
@@ -162,4 +154,9 @@ export function useTake(name: TakeName): TakeState {
 /** The first event with this label (mark) or type, for timing a cut or a camera move. */
 export function findEvent(take: Take, match: string): Take['events'][number] | undefined {
   return take.events.find((e) => e.label === match) ?? take.events.find((e) => e.type === match);
+}
+
+/** When the rig logged a mark, in ms. 0 when the take has no such mark (a placeholder). */
+export function markTime(take: Take, label: string): number {
+  return take.events.find((e) => e.type === 'mark' && e.label === label)?.t ?? 0;
 }
