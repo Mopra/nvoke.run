@@ -1,13 +1,9 @@
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Download } from 'lucide-react';
-import { MockFit, VERIFICATION, VerificationBadge } from '@/components/mockups/primitives';
+import { VERIFICATION, VerificationBadge } from '@/components/mockups/primitives';
 import {
   CommandWindowScene,
-  ExportScene,
-  NewSearchScene,
   ResultsWindowScene,
-  SearchesScene,
 } from '@/components/mockups/scenes';
 import { SEARCH_KINDS } from '@/components/mockups/screens';
 import { Stage } from '@/components/mockups/stage';
@@ -24,21 +20,6 @@ import { site } from '@/lib/site';
 
 const freeEmails = formatCount(pricing.free.emailsPerMonth);
 const cheapest = `${formatPrice(pricing.cheapest.price)} a month for ${formatCount(pricing.cheapest.emailsPerMonth)}`;
-
-const STEPS = [
-  {
-    title: 'Say what you want',
-    body: '"Dentists" and "Austin". Two fields. Pick how many companies to look at. Done.',
-  },
-  {
-    title: 'nvoke reads their websites',
-    body: 'Our servers find the companies and open up to eight pages per site: home, contact, about, team, imprint. Every published email gets collected.',
-  },
-  {
-    title: 'Keep what works',
-    body: 'Every address gets checked with its mail server. Filter to valid, copy, or export a CSV for your CRM.',
-  },
-];
 
 const KINDS = [
   {
@@ -123,43 +104,6 @@ const FAQ: FaqItem[] = [
   },
 ];
 
-/** A floating slice of the app, without window chrome. */
-function Panel({ children }: { children: ReactNode }) {
-  return (
-    <div className="glass-strong size-full overflow-hidden rounded-[28px] p-8 text-foreground">
-      {children}
-    </div>
-  );
-}
-
-function StepShot({ index }: { index: number }) {
-  if (index === 0) {
-    return (
-      <MockFit width={620} height={470} label="The new search form, set to find dentists in Austin.">
-        <Panel>
-          <NewSearchScene />
-        </Panel>
-      </MockFit>
-    );
-  }
-  if (index === 1) {
-    return (
-      <MockFit width={620} height={330} label="A running search: 27 of 44 websites crawled, 36 emails found so far.">
-        <Panel>
-          <SearchesScene />
-        </Panel>
-      </MockFit>
-    );
-  }
-  return (
-    <MockFit width={620} height={330} label="Dentists in Austin with verified emails, ready to export as CSV.">
-      <Panel>
-        <ExportScene />
-      </Panel>
-    </MockFit>
-  );
-}
-
 export default function HomePage() {
   return (
     <>
@@ -206,31 +150,6 @@ export default function HomePage() {
         id="how-it-works"
         className="overflow-x-clip"
         title="How it works"
-        intro="From a vague idea to a list of working emails. Three steps."
-      >
-        <ol className="flex flex-col gap-20 sm:gap-44">
-          {STEPS.map((step, i) => (
-            <li key={step.title} className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
-              <div className={i % 2 === 1 ? 'lg:order-2' : undefined}>
-                <span className="text-sm font-medium text-muted-foreground tabular-nums">Step {i + 1}</span>
-                <h3 className="mt-4 text-title font-semibold text-balance">{step.title}</h3>
-                <p className="mt-5 max-w-md text-lg text-pretty text-muted-foreground">{step.body}</p>
-              </div>
-              <div className="reveal relative">
-                <div aria-hidden="true" className="aura absolute -inset-[14%] rounded-full opacity-70" />
-                <div className="relative">
-                  <StepShot index={i} />
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </Section>
-
-      <Section
-        id="journey"
-        className="overflow-x-clip"
-        title="From no leads to leads on repeat"
         intro="nvoke finds the companies and checks the emails. Your email tool sends. Then you put it on a schedule."
       >
         <Journey />

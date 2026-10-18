@@ -48,19 +48,6 @@
   transition: background-color 200ms ease-out;
 }
 
-/* Two views of one panel crossfading, as a screen changes in the app. */
-.mock-view {
-  transition:
-    opacity 420ms var(--ease-out-expo),
-    transform 420ms var(--ease-out-expo),
-    filter 420ms var(--ease-out-expo);
-}
-.mock-view[data-active='false'] {
-  opacity: 0;
-  transform: translateY(8px) scale(0.995);
-  filter: blur(4px);
-}
-
 /* The command bar and its scrim, opening from the island. */
 .mock-scrim {
   transition: opacity 320ms ease-out;
@@ -118,7 +105,6 @@
   .mock-bar,
   .mock-fold,
   .mock-highlight,
-  .mock-view,
   .mock-scrim,
   .mock-pop,
   .mock-pointer,
