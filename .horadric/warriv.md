@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Round after 'Checks on main after free search fallback and shared inboxes' landed: done with no fix commits or notes, read as green at 6fd077f. Log dry but for the registry keys (human's), no aim open. Nothing to file; shipping is the human's.
 - 2026-10-18 Hourly round: the human committed free search fallback, cheaper searches and shared inboxes (94a8266 to 6fd077f) and the tree is clean, so filed 'Checks on main after free search fallback and shared inboxes' (sonnet). Brave and registry keys still with the human.
 - 2026-10-18 Hourly round: main still at c9e3ffa plus memory commits, free search fallback and people work still uncommitted (46 files), so no checks filed. Brave and registry keys still with the human. Nothing to do.
 - 2026-10-18 Round as the human left: main still at the human's c9e3ffa past checked d98544d, free search fallback and people work still uncommitted (46 files), so no checks filed. Brave and registry keys still with the human. Nothing to do.
@@ -135,7 +136,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at d98544d (2026-10-17); checks on 6fd077f filed 2026-10-18. Shipping is the human's (34 quests since the last ship).
+- Main checked green at 6fd077f (2026-10-18). Shipping is the human's (35 quests since the last ship).
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
