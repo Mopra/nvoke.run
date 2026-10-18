@@ -44,6 +44,16 @@ export function resolvePlan(items: readonly HeldItem[], now: number = Date.now()
   return { plan: best, unknownSlugs };
 }
 
+/**
+ * A plan granted by hand in the Clerk dashboard: `publicMetadata.plan` set to
+ * a plan key gives the user that plan without paying (staff, partners).
+ * Counts like an active subscription, so a paid plan above it still wins.
+ */
+export function grantedItem(publicMetadata: Record<string, unknown> | null | undefined): HeldItem | null {
+  const slug = publicMetadata?.plan;
+  return typeof slug === 'string' && slug ? { status: 'active', slug, periodEnd: null } : null;
+}
+
 /** Reads a user's plan from the billing provider. */
 export interface PlanSource {
   /**
@@ -70,7 +80,8 @@ export function clerkPlanSource(secretKey: string): PlanSource {
         if ((err as { status?: number }).status === 404) items = [];
         else throw err;
       }
-      return resolvePlan(items);
+      const granted = grantedItem((await clerk.users.getUser(clerkUserId)).publicMetadata);
+      return resolvePlan(granted ? [...items, granted] : items);
     },
   };
 }

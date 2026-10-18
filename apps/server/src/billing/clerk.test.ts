@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { billingUserId } from '../api/routes/webhooks.js';
-import { resolvePlan } from './clerk.js';
+import { grantedItem, resolvePlan } from './clerk.js';
 
 const NOW = Date.parse('2026-10-13T12:00:00Z');
 
@@ -28,6 +28,24 @@ describe('resolvePlan', () => {
   it('reports slugs the catalog does not know', () => {
     const r = resolvePlan([{ status: 'active', slug: 'emails_1k', periodEnd: null }], NOW);
     expect(r).toEqual({ plan: 'free', unknownSlugs: ['emails_1k'] });
+  });
+});
+
+describe('grantedItem', () => {
+  it('reads a plan granted in public metadata', () => {
+    expect(grantedItem({ plan: 'emails_100000', role: 'admin' })).toEqual({
+      status: 'active',
+      slug: 'emails_100000',
+      periodEnd: null,
+    });
+    expect(grantedItem({})).toBeNull();
+    expect(grantedItem({ plan: 5 })).toBeNull();
+    expect(grantedItem(undefined)).toBeNull();
+  });
+
+  it('never lowers a paid plan', () => {
+    const items = [{ status: 'active', slug: 'emails_7500', periodEnd: null }, grantedItem({ plan: 'emails_1000' })!];
+    expect(resolvePlan(items, NOW).plan).toBe('emails_7500');
   });
 });
 

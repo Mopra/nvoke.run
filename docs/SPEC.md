@@ -166,6 +166,7 @@ One product for everyone. Every feature is on every plan; a plan is only a month
 - Crawling stores addresses for free, but an address is only returned by the API and the CSV once its check has run. A valid address that no longer fits the allowance stays unchecked and hidden.
 - When the allowance is used up, the search stops with status `failed` and error `quota_exceeded`, and new searches are refused with 403 `{ error: 'quota_exceeded', billingUrl }`. No overage is ever charged. Usage resets each calendar month (UTC); nothing rolls over.
 - Plans are Clerk Billing user plans. Checkout and cancel happen on the site at `/desktop/billing`, which the desktop app opens in the browser, and at `/app/billing` inside the web app (the same component). The server reads the held plan with the Clerk Backend API (`billing.getUserBillingSubscription`): on `GET /v1/me` when the stored plan is older than 5 minutes, on `?sync=1`, and on every billing webhook. Active and past due items count, a canceled item counts until its period ends, and the most generous plan wins. A slug Clerk reports that the catalog does not know is logged as an error and never drops the user to Free.
+- A plan can be granted by hand: set `publicMetadata.plan` to a plan key on the user in the Clerk dashboard. It counts like an active subscription, so a paid plan above it still wins.
 
 ## Describe your customer
 
