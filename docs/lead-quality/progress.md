@@ -58,6 +58,8 @@ pipeline, real SMTP from this machine (port 25 is open here). Results in
 - 2026-10-17: Registry directors (Companies House, CVR) need keys only the
   owner can register: Horadric quest filed. Until then people come from the
   company's own pages.
+- 2026-10-18: Owner dropped CVR. Denmark is the wrong target; nvoke sells to
+  the international market. Companies House stays optional.
 
 ## Findings (baseline)
 
