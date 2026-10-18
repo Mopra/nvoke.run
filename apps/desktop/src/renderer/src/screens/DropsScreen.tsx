@@ -168,7 +168,7 @@ function FeedPulse({ sources }: { sources: FeedSourceStatus[] }) {
   const on = sources.filter((s) => s.available);
   const total = on.reduce((sum, s) => sum + s.lastWeek, 0);
   return (
-    <p className="font-mono text-xs text-muted-foreground">
+    <p className="text-sm text-muted-foreground">
       <span className="tabular-nums">{formatNumber(total)}</span> new launches this week from{' '}
       {on.map((s, i) => (
         <span key={s.source}>

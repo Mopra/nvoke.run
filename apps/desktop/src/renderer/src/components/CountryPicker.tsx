@@ -153,7 +153,7 @@ export function CountryPicker({
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-label="Countries" className="min-h-0 overflow-y-auto p-1.5">
             {options.length === 0 && (
-              <div className="px-3 py-6 text-center font-mono text-[10.5px] text-muted-foreground">No country matches “{query.trim()}”</div>
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No country matches “{query.trim()}”</div>
             )}
             {options.map((option, index) => {
               const selected = chosen ? option.code !== '' && chosen.includes(option.code) : option.code === value;

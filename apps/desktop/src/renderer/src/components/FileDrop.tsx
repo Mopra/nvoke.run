@@ -231,7 +231,7 @@ function EnrichForm({
 
       <div
         aria-live="polite"
-        className="flex min-h-14 flex-col gap-2 border-y py-3 font-mono text-[10.5px] text-muted-foreground"
+        className="flex min-h-14 flex-col gap-2 border-y py-3 text-sm text-muted-foreground"
       >
         {ready ? (
           <>

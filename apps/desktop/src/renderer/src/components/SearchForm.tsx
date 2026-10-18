@@ -20,7 +20,7 @@ const LIMIT_PRESETS: number[] = [25, 100, 250, 500];
 /** A recessed plate for pasted text: mono on the card color, sunk into the chassis. */
 export const PLATE = 'rounded-[4px] bg-card px-3 py-2 font-mono shadow-[inset_0_1px_2px_var(--shadow-strong)]';
 /** Small print under a key: mono, with the figure that matters in orange. */
-export const NOTE = 'font-mono text-[10.5px] leading-[1.6] text-muted-foreground';
+export const NOTE = 'text-sm text-muted-foreground';
 
 export function isFormKind(value: string | null): value is FormKind {
   return value === 'local' || value === 'web' || value === 'launches' || value === 'domains';
@@ -288,7 +288,7 @@ function Bracket({ label }: { label: string }) {
 /** The line under the submit button: what is wrong, or what a search costs. */
 export function SearchFootnote({ form }: { form: SearchForm }) {
   const { me, kind, values, maxLimit, problem } = form;
-  if (problem) return <span className="font-mono text-[10.5px] text-destructive">{problem}</span>;
+  if (problem) return <span className="text-sm text-destructive">{problem}</span>;
   const remaining = me.data ? me.data.usage.emailsLimit - me.data.usage.emailsVerified : null;
   return (
     <p className={cn('max-w-sm', NOTE)}>

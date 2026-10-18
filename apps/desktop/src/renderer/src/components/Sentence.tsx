@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
  * the next. The parent is a `grid grid-cols-[max-content_minmax(0,1fr)]`.
  */
 export const SENTENCE =
-  'min-w-0 bg-transparent font-display text-4xl font-normal caret-primary outline-none placeholder:text-foreground/[0.17] aria-invalid:placeholder:text-destructive/40';
+  'min-w-0 bg-transparent font-display text-4xl font-normal caret-primary outline-none placeholder:text-foreground/30 aria-invalid:placeholder:text-destructive/40';
 
 /**
  * One line of the sentence: a thin lead word, then the field in display type.

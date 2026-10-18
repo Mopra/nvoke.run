@@ -204,7 +204,7 @@ function WebsiteStep({
           <CornerDownLeft className="size-3.5 opacity-70" />
         </Button>
         {failed || invalid ? (
-          <span role="alert" className="max-w-md font-mono text-[10.5px] text-destructive">
+          <span role="alert" className="max-w-md text-sm text-destructive">
             {failed ?? 'Type your website, like yourcompany.com.'}
           </span>
         ) : null}
@@ -339,7 +339,7 @@ function ProfileReadout({
       </div>
       <h1 className="mt-3 font-display text-4xl font-light text-balance">{p.name}</h1>
       <p className={cn('mt-2 max-w-2xl text-pretty', NOTE)}>{p.summary}</p>
-      <p className="mt-5 max-w-2xl text-pretty font-mono text-[10.5px] leading-[1.6]">
+      <p className="mt-5 max-w-2xl text-pretty text-sm">
         <span className="cap text-muted-foreground">Sells to </span>
         {p.audience}
       </p>
@@ -512,7 +512,7 @@ function Field({
       </label>
       {children}
       {(problem || hint) && (
-        <p className={cn('font-mono text-[10.5px]', problem ? 'text-destructive' : 'text-muted-foreground')}>{problem ?? hint}</p>
+        <p className={cn('text-sm', problem ? 'text-destructive' : 'text-muted-foreground')}>{problem ?? hint}</p>
       )}
     </div>
   );

@@ -259,7 +259,7 @@ export function DescribeCustomer() {
               {!start.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
             </Button>
             {invalid ? (
-              <span role="alert" className="font-mono text-[10.5px] text-destructive">
+              <span role="alert" className="text-sm text-destructive">
                 Say who you sell to first.
               </span>
             ) : (

@@ -73,7 +73,7 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
           <div className="grid grid-cols-[196px_minmax(0,1fr)_210px] gap-10">
             <div className="flex flex-col gap-4">
               <KindKeys label="Where to look" value={kind} onChange={setKind} />
-              <p key={kind} className="font-mono text-[10.5px] leading-[1.6] text-muted-foreground motion-safe:animate-fade-in">
+              <p key={kind} className="text-sm text-muted-foreground motion-safe:animate-fade-in">
                 {SOURCES[kind]}
               </p>
             </div>

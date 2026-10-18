@@ -120,7 +120,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
         <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" noValidate>
           <h1 className="font-display text-xl font-light text-muted-foreground">{drop ? 'Edit drop' : 'New drop'}</h1>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             Once a day, the launches that are new since the last run, crawled and verified.
           </p>
 
@@ -204,7 +204,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
             {touched && !valid ? (
               <span className="font-mono text-xs text-destructive">Pick at least one source.</span>
             ) : (
-              <p className="max-w-sm font-mono text-xs text-muted-foreground">
+              <p className="max-w-sm text-sm text-muted-foreground">
                 {drop
                   ? 'Changes apply from the next run.'
                   : `Runs within a minute and reaches back ${DROP_BACKFILL_DAYS} days, then once a day.`}

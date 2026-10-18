@@ -192,7 +192,7 @@ function Plate() {
           nvoke
           <sup className="relative top-px ml-0.5 text-[12px] font-normal">&#8545;</sup>
         </div>
-        <div className="mt-1.5 text-[12px] tracking-[0.12em] text-primary">リードファインダー</div>
+        <div className="cap mt-2 text-primary">Find &#183; Crawl &#183; Verify</div>
       </div>
       <dl className="grid grid-cols-[auto_auto] content-start justify-self-end gap-x-3.5 gap-y-0.5 text-right">
         <dt className="cap text-muted-foreground">Plan</dt>
