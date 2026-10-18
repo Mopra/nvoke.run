@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { VerificationBadge } from '@/components/app/indicators';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -29,12 +30,12 @@ export async function copy(text: string, what: string): Promise<void> {
   }
 }
 
-/** Quiet, never the accent: the accent is for actions and live work. */
+/** A light tag, never the accent: the accent is for actions and live work. */
 export function DecisionMakerBadge() {
   return (
-    <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-foreground/[0.06] px-2 text-2xs font-medium text-foreground/70">
+    <Badge data-decision-maker className="shrink-0 self-center">
       Decision maker
-    </span>
+    </Badge>
   );
 }
 
@@ -42,8 +43,11 @@ function FitScore({ fit }: { fit: number }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex shrink-0 cursor-default items-baseline gap-1 text-2xs text-muted-foreground">
-          Fit <span className="font-medium tabular-nums text-foreground/75">{fit}</span>
+        <span data-fit className="cap inline-flex shrink-0 cursor-default items-center gap-1.5 text-muted-foreground">
+          <span className="h-[3px] w-10 overflow-hidden rounded-[1px] bg-foreground/10">
+            <span className="block h-full bg-foreground/45" style={{ width: `${fit}%` }} />
+          </span>
+          Fit {fit}
         </span>
       </TooltipTrigger>
       <TooltipContent>How well the company matches your description, 0 to 100, judged from its own words.</TooltipContent>
@@ -56,7 +60,7 @@ function Who({ row }: { row: PersonRow }) {
   if (!person) {
     return (
       <div className="min-w-0 leading-5">
-        <div className="text-[14px] text-muted-foreground">{row.fallback ? 'Shared inbox' : 'No name on the site'}</div>
+        <div className="text-[15px] text-muted-foreground">{row.fallback ? 'Shared inbox' : 'No name on the site'}</div>
         {row.fallback && <div className="text-xs text-muted-foreground/75">No named person found yet</div>}
       </div>
     );
@@ -64,7 +68,7 @@ function Who({ row }: { row: PersonRow }) {
   return (
     <div className="min-w-0 leading-5">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="min-w-0 truncate text-[14px] font-medium" title={personName(person)}>
+        <span className="min-w-0 truncate text-[15px]" title={personName(person)}>
           {personName(person)}
         </span>
         {row.decisionMaker && <DecisionMakerBadge />}
@@ -143,7 +147,8 @@ export function PersonRowView({
       style={style}
       className={cn(
         PEOPLE_COLUMNS,
-        'group flex flex-col gap-2.5 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start sm:px-6',
+        // A hairline row on the chassis.
+        'group flex flex-col gap-2.5 border-t border-border py-4 transition-colors duration-150 last:border-b hover:bg-foreground/[0.035] md:items-start sm:px-3',
       )}
     >
       <Who row={row} />
@@ -204,14 +209,14 @@ export function PeopleSkeleton() {
   return (
     <div>
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className={cn(PEOPLE_COLUMNS, 'flex flex-col gap-3 px-4 py-5 sm:px-6')}>
+        <div key={i} className={cn(PEOPLE_COLUMNS, 'flex flex-col gap-3 border-t border-border py-5 sm:px-3')}>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3.5 w-36" />
             <Skeleton className="h-2.5 w-24" />
           </div>
           <div className="flex items-center justify-between">
             <Skeleton className="h-3 w-48" />
-            <Skeleton className="h-[18px] w-16 rounded-full" />
+            <Skeleton className="h-[18px] w-16 rounded-[3px]" />
           </div>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3 w-28" />

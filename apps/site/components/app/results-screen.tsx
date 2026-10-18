@@ -1,23 +1,23 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowUpRight,
   Ban,
+  Check,
   Copy,
   Download,
   ExternalLink,
   Inbox,
   Info,
+  ListPlus,
   Loader2,
   MoreHorizontal,
   PenLine,
-  Plus,
-  Radar,
+  Play,
   RefreshCw,
-  Repeat,
   RotateCw,
   Search as SearchIcon,
   SearchX,
@@ -32,11 +32,11 @@ import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
 import { StatusLabel, VerificationBadge } from '@/components/app/indicators';
 import { Figure, useArrivals } from '@/components/app/motion';
 import { copy, PEOPLE_COLUMNS, PeopleSkeleton, PersonRowView } from '@/components/app/people-list';
-import { Pill } from '@/components/app/sentence';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
 import { FoundFewNote, RunsLine, SearchMorePanel } from '@/components/app/search-more';
-import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
+import { APP_FRAME, APP_INSET, BackLink, PageHeader } from '@/components/app/shell';
 import { EmptyState, ErrorState } from '@/components/app/states';
+import { LogoMark } from '@/components/site/logo';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -45,6 +45,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Kbd } from '@/components/ui/kbd';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -61,6 +62,7 @@ import {
   INBOX_FOLLOW_MS,
   isActive,
   relativeTime,
+  searchRuns,
   searchSubtitle,
   searchTitle,
   SHARED_INBOXES,
@@ -89,12 +91,13 @@ import {
   useMe,
   useRefreshWhenFinished,
   useSearch,
+  useSearchMore,
   useUpdateSearch,
 } from '@/lib/app/queries';
 import { canSearchMore, foundFew } from '@/lib/app/search-form';
 import { cn } from '@/lib/utils';
 
-const COLUMNS = 'md:grid md:grid-cols-[minmax(10rem,1fr)_minmax(17rem,1.6fr)_minmax(7rem,0.6fr)_3.5rem] md:gap-6';
+const COLUMNS = 'md:grid md:grid-cols-[minmax(10rem,0.9fr)_minmax(17rem,2fr)_minmax(7rem,0.55fr)_3.5rem] md:gap-6';
 
 /** Labels for Company.source, as the server's source adapters set it. */
 const SOURCE_LABEL: Record<string, string> = {
@@ -129,50 +132,68 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /* Overview */
 
+/** A small display: the figure lit over unlit segments, the label a cap row below with its share in orange. */
 function Stat({ label, value, plus = false, sub }: { label: string; value: number; plus?: boolean; sub?: string }) {
   return (
-    <div className="min-w-0">
-      <div className="flex items-baseline gap-2">
-        <span className="font-display text-3xl font-extralight tabular-nums sm:text-4xl">
+    <div className="screen flex min-w-0 flex-col px-3.5 py-3">
+      <div className="relative flex items-baseline justify-end gap-2">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute right-0 font-lcd text-3xl leading-none font-extrabold tracking-normal tabular-nums text-screen-dim select-none sm:text-4xl"
+        >
+          888
+        </span>
+        <span className="lcd relative text-3xl leading-none tracking-normal text-screen-foreground sm:text-4xl">
           <Figure value={value} suffix={plus ? '+' : ''} />
         </span>
-        {sub && <span className="truncate text-sm tabular-nums text-muted-foreground">{sub}</span>}
       </div>
-      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+      <div className="cap mt-2.5 flex justify-between gap-2 text-screen-foreground/45">
+        <span className="truncate">{label}</span>
+        {sub && <span className={cn('shrink-0', sub.endsWith('%') && 'text-primary')}>{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div className="mt-10 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="screen flex flex-col items-end gap-2.5 px-3.5 py-3">
+          <Skeleton className="h-9 w-16 bg-screen-dim" />
+          <Skeleton className="h-3 w-full bg-screen-dim" />
+        </div>
+      ))}
     </div>
   );
 }
 
 /**
- * The live line: what the search is doing in its own words, the people found
- * so far, and the bar while it runs. Shown while it runs or keeps filling.
+ * The live line under the screens while the search runs or keeps filling:
+ * the meter and what the search is doing in its own words, then the people
+ * found so far.
  */
 function LiveLine({ search, counts, partial }: { search: Search; counts: PeopleCounts | null; partial: boolean }) {
   const active = isActive(search.status);
   const note = stageLine(search) ?? (active ? progressCaption(search) : 'Watching for new companies');
   return (
-    <div className="mt-10" aria-live="polite">
-      <div className="flex items-start gap-3">
-        <span className="relative mt-[11px] flex size-2 shrink-0">
-          {active && <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />}
-          <span className={cn('relative size-2 rounded-full', active ? 'bg-primary' : 'bg-primary/50')} />
+    <div className="mt-8" aria-live="polite">
+      <div className="flex items-center gap-5">
+        {active ? (
+          <SearchProgress search={search} className="h-[3px] min-w-24 flex-1" />
+        ) : (
+          <span className="led bg-primary/50" aria-hidden />
+        )}
+        <span data-stage-note className="cap max-w-[60%] shrink-0 truncate tabular-nums text-muted-foreground" title={note}>
+          {note}
         </span>
-        <div className="min-w-0">
-          <p className="font-display text-xl/[30px] font-medium tracking-[-0.02em] text-pretty sm:text-2xl/[34px]">{note}</p>
-          {counts && <p className="mt-1 text-sm tabular-nums text-muted-foreground">{countsLine(counts, partial)} so far</p>}
-        </div>
       </div>
+      {counts && <p className="cap mt-3 tabular-nums text-foreground/75">{countsLine(counts, partial)} so far</p>}
       {active && (
-        <div className="mt-6">
-          <div className="flex items-center gap-5">
-            <SearchProgress search={search} className="h-[3px] flex-1" />
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressCaption(search)}</span>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            New people show up here as they’re found. Every address is checked with its own mail server, so the badges fill
-            in over a few minutes. Close the tab if you like: the search keeps running.
-          </p>
-        </div>
+        <p className="mt-3 max-w-[68ch] text-sm text-pretty text-muted-foreground">
+          New people show up here as they’re found. Every address is checked with its own mail server, so the LEDs fill in
+          over a few minutes. Close the tab if you like: the search keeps running.
+        </p>
       )}
     </div>
   );
@@ -181,25 +202,34 @@ function LiveLine({ search, counts, partial }: { search: Search; counts: PeopleC
 /** Keep finding new leads, on a plain words search. */
 function OngoingSwitch({ search, onChange, saving }: { search: Search; onChange: (on: boolean) => void; saving: boolean }) {
   const on = Boolean(search.ongoing);
-  const id = `ongoing-${search.id}`;
+  const line = on
+    ? isActive(search.status)
+      ? 'When this run ends, nvoke keeps looking and adds new people as it finds them.'
+      : 'nvoke looks for new companies a few times a day and adds the people it finds here.'
+    : 'Off. The list stays as it is.';
   return (
-    <div className="mt-8 flex items-center justify-between gap-6 rounded-[22px] bg-foreground/[0.03] px-5 py-3.5">
-      <div className="flex min-w-0 items-start gap-3">
-        <Repeat className={cn('mt-0.5 size-4 shrink-0', on ? 'text-primary' : 'text-muted-foreground')} />
-        <div className="min-w-0">
-          <label htmlFor={id} className="text-sm font-medium">
-            {on ? 'Keeps finding new leads' : 'Keep finding new leads'}
-          </label>
-          <p className="mt-0.5 text-xs text-pretty text-muted-foreground">
-            {on
-              ? 'nvoke keeps looking and adds new companies as it finds them, a few a day. Switch it off to stop.'
-              : 'Off. The list stays as it is. Switch it on and nvoke adds new companies as it finds them.'}
-          </p>
-        </div>
-      </div>
-      <Switch id={id} checked={on} onCheckedChange={onChange} disabled={saving} aria-label="Keep finding new leads" />
-    </div>
+    <label data-ongoing className="mt-8 flex min-w-0 cursor-pointer flex-wrap items-center gap-x-3.5 gap-y-1">
+      <Switch checked={on} onCheckedChange={onChange} disabled={saving} aria-label="Keep finding new leads" />
+      <span className="shrink-0 text-sm font-medium">Keeps finding new leads</span>
+      <span className="min-w-0 text-sm text-pretty text-muted-foreground sm:truncate" title={line}>
+        {line}
+      </span>
+    </label>
   );
+}
+
+/**
+ * The run that picks a stopped search up where it left off: the latest run's
+ * words again, for the companies its limit still had room for. Null when the
+ * search was not stopped, is a pasted list or had reached its limit.
+ */
+function continueInput(search: Search): CreateSearchInput | null {
+  if (search.status !== 'canceled' || !canSearchMore(search) || search.kind === 'domains') return null;
+  const last = searchRuns(search).at(-1);
+  if (!last) return null;
+  const left = last.limit - (search.companiesFound - last.foundBefore);
+  if (left < 1) return null;
+  return { kind: search.kind, params: last.params, limit: left } as CreateSearchInput;
 }
 
 function Overview({
@@ -207,7 +237,11 @@ function Overview({
   timing,
   onRunAgain,
   starting,
+  onContinue,
+  continuing,
+  editing,
   onSearchMore,
+  onCloseMore,
   counts,
   partial,
   onOngoing,
@@ -217,8 +251,12 @@ function Overview({
   timing: string;
   onRunAgain: () => void;
   starting: boolean;
-  /** Null while Search more is open, or when the search cannot run again. */
-  onSearchMore: (() => void) | null;
+  onContinue: () => void;
+  continuing: boolean;
+  /** Search more is open in place of the screens. */
+  editing: boolean;
+  onSearchMore: () => void;
+  onCloseMore: () => void;
   /** From the companies loaded so far; null until they load or while a text filter narrows them. */
   counts: PeopleCounts | null;
   /** More pages to load, so the counts are a floor. */
@@ -229,51 +267,179 @@ function Overview({
   const active = isActive(search.status);
   const showLive = active || Boolean(search.ongoing);
   const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
+  const more = canSearchMore(search) && !stoppedByQuota(search);
+  const few = more && foundFew(search) && search.companiesFound > 0;
+  const resume = continueInput(search) && (
+    <Button variant="dark" onClick={onContinue} disabled={continuing}>
+      <Play />
+      Continue
+    </Button>
+  );
   return (
-    <section className={cn(APP_INSET, 'pt-6 pb-10')}>
-      <h1 className="font-display text-2xl font-semibold tracking-[-0.03em] text-balance sm:text-3xl" title={search.kind === 'icp' ? search.params.description : undefined}>
+    <section className={cn(APP_INSET, 'pt-8 pb-10')}>
+      <h1
+        className="font-display text-3xl font-light tracking-[-0.02em] text-balance"
+        title={search.kind === 'icp' ? search.params.description : undefined}
+      >
         {searchTitle(search)}
       </h1>
-      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-muted-foreground">
+      <div className="cap mt-2 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-muted-foreground">
         <StatusLabel status={search.status} />
-        <span>
+        <span className="min-w-0 sm:truncate" title={`${searchSubtitle(search)}, ${timing}`}>
           {searchSubtitle(search)}, {timing}
         </span>
       </div>
       <RunsLine search={search} />
-      {showLive && <LiveLine search={search} counts={counts} partial={partial} />}
-      {canBeOngoing(search) && !(search.status === 'failed' && stoppedByQuota(search)) && (
-        <OngoingSwitch search={search} onChange={onOngoing} saving={savingOngoing} />
-      )}
-      <div className="mt-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
-        <Stat label="Companies" value={search.companiesFound} sub={search.ongoing ? undefined : `of ${formatNumber(search.limit)}`} />
-        <Stat label="Named people" value={counts?.people ?? 0} plus={Boolean(counts) && partial} />
-        <Stat label="Decision makers" value={counts?.decisionMakers ?? 0} plus={Boolean(counts) && partial} />
-        <Stat label="Verified emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
-      </div>
-      {search.status === 'failed' && (
-        <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[20px] bg-destructive/8 px-4 py-3 text-sm">
-          <TriangleAlert className="size-4 shrink-0 text-destructive" />
-          <span className="min-w-0 flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
-          {stoppedByQuota(search) ? (
-            <Button asChild size="sm">
-              <Link href={BILLING_PATH}>
-                Upgrade
-                <ArrowUpRight className="size-3.5 opacity-70" />
-              </Link>
-            </Button>
-          ) : search.kind === 'drop' ? null : (
-            <Button size="sm" variant="outline" onClick={onRunAgain} disabled={starting}>
-              <RotateCw />
-              Run again
-            </Button>
+      {editing && canSearchMore(search) ? (
+        <SearchMorePanel search={search} onClose={onCloseMore} />
+      ) : (
+        <>
+          <div className="mt-10 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <Stat label="Companies" value={search.companiesFound} sub={search.ongoing ? undefined : `of ${formatNumber(search.limit)}`} />
+            <Stat label="Websites crawled" value={search.companiesCrawled} />
+            <Stat label="Emails found" value={search.emailsFound} />
+            <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
+          </div>
+          {showLive ? (
+            <LiveLine search={search} counts={counts} partial={partial} />
+          ) : (
+            counts && <p className="cap mt-5 tabular-nums text-muted-foreground">{countsLine(counts, partial)}</p>
           )}
-        </div>
-      )}
-      {onSearchMore && foundFew(search) && search.companiesFound > 0 && !stoppedByQuota(search) && (
-        <FoundFewNote search={search} onSearchMore={onSearchMore} />
+          {canBeOngoing(search) && !(search.status === 'failed' && stoppedByQuota(search)) && (
+            <OngoingSwitch search={search} onChange={onOngoing} saving={savingOngoing} />
+          )}
+          {search.status === 'failed' ? (
+            <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[4px] border-y border-destructive/40 bg-destructive/8 px-4 py-3 text-sm">
+              <TriangleAlert className="size-4 shrink-0 text-destructive" />
+              <span className="min-w-0 flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
+              {stoppedByQuota(search) ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={BILLING_PATH}>
+                    Upgrade
+                    <ArrowUpRight className="size-3.5 opacity-70" />
+                  </Link>
+                </Button>
+              ) : search.kind === 'drop' ? null : (
+                <>
+                  <Button size="sm" variant="ghost" onClick={onRunAgain} disabled={starting}>
+                    <RotateCw />
+                    Run again
+                  </Button>
+                  {more && (
+                    <Button size="sm" variant="outline" onClick={onSearchMore}>
+                      <ListPlus />
+                      Search more
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : few ? (
+            <>
+              {resume && <div className="mt-8">{resume}</div>}
+              <FoundFewNote search={search} onSearchMore={onSearchMore} />
+            </>
+          ) : (
+            more && (
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                {resume}
+                <Button variant="secondary" onClick={onSearchMore}>
+                  <ListPlus />
+                  Search more
+                </Button>
+              </div>
+            )
+          )}
+        </>
       )}
     </section>
+  );
+}
+
+/** The steps a search walks through before its first leads, worded per kind. */
+function workingSteps(search: Search): string[] {
+  const first: Record<Search['kind'], string> = {
+    icp: 'Planning where your customers are',
+    domains: 'Reading your list',
+    local: 'Searching the map',
+    web: 'Searching the web',
+    launches: 'Reading new launches',
+    drop: 'Reading new launches',
+  };
+  return [first[search.kind], 'Finding companies', 'Reading their websites', 'Finding people and checking emails'];
+}
+
+/** The step the search is on, from what it reports and what it has found. */
+function workingStep(search: Search): number {
+  if (search.emailsFound > 0 || search.companiesCrawled > 0) return 3;
+  if (search.companiesFound > 0) return 2;
+  if (search.status === 'queued' || search.stage === 'plan') return 0;
+  if (search.kind === 'icp' && !search.stage) return 0;
+  return 1;
+}
+
+/**
+ * The wait between starting a search and its first leads: rings pulse out
+ * from the mark, the line under the title says what the pipeline is doing,
+ * and each step has its LED. It replaces the empty list while a search runs.
+ */
+function SearchWorking({ search }: { search: Search }) {
+  const at = workingStep(search);
+  const caption = stageLine(search) ?? progressCaption(search);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-col items-center justify-center gap-10 border-t border-border px-2 pt-10 pb-20 motion-safe:animate-rise sm:flex-row sm:gap-14"
+    >
+      <div className="relative size-36 shrink-0 sm:size-44">
+        {[0, 1, 2].map((ring) => (
+          <span
+            key={ring}
+            className="absolute inset-[18%] rounded-full border border-primary/40 opacity-0 motion-safe:animate-ping"
+            style={{ animationDuration: '3.3s', animationDelay: `${ring * 1.1}s` }}
+          />
+        ))}
+        <span className="absolute inset-[22%] rounded-full border border-foreground/[0.08]" />
+        <span className="absolute inset-0 rounded-full border border-foreground/[0.05]" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <LogoMark motion="loading" className="size-12" />
+        </div>
+      </div>
+      <div className="min-w-0 max-w-md">
+        <h2 className="font-display text-2xl font-light tracking-[-0.02em]">
+          {search.kind === 'icp' ? 'Looking for your customers' : 'Looking for companies'}
+        </h2>
+        <p key={caption} className="mt-1.5 truncate text-sm text-muted-foreground motion-safe:animate-fade-in">
+          {caption}
+        </p>
+        <ol className="mt-6 flex flex-col gap-2.5 text-sm">
+          {workingSteps(search).map((label, i) => (
+            <li
+              key={label}
+              className={cn(
+                'flex items-center gap-3 transition-colors duration-500',
+                i < at && 'text-muted-foreground',
+                i === at && 'font-medium text-foreground',
+                i > at && 'text-muted-foreground/60',
+              )}
+            >
+              <span className="flex size-5 shrink-0 items-center justify-center">
+                {i < at ? (
+                  <Check className="size-4 text-primary motion-safe:animate-pop-in" strokeWidth={2.25} />
+                ) : (
+                  <span className={cn('led', i === at && 'led-on motion-safe:animate-pulse')} />
+                )}
+              </span>
+              {label}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-6 max-w-sm text-sm text-muted-foreground">
+          First leads usually land within a minute or two. Close the tab if you like: the search keeps running.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -433,10 +599,11 @@ function CompanyRow({
     <div
       data-company-row
       style={style}
-      className={cn(COLUMNS, 'group flex flex-col gap-2 rounded-[20px] px-4 py-4 transition-colors duration-150 hover:bg-foreground/[0.035] md:items-start sm:px-6')}
+      // A hairline row on the chassis.
+      className={cn(COLUMNS, 'group flex flex-col gap-2 border-t border-border py-4 transition-colors duration-150 last:border-b hover:bg-foreground/[0.035] md:items-start sm:px-3')}
     >
       <div className="min-w-0 leading-5">
-        <div className="truncate text-[14px] font-medium" title={company.name}>
+        <div className="truncate text-[15px]" title={company.name}>
           {company.name}
         </div>
         <a
@@ -448,6 +615,19 @@ function CompanyRow({
         >
           {company.domain}
         </a>
+        {company.fit != null && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span data-fit className="cap mt-1.5 inline-flex cursor-default items-center gap-1.5 text-muted-foreground">
+                <span className="h-[3px] w-10 overflow-hidden rounded-[1px] bg-foreground/10">
+                  <span className="block h-full bg-foreground/45" style={{ width: `${company.fit}%` }} />
+                </span>
+                Fit {company.fit}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>How well the company matches your description, 0 to 100, judged from its own words.</TooltipContent>
+          </Tooltip>
+        )}
       </div>
       <EmailsCell company={company} live={live} onCheckInboxes={onCheckInboxes} />
       <div className="min-w-0 text-xs leading-5 text-muted-foreground">
@@ -513,14 +693,14 @@ function TableSkeleton() {
   return (
     <div>
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className={cn(COLUMNS, 'flex flex-col gap-3 px-4 py-5 sm:px-6')}>
+        <div key={i} className={cn(COLUMNS, 'flex flex-col gap-3 border-t border-border py-5 sm:px-3')}>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3.5 w-40" />
             <Skeleton className="h-2.5 w-24" />
           </div>
           <div className="flex items-center justify-between">
             <Skeleton className="h-3 w-48" />
-            <Skeleton className="h-[18px] w-14 rounded-full" />
+            <Skeleton className="h-[18px] w-14 rounded-[3px]" />
           </div>
           <Skeleton className="h-3 w-24" />
           <span />
@@ -538,12 +718,11 @@ type View = 'people' | 'companies';
 export function ResultsLoading() {
   return (
     <main className={cn(APP_FRAME, 'app-view')}>
-      <div className={cn(APP_INSET, 'flex items-center gap-2 pt-8')}>
-        <BackLink />
-      </div>
-      <div className={cn(APP_INSET, 'pt-6 pb-10')}>
+      <PageHeader leading={<BackLink />} />
+      <div className={cn(APP_INSET, 'pt-8 pb-10')}>
         <Skeleton className="h-8 w-80 max-w-full" />
         <Skeleton className="mt-3 h-3.5 w-56" />
+        <StatsSkeleton />
       </div>
       <PeopleSkeleton />
     </main>
@@ -596,6 +775,23 @@ export function ResultsScreen({ id }: { id: string }) {
   const inboxesFollowing = inboxesSince !== null && Boolean(search?.checkInboxes) && search?.inboxesPending !== 0;
   useFollowInboxChecks(id, listFilters, inboxesFollowing && !live ? inboxesSince : null);
   const sentinel = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const searchMore = useSearchMore(id);
+  const modKey = useModKey();
+
+  // Mod F puts the cursor in the filter, as on the desktop; pressed again there, the browser's own find opens.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'f') return;
+      const field = filterRef.current;
+      if (!field || document.activeElement === field) return;
+      e.preventDefault();
+      field.focus();
+      field.select();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const loaded = companies.data?.pages.flatMap((p) => p.companies) ?? [];
   const total = companies.data?.pages[0]?.total ?? 0;
@@ -706,6 +902,22 @@ export function ResultsScreen({ id }: { id: string }) {
     });
   }
 
+  /** Picks a stopped search up where it left off: the rest of its limit joins this list. */
+  function continueSearch(): void {
+    if (!search || searchMore.isPending) return;
+    const input = continueInput(search);
+    if (!input) return;
+    searchMore.mutate(input, {
+      onSuccess: () => toast.success('Continuing', { description: `${formatNumber(input.limit ?? 0)} more into this list` }),
+      onError: (err) =>
+        isQuotaError(err)
+          ? toast.error('This month’s verified emails are used up', {
+              action: { label: 'Upgrade', onClick: () => router.push(BILLING_PATH) },
+            })
+          : toast.error('Couldn’t continue', { description: err.message }),
+    });
+  }
+
   /** Starts a fresh search with the same parameters and opens it. */
   function runAgain(): void {
     if (!search || create.isPending) return;
@@ -751,32 +963,27 @@ export function ResultsScreen({ id }: { id: string }) {
   }
 
   const header = (
-    <div className={cn(APP_INSET, 'flex items-center gap-2 pt-8')}>
-      <BackLink />
-      {search && (
-        <div className="ml-auto flex items-center gap-2">
-          {canSearchMore(search) && !searchingMore && (
-            <Button variant="glass" size="sm" className="h-9 px-4" onClick={() => setSearchingMore(true)}>
-              <Plus />
-              Search more
-            </Button>
-          )}
-          {live && (
-            <Button variant="glass" size="sm" className="h-9 px-4" onClick={doCancel} disabled={cancel.isPending}>
-              <Ban />
-              Stop
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="glass" size="icon" aria-label="More actions">
-                <MoreHorizontal />
+    <PageHeader
+      leading={<BackLink />}
+      actions={
+        search && (
+          <>
+            {live && (
+              <Button variant="destructive" onClick={doCancel} disabled={cancel.isPending}>
+                <Ban />
+                Stop
               </Button>
-            </DropdownMenuTrigger>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="More actions">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {canSearchMore(search) && (
                 <DropdownMenuItem onSelect={() => setSearchingMore(true)} disabled={searchingMore}>
-                  <Plus />
+                  <ListPlus />
                   Search more
                 </DropdownMenuItem>
               )}
@@ -806,9 +1013,10 @@ export function ResultsScreen({ id }: { id: string }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      )}
-    </div>
+          </>
+        )
+      }
+    />
   );
 
   if (searchQuery.error) {
@@ -839,9 +1047,10 @@ export function ResultsScreen({ id }: { id: string }) {
     return (
       <main className={cn(APP_FRAME, 'app-view')}>
         {header}
-        <div className={cn(APP_INSET, 'pt-6 pb-10')}>
+        <div className={cn(APP_INSET, 'pt-8 pb-10')}>
           <Skeleton className="h-8 w-80 max-w-full" />
           <Skeleton className="mt-3 h-3.5 w-56" />
+          <StatsSkeleton />
         </div>
         <TableSkeleton />
       </main>
@@ -862,22 +1071,25 @@ export function ResultsScreen({ id }: { id: string }) {
         : `${formatNumber(total)} companies`;
 
   return (
-    <main className={cn(APP_FRAME, 'app-view pb-40')}>
+    <main className={cn(APP_FRAME, 'app-view pb-48')}>
       {header}
       <Overview
         search={search}
         timing={timing}
         onRunAgain={runAgain}
         starting={create.isPending}
-        onSearchMore={canSearchMore(search) && !searchingMore ? () => setSearchingMore(true) : null}
+        onContinue={continueSearch}
+        continuing={searchMore.isPending}
+        editing={searchingMore}
+        onSearchMore={() => setSearchingMore(true)}
+        onCloseMore={() => setSearchingMore(false)}
         counts={counts}
         partial={partial}
         onOngoing={setOngoing}
         savingOngoing={update.isPending}
       />
-      {searchingMore && canSearchMore(search) && <SearchMorePanel search={search} onClose={() => setSearchingMore(false)} />}
 
-      <div className={cn(APP_INSET, 'flex flex-wrap items-center justify-between gap-3 pb-3')}>
+      <div className={cn(APP_INSET, 'flex flex-wrap items-center justify-between gap-3 pb-4')}>
         <Segmented<View>
           label="Show"
           size="sm"
@@ -888,35 +1100,25 @@ export function ResultsScreen({ id }: { id: string }) {
             { value: 'companies', label: 'Companies' },
           ]}
         />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <Info className="size-3.5" />
-              About these leads
-            </button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-80 rounded-2xl px-3 py-2 leading-relaxed">
-            People and addresses from each company’s own website, or built from the domain’s address pattern and accepted by
-            its mail server. Shared inboxes (info@, hello@) are skipped unless you ask for them. Many EU countries require prior
-            consent for marketing email, even to businesses. Results are deleted 12 months after the search.
-          </TooltipContent>
-        </Tooltip>
       </div>
 
       {view === 'people' ? (
-        <div key="people" className={cn(PEOPLE_COLUMNS, 'tab-in hidden px-6 py-2 text-xs text-muted-foreground')}>
-          <span>Person</span>
+        <div key="people" className={cn(PEOPLE_COLUMNS, 'cap tab-in hidden py-2 text-muted-foreground sm:px-3')}>
+          <span className="flex items-center gap-1.5">
+            Person
+            <AboutLeads />
+          </span>
           <span>Email</span>
           <span>Company</span>
           <span />
         </div>
       ) : (
-        <div key="companies" className={cn(COLUMNS, 'tab-in hidden px-6 py-2 text-xs text-muted-foreground')}>
+        <div key="companies" className={cn(COLUMNS, 'cap tab-in hidden py-2 text-muted-foreground sm:px-3')}>
           <span>Company</span>
-          <span>Emails</span>
+          <span className="flex items-center gap-1.5">
+            People
+            <AboutLeads />
+          </span>
           <span>{search.kind === 'local' ? 'Location' : 'Found on'}</span>
           <span />
         </div>
@@ -945,17 +1147,15 @@ export function ResultsScreen({ id }: { id: string }) {
               {live || ongoing ? 'More people arrive as the search goes on.' : undefined}
             </EmptyState>
           ) : live || (ongoing && loaded.length === 0) ? (
-            <EmptyState icon={Radar} title={search.kind === 'icp' ? 'Planning and looking' : 'Looking for companies'}>
-              People show up here the moment we find them.
-            </EmptyState>
-          ) : (
+            <SearchWorking search={search} />
+          ) : searchingMore ? null : (
             <EmptyState
               icon={Inbox}
               title="No companies found"
               action={
-                canSearchMore(search) && !searchingMore && !stoppedByQuota(search) ? (
-                  <Button onClick={() => setSearchingMore(true)}>
-                    <Plus />
+                canSearchMore(search) && !stoppedByQuota(search) ? (
+                  <Button variant="outline" onClick={() => setSearchingMore(true)}>
+                    <ListPlus />
                     Search more
                   </Button>
                 ) : undefined
@@ -1000,12 +1200,12 @@ export function ResultsScreen({ id }: { id: string }) {
         )}
       </div>
 
-      {/* The dock: filters and export float over the list, in glass. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex flex-col items-center gap-2 px-3 sm:bottom-6">
+      {/* The key bar: filters and export on a plate over the list, with the notices on plates above it. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2 px-3 sm:bottom-6">
         {view === 'people' && peopleFilters.showAll && inboxesOff && (
           <div
             data-inbox-notice
-            className="glass pointer-events-auto flex w-full max-w-[640px] flex-col gap-3 rounded-[24px] py-3 pr-3 pl-5 motion-safe:animate-rise sm:flex-row sm:items-center sm:gap-4"
+            className="plate pointer-events-auto flex w-full max-w-[640px] flex-col gap-3 rounded-[6px] py-3 pr-3 pl-5 motion-safe:animate-rise sm:flex-row sm:items-center sm:gap-4"
           >
             <div className="min-w-0 leading-5">
               <div className="text-sm font-medium">{SHARED_INBOXES.title}</div>
@@ -1014,7 +1214,7 @@ export function ResultsScreen({ id }: { id: string }) {
                 {inboxCost(search.inboxesSkipped, left)}
               </div>
             </div>
-            <Button size="sm" className="shrink-0 self-start sm:self-auto" onClick={startInboxChecks} disabled={update.isPending}>
+            <Button size="sm" variant="dark" className="shrink-0 self-start sm:self-auto" onClick={startInboxChecks} disabled={update.isPending}>
               {update.isPending ? <Loader2 className="motion-safe:animate-spin" /> : <Inbox />}
               {SHARED_INBOXES.action}
             </Button>
@@ -1025,16 +1225,18 @@ export function ResultsScreen({ id }: { id: string }) {
             data-inbox-checking
             role="status"
             aria-live="polite"
-            className="glass pointer-events-auto flex min-h-9 items-center gap-2 rounded-full px-4 py-2 text-xs text-muted-foreground motion-safe:animate-rise"
+            className="plate pointer-events-auto flex min-h-9 items-center gap-2 rounded-[6px] px-4 py-2 text-xs text-muted-foreground motion-safe:animate-rise"
           >
             <Loader2 className="size-3.5 shrink-0 text-primary motion-safe:animate-spin" aria-hidden />
             {inboxChecking(search.inboxesPending)}
           </div>
         )}
-        <div className="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-[24px] p-1.5 motion-safe:animate-rise motion-safe:[animation-delay:120ms] lg:flex-nowrap lg:rounded-full">
+        {/* A flat plate in the chassis colour with a hairline, deeper at the top so the keys' LEDs have room. */}
+        <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2.5 rounded-[6px] bg-background px-3 pt-3.5 pb-3 shadow-[0_-16px_20px_-8px_var(--background),0_0_0_1px_var(--border)] motion-safe:animate-rise motion-safe:[animation-delay:120ms] lg:flex-nowrap">
           <div className="relative w-full lg:w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
+              ref={filterRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -1043,46 +1245,48 @@ export function ResultsScreen({ id }: { id: string }) {
                   e.currentTarget.blur();
                 }
               }}
-              placeholder="Filter people and companies"
+              placeholder={view === 'people' ? 'Filter people' : 'Filter companies'}
               aria-label="Filter people and companies"
               autoComplete="off"
               spellCheck={false}
-              className="h-9 w-full rounded-full bg-foreground/[0.045] pr-9 pl-9 text-sm outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:bg-foreground/[0.07] focus-visible:bg-foreground/[0.07] focus-visible:ring-[3px] focus-visible:ring-ring/25"
+              className="h-8 w-full rounded-[4px] bg-card pr-14 pl-9 font-mono text-xs shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-[background-color,box-shadow] duration-150 placeholder:tracking-[0.08em] placeholder:text-muted-foreground/90 placeholder:uppercase focus-visible:ring-2 focus-visible:ring-ring/50"
             />
-            {text && (
+            {text ? (
               <button
                 type="button"
                 aria-label="Clear filter"
                 onClick={() => setText('')}
-                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/40 text-background outline-none hover:bg-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="absolute top-1/2 right-2.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-[2px] bg-muted-foreground/40 text-background outline-none hover:bg-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <X className="size-2.5" strokeWidth={3} />
               </button>
+            ) : (
+              modKey && <Kbd className="absolute top-1/2 right-2.5 hidden -translate-y-1/2 bg-transparent pointer-fine:inline-flex">{modKey} F</Kbd>
             )}
           </div>
-          <Pill
-            pressed={peopleFilters.decisionMakersOnly}
-            onClick={() => setFilter('decisionMakersOnly')(!peopleFilters.decisionMakersOnly)}
-            className="h-8"
-          >
-            Decision makers
-          </Pill>
-          <Pill pressed={peopleFilters.verifiedOnly} onClick={() => setFilter('verifiedOnly')(!peopleFilters.verifiedOnly)} className="h-8">
-            Verified only
-          </Pill>
-          {view === 'people' && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Pill pressed={peopleFilters.showAll} onClick={() => setFilter('showAll')(!peopleFilters.showAll)} className="h-8">
-                  {SHARED_INBOXES.pill}
-                </Pill>
-              </TooltipTrigger>
-              <TooltipContent>
-                {inboxesOff ? SHARED_INBOXES.title : peopleFilters.showAll ? SHARED_INBOXES.hintOn : SHARED_INBOXES.hintOff}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <span className="hidden min-w-20 items-center justify-end gap-1.5 px-3 text-xs tabular-nums text-muted-foreground lg:flex">
+          <div className="flex max-w-full items-center gap-2.5 overflow-x-auto pt-0.5 pb-1 [scrollbar-width:none] lg:overflow-visible lg:p-0">
+            <FilterKey on={peopleFilters.decisionMakersOnly} onChange={setFilter('decisionMakersOnly')}>
+              Decision makers
+            </FilterKey>
+            <FilterKey on={peopleFilters.verifiedOnly} onChange={setFilter('verifiedOnly')}>
+              Verified
+            </FilterKey>
+            {view === 'people' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex">
+                    <FilterKey on={peopleFilters.showAll} onChange={setFilter('showAll')}>
+                      {SHARED_INBOXES.pill}
+                    </FilterKey>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-60 px-3 py-2 leading-relaxed">
+                  {inboxesOff ? SHARED_INBOXES.title : peopleFilters.showAll ? SHARED_INBOXES.hintOn : SHARED_INBOXES.hintOff}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          <span className="cap hidden min-w-24 items-center justify-end gap-1.5 px-2 tabular-nums text-muted-foreground lg:flex">
             {companies.isPlaceholderData && <Loader2 className="size-3 motion-safe:animate-spin" />}
             {companies.data && dockCount}
           </span>
@@ -1098,4 +1302,55 @@ export function ResultsScreen({ id }: { id: string }) {
       <DeleteSearchDialog search={search} open={confirmDelete} onOpenChange={setConfirmDelete} onDeleted={() => router.replace('/app')} />
     </main>
   );
+}
+
+/** Where the people and addresses come from, behind the info glyph in the column header. */
+function AboutLeads() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label="About these leads"
+          className="rounded-full text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <Info className="size-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72 px-3 py-2 leading-relaxed normal-case tracking-normal">
+        Decision makers first. People and addresses come from each company’s own website, or are built from the domain’s
+        address pattern and accepted by its mail server. Shared inboxes (info@, hello@) are skipped unless you ask for them.
+        Many EU countries require prior consent for marketing email, even to businesses. Results are deleted 12 months after
+        the search.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** A filter that is on or off: a keycap in the key bar whose LED lights when on. */
+function FilterKey({ on, onChange, children }: { on: boolean; onChange: (on: boolean) => void; children: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      className="key inline-flex h-8 shrink-0 items-center gap-2 bg-secondary px-3.5 font-mono text-[11px] font-medium tracking-[0.08em] whitespace-nowrap text-secondary-foreground uppercase outline-none hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <span aria-hidden className={cn('led', on && 'led-on')} />
+      {children}
+    </button>
+  );
+}
+
+/** The modifier key's label on this machine, once known in the browser (so the server render stays plain). */
+function useModKey(): string | null {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl'),
+    () => null,
+  );
+}
+
+function noSubscribe(): () => void {
+  return () => {};
 }

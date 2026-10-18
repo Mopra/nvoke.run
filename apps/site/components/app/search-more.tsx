@@ -2,18 +2,16 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { CornerDownLeft, Loader2, Plus } from 'lucide-react';
+import { CornerDownLeft, ListPlus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SEARCH_LIMIT_MAX, type Search } from '@nvoke/shared';
 import { SearchFields } from '@/components/app/search-fields';
-import { APP_INSET } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { isQuotaError } from '@/lib/app/api';
 import { formatNumber, KIND_LABEL, runsAdded, runTitle, searchRuns } from '@/lib/app/desktop';
 import { BILLING_PATH } from '@/lib/app/quota';
 import { useMe, useSearchMore } from '@/lib/app/queries';
 import { buildSearchInput, formFromSearch, formProblem, type FormKind, type SearchForm } from '@/lib/app/search-form';
-import { cn } from '@/lib/utils';
 
 /** What widening a search of each kind means, for the invitation when it found few. */
 const WIDEN: Record<FormKind, string> = {
@@ -29,13 +27,13 @@ export function RunsLine({ search }: { search: Search }) {
   if (runs.length <= 1) return null;
   const added = runsAdded(search);
   return (
-    <ol className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" aria-label="Runs of this search">
+    <ol data-search-runs className="cap mt-3 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground" aria-label="Runs of this search">
       {runs.map((run, i) => (
-        <li key={`${run.createdAt}-${i}`} className="flex items-center gap-1.5 rounded-full bg-foreground/[0.045] py-0.5 pr-1 pl-2.5">
-          <span className="max-w-64 truncate" title={runTitle({ kind: search.kind, params: run.params } as Search)}>
+        <li key={`${run.createdAt}-${i}`} className="flex min-w-0 items-baseline gap-1.5">
+          <span className="max-w-72 truncate" title={runTitle({ kind: search.kind, params: run.params } as Search)}>
             {runTitle({ kind: search.kind, params: run.params } as Search)}
           </span>
-          <span className="rounded-full bg-foreground/[0.06] px-1.5 tabular-nums text-foreground/80">
+          <span className="tabular-nums text-primary">
             {i === runs.length - 1 && search.status === 'queued' ? '…' : `+${formatNumber(Math.max(0, added[i] ?? 0))}`}
           </span>
         </li>
@@ -48,21 +46,21 @@ export function RunsLine({ search }: { search: Search }) {
 export function FoundFewNote({ search, onSearchMore }: { search: Search & { kind: FormKind }; onSearchMore: () => void }) {
   const n = search.companiesFound;
   return (
-    <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-foreground/[0.035] px-4 py-3 text-sm">
-      <span className="min-w-0 flex-1 text-pretty text-muted-foreground">
+    <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3">
+      <Button variant="secondary" onClick={onSearchMore}>
+        <ListPlus />
+        Search more
+      </Button>
+      <span className="min-w-0 flex-1 text-sm text-pretty text-muted-foreground">
         <span className="text-foreground">{n === 0 ? 'Nothing so far.' : `Only ${formatNumber(n)} so far.`}</span> Widen it: {WIDEN[search.kind]}{' '}
         adds to this list, and what it already holds is skipped.
       </span>
-      <Button size="sm" onClick={onSearchMore}>
-        <Plus />
-        Search more
-      </Button>
     </div>
   );
 }
 
 /**
- * Search more, inline under the overview: the New search sentence for the
+ * Search more, in place of the stat screens: the New search sentence for the
  * search's kind, filled in from its latest run. Submitting runs the same
  * search again; only companies it does not hold yet are added.
  */
@@ -105,7 +103,7 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
   }
 
   return (
-    <section className={cn(APP_INSET, 'pb-12 motion-safe:animate-rise')} aria-labelledby="search-more-title">
+    <section className="mt-10 motion-safe:animate-rise" aria-labelledby="search-more-title">
       <form
         onSubmit={submit}
         onKeyDown={(e) => {
@@ -115,10 +113,10 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
         noValidate
       >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 id="search-more-title" className="text-sm font-medium">
+          <h2 id="search-more-title" className="cap text-foreground">
             Search more into this list
           </h2>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {KIND_LABEL[search.kind]}. Companies already in it are skipped.
           </span>
         </div>
@@ -133,18 +131,18 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
           more
         />
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={more.isPending} className="min-w-36">
+          <Button type="submit" size="lg" disabled={more.isPending} className="min-w-40">
             {more.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
             Search more
             {!more.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
           </Button>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" size="lg" onClick={onClose}>
             Cancel
           </Button>
           {problem ? (
             <span className="text-sm text-destructive">{problem}</span>
           ) : (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               It holds {formatNumber(search.companiesFound)} {search.companiesFound === 1 ? 'company' : 'companies'} now.
             </span>
           )}
