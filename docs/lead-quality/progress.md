@@ -207,3 +207,17 @@ Changes, all measured without paid calls:
   tag) is fixed, plus imprint names on the line after the label. Free
   re-crawl of 246 companies: sites with a decision maker 120 to 149, with a
   named person 157 to 187.
+
+### 2026-10-18 final (VPS, nvoke-customers, hard capped, crashed at 23.6 min)
+
+270 verified in 23.6 minutes, 83% named with a title, 68% decision makers,
+0 role inboxes, clear fit 84%, would email 16 of 30. Brave 111 requests
+($0.56), Claude $0.41, $0.0036 per verified. The process died on a web
+server answering HTTP 999 (guarded fetch threw in a socket callback);
+fixed in 1794f19. Full write up in `final.md`.
+
+Next, from the judge's noes: never check off-target roles (CFO, assistants,
+talent, customer success), check untitled named people only when a company
+has no titled lead (in progress, no paid calls), tighter fit for product
+companies and lead data competitors. Proving 300 in 60 minutes and 25 of 30
+needs one more real run, which needs the owner's approval.
