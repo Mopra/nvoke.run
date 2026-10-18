@@ -351,7 +351,7 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
     <div
       id="list-summary"
       aria-live="polite"
-      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[10.5px] text-muted-foreground"
+      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[11.5px] text-muted-foreground"
     >
       {items.length === 0 ? (
         <span>One per line: domains, websites, email addresses or company names. Up to {formatNumber(max)}.</span>

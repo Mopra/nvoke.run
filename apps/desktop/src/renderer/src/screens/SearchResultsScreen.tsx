@@ -703,7 +703,7 @@ function FilterKey({ on, onChange, children }: { on: boolean; onChange: (on: boo
       type="button"
       aria-pressed={on}
       onClick={() => onChange(!on)}
-      className="key inline-flex h-8 shrink-0 items-center gap-2 bg-secondary px-3.5 font-mono text-[10px] font-medium tracking-[0.09em] whitespace-nowrap text-secondary-foreground uppercase outline-none hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="key inline-flex h-8 shrink-0 items-center gap-2 bg-secondary px-3.5 font-mono text-[11px] font-medium tracking-[0.08em] whitespace-nowrap text-secondary-foreground uppercase outline-none hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <span aria-hidden className={cn('led', on && 'led-on')} />
       {children}
@@ -1336,7 +1336,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
               aria-label="Filter people and companies"
               spellCheck={false}
               autoComplete="off"
-              className="h-8 w-full rounded-[4px] bg-card pr-12 pl-9 font-mono text-xs shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-[background-color,box-shadow] duration-150 placeholder:tracking-[0.08em] placeholder:text-muted-foreground/70 placeholder:uppercase focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="h-8 w-full rounded-[4px] bg-card pr-12 pl-9 font-mono text-xs shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-[background-color,box-shadow] duration-150 placeholder:tracking-[0.08em] placeholder:text-muted-foreground/90 placeholder:uppercase focus-visible:ring-2 focus-visible:ring-ring/50"
             />
             {text ? (
               <button

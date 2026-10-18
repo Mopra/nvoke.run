@@ -148,7 +148,7 @@ export function CountryPicker({
               aria-activedescendant={options[active] ? `${listId}-${active}` : undefined}
               autoComplete="off"
               spellCheck={false}
-              className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs caret-primary outline-none placeholder:text-muted-foreground/60"
+              className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs caret-primary outline-none placeholder:text-muted-foreground/90"
             />
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-label="Countries" className="min-h-0 overflow-y-auto p-1.5">

@@ -40,7 +40,7 @@ export function Pill({ pressed, className, ...props }: ComponentProps<'button'> 
       aria-pressed={pressed}
       {...props}
       className={cn(
-        'key inline-flex h-6 items-center gap-1.5 px-2.5 font-mono text-[10px] font-medium tracking-[0.09em] uppercase tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40',
+        'key inline-flex h-6 items-center gap-1.5 px-2.5 font-mono text-[11px] font-medium tracking-[0.06em] uppercase tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40',
         pressed ? 'key-down bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:brightness-[0.97]',
         className,
       )}

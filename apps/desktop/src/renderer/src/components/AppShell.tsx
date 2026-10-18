@@ -62,7 +62,7 @@ export function Aura({ on }: { on: boolean }) {
 /* The ports */
 
 const PORT =
-  'inline-flex h-[34px] min-w-[86px] items-center justify-center gap-1.5 self-start rounded-b-[5px] px-3.5 cap text-[10px] outline-none transition-[filter,transform] duration-100 hover:brightness-[1.06] active:translate-y-px focus-visible:ring-2 focus-visible:ring-ring/60';
+  'inline-flex h-[34px] min-w-[86px] items-center justify-center gap-1.5 self-start rounded-b-[5px] px-3.5 cap outline-none transition-[filter,transform] duration-100 hover:brightness-[1.06] active:translate-y-px focus-visible:ring-2 focus-visible:ring-ring/60';
 const PORT_TONE = {
   dark: 'bg-foreground text-background',
   light: 'bg-secondary text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]',

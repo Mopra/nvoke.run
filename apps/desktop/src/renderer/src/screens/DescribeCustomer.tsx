@@ -198,7 +198,7 @@ export function DescribeCustomer() {
                 {countries.map((code) => (
                   <span
                     key={code}
-                    className="inline-flex h-6 items-center gap-1 rounded-[3px] bg-secondary pr-1 pl-2.5 font-mono text-[10px] text-secondary-foreground uppercase shadow-[0_1px_0_var(--glass-edge)]"
+                    className="inline-flex h-6 items-center gap-1 rounded-[3px] bg-secondary pr-1 pl-2.5 font-mono text-[11px] text-secondary-foreground uppercase shadow-[0_1px_0_var(--glass-edge)]"
                   >
                     {countryName(code) ?? code.toUpperCase()}
                     <button
@@ -284,9 +284,9 @@ export function DescribeCustomer() {
 }
 
 /** The quiet fields: a sunk plate in small mono. */
-const QUIET_FIELD = cn(PLATE, 'w-full min-w-0 py-1.5 text-xs font-normal caret-primary outline-none placeholder:text-muted-foreground/70');
+const QUIET_FIELD = cn(PLATE, 'w-full min-w-0 py-1.5 text-sm font-normal caret-primary outline-none placeholder:text-muted-foreground/90');
 /** An example sentence on a key: too long for capitals. */
-const EXAMPLE = 'normal-case tracking-normal text-[10.5px]';
+const EXAMPLE = 'normal-case tracking-normal text-[11.5px]';
 
 function QuietLine({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint: string; children: ReactNode }) {
   return (

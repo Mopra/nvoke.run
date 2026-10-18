@@ -27,8 +27,8 @@ function Toaster(props: ToasterProps) {
           content: 'flex min-w-0 flex-1 flex-col gap-0.5',
           title: 'cap text-foreground',
           description: 'truncate font-mono text-xs text-muted-foreground',
-          actionButton: 'key ml-auto h-6 shrink-0 bg-primary px-2 font-mono text-[9.5px] font-medium tracking-[0.08em] uppercase text-primary-foreground',
-          cancelButton: 'key ml-auto h-6 shrink-0 bg-secondary px-2 font-mono text-[9.5px] font-medium tracking-[0.08em] uppercase text-secondary-foreground',
+          actionButton: 'key ml-auto h-6 shrink-0 bg-primary px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] uppercase text-primary-foreground',
+          cancelButton: 'key ml-auto h-6 shrink-0 bg-secondary px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] uppercase text-secondary-foreground',
         },
       }}
       {...props}

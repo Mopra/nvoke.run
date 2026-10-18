@@ -73,7 +73,7 @@ export function Knob<T extends number>({
             aria-hidden
             onClick={() => onChange(option)}
             className={cn(
-              'absolute top-1/2 left-1/2 font-mono text-[10px] font-medium tabular-nums outline-none transition-colors',
+              'absolute top-1/2 left-1/2 font-mono text-[11px] font-medium tabular-nums outline-none transition-colors',
               i === index ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
             )}
             style={{ transform: `translate(${Math.cos(a) * radius}px, ${Math.sin(a) * radius}px) translate(-50%, -50%)` }}

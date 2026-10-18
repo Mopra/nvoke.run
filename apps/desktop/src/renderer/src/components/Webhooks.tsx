@@ -89,7 +89,7 @@ function WebhookRow({
         <div className="truncate font-mono text-[13px]" title={webhook.url} data-selectable>
           {webhook.url}
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[11.5px] tracking-[0.04em] text-muted-foreground uppercase">
           <span>{webhook.events.map((e, i) => (i === 0 ? EVENT_LABEL[e] : EVENT_LABEL[e].toLowerCase())).join(' and ')}</span>
           <span>{scopeLabel(webhook, drops)}</span>
           <span className={cn(state.tone === 'bad' && 'text-destructive')}>{state.text}</span>
@@ -119,7 +119,7 @@ function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; c
       aria-pressed={on}
       onClick={onClick}
       className={cn(
-        'key inline-flex h-8 items-center gap-2 bg-secondary px-3 font-mono text-[10.5px] font-medium tracking-[0.09em] uppercase',
+        'key inline-flex h-8 items-center gap-2 bg-secondary px-3 font-mono text-[11px] font-medium tracking-[0.08em] uppercase',
         'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40',
         on ? 'text-secondary-foreground' : 'text-muted-foreground hover:text-secondary-foreground',
       )}

@@ -397,7 +397,7 @@ function SuggestionRow({
 /** A profile field on a recessed plate: small mono, the ring on focus, red when the draft is wrong. */
 const AREA = cn(
   PLATE,
-  'block w-full min-w-0 resize-none px-2.5 py-1.5 text-xs outline-none transition-[box-shadow] duration-150 placeholder:text-muted-foreground/70 focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/30',
+  'block w-full min-w-0 resize-none px-2.5 py-1.5 text-xs outline-none transition-[box-shadow] duration-150 placeholder:text-muted-foreground/90 focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/30',
 );
 
 /** Every profile field inline, saved with one PATCH of what changed. */

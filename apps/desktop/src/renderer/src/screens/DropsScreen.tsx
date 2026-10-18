@@ -141,7 +141,7 @@ function DropRow({ drop, index, style }: { drop: Drop; index: number; style?: CS
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate font-display text-base">{drop.name}</div>
-          <div className="mt-1 truncate font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase">
+          <div className="mt-1 truncate font-mono text-[11.5px] tracking-[0.04em] text-muted-foreground uppercase">
             {what} from {sourcesLabel(drop.sources, FEED_SOURCES.length)}, up to {formatNumber(drop.dailyLimit)} a day
           </div>
           <div className="cap mt-1 truncate text-muted-foreground/80">
