@@ -154,9 +154,19 @@ const Ending: React.FC = () => {
   );
 };
 
+/**
+ * When the first rows' badges turn from Checking to Valid in the journey take,
+ * ms after its `first-row` mark (measured on the recording: 19.7 s in, mark at
+ * 15.65 s). Re-measure after recording the journey again.
+ */
+const VALID_AFTER_FIRST_ROW = 4050;
+/** How far into the verify shot the badges flip. */
+const FLIP_IN_MS = 800;
+
 export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
   const have = files();
   const journey = takes.journey.take;
+  const VALID_AT = markTime(journey, 'first-row') + VALID_AFTER_FIRST_ROW;
   const keys = journey.events.filter((e) => e.type === 'key');
   const firstKey = keys[0]?.t ?? markTime(journey, 'paste') + 600;
   const typeFrom = firstKey - 450;
@@ -183,7 +193,8 @@ export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
           at(5),
           BAR,
           <>
-            <Macro duration={BAR} startFrom={markTime(journey, 'first-row') + 2500} playbackRate={1.6} focus={{ x: 1450, y: 900 }} zoom={[1.6, 1.9]} drift={{ x: 0, y: -80 }} tilt={9} />
+            {/* Hannah's and Tom's rows: the address on the left, its badge flipping from Checking to Valid on the right. */}
+            <Macro duration={BAR} startFrom={VALID_AT - FLIP_IN_MS} focus={{ x: 1240, y: 925 }} zoom={[1.62, 1.78]} drift={{ x: 40, y: 0 }} tilt={6} band={0.26} />
             <Hud index="06 / 12" label="asks the mail server" />
           </>,
           'Verify',
@@ -216,9 +227,7 @@ export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
         <Sfx key={`k${i}`} have={have} src={`teaser/sfx/${['key', 'key2', 'key3'][i % 3]}.wav`} from={f} volume={0.8} />
       ))}
       <Sfx have={have} src="teaser/sfx/glitch.wav" from={at(5)} volume={0.6} />
-      {[0, 1, 2, 3].map((b) => (
-        <Sfx key={`v${b}`} have={have} src="teaser/sfx/ping.wav" from={at(5, b + 0.5)} volume={0.35} />
-      ))}
+      <Sfx have={have} src="teaser/sfx/ping_hi.wav" from={at(5) + Math.round(msToFrames(FLIP_IN_MS))} volume={0.9} />
       <Sfx have={have} src="teaser/sfx/glitch.wav" from={at(6)} volume={0.5} />
       {[...'WE FIND.'].map((ch, i) => (ch === ' ' ? null : <Sfx key={`w${i}`} have={have} src="teaser/sfx/tick.wav" from={at(7) + Math.round((i * BEAT) / 4)} volume={0.9} />))}
       {[...'YOU SEND.'].map((ch, i) => (ch === ' ' ? null : <Sfx key={`y${i}`} have={have} src="teaser/sfx/tick.wav" from={at(8) + Math.round((i * BEAT) / 4)} volume={0.9} />))}
