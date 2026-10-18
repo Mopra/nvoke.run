@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Hourly round: the human committed free search fallback, cheaper searches and shared inboxes (94a8266 to 6fd077f) and the tree is clean, so filed 'Checks on main after free search fallback and shared inboxes' (sonnet). Brave and registry keys still with the human.
 - 2026-10-18 Hourly round: main still at c9e3ffa plus memory commits, free search fallback and people work still uncommitted (46 files), so no checks filed. Brave and registry keys still with the human. Nothing to do.
 - 2026-10-18 Round as the human left: main still at the human's c9e3ffa past checked d98544d, free search fallback and people work still uncommitted (46 files), so no checks filed. Brave and registry keys still with the human. Nothing to do.
 - 2026-10-18 Round after a landing: main at b81c363 (the human's lead quality log c9e3ffa past checked d98544d); free search fallback and people work still uncommitted in the tree, so no checks filed. Brave and registry keys still with the human. Nothing to do.
@@ -126,7 +127,7 @@
 
 ## Open
 
-- Brave prepaid credit empty since 2026-10-18 (402): web, by-name and icp searches fail in production until the human tops up and runs nv sources resume brave --prod. Watch for the free search fallback landing.
+- Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, not shipped yet.
 - Registry keys (COMPANIES_HOUSE_API_KEY, CVR_USER/CVR_PASSWORD) with the human since 2026-10-17; UK and DK directors by name wait on them.
 - Go public aim reached (2026-10-17) but not shipped. Shipping is the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
@@ -134,7 +135,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at d98544d (2026-10-17), ready for the human to ship (33 quests since the last ship).
+- Main checked green at d98544d (2026-10-17); checks on 6fd077f filed 2026-10-18. Shipping is the human's (34 quests since the last ship).
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
