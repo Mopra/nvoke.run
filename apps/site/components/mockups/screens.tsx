@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import {
   ArrowUpRight,
   Ban,
@@ -14,8 +14,8 @@ import {
   Search as SearchIcon,
   Sun,
 } from 'lucide-react';
-import { BAKERIES, SEARCHES, type MockCompany } from '@/components/mockups/data';
-import { Kbd, MockButton, SearchBar, Segmented, StatusDot, VerificationBadge } from '@/components/mockups/primitives';
+import { BAKERIES, SEARCHES, type MockCompany, type MockSearch } from '@/components/mockups/data';
+import { Caret, Kbd, MockButton, SearchBar, Segmented, StatusDot, VerificationBadge } from '@/components/mockups/primitives';
 import { AppWindow, Island, MoreButton, TopBar, type Platform } from '@/components/mockups/window';
 import { LogoMark } from '@/components/site/logo';
 import { cn } from '@/lib/utils';
@@ -43,24 +43,44 @@ function Stat({ value, sub, label }: { value: string; sub?: string; label: strin
   );
 }
 
+/**
+ * Where a row is in a scene: 0 not found yet, 1 crawling its website, 2
+ * asking the mail servers, 3 verified. Leave it out for the finished row.
+ */
+export type RowPhase = 0 | 1 | 2 | 3;
+
+/** A placeholder line while the website is read, at the height of an email line. */
+function PendingLine({ width }: { width: string }) {
+  return (
+    <span className="flex h-5 items-center">
+      <span className="h-2 rounded-full bg-foreground/[0.07] motion-safe:animate-skeleton" style={{ width }} />
+    </span>
+  );
+}
+
 export function CompanyRow({
   company,
   animate = false,
   index = 0,
   location = true,
+  phase,
 }: {
   company: MockCompany;
   animate?: boolean;
   index?: number;
   location?: boolean;
+  phase?: RowPhase;
 }) {
+  const p = phase ?? 3;
   return (
     <div
       className={cn(
         location ? COLUMNS : 'grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-6',
         'px-6 py-4',
         animate && 'mock-row-in',
+        phase !== undefined && 'mock-phase',
       )}
+      data-phase={phase}
       style={animate ? ({ '--row-delay': `${300 + index * 140}ms` } as CSSProperties) : undefined}
     >
       <div className="min-w-0 leading-5">
@@ -69,18 +89,37 @@ export function CompanyRow({
       </div>
       <div className="flex min-w-0 flex-col gap-1">
         {company.emails.length === 0 ? (
-          <span className="text-[11.5px] leading-5 text-muted-foreground">No public email</span>
+          p < 2 ? (
+            <PendingLine width="40%" />
+          ) : (
+            <span key="none" className={cn('text-[11.5px] leading-5 text-muted-foreground', phase && 'animate-fade-in')}>
+              No public email
+            </span>
+          )
         ) : (
-          company.emails.map((e) => (
-            <div key={e.address} className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-mono text-[11.5px] leading-5 text-foreground/80 dark:text-foreground/65">
-                {e.address}
-              </span>
-              {e.personal && <span className="shrink-0 text-[10.5px] text-muted-foreground">person</span>}
-              <span className="ml-auto" />
-              <VerificationBadge value={e.status} />
-            </div>
-          ))
+          company.emails.map((e, i) =>
+            p < 2 ? (
+              <PendingLine key={e.address} width={`${48 + ((i * 17) % 22)}%`} />
+            ) : (
+              <div key={e.address} className="flex min-w-0 items-center gap-2">
+                <span
+                  className={cn(
+                    'truncate font-mono text-[11.5px] leading-5 text-foreground/80 dark:text-foreground/65',
+                    phase && 'animate-fade-in',
+                  )}
+                >
+                  {e.address}
+                </span>
+                {e.personal && <span className="shrink-0 text-[10.5px] text-muted-foreground">person</span>}
+                <span className="ml-auto" />
+                <VerificationBadge
+                  key={p}
+                  value={p === 2 ? 'checking' : e.status}
+                  className={phase === 3 ? 'mock-badge-in' : undefined}
+                />
+              </div>
+            ),
+          )
         )}
       </div>
       {location && (
@@ -119,10 +158,47 @@ function Dock({ platform }: { platform: Platform }) {
   );
 }
 
+/** The changing figures of a running search, for a scene. */
+export type ResultsLive = {
+  companies: number;
+  crawled: number;
+  emails: number;
+  valid: number;
+  /** Bar widths, 0 to 100. */
+  found: number;
+  crawledBar: number;
+  seconds: number;
+  /** One per row; a row left undefined is finished and rises in with the page. */
+  phases: (RowPhase | undefined)[];
+};
+
+const RESULTS_DONE: ResultsLive = {
+  companies: 70,
+  crawled: 69,
+  emails: 91,
+  valid: 42,
+  found: 92,
+  crawledBar: 86,
+  seconds: 17,
+  phases: [],
+};
+
 /** A running search: display title, thin figures, the pipeline line and the companies. */
-export function ResultsScreen({ platform, rows = 7, animate = false }: { platform: Platform; rows?: number; animate?: boolean }) {
+export function ResultsScreen({
+  platform,
+  rows = 7,
+  animate = false,
+  live,
+}: {
+  platform: Platform;
+  rows?: number;
+  animate?: boolean;
+  /** Figures and row phases from a scene; the finished frame when left out. */
+  live?: ResultsLive;
+}) {
   const search = SEARCHES[0];
   if (!search) return null;
+  const f = live ?? RESULTS_DONE;
   return (
     <>
       <TopBar
@@ -146,17 +222,23 @@ export function ResultsScreen({ platform, rows = 7, animate = false }: { platfor
               <StatusDot status="running" />
               Running
             </span>
-            Local businesses, just now, running for 17s
+            Local businesses, just now, running for {f.seconds}s
           </div>
           <div className="mt-10 grid grid-cols-4 gap-8">
-            <Stat value="70" sub="of 80" label="Companies" />
-            <Stat value="69" label="Websites crawled" />
-            <Stat value="91" label="Emails found" />
-            <Stat value="42" sub="46%" label="Valid emails" />
+            <Stat value={String(f.companies)} sub="of 80" label="Companies" />
+            <Stat value={String(f.crawled)} label="Websites crawled" />
+            <Stat value={String(f.emails)} label="Emails found" />
+            <Stat
+              value={String(f.valid)}
+              sub={`${Math.round((f.valid / Math.max(1, f.emails)) * 100)}%`}
+              label="Valid emails"
+            />
           </div>
           <div className="mt-8 flex items-center gap-5">
-            <SearchBar search={{ ...search, found: 92, crawled: 86 }} className="h-[3px] flex-1" />
-            <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">69 of 70 websites crawled</span>
+            <SearchBar search={{ ...search, found: f.found, crawled: f.crawledBar }} className="h-[3px] flex-1" />
+            <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">
+              {f.crawled} of {f.companies} websites crawled
+            </span>
           </div>
         </section>
         <div className={cn(COLUMNS, 'px-6 py-2 text-[11.5px] text-muted-foreground')}>
@@ -165,7 +247,13 @@ export function ResultsScreen({ platform, rows = 7, animate = false }: { platfor
           <span>Location</span>
         </div>
         {BAKERIES.slice(0, rows).map((c, i) => (
-          <CompanyRow key={c.domain} company={c} animate={animate} index={i} />
+          <CompanyRow
+            key={c.domain}
+            company={c}
+            animate={animate && live?.phases[i] === undefined}
+            index={i}
+            phase={live?.phases[i]}
+          />
         ))}
       </div>
       <Dock platform={platform} />
@@ -173,8 +261,17 @@ export function ResultsScreen({ platform, rows = 7, animate = false }: { platfor
   );
 }
 
-export function SearchRow({ index, compact = false }: { index: number; compact?: boolean }) {
-  const s = SEARCHES[index];
+export function SearchRow({
+  index,
+  compact = false,
+  search,
+}: {
+  index: number;
+  compact?: boolean;
+  /** Replaces the demo search at `index`, for a scene. */
+  search?: MockSearch;
+}) {
+  const s = search ?? SEARCHES[index];
   if (!s) return null;
   const label = { running: 'Running', done: 'Done', failed: 'Failed', canceled: 'Canceled' }[s.status];
   const active = s.status === 'running';
@@ -189,11 +286,23 @@ export function SearchRow({ index, compact = false }: { index: number; compact?:
           {s.status === 'done' ? '' : `${label}, `}
           {s.kind}, {s.when}
         </div>
-        {active && (
-          <div className="mt-4 flex max-w-md items-center gap-4">
-            <SearchBar search={s} className="h-[3px] flex-1" />
-            <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">{s.caption}</span>
+        {search ? (
+          // In a scene the bar folds away when the search finishes, instead of jumping.
+          <div className={cn('mock-fold', active && 'mock-fold-open')}>
+            <div className="min-h-0 overflow-hidden">
+              <div className="mt-4 flex max-w-md items-center gap-4">
+                <SearchBar search={s} className="h-[3px] flex-1" />
+                <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">{s.caption}</span>
+              </div>
+            </div>
           </div>
+        ) : (
+          active && (
+            <div className="mt-4 flex max-w-md items-center gap-4">
+              <SearchBar search={s} className="h-[3px] flex-1" />
+              <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums">{s.caption}</span>
+            </div>
+          )
         )}
       </div>
       <div className="shrink-0 text-right">
@@ -256,7 +365,7 @@ function Line({
         )}
       >
         {value}
-        {focused && <span className="ml-0.5 inline-block h-10 w-[2px] bg-primary" />}
+        {focused && <Caret key={value} className="ml-0.5 h-10" />}
         {suffix && <span className="ml-5 text-muted-foreground/50">{suffix}</span>}
         {chevron && <ChevronDown className="ml-auto size-6 text-muted-foreground/60" strokeWidth={1.75} />}
       </span>
@@ -265,7 +374,25 @@ function Line({
 }
 
 /** The new search composer: a sentence in display type. */
-export function NewSearchForm({ kind = 0, className }: { kind?: number; className?: string }) {
+export function NewSearchForm({
+  kind = 0,
+  className,
+  values,
+  focus = 0,
+  pressed = false,
+  pointer,
+}: {
+  kind?: number;
+  className?: string;
+  /** What the fields hold so far, for a scene that types them. */
+  values?: string[];
+  /** The field with the caret, or null for none. */
+  focus?: number | null;
+  /** The primary button, held down. */
+  pressed?: boolean;
+  /** Drawn over the primary button: a scene's pointer. */
+  pointer?: ReactNode;
+}) {
   const sentence = [
     {
       hint: 'Businesses on OpenStreetMap with a website, inside the area you name.',
@@ -296,23 +423,35 @@ export function NewSearchForm({ kind = 0, className }: { kind?: number; classNam
       <p className="mt-3 pl-1 text-[13px] text-muted-foreground">{sentence.hint}</p>
       <div className="mt-10 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3">
         {sentence.lines.map((l, i) => (
-          <Line key={l.lead} lead={l.lead} value={l.value} focused={i === 0} chevron={l.chevron} />
+          <Line key={l.lead} lead={l.lead} value={values?.[i] ?? l.value} focused={i === focus} chevron={l.chevron} />
         ))}
         <Line lead="up to" value="100" suffix="companies" />
       </div>
       <div className="mt-12 flex items-center gap-6">
-        <MockButton className="h-11 px-6 text-[15px]">
-          Start search
-          <CornerDownLeft className="size-3.5 opacity-70" />
-        </MockButton>
+        <span className="relative">
+          <MockButton className={cn('mock-press h-11 px-6 text-[15px]', pressed && 'scale-[0.96] brightness-110')}>
+            Start search
+            <CornerDownLeft className="size-3.5 opacity-70" />
+          </MockButton>
+          {pointer}
+        </span>
         <span className="text-[11.5px] text-muted-foreground">Only verified emails count toward your plan.</span>
       </div>
     </div>
   );
 }
 
-/** The command bar (Ctrl K or Cmd K): the island, opened. */
-export function CommandBar({ className }: { className?: string }) {
+const COMMAND_SEARCHES: { title: string; status: 'running' | 'done'; kind: string; meta: string }[] = [
+  { title: 'Bakeries in Lisbon', status: 'running', kind: 'Local businesses', meta: '36 emails' },
+  { title: 'Dentists in Austin', status: 'done', kind: 'Local businesses', meta: '83 emails' },
+  { title: '"headless cms" in DE', status: 'done', kind: 'Web search', meta: '903 emails' },
+];
+
+/**
+ * The command bar (Ctrl K or Cmd K): the island, opened. `query` filters the
+ * searches as you type; the finished picture is "dent".
+ */
+export function CommandBar({ className, query = 'dent' }: { className?: string; query?: string }) {
   const actions = [
     { icon: MapPin, label: 'Find local businesses' },
     { icon: Globe, label: 'Search the web' },
@@ -320,28 +459,43 @@ export function CommandBar({ className }: { className?: string }) {
     { icon: Rows3, label: 'All searches' },
     { icon: CircleUser, label: 'Account and plan' },
   ];
+  const q = query.toLowerCase();
+  const matches = COMMAND_SEARCHES.map((s) => s.title.toLowerCase().includes(q));
+  const top = matches.indexOf(true);
   return (
     <div className={cn('glass-strong w-[640px] overflow-hidden rounded-[28px] text-popover-foreground', className)}>
       <div className="flex h-16 items-center gap-3.5 border-b px-5">
         <SearchIcon className="size-5 text-muted-foreground" strokeWidth={1.75} />
-        <span className="flex-1 font-display text-[21px] tracking-[-0.02em]">
-          dent<span className="ml-px inline-block h-6 w-px translate-y-1 bg-primary" />
+        <span className="flex flex-1 items-center font-display text-[21px] tracking-[-0.02em]">
+          {query ? query : <span className="text-muted-foreground/60">Search or jump to</span>}
+          <Caret key={query} className={cn('h-6 w-px', query ? 'ml-px' : '-order-1 mr-px')} />
         </span>
         <Kbd>esc</Kbd>
       </div>
       <div className="p-2">
         <div className="px-3 pt-3 pb-1.5 text-[11.5px] text-muted-foreground">Searches</div>
-        <div className="flex h-10 items-center gap-3 rounded-[16px] bg-foreground/[0.07] px-3">
-          <span className="flex size-4 items-center justify-center">
-            <StatusDot status="done" />
-          </span>
-          <span>Dentists in Austin</span>
-          <span className="text-[11.5px] text-muted-foreground">Local businesses</span>
-          <span className="ml-auto flex items-center gap-2 text-[11.5px] text-muted-foreground tabular-nums">
-            83 emails
-            <CornerDownLeft className="size-3.5" />
-          </span>
-        </div>
+        {COMMAND_SEARCHES.map((s, i) => (
+          <div key={s.title} className={cn('mock-fold', matches[i] && 'mock-fold-open')}>
+            <div className="min-h-0 overflow-hidden">
+              <div
+                className={cn(
+                  'mock-highlight flex h-10 items-center gap-3 rounded-[16px] px-3',
+                  i === top && 'bg-foreground/[0.07]',
+                )}
+              >
+                <span className="flex size-4 items-center justify-center">
+                  <StatusDot status={s.status} />
+                </span>
+                <span>{s.title}</span>
+                <span className="text-[11.5px] text-muted-foreground">{s.kind}</span>
+                <span className="ml-auto flex items-center gap-2 text-[11.5px] text-muted-foreground tabular-nums">
+                  {s.meta}
+                  <CornerDownLeft className={cn('size-3.5', i !== top && 'opacity-0')} />
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
         <div className="px-3 pt-3 pb-1.5 text-[11.5px] text-muted-foreground">Actions</div>
         {actions.map((a) => (
           <div key={a.label} className="flex h-10 items-center gap-3 px-3 text-foreground/85">

@@ -71,7 +71,21 @@ export const VERIFICATION: Record<Verification, { label: string; dot: string; me
   },
 };
 
-export function VerificationBadge({ value, className }: { value: Verification; className?: string }) {
+/** A verification result, or `checking` while the mail server is being asked (the scenes use it). */
+export function VerificationBadge({ value, className }: { value: Verification | 'checking'; className?: string }) {
+  if (value === 'checking') {
+    return (
+      <span
+        className={cn(
+          'inline-flex h-[18px] shrink-0 items-center gap-1.5 rounded-full bg-foreground/[0.05] pr-2 pl-1.5 text-[10.5px] leading-[14px] font-medium text-muted-foreground',
+          className,
+        )}
+      >
+        <span className="size-1.5 rounded-full bg-primary/70 motion-safe:animate-skeleton" />
+        Checking
+      </span>
+    );
+  }
   return (
     <span
       className={cn(
@@ -152,12 +166,15 @@ export function SearchBar({ search, className }: { search: MockSearch; className
   return (
     <div className={cn('relative h-1 w-full overflow-hidden rounded-full bg-foreground/[0.07]', className)}>
       <div
-        className={cn('absolute inset-y-0 left-0 rounded-full', active ? 'bg-primary/20' : 'bg-foreground/10')}
+        className={cn(
+          'mock-bar absolute inset-y-0 left-0 rounded-full',
+          active ? 'bg-primary/20' : 'bg-foreground/10',
+        )}
         style={{ width: `${search.found}%` }}
       />
       <div
         className={cn(
-          'absolute inset-y-0 left-0 overflow-hidden rounded-full',
+          'mock-bar absolute inset-y-0 left-0 overflow-hidden rounded-full',
           active && 'bg-primary',
           search.status === 'done' && 'bg-foreground/30',
           search.status === 'failed' && 'bg-destructive/60',
@@ -198,5 +215,35 @@ export function Segmented({
         </span>
       ))}
     </div>
+  );
+}
+
+/** A text caret, blinking while the field waits. */
+export function Caret({ className }: { className?: string }) {
+  return <span className={cn('mock-caret inline-block w-[2px] shrink-0 bg-primary', className)} />;
+}
+
+/**
+ * The pointer, drawn like the system arrow. Its parent places it; `x` and `y`
+ * move it there with a glide, `pressed` dips it as a click lands.
+ */
+export function Pointer({ x, y, pressed = false, visible = true }: { x: number; y: number; pressed?: boolean; visible?: boolean }) {
+  return (
+    <span
+      className="mock-pointer pointer-events-none absolute top-0 left-0 z-20"
+      style={{ transform: `translate(${x}px, ${y}px)`, opacity: visible ? 1 : 0 }}
+    >
+      <svg
+        viewBox="0 0 16 22"
+        className={cn('mock-pointer-glyph h-[22px] w-4 drop-shadow-sm', pressed && 'scale-90')}
+      >
+        <path
+          d="M1 1v17.5l4.6-4.4 3 6.9 3-1.3-3-6.8H15L1 1Z"
+          className="fill-foreground stroke-background"
+          strokeWidth="1.25"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
   );
 }
