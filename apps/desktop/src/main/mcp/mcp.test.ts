@@ -86,7 +86,9 @@ describe('setup lines', () => {
 
 describe('local MCP server over the launcher', () => {
   async function connectThrough(server: LocalMcpServer) {
-    const pipe = pipeArg(process.platform, join(dir, String(Math.random())));
+    // Off Windows the pipe is a socket file in userData, which always exists in the app.
+    const userData = mkdtempSync(join(dir, 'user-'));
+    const pipe = pipeArg(process.platform, userData);
     server.listen(listenPath(process.platform, pipe));
     // The launcher, run by plain Node as MCP clients run it in Node mode.
     const transport = new StdioClientTransport({ command: process.execPath, args: [LAUNCHER, pipe], stderr: 'pipe' });
