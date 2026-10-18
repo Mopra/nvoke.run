@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Round after a quest landed: the site and web app device look checks landed with no fixes, main green at 261ecfd (dfef2e6 is memory). Tree clean, no aim, nothing to file; shipping is the human's.
 - 2026-10-18 Round as the human left: type scale checks done; the human committed 10 site, web app and teaser commits (8677d09 to 261ecfd) unchecked, so filed 'Checks on main after the site and web app in the device look' (sonnet, with build). No aim.
 - 2026-10-18 Hourly round: the human committed 12 desktop commits (f2646f8 to 3098928) past green 6da9e30, tree clean but untracked docs/design (theirs), so filed 'Checks on main after the type scale, level meter and Continue' (sonnet, with capture). No aim.
 - 2026-10-18 Round after a quest landed: only memory commits past green 6da9e30, tree clean, no aim. Nothing to do; shipping is the human's.
@@ -164,7 +165,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Field look checks green at 4c6885b, searches table and chassis checks green at 6da9e30. Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
+- Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Field look checks green at 4c6885b, searches table and chassis checks green at 6da9e30, site and web app device look checks green at 261ecfd. Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
