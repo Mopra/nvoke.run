@@ -49,7 +49,7 @@
   --scrim: oklch(0.25 0.01 100 / 0.3);
   --shade: oklch(0.12 0.01 100 / 0.45);
   /* The foot of a scrolling panel, where the chassis falls into shadow. */
-  --shade-foot: oklch(0.2 0.01 100 / 0.28);
+  --shade-foot: oklch(0.2 0.01 100 / 0.14);
 
   --glass: oklch(0.9 0.004 100 / 0.88);
   --glass-strong: oklch(0.93 0.004 100 / 0.95);
@@ -115,7 +115,7 @@
   --highlight: oklch(1 0 0 / 0.08);
   --scrim: oklch(0 0 0 / 0.5);
   --shade: oklch(0.12 0.01 100 / 0.45);
-  --shade-foot: oklch(0 0 0 / 0.5);
+  --shade-foot: oklch(0 0 0 / 0.3);
 
   --glass: oklch(0.27 0.003 100 / 0.88);
   --glass-strong: oklch(0.29 0.003 100 / 0.95);

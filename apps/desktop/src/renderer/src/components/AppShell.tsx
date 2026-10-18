@@ -438,7 +438,7 @@ export function ScrollShade({ of }: { of: RefObject<HTMLElement | null> }) {
     <div
       aria-hidden
       className={cn(
-        'pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(to_bottom,transparent,var(--shade-foot))] transition-opacity duration-300',
+        'pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(to_bottom,transparent,var(--shade-foot))] transition-opacity duration-300',
         more ? 'opacity-100' : 'opacity-0',
       )}
     />
