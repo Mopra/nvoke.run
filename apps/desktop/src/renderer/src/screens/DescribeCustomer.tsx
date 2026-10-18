@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type Reac
 import { ArrowRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, X } from 'lucide-react';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { CountryPicker } from '@/components/CountryPicker';
-import { FIELD_NOTE, FIELD_PLATE } from '@/components/SearchForm';
+import { NOTE, PLATE } from '@/components/SearchForm';
 import { Pill } from '@/components/Sentence';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -119,13 +119,13 @@ export function DescribeCustomer() {
 
   return (
     <>
-      <PageHeader leading={<BackButton />} newSearch={false} />
+      <PageHeader leading={<BackButton />} />
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
         <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[4vh] motion-safe:animate-view-in">
-          <label htmlFor="icp-description" className="font-display text-4xl font-semibold text-balance field:font-light">
+          <label htmlFor="icp-description" className="font-display text-4xl font-light text-balance">
             Who do you sell to?
           </label>
-          <p className={cn('mt-2 max-w-xl text-pretty text-base text-muted-foreground', FIELD_NOTE)}>
+          <p className={cn('mt-2 max-w-xl text-pretty', NOTE)}>
             Say it like you would to a new hire. nvoke plans the searches, reads every site and finds the people who decide.
           </p>
 
@@ -152,19 +152,19 @@ export function DescribeCustomer() {
               aria-invalid={invalid}
               aria-describedby="icp-examples"
               placeholder="Owner run dental clinics with 3 to 20 staff"
-              className="block max-h-[7.5em] w-full resize-none overflow-y-auto bg-transparent font-display text-3xl leading-[1.25] font-semibold text-pretty caret-primary outline-none placeholder:text-foreground/[0.17] aria-invalid:placeholder:text-destructive/40 field:font-normal"
+              className="block max-h-[7.5em] w-full resize-none overflow-y-auto bg-transparent font-display text-3xl leading-[1.25] font-normal text-pretty caret-primary outline-none placeholder:text-foreground/[0.17] aria-invalid:placeholder:text-destructive/40"
             />
-            <span className="absolute inset-x-0 bottom-0 h-px bg-border transition-colors duration-300 group-focus-within/line:bg-primary/70" />
+            <span className="absolute inset-x-0 bottom-0 h-px bg-border transition-colors duration-300 group-focus-within/line:bg-primary" />
           </div>
 
-          <div id="icp-examples" className="mt-3 -ml-3 flex flex-wrap items-center gap-1" role="group" aria-label="Examples">
+          <div id="icp-examples" className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Examples">
             {audience && (
-              <Pill onClick={() => pickExample(audience)} className={cn('max-w-full truncate', FIELD_EXAMPLE)} title={audience}>
-                <span className="font-medium text-foreground">From your site:</span> {audience}
+              <Pill onClick={() => pickExample(audience)} className={cn('max-w-full truncate', EXAMPLE)} title={audience}>
+                <span className="text-primary">From your site:</span> {audience}
               </Pill>
             )}
             {ICP_EXAMPLES.map((example) => (
-              <Pill key={example} onClick={() => pickExample(example)} className={cn('max-w-full truncate', FIELD_EXAMPLE)} title={example}>
+              <Pill key={example} onClick={() => pickExample(example)} className={cn('max-w-full truncate', EXAMPLE)} title={example}>
                 {example}
               </Pill>
             ))}
@@ -190,7 +190,7 @@ export function DescribeCustomer() {
                 maxLength={PRODUCT_MAX}
                 autoComplete="off"
                 placeholder="So nvoke skips your competitors"
-                className={cn(QUIET_FIELD, 'block max-h-[4.5em] resize-none overflow-y-auto text-pretty', FIELD_PLATE, FIELD_QUIET)}
+                className={cn(QUIET_FIELD, 'block max-h-[4.5em] resize-none overflow-y-auto text-pretty')}
               />
             </QuietLine>
             <QuietLine label="Countries" htmlFor="icp-countries" hint="Optional">
@@ -198,14 +198,14 @@ export function DescribeCustomer() {
                 {countries.map((code) => (
                   <span
                     key={code}
-                    className="inline-flex h-7 items-center gap-1 rounded-full bg-foreground/[0.06] pr-1 pl-3 text-sm field:rounded-[3px] field:bg-secondary field:font-mono field:text-[10px] field:uppercase field:shadow-[0_1px_0_var(--glass-edge)]"
+                    className="inline-flex h-6 items-center gap-1 rounded-[3px] bg-secondary pr-1 pl-2.5 font-mono text-[10px] text-secondary-foreground uppercase shadow-[0_1px_0_var(--glass-edge)]"
                   >
                     {countryName(code) ?? code.toUpperCase()}
                     <button
                       type="button"
                       aria-label={`Remove ${countryName(code) ?? code}`}
                       onClick={() => setCountries((list) => list.filter((c) => c !== code))}
-                      className="flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-foreground/[0.08] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                      className="flex size-4 items-center justify-center rounded-[2px] text-muted-foreground outline-none hover:bg-foreground/[0.08] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
                       <X className="size-3" />
                     </button>
@@ -224,7 +224,7 @@ export function DescribeCustomer() {
                           list.includes(code) ? list.filter((c) => c !== code) : [...list, code].slice(0, PLACES_MAX),
                         );
                     }}
-                    triggerClassName={cn(QUIET_FIELD, 'text-muted-foreground/70 [&_svg]:size-4', FIELD_PLATE, FIELD_QUIET)}
+                    triggerClassName={cn(QUIET_FIELD, 'text-muted-foreground/70 [&_svg]:size-4')}
                   />
                 </div>
               </div>
@@ -236,7 +236,7 @@ export function DescribeCustomer() {
                 onChange={(e) => setPlaces(e.target.value)}
                 autoComplete="off"
                 placeholder="Austin, Denver. For local businesses."
-                className={cn(QUIET_FIELD, FIELD_PLATE, FIELD_QUIET)}
+                className={QUIET_FIELD}
               />
             </QuietLine>
           </div>
@@ -244,8 +244,8 @@ export function DescribeCustomer() {
           <label htmlFor="icp-ongoing" className="mt-7 flex cursor-default items-start gap-4 self-start">
             <Switch id="icp-ongoing" checked={ongoing} onCheckedChange={setOngoing} className="mt-0.5" />
             <span>
-              <span className="block text-base font-medium field:cap field:text-foreground">Keep finding new leads</span>
-              <span className={cn('mt-0.5 block max-w-md text-pretty text-sm text-muted-foreground', FIELD_NOTE)}>
+              <span className="cap block text-foreground">Keep finding new leads</span>
+              <span className={cn('mt-0.5 block max-w-md text-pretty', NOTE)}>
                 After the first {formatNumber(limit)} companies, nvoke keeps looking and adds new people as it finds them, until you
                 switch it off.
               </span>
@@ -259,16 +259,16 @@ export function DescribeCustomer() {
               {!start.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
             </Button>
             {invalid ? (
-              <span role="alert" className="text-sm text-destructive field:font-mono field:text-[10.5px]">
+              <span role="alert" className="font-mono text-[10.5px] text-destructive">
                 Say who you sell to first.
               </span>
             ) : (
-              <p className={cn('max-w-sm text-xs text-muted-foreground', FIELD_NOTE)}>
+              <p className={cn('max-w-sm', NOTE)}>
                 Only verified emails count.
                 {remaining !== null && (
                   <>
                     {' '}
-                    <span className="field:font-medium field:text-primary">{formatNumber(remaining)}</span> left this month.
+                    <span className="font-medium text-primary">{formatNumber(remaining)}</span> left this month.
                   </>
                 )}{' '}
                 Results are kept for 12 months.
@@ -283,25 +283,19 @@ export function DescribeCustomer() {
   );
 }
 
-const QUIET_FIELD =
-  'w-full min-w-0 bg-transparent py-0.5 font-display text-lg font-medium caret-primary outline-none placeholder:font-normal placeholder:text-foreground/25';
-/** The quiet fields in Field: a sunk plate (FIELD_PLATE) in small mono instead of the underlined line. */
-const FIELD_QUIET = 'field:py-1.5 field:text-xs field:font-normal field:placeholder:text-muted-foreground/70';
-/** An example sentence in Field: mono, but too long for capitals. */
-const FIELD_EXAMPLE = 'field:rounded-[3px] field:font-mono field:text-[10.5px]';
+/** The quiet fields: a sunk plate in small mono. */
+const QUIET_FIELD = cn(PLATE, 'w-full min-w-0 py-1.5 text-xs font-normal caret-primary outline-none placeholder:text-muted-foreground/70');
+/** An example sentence on a key: too long for capitals. */
+const EXAMPLE = 'normal-case tracking-normal text-[10.5px]';
 
 function QuietLine({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint: string; children: ReactNode }) {
   return (
-    <div className="group/line contents">
-      <label htmlFor={htmlFor} className="flex items-baseline gap-2 pt-1 field:pt-2">
-        <span className="text-sm font-medium field:cap">{label}</span>
-        <span className="text-xs text-muted-foreground field:cap">{hint}</span>
+    <div className="contents">
+      <label htmlFor={htmlFor} className="flex items-baseline gap-2 pt-2">
+        <span className="cap">{label}</span>
+        <span className="cap text-muted-foreground">{hint}</span>
       </label>
-      <div className="relative min-w-0 pb-1.5">
-        {children}
-        {/* The plate in Field has no hairline. */}
-        <span className="absolute inset-x-0 bottom-0 h-px bg-border/70 transition-colors duration-300 group-focus-within/line:bg-primary/70 field:hidden" />
-      </div>
+      <div className="min-w-0 pb-1.5">{children}</div>
     </div>
   );
 }
@@ -317,12 +311,12 @@ function OtherWays() {
   ];
   return (
     <section aria-labelledby="other-ways" className="mt-12">
-      <h2 id="other-ways" className="text-sm text-muted-foreground field:cap">
+      <h2 id="other-ways" className="cap text-muted-foreground">
         Other ways to search
       </h2>
-      <div className="mt-2 -ml-3 flex flex-wrap gap-1">
+      <div className="mt-3 flex flex-wrap gap-2">
         {ways.map(({ label, icon: Icon, kind }) => (
-          <Pill key={kind} onClick={() => navigate({ name: 'new', kind })} className="inline-flex items-center gap-1.5 field:cap field:rounded-[3px]">
+          <Pill key={kind} onClick={() => navigate({ name: 'new', kind })}>
             <Icon className="size-3" />
             {label}
             <ArrowRight className="size-3 opacity-50" />

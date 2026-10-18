@@ -40,11 +40,11 @@ export function RunsLine({ search }: { search: Search }) {
   if (runs.length <= 1) return null;
   const added = runsAdded(search);
   return (
-    <ol data-search-runs className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <ol data-search-runs className="cap mt-3 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
       {runs.map((run, i) => (
         <li key={`${run.createdAt}-${i}`} className="flex items-baseline gap-1.5">
           <span className="max-w-72 truncate">{runTitle({ kind: search.kind, params: run.params } as Search)}</span>
-          <span className="tabular-nums text-foreground/70">+{formatNumber(Math.max(0, added[i] ?? 0))}</span>
+          <span className="tabular-nums text-primary">+{formatNumber(Math.max(0, added[i] ?? 0))}</span>
         </li>
       ))}
     </ol>

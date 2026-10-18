@@ -5,7 +5,6 @@ import { commandBarShots } from './shots/command-bar';
 import { csvDropShots } from './shots/csv-drop';
 import { grabShots } from './shots/grab';
 import { localCopyShots } from './shots/local-copy';
-import { lookShots } from './shots/look';
 import { mcpShots } from './shots/mcp';
 import { newSearchShots } from './shots/new-search';
 import { peopleShots } from './shots/people';
@@ -36,5 +35,4 @@ export const CAPTURE_STEPS: CaptureStep[] = [
   updatesShots,
   grabShots,
   searchMoreShots,
-  lookShots,
 ];

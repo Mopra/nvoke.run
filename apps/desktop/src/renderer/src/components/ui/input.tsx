@@ -1,17 +1,16 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+/** A recessed plate, set in the mono. */
 function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
   return (
     <input
       type={type}
       data-slot="input"
       className={cn(
-        'flex h-8 w-full min-w-0 rounded-md border border-input bg-card px-2.5 text-sm shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 disabled:opacity-50 dark:bg-foreground/5',
-        // Field: a recessed plate, set in the mono.
-        'field:rounded-[4px] field:border-0 field:bg-card field:font-mono field:text-xs field:shadow-[inset_0_1px_2px_var(--shadow-strong)] field:dark:bg-card',
-        'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25',
-        'aria-invalid:border-destructive/70 aria-invalid:ring-destructive/15',
+        'flex h-8 w-full min-w-0 rounded-[4px] bg-card px-2.5 font-mono text-xs shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-[box-shadow] duration-150 placeholder:text-muted-foreground/70 disabled:opacity-50',
+        'focus-visible:ring-[3px] focus-visible:ring-ring/25',
+        'aria-invalid:ring-[3px] aria-invalid:ring-destructive/25',
         '[&::-webkit-inner-spin-button]:appearance-none',
         className,
       )}

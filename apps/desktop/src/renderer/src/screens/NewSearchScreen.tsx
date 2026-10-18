@@ -2,17 +2,15 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { ArrowLeft, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, type LucideIcon } from 'lucide-react';
 import { BackButton, PageHeader } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
 import { Pill } from '@/components/Sentence';
-import { isFormKind, SearchFields, SearchFootnote, useSearchForm, type FormKind } from '@/components/SearchForm';
-import { useLook } from '@/lib/look';
+import { isFormKind, LimitKnob, SearchFields, SearchFootnote, useSearchForm, type FormKind } from '@/components/SearchForm';
 import { useStartSearch } from '@/lib/start-search';
 import { navigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { DescribeCustomer } from '@/screens/DescribeCustomer';
 import { StartFromWebsite } from '@/screens/StartFromWebsite';
 
-/** The kinds in order, with the short name the Field keycaps carry. */
+/** The kinds in order, with the short name the keycaps carry. */
 const KINDS: { value: FormKind; label: string; short: string; icon: LucideIcon }[] = [
   { value: 'local', label: 'Local businesses', short: 'Local', icon: MapPin },
   { value: 'web', label: 'Web search', short: 'Web', icon: Globe },
@@ -39,13 +37,17 @@ export function NewSearchScreen({ initialKind }: { initialKind: string | null })
   return <DescribeCustomer />;
 }
 
+/**
+ * The manual form as a panel: the kind keys on the left, the sentence in the
+ * middle with the Start key under it, and the limit knob on the right. A list
+ * has no limit, so its column stays empty.
+ */
 function ManualSearch({ initialKind }: { initialKind: FormKind }) {
   const [kind, setKind] = useState<FormKind>(initialKind);
   const form = useSearchForm(kind);
   const firstField = useRef<HTMLInputElement>(null);
   const listField = useRef<HTMLTextAreaElement>(null);
   const create = useStartSearch();
-  const look = useLook();
 
   useEffect(() => {
     (kind === 'domains' ? listField.current : firstField.current)?.focus();
@@ -60,48 +62,38 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
 
   return (
     <>
-      <PageHeader leading={<BackButton />} newSearch={false} />
-      <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
-        <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" noValidate>
+      <PageHeader leading={<BackButton />} />
+      <main className="fade-edges flex-1 overflow-auto px-9 pb-24">
+        <form onSubmit={submit} className="flex flex-col pt-7 motion-safe:animate-view-in" noValidate>
           <h1 className="sr-only">New search</h1>
-          <Pill
-            onClick={() => navigate({ name: 'new', kind: null })}
-            className="-ml-3 mb-6 inline-flex items-center gap-1.5 self-start field:cap field:rounded-[3px]"
-          >
+          <Pill onClick={() => navigate({ name: 'new', kind: null })} className="mb-7 self-start">
             <ArrowLeft className="size-3" />
             Describe your customer instead
           </Pill>
-          <div className="flex flex-col items-start gap-3">
-            {look === 'field' ? (
+          <div className="grid grid-cols-[196px_minmax(0,1fr)_210px] gap-10">
+            <div className="flex flex-col gap-4">
               <KindKeys label="Where to look" value={kind} onChange={setKind} />
-            ) : (
-              <Segmented
-                label="Where to look"
-                value={kind}
-                onChange={setKind}
-                options={KINDS.map(({ value, label, icon }) => ({ value, label, icon }))}
-              />
-            )}
-            <p
-              key={kind}
-              className="pl-1 text-sm text-muted-foreground motion-safe:animate-fade-in field:pl-0 field:font-mono field:text-[10.5px] field:leading-[1.6]"
-            >
-              {SOURCES[kind]}
-            </p>
-          </div>
+              <p key={kind} className="font-mono text-[10.5px] leading-[1.6] text-muted-foreground motion-safe:animate-fade-in">
+                {SOURCES[kind]}
+              </p>
+            </div>
 
-          {/* A tab switch brings its fields in; the form's values live in useSearchForm, so nothing is lost. */}
-          <div key={kind} className="mt-14 motion-safe:animate-view-in">
-            <SearchFields form={form} firstField={firstField} listField={listField} />
-          </div>
+            <div className="flex flex-col pt-1">
+              {/* A key switch brings its fields in; the form's values live in useSearchForm, so nothing is lost. */}
+              <div key={kind} className="motion-safe:animate-view-in">
+                <SearchFields form={form} firstField={firstField} listField={listField} presets={false} />
+              </div>
+              <div className="mt-9 flex items-center gap-5">
+                <Button type="submit" size="lg" disabled={create.isPending} className="min-w-40">
+                  {create.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
+                  Start search
+                  {!create.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
+                </Button>
+                <SearchFootnote form={form} />
+              </div>
+            </div>
 
-          <div className="mt-16 flex items-center gap-6">
-            <Button type="submit" size="lg" disabled={create.isPending} className="min-w-40">
-              {create.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
-              Start search
-              {!create.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
-            </Button>
-            <SearchFootnote form={form} />
+            <div className="pt-1">{kind !== 'domains' && <LimitKnob form={form} />}</div>
           </div>
         </form>
       </main>
@@ -110,9 +102,9 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
 }
 
 /**
- * The Field look's kind picker: a row of square keycaps, the icon over a cap
- * label, an LED above each, the chosen one orange and lit. Radio semantics
- * like Segmented, arrow keys move the choice.
+ * The kind picker: four square keycaps in a block, the icon over a cap label,
+ * an LED above each, the chosen one orange and lit. Radio semantics, arrow
+ * keys move the choice.
  */
 function KindKeys({ label, value, onChange }: { label: string; value: FormKind; onChange: (kind: FormKind) => void }) {
   const refs = useRef(new Map<FormKind, HTMLButtonElement>());
@@ -129,7 +121,7 @@ function KindKeys({ label, value, onChange }: { label: string; value: FormKind; 
   }
 
   return (
-    <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className="flex gap-3 pt-1">
+    <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className="grid grid-cols-2 gap-x-2.5 gap-y-4 pt-1">
       {KINDS.map(({ value: kind, short, icon: Icon }) => {
         const active = kind === value;
         return (
@@ -146,11 +138,11 @@ function KindKeys({ label, value, onChange }: { label: string; value: FormKind; 
               tabIndex={active ? 0 : -1}
               onClick={() => onChange(kind)}
               className={cn(
-                'key flex size-[76px] flex-col items-center justify-center gap-1.5 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                'key flex h-[84px] w-full flex-col items-center justify-center gap-1.5 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 active ? 'key-primary bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:brightness-[0.97]',
               )}
             >
-              <Icon className="size-5" strokeWidth={1.5} />
+              <Icon className="size-[22px]" strokeWidth={1.4} />
               <span className="cap">{short}</span>
             </button>
           </div>

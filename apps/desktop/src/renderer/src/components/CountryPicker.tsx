@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 const ANY = { code: '', name: 'any country' };
 
 /**
- * A searchable country picker: the trigger shows the choice, the glass panel
+ * A searchable country picker: the trigger shows the choice, the plate
  * below it has a search field and every country. Type to filter, arrows to
  * move, Enter to pick, Escape to close. Typing on the closed trigger opens it
  * with that text.
@@ -126,7 +126,7 @@ export function CountryPicker({
             (e.currentTarget as HTMLElement).querySelector('input')?.focus();
           }}
           className={cn(
-            'glass-strong z-50 flex w-[340px] flex-col overflow-hidden rounded-[22px] text-popover-foreground outline-none',
+            'glass-strong z-50 flex w-[340px] flex-col overflow-hidden rounded-[6px] text-popover-foreground outline-none',
             'max-h-[min(440px,var(--radix-popover-content-available-height))]',
             'origin-(--radix-popover-content-transform-origin) duration-200 ease-spring data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.96] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100',
           )}
@@ -148,12 +148,12 @@ export function CountryPicker({
               aria-activedescendant={options[active] ? `${listId}-${active}` : undefined}
               autoComplete="off"
               spellCheck={false}
-              className="h-full min-w-0 flex-1 bg-transparent text-sm caret-primary outline-none placeholder:text-muted-foreground/60"
+              className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs caret-primary outline-none placeholder:text-muted-foreground/60"
             />
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-label="Countries" className="min-h-0 overflow-y-auto p-1.5">
             {options.length === 0 && (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No country matches “{query.trim()}”</div>
+              <div className="px-3 py-6 text-center font-mono text-[10.5px] text-muted-foreground">No country matches “{query.trim()}”</div>
             )}
             {options.map((option, index) => {
               const selected = chosen ? option.code !== '' && chosen.includes(option.code) : option.code === value;
@@ -167,12 +167,12 @@ export function CountryPicker({
                   onMouseMove={() => setActive(index)}
                   onClick={() => pick(option.code)}
                   className={cn(
-                    'relative flex h-9 cursor-default items-center gap-3 rounded-[14px] pr-9 pl-3 text-sm',
+                    'relative flex h-8 cursor-default items-center gap-3 rounded-[3px] pr-9 pl-3 text-sm',
                     index === active && 'bg-foreground/[0.07]',
                   )}
                 >
                   <span className="truncate first-letter:uppercase">{option.name}</span>
-                  {option.code && <span className="text-xs text-muted-foreground/70">{option.code}</span>}
+                  {option.code && <span className="cap text-muted-foreground/70">{option.code}</span>}
                   {selected && <CheckIcon className="absolute right-3 size-4 text-primary" strokeWidth={2.5} />}
                 </div>
               );

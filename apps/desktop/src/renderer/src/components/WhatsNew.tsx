@@ -42,13 +42,13 @@ export function WhatsNew() {
         {data && (
           <div className="flex max-h-[min(560px,calc(100vh-96px))] flex-col">
             <div className="px-8 pt-8">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+              <div className="cap flex items-center gap-2 text-primary">
                 <Sparkles className="size-3.5" />
                 Updated
               </div>
-              <DialogTitle className="mt-2 font-display text-3xl font-semibold">What’s new in {data.version}</DialogTitle>
+              <DialogTitle className="mt-2 font-display text-3xl font-light tracking-[-0.02em]">What’s new in {data.version}</DialogTitle>
               {several && (
-                <DialogDescription className="mt-1.5 text-sm text-muted-foreground">
+                <DialogDescription className="mt-1.5 font-mono text-xs text-muted-foreground">
                   {data.notes.length} releases since you last looked.
                 </DialogDescription>
               )}
@@ -56,11 +56,11 @@ export function WhatsNew() {
             <div className="min-h-0 flex-1 overflow-auto px-8 pt-6 pb-2">
               {data.notes.map((note) => (
                 <section key={note.version} className="pb-5">
-                  {several && <h3 className="pb-2 font-mono text-xs text-muted-foreground">{note.version}</h3>}
+                  {several && <h3 className="cap pb-2 text-muted-foreground">{note.version}</h3>}
                   <ul className="flex flex-col gap-2.5">
                     {note.items.map((item, i) => (
                       <li key={i} className="flex gap-3 text-[15px] leading-relaxed">
-                        <span aria-hidden className="mt-[0.7em] size-1 shrink-0 rounded-full bg-foreground/40" />
+                        <span aria-hidden className="led mt-[0.6em]" />
                         <span>{item}</span>
                       </li>
                     ))}

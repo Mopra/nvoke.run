@@ -14,6 +14,7 @@ function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trig
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
+/** A small black screen with a cap label. */
 function TooltipContent({
   className,
   sideOffset = 6,
@@ -26,7 +27,7 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 flex max-w-64 items-center gap-1.5 text-balance rounded-full glass-strong px-2.5 py-1 text-xs text-popover-foreground duration-150 animate-in fade-in-0 zoom-in-[0.97] data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
+          'screen cap z-50 flex max-w-64 items-center gap-1.5 text-balance rounded-[4px] px-2 py-1 text-screen-foreground/90 duration-150 animate-in fade-in-0 zoom-in-[0.97] data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
           className,
         )}
         {...props}

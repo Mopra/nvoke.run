@@ -2,7 +2,7 @@ import { CircleAlert, CircleCheck, Info, Loader2, TriangleAlert } from 'lucide-r
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 import { useTheme } from '@/lib/theme';
 
-/** Toasts drop in under the island at the top center, as glass capsules. */
+/** Toasts drop in under the island at the top center, as plates with a cap title. */
 function Toaster(props: ToasterProps) {
   const { resolved } = useTheme();
   return (
@@ -22,13 +22,13 @@ function Toaster(props: ToasterProps) {
         unstyled: true,
         classNames: {
           toast:
-            'glass-strong flex w-[380px] items-start gap-3 rounded-[22px] px-4 py-3.5 text-popover-foreground',
+            'glass-strong flex w-[380px] items-start gap-3 rounded-[8px] px-4 py-3.5 text-popover-foreground',
           icon: 'mt-px flex size-4 shrink-0 items-center justify-center',
           content: 'flex min-w-0 flex-1 flex-col gap-0.5',
-          title: 'text-sm font-medium',
-          description: 'truncate text-xs text-muted-foreground',
-          actionButton: 'ml-auto h-6 shrink-0 rounded-sm bg-primary px-2 text-xs font-medium text-primary-foreground',
-          cancelButton: 'ml-auto h-6 shrink-0 rounded-sm bg-muted px-2 text-xs font-medium',
+          title: 'cap text-foreground',
+          description: 'truncate font-mono text-xs text-muted-foreground',
+          actionButton: 'key ml-auto h-6 shrink-0 bg-primary px-2 font-mono text-[9.5px] font-medium tracking-[0.08em] uppercase text-primary-foreground',
+          cancelButton: 'key ml-auto h-6 shrink-0 bg-secondary px-2 font-mono text-[9.5px] font-medium tracking-[0.08em] uppercase text-secondary-foreground',
         },
       }}
       {...props}

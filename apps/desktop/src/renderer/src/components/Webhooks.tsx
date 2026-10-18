@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type FormEvent } from 'react';
-import { Check, ChevronDown, Loader2, Plus } from 'lucide-react';
+import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { WEBHOOK_EVENTS, type Drop, type Webhook, type WebhookEvent } from '@nvoke/shared';
 import { CopyField, DocsLink, SectionHeading } from '@/components/ApiKeys';
@@ -89,7 +89,7 @@ function WebhookRow({
         <div className="truncate font-mono text-[13px]" title={webhook.url} data-selectable>
           {webhook.url}
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase">
           <span>{webhook.events.map((e, i) => (i === 0 ? EVENT_LABEL[e] : EVENT_LABEL[e].toLowerCase())).join(' and ')}</span>
           <span>{scopeLabel(webhook, drops)}</span>
           <span className={cn(state.tone === 'bad' && 'text-destructive')}>{state.text}</span>
@@ -111,7 +111,7 @@ function WebhookRow({
   );
 }
 
-/** A pill that is on or off. */
+/** A keycap that is on or off, its LED lit while on. */
 function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: string }) {
   return (
     <button
@@ -119,12 +119,12 @@ function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; c
       aria-pressed={on}
       onClick={onClick}
       className={cn(
-        'inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm transition-colors duration-150',
-        'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25',
-        on ? 'bg-primary/12 text-primary' : 'bg-foreground/[0.05] text-muted-foreground hover:text-foreground',
+        'key inline-flex h-8 items-center gap-2 bg-secondary px-3 font-mono text-[10.5px] font-medium tracking-[0.09em] uppercase',
+        'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40',
+        on ? 'text-secondary-foreground' : 'text-muted-foreground hover:text-secondary-foreground',
       )}
     >
-      {on && <Check className="size-3.5" />}
+      <span className={cn('led', on && 'led-on')} aria-hidden />
       {children}
     </button>
   );
@@ -179,7 +179,7 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         {secret ? (
           <div className="flex flex-col gap-5">
             <div>
-              <DialogTitle className="font-display text-xl font-semibold">Signing secret</DialogTitle>
+              <DialogTitle className="font-display text-xl font-light">Signing secret</DialogTitle>
               <DialogDescription className="mt-1 text-sm text-muted-foreground">
                 Signs every request. Copy it now; you won’t see it again.
               </DialogDescription>
@@ -195,7 +195,7 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-5">
             <div>
-              <DialogTitle className="font-display text-xl font-semibold">New webhook</DialogTitle>
+              <DialogTitle className="font-display text-xl font-light">New webhook</DialogTitle>
               <DialogDescription className="mt-1 text-sm text-muted-foreground">
                 We POST each lead to this URL once its emails are verified.
               </DialogDescription>
@@ -211,10 +211,10 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               spellCheck={false}
               autoComplete="off"
               autoCapitalize="off"
-              className="h-10 rounded-full px-4 font-mono text-[13px]"
+              className="h-9 rounded-[4px] bg-card px-3 font-mono text-[13px] shadow-[inset_0_1px_2px_var(--shadow-strong)]"
             />
             <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">Send</span>
+              <span className="cap text-muted-foreground">Send</span>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Events">
                 {WEBHOOK_EVENTS.map((event) => (
                   <Toggle key={event} on={events.includes(event)} onClick={() => flip(event)}>
@@ -224,13 +224,13 @@ function NewWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <span id="webhook-scope" className="text-sm font-medium">
+              <span id="webhook-scope" className="cap text-muted-foreground">
                 From
               </span>
               <Select value={scope} onValueChange={setScope}>
                 <SelectTrigger
                   aria-labelledby="webhook-scope"
-                  className="h-10 w-full gap-2 rounded-full border border-input bg-card px-4 text-left text-sm dark:bg-foreground/5 focus-visible:ring-[3px] focus-visible:ring-ring/25"
+                  className="h-9 w-full gap-2 rounded-[4px] bg-card px-3 text-left font-mono text-xs shadow-[inset_0_1px_2px_var(--shadow-strong)] focus-visible:ring-[3px] focus-visible:ring-ring/40"
                 >
                   <span className="min-w-0 flex-1 truncate">
                     <SelectValue />

@@ -4,8 +4,8 @@ import { CheckIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * A select whose list is drawn by the app, not the system, so it floats as
- * glass like the menus. The trigger is unstyled: callers set its look.
+ * A select whose list is drawn by the app, not the system, so it opens as a
+ * black screen like the menus. The trigger is unstyled: callers set its look.
  */
 const Select = SelectPrimitive.Root;
 const SelectValue = SelectPrimitive.Value;
@@ -36,7 +36,7 @@ function SelectContent({
         position={position}
         sideOffset={sideOffset}
         className={cn(
-          'glass-strong z-50 max-h-(--radix-select-content-available-height) min-w-56 overflow-hidden rounded-[22px] p-1.5 text-popover-foreground',
+          'screen z-50 max-h-(--radix-select-content-available-height) min-w-56 overflow-hidden rounded-[6px] p-1.5',
           'origin-(--radix-select-content-transform-origin) duration-200 ease-spring data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.96] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100',
           className,
         )}
@@ -55,8 +55,8 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        'relative flex h-9 cursor-default select-none items-center rounded-[14px] pr-9 pl-3 text-sm outline-none',
-        'data-[highlighted]:bg-foreground/[0.07] data-[disabled]:pointer-events-none data-[disabled]:opacity-45',
+        'relative flex h-8 cursor-default select-none items-center rounded-[4px] pr-9 pl-3 text-sm text-screen-foreground/80 outline-none',
+        'data-[highlighted]:bg-screen-dim/60 data-[highlighted]:text-screen-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45',
         className,
       )}
       {...props}

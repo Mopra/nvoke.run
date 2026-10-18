@@ -35,7 +35,7 @@ async function copy(text: string, what: string): Promise<boolean> {
   }
 }
 
-/** A value in monospace with a copy button. Wraps instead of clipping. */
+/** A value in monospace on a small screen, with a copy button. Wraps instead of clipping. */
 export function CopyField({ value, what, className }: { value: string; what: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   async function onCopy(): Promise<void> {
@@ -45,9 +45,15 @@ export function CopyField({ value, what, className }: { value: string; what: str
     }
   }
   return (
-    <div className={cn('glass flex items-start gap-2 rounded-[18px] py-2 pr-1.5 pl-4', className)}>
-      <code className="min-w-0 flex-1 py-1 font-mono text-xs leading-5 break-all select-all">{value}</code>
-      <Button variant="ghost" size="icon-sm" onClick={() => void onCopy()} aria-label={`Copy ${what}`}>
+    <div className={cn('screen flex items-start gap-2 py-2 pr-1.5 pl-3', className)}>
+      <code className="min-w-0 flex-1 py-1 font-mono text-xs leading-5 break-all text-screen-foreground select-all">{value}</code>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="text-screen-foreground/70 hover:bg-screen-foreground/10 hover:text-screen-foreground"
+        onClick={() => void onCopy()}
+        aria-label={`Copy ${what}`}
+      >
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </Button>
     </div>
@@ -68,7 +74,7 @@ export function SectionHeading({ title, description, action }: { title: string; 
   return (
     <div className="flex items-end gap-6">
       <div className="min-w-0 flex-1">
-        <h2 className="font-display text-xl font-semibold">{title}</h2>
+        <h2 className="font-display text-xl font-light">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
       {action && <div className="shrink-0">{action}</div>}
@@ -81,12 +87,12 @@ function KeyRow({ apiKey, onRevoke, style }: { apiKey: ApiKey; onRevoke: () => v
     <li style={style} className="flex items-center gap-6 py-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[15px] font-medium" title={apiKey.name}>
+          <span className="truncate text-[15px]" title={apiKey.name}>
             {apiKey.name}
           </span>
           {apiKey.origin === 'agent_signup' && <Badge>agent</Badge>}
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase">
           <span className="font-mono" data-selectable>
             {apiKey.prefix}…
           </span>
@@ -135,7 +141,7 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
         {secret ? (
           <div className="flex flex-col gap-5">
             <div>
-              <DialogTitle className="font-display text-xl font-semibold">{name.trim()}</DialogTitle>
+              <DialogTitle className="font-display text-xl font-light">{name.trim()}</DialogTitle>
               <DialogDescription className="mt-1 text-sm text-muted-foreground">
                 Copy it now. You won’t see this key again.
               </DialogDescription>
@@ -154,7 +160,7 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-5">
             <div>
-              <DialogTitle className="font-display text-xl font-semibold">New API key</DialogTitle>
+              <DialogTitle className="font-display text-xl font-light">New API key</DialogTitle>
               <DialogDescription className="mt-1 text-sm text-muted-foreground">
                 Full access to your account. Name it after what will use it.
               </DialogDescription>
@@ -167,7 +173,7 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
               placeholder="CRM sync, Claude, a script"
               aria-label="Key name"
               autoComplete="off"
-              className="h-10 rounded-full px-4"
+              className="h-9 rounded-[4px] bg-card px-3 font-mono shadow-[inset_0_1px_2px_var(--shadow-strong)]"
             />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => close(false)}>
@@ -284,7 +290,7 @@ export function ConnectAgent() {
       <div className="mt-6 flex flex-col gap-5">
         <div>
           <div className="mb-2 flex items-baseline justify-between gap-4">
-            <span className="text-sm font-medium">MCP server</span>
+            <span className="cap text-muted-foreground">MCP server</span>
             <button
               type="button"
               data-link
@@ -297,7 +303,7 @@ export function ConnectAgent() {
           <CopyField value={MCP_URL} what="MCP URL" />
         </div>
         <div>
-          <div className="mb-2 text-sm font-medium">Claude Code</div>
+          <div className="cap mb-2 text-muted-foreground">Claude Code</div>
           <CopyField
             value={`claude mcp add --transport http nvoke ${MCP_URL} --header "Authorization: Bearer <key>"`}
             what="command"

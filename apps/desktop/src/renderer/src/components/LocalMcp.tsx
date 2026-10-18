@@ -10,15 +10,12 @@ import { MCP_DOCS_URL } from '@/lib/env';
 
 const CLAUDE_DOWNLOAD_URL = 'https://claude.ai/download';
 
-/** Who is connected now, as one quiet line with a live dot. */
+/** Who is connected now, as one cap line with a lit LED. */
 function Connected({ clients }: { clients: string[] }) {
   if (clients.length === 0) return null;
   return (
-    <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-      <span className="relative flex size-2">
-        <span className="absolute inline-flex size-full rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
-        <span className="relative inline-flex size-2 rounded-full bg-primary" />
-      </span>
+    <p className="cap mt-4 flex items-center gap-2 text-muted-foreground">
+      <span className="led led-on motion-safe:animate-pulse" aria-hidden />
       In use by {clients.join(', ')}
     </p>
   );
@@ -83,8 +80,8 @@ export function LocalMcp() {
       <div className="mt-6 flex flex-col gap-6">
         <div className="flex items-center gap-8">
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-medium">Claude Desktop</div>
-            <div className="mt-1 text-sm text-muted-foreground">
+            <div className="font-mono text-[11px] font-medium tracking-[0.08em] uppercase">Claude Desktop</div>
+            <div className="mt-1 text-xs text-muted-foreground">
               {!claudeDesktop.installed
                 ? 'Not installed on this computer.'
                 : claudeDesktop.added
@@ -99,8 +96,8 @@ export function LocalMcp() {
                 <ArrowUpRight className="size-3.5 opacity-60" />
               </Button>
             ) : claudeDesktop.added ? (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Check className="size-4" />
+              <span className="cap flex items-center gap-2 text-muted-foreground">
+                <Check className="size-3.5" />
                 Added
               </span>
             ) : (
@@ -112,12 +109,12 @@ export function LocalMcp() {
           </div>
         </div>
         <div>
-          <div className="mb-2 text-sm font-medium">Claude Code</div>
+          <div className="cap mb-2 text-muted-foreground">Claude Code</div>
           <CopyField value={setup.claudeCode} what="command" />
         </div>
         <div>
           <div className="mb-2 flex items-baseline justify-between gap-4">
-            <span className="text-sm font-medium">Cursor</span>
+            <span className="cap text-muted-foreground">Cursor</span>
             <span className="font-mono text-xs text-muted-foreground" data-selectable>
               ~/.cursor/mcp.json
             </span>

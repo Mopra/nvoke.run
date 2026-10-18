@@ -10,7 +10,6 @@ import { DropNotifications } from './account/DropNotifications';
 import { InboxFolder } from './account/InboxFolder';
 import { LocalCrawl } from './account/LocalCrawl';
 import { LocalMcpSection } from './account/LocalMcpSection';
-import { LookSetting } from './account/LookSetting';
 import { OpenAtLogin } from './account/OpenAtLogin';
 import { PlanSetting } from './account/PlanSetting';
 import { QuickHotkey } from './account/QuickHotkey';
@@ -22,14 +21,14 @@ function AccountSkeleton() {
   return (
     <div className="flex flex-col gap-14">
       <div className="flex items-center gap-5">
-        <Skeleton className="size-16 rounded-full" />
+        <Skeleton className="size-16 rounded-[4px]" />
         <div className="flex flex-col gap-2.5">
           <Skeleton className="h-7 w-48" />
           <Skeleton className="h-3 w-40" />
         </div>
       </div>
       <Skeleton className="h-14 w-64" />
-      <Skeleton className="h-24 w-full rounded-[20px]" />
+      <Skeleton className="h-24 w-full rounded-[4px]" />
     </div>
   );
 }
@@ -53,7 +52,7 @@ export function AccountScreen() {
               <div className="flex items-center gap-5">
                 <Avatar user={me.user} className="size-16 text-lg" />
                 <div className="min-w-0">
-                  <h1 className="truncate font-display text-3xl font-semibold" title={me.user.name ?? me.user.email ?? undefined}>
+                  <h1 className="truncate font-display text-3xl font-light" title={me.user.name ?? me.user.email ?? undefined}>
                     {me.user.name ?? me.user.email ?? 'Your account'}
                   </h1>
                   {me.user.name && me.user.email && (
@@ -65,7 +64,7 @@ export function AccountScreen() {
               </div>
 
               {me.account.createdBy === 'agent' && (
-                <p className="mt-6 text-sm text-muted-foreground">
+                <p className="mt-6 font-mono text-xs text-muted-foreground">
                   {me.account.agentName ? `An agent, ${me.account.agentName},` : 'An agent'} created this account for
                   you.
                 </p>
@@ -78,7 +77,6 @@ export function AccountScreen() {
               <div className="mt-14 flex flex-col divide-y divide-border">
                 <PlanSetting me={me} />
                 <AppearanceSetting />
-                <LookSetting />
                 <OpenAtLogin />
                 <QuickHotkey />
                 <InboxFolder />

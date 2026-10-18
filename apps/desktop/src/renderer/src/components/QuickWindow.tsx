@@ -18,10 +18,10 @@ import type { FrontTab, GrabState, QuickClipboard } from '../../../ipc/contract'
 const MARGIN = 20;
 
 /**
- * What the global shortcut opens: the command bar in a small glass window
- * over any app. Enter on typed text starts a search and the window shows its
- * progress; Open in nvoke (Enter again) brings up the main window on it.
- * Esc hides the window and the previous app gets its focus back.
+ * What the global shortcut opens: the command bar as a small black display
+ * floating over any app. Enter on typed text starts a search and the display
+ * shows its progress; Open in nvoke (Enter again) brings up the main window
+ * on it. Esc hides the window and the previous app gets its focus back.
  */
 export function QuickWindow() {
   const auth = useAuth();
@@ -74,7 +74,10 @@ export function QuickWindow() {
 
   return (
     <div className="p-2.5">
-      <div ref={panel} className="overflow-hidden rounded-[28px] glass-strong text-popover-foreground">
+      <div
+        ref={panel}
+        className="screen overflow-hidden rounded-[8px] shadow-[0_0_0_1px_var(--screen),0_40px_80px_-20px_var(--shadow-strong)]"
+      >
         {auth === undefined ? (
           <div className="flex h-20 items-center justify-center">
             <LogoLoader size="sm" />
@@ -93,8 +96,8 @@ function SignedOut() {
   return (
     <div className="flex items-center gap-6 px-6 py-5">
       <div className="min-w-0 flex-1">
-        <div className="font-display text-xl tracking-[-0.02em]">Sign in to nvoke</div>
-        <div className="mt-1 text-sm text-muted-foreground">Then search from anywhere.</div>
+        <div className="lcd text-xl uppercase">Sign in to nvoke</div>
+        <div className="mt-1 text-sm text-screen-foreground/50">Then search from anywhere.</div>
       </div>
       <Button onClick={() => quickApi()?.openInMain('#/')}>Open nvoke</Button>
     </div>
@@ -204,7 +207,7 @@ function Running({ id, onNew }: { id: string; onNew: () => void }) {
         </div>
       )}
       <div className="mt-5 flex items-center justify-between">
-        <Button variant="ghost" onClick={onNew}>
+        <Button variant="ghost" className="text-screen-foreground/70 hover:text-screen-foreground" onClick={onNew}>
           New search
         </Button>
         <Button onClick={open} autoFocus>
@@ -226,7 +229,7 @@ function Addresses({ id, search }: { id: string; search: Search }) {
     .filter((email) => email.verification !== 'invalid');
   if (addresses.length === 0) {
     if (live) return null;
-    return <div className="mt-4 text-sm text-muted-foreground">No addresses found on this site.</div>;
+    return <div className="mt-4 text-sm text-screen-foreground/50">No addresses found on this site.</div>;
   }
   return (
     <ul className="mt-4 max-h-56 overflow-y-auto">
@@ -249,9 +252,15 @@ function Address({ address }: { address: string }) {
     }
   }
   return (
-    <li className="flex h-10 items-center gap-2 rounded-[16px] pr-1.5 pl-3 hover:bg-foreground/[0.05]">
+    <li className="flex h-10 items-center gap-2 rounded-[4px] pr-1.5 pl-3 hover:bg-screen-dim/60">
       <code className="min-w-0 flex-1 truncate font-mono text-sm select-all">{address}</code>
-      <Button variant="ghost" size="icon-sm" onClick={() => void copy()} aria-label={`Copy ${address}`}>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="text-screen-foreground/60 hover:text-screen-foreground"
+        onClick={() => void copy()}
+        aria-label={`Copy ${address}`}
+      >
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </Button>
     </li>
@@ -262,16 +271,16 @@ function Progress({ search }: { search: Search }) {
   return (
     <>
       <div className="flex items-baseline justify-between gap-4">
-        <div className="truncate font-display text-xl tracking-[-0.02em]" title={searchTitle(search)}>
+        <div className="lcd truncate text-xl uppercase" title={searchTitle(search)}>
           {searchTitle(search)}
         </div>
-        <div className="shrink-0 text-sm tabular-nums text-muted-foreground">
+        <div className="cap shrink-0 tabular-nums text-screen-foreground/50">
           {formatNumber(search.emailsFound)} emails
           {isActive(search.status) ? '' : `, ${formatNumber(search.emailsValid)} valid`}
         </div>
       </div>
       <SearchProgress search={search} className="mt-4" />
-      <div className="mt-2.5 text-sm text-muted-foreground">
+      <div className="cap mt-2.5 text-screen-foreground/50">
         {search.status === 'failed' ? 'The search failed' : search.status === 'done' ? 'Done' : progressCaption(search)}
       </div>
     </>

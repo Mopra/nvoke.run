@@ -1,8 +1,8 @@
 import { useRef, useState, type CSSProperties } from 'react';
 import { useMutationState } from '@tanstack/react-query';
-import { ArrowRight, ArrowUpRight, Ban, Inbox, MoreHorizontal, Trash2, UsersRound } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Ban, MoreHorizontal, Trash2, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
-import { DisplayTitle, PageHeader } from '@/components/AppShell';
+import { DisplayTitle } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { StatusDot } from '@/components/indicators';
@@ -29,7 +29,6 @@ import {
   STATUS_LABEL,
 } from '@/lib/format';
 import { BUILD_SITE_PROFILE, useCancelSearch, useLocalStatus, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/queries';
-import { useLook } from '@/lib/look';
 import { parseWebsite } from '@/lib/site-profile';
 import { CountUp, useStagger } from '@/lib/motion';
 import { navigate, routeHref } from '@/lib/router';
@@ -117,8 +116,8 @@ function WebsiteMenu({ profile }: { profile: SiteProfile }) {
   );
 }
 
-/** The Field look's kind tag: one word, and which keycap color it prints on. */
-const FIELD_KIND_TAG: Record<string, [label: string, variant: 'default' | 'secondary' | 'outline']> = {
+/** The kind tag: one word, and which keycap color it prints on. */
+const KIND_TAG: Record<string, [label: string, variant: 'default' | 'secondary' | 'outline']> = {
   local: ['Local', 'secondary'],
   web: ['Web', 'secondary'],
   launches: ['Launches', 'secondary'],
@@ -128,31 +127,29 @@ const FIELD_KIND_TAG: Record<string, [label: string, variant: 'default' | 'secon
 };
 
 function KindTag({ kind }: { kind: string }) {
-  const [label, variant] = FIELD_KIND_TAG[kind] ?? ['Search', 'secondary'];
+  const [label, variant] = KIND_TAG[kind] ?? ['Search', 'secondary'];
   return <Badge variant={variant}>{label}</Badge>;
 }
 
-/** The Field look's channel number, two digits at the row's left edge. */
+/** The channel number, two digits at the row's left edge. */
 function Channel({ index }: { index: number }) {
   return <span className="cap w-7 shrink-0 text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>;
 }
 
-/* Field: the rows are instrument channels, hairline divided, with no pill. */
-const ROW = 'group relative rounded-[24px] transition-colors duration-200 hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]';
-const ROW_FIELD = 'field:rounded-none field:border-t field:border-border field:last:border-b';
-const ROW_LINK = 'absolute inset-0 rounded-[24px] outline-none field:rounded-none';
-const ROW_BODY = 'pointer-events-none relative flex items-center gap-8 px-6 py-5 field:gap-5 field:px-2 field:py-4';
-const ROW_TITLE = 'truncate font-display text-lg font-medium field:text-base field:font-normal';
-const ROW_SUBTITLE = 'mt-1 truncate text-sm text-muted-foreground field:mt-1.5 field:font-mono field:text-[10.5px] field:uppercase field:tracking-[0.04em]';
-const ROW_FIGURE = 'font-display text-3xl font-light tabular-nums field:tracking-[-0.02em]';
-const ROW_CAPTION = 'text-xs tabular-nums text-muted-foreground field:cap';
+/* The rows are instrument channels: hairline divided, numbered, no pill. */
+const ROW = 'group relative border-t border-border transition-colors duration-200 last:border-b hover:bg-foreground/[0.035] has-[a:focus-visible]:bg-foreground/[0.05]';
+const ROW_LINK = 'absolute inset-0 outline-none';
+const ROW_BODY = 'pointer-events-none relative flex items-center gap-5 px-2 py-4';
+const ROW_TITLE = 'truncate font-display text-base';
+const ROW_SUBTITLE = 'mt-1.5 truncate font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase';
+const ROW_FIGURE = 'font-display text-3xl font-light tracking-[-0.02em] tabular-nums';
+const ROW_CAPTION = 'cap tabular-nums text-muted-foreground';
 
 function SearchRow({ search, index, style }: { search: Search; index: number; style?: CSSProperties }) {
-  const look = useLook();
   const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
   return (
-    <div style={style} className={cn(ROW, ROW_FIELD)}>
+    <div style={style} className={ROW}>
       <a
         href={routeHref({ name: 'search', id: search.id })}
         data-search-status={search.status}
@@ -161,7 +158,7 @@ function SearchRow({ search, index, style }: { search: Search; index: number; st
         className={ROW_LINK}
       />
       <div className={ROW_BODY}>
-        {look === 'field' && <Channel index={index} />}
+        <Channel index={index} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             {(active || search.status === 'failed') && <StatusDot status={search.status} />}
@@ -174,15 +171,15 @@ function SearchRow({ search, index, style }: { search: Search; index: number; st
           </div>
           {active && (
             <div className="mt-4 flex max-w-md items-center gap-4">
-              <SearchProgress search={search} className="h-[3px] flex-1 field:h-2.5" />
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground field:cap">{progressCaption(search)}</span>
+              <SearchProgress search={search} className="h-2.5 flex-1" />
+              <span className="cap shrink-0 tabular-nums text-muted-foreground">{progressCaption(search)}</span>
             </div>
           )}
           {search.status === 'failed' && (
-            <div className="mt-1 truncate text-xs text-muted-foreground/80">{errorMessage(search.error)}</div>
+            <div className="mt-1 truncate font-mono text-xs text-muted-foreground/80">{errorMessage(search.error)}</div>
           )}
         </div>
-        {look === 'field' && <KindTag kind={search.kind} />}
+        <KindTag kind={search.kind} />
         <div className="shrink-0 text-right">
           <div className={ROW_FIGURE}>
             <CountUp value={search.emailsFound} />
@@ -205,7 +202,6 @@ function SearchRow({ search, index, style }: { search: Search; index: number; st
  * starts fresh, so this row is the way back to it.
  */
 function WebsiteRow() {
-  const look = useLook();
   const profile = useSiteProfile();
   const running = useMutationState({
     filters: { mutationKey: BUILD_SITE_PROFILE, status: 'pending' },
@@ -216,11 +212,11 @@ function WebsiteRow() {
   const planned = profile.data?.suggestions.length ?? 0;
   const title = reading ?? profile.data!.profile.name;
   return (
-    <section className="flex flex-col gap-1 [&+&]:mt-10">
-      <div className={cn(ROW, ROW_FIELD)}>
+    <section className="flex flex-col [&+&]:mt-10">
+      <div className={ROW}>
         <a href={routeHref({ name: 'website' })} aria-label={title} className={ROW_LINK} />
         <div className={ROW_BODY}>
-          {look === 'field' && <Channel index={-1} />}
+          <Channel index={-1} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
               {reading !== null && <StatusDot status="running" />}
@@ -232,12 +228,12 @@ function WebsiteRow() {
                 : `Your website, ${profile.data!.domain}, ${relativeTime(profile.data!.updatedAt)}`}
             </div>
             {reading !== null && (
-              <div className="mt-4 h-[3px] w-full max-w-md overflow-hidden rounded-full bg-foreground/[0.07] field:h-2.5 field:rounded-none field:bg-foreground/15">
-                <div className="h-full w-1/4 rounded-full bg-primary motion-safe:animate-indeterminate field:rounded-none" />
+              <div className="mt-4 h-2.5 w-full max-w-md overflow-hidden bg-foreground/15">
+                <div className="h-full w-1/4 bg-primary motion-safe:animate-indeterminate" />
               </div>
             )}
           </div>
-          {look === 'field' && <Badge variant="default">Website</Badge>}
+          <Badge variant="default">Website</Badge>
           {reading === null && (
             <div className="shrink-0 text-right">
               <div className={ROW_FIGURE}>{formatNumber(planned)}</div>
@@ -255,9 +251,9 @@ function WebsiteRow() {
 
 function ListSkeleton() {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className="flex items-center gap-8 px-6 py-6">
+        <div key={i} className="flex items-center gap-5 border-t border-border px-2 py-5 last:border-b">
           <div className="flex flex-1 flex-col gap-2.5">
             <Skeleton className="h-4 w-56" />
             <Skeleton className="h-3 w-36" />
@@ -277,7 +273,7 @@ function Section({ searches, offset = 0 }: { searches: Search[]; offset?: number
   const stagger = useStagger();
   if (searches.length === 0) return null;
   return (
-    <section className="stagger flex flex-col gap-1 [&+&]:mt-10">
+    <section className="stagger flex flex-col [&+&]:mt-10">
       {searches.map((s, i) => (
         <SearchRow key={s.id} search={s} index={offset + i} style={stagger.style(offset + i)} />
       ))}
@@ -309,17 +305,9 @@ export function SearchesScreen() {
 
   return (
     <>
-      <PageHeader
-        actions={
-          <Button variant="glass" className="pr-4 pl-3" onClick={() => navigate({ name: 'drops' })}>
-            <Inbox className="size-[17px] text-muted-foreground" />
-            Drops
-          </Button>
-        }
-      />
       <main ref={scrollRef} className="fade-edges flex-1 overflow-auto px-8 pb-24">
         <div className="mx-auto max-w-[880px] motion-safe:animate-view-in">
-          <DisplayTitle className="px-6" subtitle={subtitle}>
+          <DisplayTitle className="px-2" subtitle={subtitle}>
             Searches
           </DisplayTitle>
           {isPending ? (

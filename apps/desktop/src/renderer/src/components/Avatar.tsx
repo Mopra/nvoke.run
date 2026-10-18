@@ -9,13 +9,13 @@ function initials(user: User): string {
 
 export function Avatar({ user, className }: { user: User; className?: string }) {
   if (user.imageUrl) {
-    return <img src={user.imageUrl} alt="" className={cn('size-7 shrink-0 rounded-full object-cover', className)} />;
+    return <img src={user.imageUrl} alt="" className={cn('size-7 shrink-0 rounded-[4px] object-cover', className)} />;
   }
   return (
     <span
       aria-hidden
       className={cn(
-        'flex size-7 shrink-0 items-center justify-center rounded-full bg-linear-to-b from-foreground/10 to-foreground/20 text-2xs font-semibold text-foreground/80',
+        'key flex size-7 shrink-0 items-center justify-center bg-secondary font-mono text-2xs font-medium tracking-[0.08em] text-secondary-foreground',
         className,
       )}
     >

@@ -1,18 +1,15 @@
-import { useState, type ReactNode } from 'react';
-import { ChevronLeft, Plus, Search as SearchIcon } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { transportMode } from '@/lib/api';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
-import { useLook } from '@/lib/look';
 import { CountUp } from '@/lib/motion';
 import { useMe, useSearches } from '@/lib/queries';
 import { navigate, routeHref, type Route } from '@/lib/router';
 import type { Search } from '@/lib/types';
-import { Avatar } from '@/components/Avatar';
 import { CommandBar } from '@/components/CommandBar';
 import { FileDrop } from '@/components/FileDrop';
-import { LogoMark } from '@/components/Logo';
 import { LedMeter, litSegments } from '@/components/SearchProgress';
 import { UpdateButton } from '@/components/UpdateButton';
 import { Button } from '@/components/ui/button';
@@ -20,9 +17,10 @@ import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 /**
- * The window is one calm canvas. No sidebar: a floating glass island at the
- * top center is the way around (it opens the command bar) and, while a search
- * runs, its live activity. The aura behind it rises only while nvoke works.
+ * The window is one instrument. Along the top edge sit the ports, the way
+ * around; below them the name plate and the speaker grille, which pulses
+ * while nvoke works; then the display strip, which carries the running
+ * search; then the panel, where the screens live.
  */
 export function AppShell({ route, children }: { route: Route; children: ReactNode }) {
   const { data } = useSearches();
@@ -32,16 +30,17 @@ export function AppShell({ route, children }: { route: Route; children: ReactNod
 
   return (
     <div className="canvas relative isolate flex h-full flex-col overflow-hidden">
-      <Aura on={live.length > 0} />
-      {children}
-      <Island live={live} route={route} onOpen={() => setCommandOpen(true)} />
+      <Ports route={route} onFind={() => setCommandOpen(true)} />
+      <Head working={live.length > 0} />
+      <Display searches={data ?? []} live={live} route={route} onOpen={() => setCommandOpen(true)} />
+      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
       <CommandBar open={commandOpen} onOpenChange={setCommandOpen} />
       <FileDrop />
     </div>
   );
 }
 
-/** Ambient iris light at the top of the canvas. Present only while nvoke works: a search runs or a site is read. */
+/** Ambient orange light at the top of a screen. Present only while nvoke works, where a screen asks for it. */
 export function Aura({ on }: { on: boolean }) {
   return (
     <div
@@ -57,12 +56,224 @@ export function Aura({ on }: { on: boolean }) {
   );
 }
 
+/* The ports */
+
+const PORT =
+  'inline-flex h-7 min-w-[78px] items-center justify-center gap-1.5 self-start rounded-b-[4px] px-3 cap outline-none transition-[filter,transform] duration-100 hover:brightness-[1.06] active:translate-y-px focus-visible:ring-2 focus-visible:ring-ring/60';
+const PORT_TONE = {
+  dark: 'bg-foreground text-background',
+  light: 'bg-secondary text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]',
+  grey: 'bg-muted-foreground text-background',
+} as const;
+
+function Port({
+  href,
+  current = false,
+  tone,
+  onClick,
+  children,
+  className,
+}: {
+  href?: string;
+  current?: boolean;
+  tone: keyof typeof PORT_TONE;
+  onClick?: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  const classes = cn(PORT, current ? 'bg-primary text-primary-foreground' : PORT_TONE[tone], className);
+  if (href) {
+    return (
+      <a href={href} aria-current={current ? 'page' : undefined} className={classes}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={classes}>
+      {children}
+    </button>
+  );
+}
+
+/** A port's notch: the small dot on the New and Find labels. */
+function Notch() {
+  return <span aria-hidden className="size-[3px] rounded-full bg-current opacity-70" />;
+}
+
 /**
- * The island. At rest it is the way to search and jump; while a search runs
- * it carries that search's progress, like a live activity.
+ * The top edge: the ports are the way around, labelled like the sockets on a
+ * sampler. The lit one is where you are. The row is the window's drag handle,
+ * with room for the caption buttons on Windows and Linux and the traffic
+ * lights on macOS.
  */
-function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen: () => void }) {
-  const look = useLook();
+function Ports({ route, onFind }: { route: Route; onFind: () => void }) {
+  const onSearch = route.name === 'search';
+  return (
+    <header className="app-drag relative z-20 flex h-(--titlebar-height) shrink-0 items-start gap-2.5 pr-titlebar pl-4 mac:pl-[84px] mac:fullscreen:pl-4">
+      <Port href={routeHref({ name: 'searches' })} current={route.name === 'searches'} tone="dark">
+        Searches
+      </Port>
+      <Port href={routeHref({ name: 'new', kind: null })} current={route.name === 'new' || route.name === 'website'} tone="light">
+        <Notch />
+        New
+      </Port>
+      {onSearch && (
+        <Port href={window.location.hash} current tone="dark">
+          Results
+        </Port>
+      )}
+      <Port href={routeHref({ name: 'drops' })} current={route.name === 'drops' || route.name === 'drop'} tone="grey">
+        Drops
+      </Port>
+      <div className="ml-auto flex items-start gap-2.5">
+        <UpdateButton />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Port tone="dark" onClick={onFind} className="min-w-0">
+              Find
+              <Notch />
+              {modKey} K
+            </Port>
+          </TooltipTrigger>
+          <TooltipContent>Search or jump to anything</TooltipContent>
+        </Tooltip>
+        <Port href={routeHref({ name: 'account' })} current={route.name === 'account'} tone="grey">
+          Account
+        </Port>
+        <Power />
+      </div>
+    </header>
+  );
+}
+
+/** The power nub: lit while signed in, which is always, here. */
+function Power() {
+  return (
+    <div aria-hidden className="flex flex-col items-center gap-1">
+      <span className="h-1.5 w-3.5 rounded-b-[2px] bg-primary shadow-[0_0_6px_var(--primary)]" />
+      <span className="cap text-muted-foreground">Power</span>
+    </div>
+  );
+}
+
+/* The head: name plate and grille */
+
+/** The name plate on the left, the speaker grille on the right. */
+function Head({ working }: { working: boolean }) {
+  return (
+    <div className="app-drag grid shrink-0 grid-cols-[1fr_232px] px-3.5">
+      <Plate />
+      <Grille working={working} />
+    </div>
+  );
+}
+
+function Plate() {
+  const { data } = useMe();
+  const left = data ? Math.max(0, data.usage.emailsLimit - data.usage.emailsVerified) : null;
+  return (
+    <div className="grid grid-cols-[1fr_auto] grid-rows-[1fr_auto] gap-x-7 rounded-tl-[3px] border border-glass-edge bg-card px-5 pt-3.5 pb-3 text-card-foreground">
+      <div>
+        <div className="font-display text-[30px] leading-none font-light tracking-[-0.01em]">
+          nvoke
+          <sup className="relative top-px ml-0.5 text-[12px] font-normal">&#8545;</sup>
+        </div>
+        <div className="mt-1.5 text-[12px] tracking-[0.12em] text-primary">リードファインダー</div>
+      </div>
+      <dl className="grid grid-cols-[auto_auto] content-start justify-self-end gap-x-3.5 gap-y-0.5 text-right">
+        <dt className="cap text-muted-foreground">Plan</dt>
+        <dd className="font-mono text-[11px] font-medium tabular-nums">{data ? formatNumber(data.usage.emailsLimit) : ''}</dd>
+        <dt className="cap text-muted-foreground">Used</dt>
+        <dd className="font-mono text-[11px] font-medium tabular-nums">{data ? formatNumber(data.usage.emailsVerified) : ''}</dd>
+        <dt className="cap text-muted-foreground">Left</dt>
+        <dd className="font-mono text-[11px] font-medium tabular-nums text-primary">{left === null ? '' : formatNumber(left)}</dd>
+      </dl>
+      <div className="col-span-2 flex items-baseline justify-between self-end">
+        <span className="text-[13px] tracking-[0.02em] uppercase">Verified email lead finder</span>
+        <span className="cap text-muted-foreground">NV-1{transportMode === 'mock' && ' · Demo'}</span>
+      </div>
+    </div>
+  );
+}
+
+const GRILLE_COLS = 16;
+const GRILLE_ROWS = 6;
+
+/**
+ * The speaker grille: a field of holes that lights up as a spectrum while a
+ * search runs, column by column from the bottom, and goes dark at rest.
+ */
+function Grille({ working }: { working: boolean }) {
+  // A tick every 160ms while working; the column heights are derived from it.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!working || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const id = setInterval(() => setTick((t) => t + 1), 160);
+    return () => clearInterval(id);
+  }, [working]);
+  const heights = Array.from({ length: GRILLE_COLS }, (_, col) => {
+    if (!working) return 0;
+    const wave = Math.abs(Math.sin(tick / 4 + col * 0.7));
+    // A touch of noise so the columns flicker like a level meter.
+    const noise = ((tick * 7 + col * 13) % 5) / 4;
+    return 1 + Math.round(wave * 3 * noise + 1);
+  });
+  return (
+    <div
+      aria-hidden
+      className="grid gap-1 rounded-tr-[3px] bg-muted-foreground/35 p-3"
+      style={{ gridTemplateColumns: `repeat(${GRILLE_COLS}, 1fr)`, gridTemplateRows: `repeat(${GRILLE_ROWS}, 1fr)` }}
+    >
+      {Array.from({ length: GRILLE_COLS * GRILLE_ROWS }, (_, i) => {
+        const col = i % GRILLE_COLS;
+        const row = Math.floor(i / GRILLE_COLS);
+        const lit = GRILLE_ROWS - row <= (heights[col] ?? 0);
+        return (
+          <span
+            key={i}
+            className={cn(
+              'rounded-full transition-[background-color,box-shadow] duration-200',
+              lit ? 'bg-primary shadow-[0_0_5px_var(--primary)]' : 'bg-foreground/80',
+            )}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/* The display */
+
+/** The eight small blocks on the left of the display: one per search, lit by its state. */
+function Blocks({ searches }: { searches: Search[] }) {
+  return (
+    <span aria-hidden className="flex items-center gap-1.5">
+      {Array.from({ length: 8 }, (_, i) => {
+        const s = searches[i];
+        return (
+          <span
+            key={i}
+            className={cn(
+              'h-3.5 rounded-[2px] bg-screen-dim',
+              i % 4 === 3 ? 'w-7' : 'w-3.5',
+              s?.status === 'running' && 'bg-primary shadow-[0_0_8px_var(--primary)]',
+              s?.status === 'queued' && 'bg-chart-3 shadow-[0_0_8px_var(--chart-3)]',
+            )}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * The display strip. While a search runs it shows that search and its
+ * verified count; at rest it reads the month's figure. Pressing it opens the
+ * command bar, so it is also the way to find a lead or jump anywhere.
+ */
+function Display({ searches, live, route, onOpen }: { searches: Search[]; live: Search[]; route: Route; onOpen: () => void }) {
+  const { data: me } = useMe();
   const current = live[0];
   // On the running search's own page, the page already shows the progress.
   const showLive = current && !(route.name === 'search' && route.id === current.id);
@@ -70,193 +281,81 @@ function Island({ live, route, onOpen }: { live: Search[]; route: Route; onOpen:
   const done = current ? percent(current.companiesCrawled, scale) : 0;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-(--titlebar-height) items-center justify-center">
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label="Search or jump to"
-        className={cn(
-          // Field: the island is the black LCD strip, so it drops the glass for the screen.
-          look === 'field'
-            ? 'screen h-8 min-w-[300px] max-w-[min(520px,calc(100vw-520px))] justify-center rounded-[4px] px-4 hover:bg-screen'
-            : 'glass h-9 rounded-full pr-2 pl-3.5 hover:bg-glass-strong',
-          'app-no-drag pointer-events-auto flex items-center gap-2.5 text-sm outline-none',
-          'transition-[width,background-color,transform] duration-500 ease-spring active:scale-[0.98]',
-          'focus-visible:ring-[3px] focus-visible:ring-ring/40',
-        )}
-      >
-        {showLive ? (
-          <>
-            <span className="relative flex size-2 shrink-0 field:size-1.5">
-              <span className="absolute inset-0 rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
-              <span className="relative size-2 rounded-full bg-primary field:led field:led-on" />
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Search or jump to"
+      className="screen app-no-drag relative mx-3.5 grid h-[52px] shrink-0 grid-cols-[auto_1fr_auto] items-center gap-5 overflow-hidden rounded-none rounded-b-[3px] px-5 text-left outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      <span aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,transparent_40%,oklch(1_0_0/0.05)_55%,transparent_70%)]" />
+      <Blocks searches={searches} />
+      {showLive ? (
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="led led-on motion-safe:animate-pulse" />
+          <span className="lcd min-w-0 truncate text-[17px] uppercase" title={searchTitle(current)}>
+            {searchTitle(current)}
+          </span>
+          {current.stageNote ? (
+            <span data-island-stage className="cap hidden min-w-0 truncate text-screen-foreground/50 min-[1100px]:inline" title={current.stageNote}>
+              {current.stageNote}
             </span>
-            <span
-              className="max-w-40 truncate font-medium field:lcd field:max-w-44 field:text-[15px] field:uppercase field:text-screen-foreground"
-              title={searchTitle(current)}
-            >
-              {searchTitle(current)}
-            </span>
-            {/* The stage note is the progress, in words; narrow windows keep the bar instead. */}
-            {current.stageNote && (
-              <span
-                data-island-stage
-                className="hidden max-w-52 truncate text-xs text-muted-foreground min-[1100px]:inline field:cap field:text-screen-foreground/50 field:min-[1100px]:hidden field:min-[1320px]:inline"
-                title={current.stageNote}
-              >
-                {current.stageNote}
-              </span>
-            )}
-            {look === 'field' ? (
-              <LedMeter lit={litSegments(Math.max(done, 4))} className={cn('w-16 shrink-0', current.stageNote && 'min-[1320px]:hidden')} />
-            ) : (
-              <span
-                className={cn(
-                  'h-[3px] w-12 shrink-0 overflow-hidden rounded-full bg-foreground/10',
-                  current.stageNote && 'min-[1100px]:hidden',
-                )}
-              >
-                <span
-                  className="block h-full rounded-full bg-primary transition-[width] duration-700 ease-out-soft"
-                  style={{ width: `${Math.max(done, 4)}%` }}
-                />
-              </span>
-            )}
-            <span className="shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground field:cap field:pr-0 field:text-screen-foreground/50">
-              <span className="text-foreground field:lcd field:text-[17px] field:text-screen-foreground">
-                <CountUp value={current.emailsValid} />
-              </span>{' '}
-              verified
-              {live.length > 1 && `, ${live.length - 1} more`}
-            </span>
-          </>
-        ) : (
-          <>
-            <SearchIcon className="size-[15px] shrink-0 text-muted-foreground field:size-3 field:text-screen-foreground/50" />
-            <span className="w-44 text-left text-muted-foreground field:cap field:w-auto field:flex-1 field:text-screen-foreground/50">
-              Search or jump to
-            </span>
-            <Kbd className="bg-transparent field:text-screen-foreground/50">{modKey} K</Kbd>
-          </>
-        )}
-      </button>
-    </div>
+          ) : (
+            <LedMeter lit={litSegments(Math.max(done, 4))} className="w-20 shrink-0" />
+          )}
+        </span>
+      ) : (
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="lcd text-[17px] uppercase">{current ? 'Working' : 'Ready'}</span>
+          <span className="cap text-screen-foreground/50">Find a lead, or jump to</span>
+          <Kbd className="bg-screen-dim/60 text-screen-foreground/60">{modKey} K</Kbd>
+        </span>
+      )}
+      <span className="flex items-baseline gap-3">
+        <span className={cn('cap', current ? 'text-primary' : 'text-screen-foreground/40')}>Run</span>
+        <span className={cn('cap', current ? 'text-screen-foreground/40' : 'text-primary')}>Done</span>
+        <span className="relative ml-1 inline-block min-w-[3ch] text-right font-lcd text-[30px] leading-none">
+          <span aria-hidden className="absolute inset-y-0 right-0 font-extrabold text-screen-dim">
+            888
+          </span>
+          <span className="lcd relative tabular-nums">
+            {current ? <CountUp value={current.emailsValid} /> : me ? formatNumber(me.usage.emailsVerified) : '0'}
+          </span>
+        </span>
+        <span className="cap text-screen-foreground/50">{current ? 'Verified' : 'This month'}</span>
+        {live.length > 1 && <span className="cap text-screen-foreground/50">+{live.length - 1}</span>}
+      </span>
+    </button>
   );
 }
 
-/** The ring around the avatar: verified emails used this month. */
-function UsageRing({ used, children }: { used: number; children: ReactNode }) {
-  const r = 17;
-  const c = 2 * Math.PI * r;
-  return (
-    <span className="relative inline-flex size-[38px] items-center justify-center">
-      <svg viewBox="0 0 38 38" className="absolute inset-0 -rotate-90" aria-hidden>
-        <circle cx="19" cy="19" r={r} fill="none" strokeWidth="1.5" className="stroke-foreground/10" />
-        <circle
-          cx="19"
-          cy="19"
-          r={r}
-          fill="none"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - Math.min(used, 100) / 100)}
-          className={cn('transition-[stroke-dashoffset] duration-1000 ease-out-soft', used >= 90 ? 'stroke-destructive' : 'stroke-primary')}
-        />
-      </svg>
-      {children}
-    </span>
-  );
-}
-
-function AccountButton() {
-  const { data } = useMe();
-  if (!data) return <span className="size-[38px]" />;
-  const used = percent(data.usage.emailsVerified, data.usage.emailsLimit);
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <a
-          href={routeHref({ name: 'account' })}
-          aria-label="Account"
-          className="rounded-full outline-none transition-transform duration-200 active:scale-95 focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        >
-          <UsageRing used={used}>
-            <Avatar user={data.user} className="size-7" />
-          </UsageRing>
-        </a>
-      </TooltipTrigger>
-      <TooltipContent>
-        {formatNumber(data.usage.emailsVerified)} of {formatNumber(data.usage.emailsLimit)} verified this month
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+/* Pieces the screens use */
 
 /** Back to the searches list, for every screen below it. */
 export function BackButton() {
   return (
-    <Button variant="glass" size="icon" aria-label="Back to searches" onClick={() => navigate({ name: 'searches' })}>
-      <ChevronLeft className="size-[18px] -translate-x-px" />
+    <Button variant="secondary" size="sm" aria-label="Back to searches" onClick={() => navigate({ name: 'searches' })}>
+      <ChevronLeft className="size-3.5" />
+      Back
     </Button>
   );
 }
 
 /**
- * The top strip of every screen and the window's drag handle. Leading on the
- * left (the mark, or a back button), the screen's actions and the account on
- * the right, room for the caption buttons on Windows and Linux. The island
- * floats over its center.
+ * A screen's top row: the way back on the left, its own keys on the right.
+ * Renders nothing when a screen has neither. The ports above carry the
+ * global ways around, so New search needs no key here.
  */
-export function PageHeader({
-  leading,
-  actions,
-  newSearch = true,
-}: {
-  leading?: ReactNode;
-  actions?: ReactNode;
-  newSearch?: boolean;
-}) {
+export function PageHeader({ leading, actions }: { leading?: ReactNode; actions?: ReactNode; newSearch?: boolean }) {
+  if (!leading && !actions) return null;
   return (
-    <header className="app-drag relative z-20 flex h-(--titlebar-height) shrink-0 items-center gap-2 pr-titlebar pl-4 mac:pl-[84px] mac:fullscreen:pl-4">
-      {leading ?? (
-        <a
-          href={routeHref({ name: 'searches' })}
-          aria-label="Searches"
-          className="group flex items-center gap-2 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        >
-          <LogoMark motion="hover" className="size-[22px]" />
-          {transportMode === 'mock' && <span className="text-xs text-muted-foreground">Demo</span>}
-        </a>
-      )}
-      <div className="ml-auto flex shrink-0 items-center gap-2">
-        <UpdateButton />
-        {actions}
-        {newSearch && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* Field: the orange key. Important, since the glass plate rule in index.css sits outside the layers. */}
-              <Button
-                variant="glass"
-                className="pr-4 pl-3 field:bg-primary field:text-primary-foreground field:key-primary"
-                onClick={() => navigate({ name: 'new', kind: null })}
-              >
-                <Plus className="size-[18px] text-primary field:text-primary-foreground" strokeWidth={2.25} />
-                New search
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              New search <Kbd>{modKey} N</Kbd>
-            </TooltipContent>
-          </Tooltip>
-        )}
-        <AccountButton />
-      </div>
-    </header>
+    <div className="relative z-20 flex shrink-0 items-center gap-2 px-9 pt-5">
+      {leading}
+      <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>
+    </div>
   );
 }
 
-/** A screen's display title: large, tight, set in the display face. */
+/** A screen's display title: large, light, with its figure as a label in orange. */
 export function DisplayTitle({
   children,
   subtitle,
@@ -267,9 +366,9 @@ export function DisplayTitle({
   className?: string;
 }) {
   return (
-    <div className={cn('pt-10 pb-10', className)}>
-      <h1 className="font-display text-4xl font-semibold text-balance field:font-light field:tracking-[-0.02em]">{children}</h1>
-      {subtitle && <p className="mt-2 text-base text-muted-foreground field:cap field:mt-3 field:text-primary">{subtitle}</p>}
+    <div className={cn('pt-8 pb-8', className)}>
+      <h1 className="font-display text-4xl font-light tracking-[-0.02em] text-balance">{children}</h1>
+      {subtitle && <p className="cap mt-3 text-primary">{subtitle}</p>}
     </div>
   );
 }

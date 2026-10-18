@@ -5,8 +5,8 @@ export function Setting({ label, description, children }: { label: ReactNode; de
   return (
     <div className="flex items-center gap-8 py-5">
       <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-medium field:font-mono field:text-[11px] field:uppercase field:tracking-[0.08em]">{label}</div>
-        {description && <div className="mt-1 text-sm text-muted-foreground field:text-xs field:normal-case">{description}</div>}
+        <div className="font-mono text-[11px] font-medium tracking-[0.08em] uppercase">{label}</div>
+        {description && <div className="mt-1 text-xs text-muted-foreground">{description}</div>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>

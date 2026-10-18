@@ -19,10 +19,14 @@ interface Row {
   on: boolean;
 }
 
+/** The quiet grey of the quick window's screen. */
+const DIM = 'text-screen-foreground/50';
+
 /**
  * The quick window's side of Grab from screen: reading, then the companies
  * as a list to edit (fix a misread name, untick, remove, add), then a
- * domains search on what is ticked.
+ * domains search on what is ticked. It is drawn on the quick window's black
+ * screen, so its greys are the screen's.
  */
 export function GrabPanel({
   state,
@@ -42,8 +46,8 @@ export function GrabPanel({
       <div className="flex items-center gap-4 px-6 py-6">
         <LogoMark motion="loading" className="size-8" />
         <div className="min-w-0">
-          <div className="font-display text-xl tracking-[-0.02em]">Reading the box</div>
-          <div className="mt-1 text-sm text-muted-foreground">On this computer. The image never leaves it.</div>
+          <div className="lcd text-xl uppercase">Reading the box</div>
+          <div className={cn('mt-1 text-sm', DIM)}>On this computer. The image never leaves it.</div>
         </div>
       </div>
     );
@@ -51,6 +55,9 @@ export function GrabPanel({
   if (state.status === 'error') return <GrabError state={state} onBack={onBack} />;
   return <GrabList items={state.items} people={state.people} onStart={onStart} onBack={onBack} notice={notice} pending={pending} />;
 }
+
+/** A ghost button on the screen: the chassis greys would vanish on black. */
+const GHOST = 'text-screen-foreground/70 hover:text-screen-foreground';
 
 const ERROR_TITLE: Record<Extract<GrabState, { status: 'error' }>['reason'], string> = {
   permission: 'Screen Recording is off',
@@ -63,10 +70,10 @@ function GrabError({ state, onBack }: { state: Extract<GrabState, { status: 'err
   const grab = grabApi();
   return (
     <div className="px-6 pt-5 pb-5">
-      <div className="font-display text-xl tracking-[-0.02em]">{ERROR_TITLE[state.reason]}</div>
-      <div className="mt-1.5 text-sm text-muted-foreground">{state.message}</div>
+      <div className="lcd text-xl uppercase">{ERROR_TITLE[state.reason]}</div>
+      <div className={cn('mt-1.5 text-sm', DIM)}>{state.message}</div>
       <div className="mt-5 flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack}>
+        <Button variant="ghost" className={GHOST} onClick={onBack}>
           Back
         </Button>
         {state.reason === 'permission' ? (
@@ -138,34 +145,33 @@ function GrabList({
   return (
     <div className="pt-5 pb-4">
       <div className="flex items-baseline justify-between gap-4 px-6">
-        <div className="font-display text-xl tracking-[-0.02em]">
+        <div className="lcd text-xl uppercase">
           {formatNumber(rows.length)} {rows.length === 1 ? 'company' : 'companies'} on screen
         </div>
         {people > 0 && (
-          <div className="shrink-0 text-sm text-muted-foreground">
+          <div className={cn('cap shrink-0', DIM)}>
             {formatNumber(people)} {people === 1 ? 'person' : 'people'} left out
           </div>
         )}
       </div>
-      <div className="mt-1 px-6 text-sm text-muted-foreground">Read on this computer. Fix, untick or add before you search.</div>
+      <div className={cn('mt-1 px-6 text-sm', DIM)}>Read on this computer. Fix, untick or add before you search.</div>
       <ul className="mt-3 max-h-72 overflow-y-auto px-3" data-grab-list>
         {rows.map((row) => {
           const domain = itemDomain(row.text) !== null;
           return (
-            <li key={row.id} className="group flex h-10 items-center gap-1 rounded-[16px] pr-1.5 pl-1.5 hover:bg-foreground/[0.04]">
+            <li key={row.id} className="group flex h-10 items-center gap-1 rounded-[4px] pr-1.5 pl-1.5 hover:bg-screen-dim/60">
+              {/* The tick is an LED: lit for a company that goes into the search. */}
               <button
                 type="button"
                 onClick={() => update(row.id, { on: !row.on })}
                 aria-label={row.on ? `Leave out ${row.text}` : `Include ${row.text}`}
                 aria-pressed={row.on}
-                className={cn(
-                  'flex size-7 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                )}
+                className="flex size-7 shrink-0 items-center justify-center rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span
                   className={cn(
-                    'flex size-[18px] items-center justify-center rounded-full border transition-colors',
-                    row.on ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
+                    'flex size-[18px] items-center justify-center rounded-[3px] border transition-colors',
+                    row.on ? 'border-primary bg-primary text-primary-foreground shadow-[0_0_6px_var(--primary)]' : 'border-screen-foreground/30',
                   )}
                 >
                   {row.on && <Check className="size-3" strokeWidth={3} />}
@@ -177,25 +183,28 @@ function GrabList({
                 aria-label="Company"
                 spellCheck={false}
                 className={cn(
-                  'h-8 min-w-0 flex-1 rounded-[10px] bg-transparent px-1.5 text-sm outline-none focus:bg-foreground/[0.04]',
+                  'h-8 min-w-0 flex-1 rounded-[3px] bg-transparent px-1.5 text-sm outline-none focus:bg-screen-dim/60',
                   domain && 'font-mono',
-                  !row.on && 'text-muted-foreground line-through',
+                  !row.on && cn(DIM, 'line-through'),
                 )}
               />
               <button
                 type="button"
                 onClick={() => setRows((all) => all.filter((r) => r.id !== row.id))}
                 aria-label={`Remove ${row.text}`}
-                className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none group-hover:opacity-100 hover:bg-foreground/[0.06] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+                className={cn(
+                  'flex size-7 shrink-0 items-center justify-center rounded-[4px] opacity-0 outline-none group-hover:opacity-100 hover:bg-screen-dim hover:text-screen-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring',
+                  DIM,
+                )}
               >
                 <X className="size-3.5" />
               </button>
             </li>
           );
         })}
-        <li className="flex h-10 items-center gap-1 rounded-[16px] pr-1.5 pl-1.5">
+        <li className="flex h-10 items-center gap-1 rounded-[4px] pr-1.5 pl-1.5">
           <span className="flex size-7 shrink-0 items-center justify-center">
-            <Plus className="size-4 text-muted-foreground" />
+            <Plus className={cn('size-4', DIM)} />
           </span>
           <input
             value={draft}
@@ -210,7 +219,7 @@ function GrabList({
             placeholder="Add a company or domain"
             aria-label="Add a company or domain"
             spellCheck={false}
-            className="h-8 min-w-0 flex-1 rounded-[10px] bg-transparent px-1.5 text-sm outline-none placeholder:text-muted-foreground/60"
+            className="h-8 min-w-0 flex-1 rounded-[3px] bg-transparent px-1.5 text-sm outline-none placeholder:text-screen-foreground/40"
           />
         </li>
       </ul>
@@ -220,10 +229,10 @@ function GrabList({
       )}
       <div className="mt-3 flex items-center justify-between gap-3 px-6">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" onClick={onBack}>
+          <Button variant="ghost" className={GHOST} onClick={onBack}>
             Back
           </Button>
-          <Button variant="ghost" onClick={() => grabApi()?.start()}>
+          <Button variant="ghost" className={GHOST} onClick={() => grabApi()?.start()}>
             <ScanText className="size-4" />
             Grab again
           </Button>

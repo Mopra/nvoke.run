@@ -89,7 +89,7 @@ export function SearchWorking({ search }: { search: Search }) {
       </div>
 
       <div className="min-w-0 max-w-md">
-        <h2 className="font-display text-2xl font-semibold">
+        <h2 className="font-display text-2xl font-light tracking-[-0.02em]">
           {search.kind === "icp"
             ? "Looking for your customers"
             : "Looking for companies"}
@@ -102,6 +102,7 @@ export function SearchWorking({ search }: { search: Search }) {
           {caption}
         </p>
 
+        {/* Each step has an LED: lit on the one running, a tick on the ones done. */}
         <ol className="mt-6 flex flex-col gap-2.5 text-sm">
           {steps(search).map((label, i) => (
             <li
@@ -122,10 +123,10 @@ export function SearchWorking({ search }: { search: Search }) {
                 ) : i === at ? (
                   <>
                     <span className="absolute inset-0 rounded-full bg-primary/25 motion-safe:animate-ping-soft" />
-                    <span className="size-2 rounded-full bg-primary shadow-glow" />
+                    <span className="led led-on" />
                   </>
                 ) : (
-                  <span className="size-1.5 rounded-full bg-foreground/20" />
+                  <span className="led" />
                 )}
               </span>
               {label}
@@ -133,7 +134,7 @@ export function SearchWorking({ search }: { search: Search }) {
           ))}
         </ol>
 
-        <p className="mt-6 text-xs text-muted-foreground">
+        <p className="cap mt-6 max-w-sm leading-relaxed normal-case tracking-[0.02em] text-muted-foreground">
           First leads usually land within a minute or two. Feel free to close
           the window: nvoke keeps going and tells you when it is done.
         </p>

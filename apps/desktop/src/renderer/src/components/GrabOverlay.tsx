@@ -79,23 +79,25 @@ export function GrabOverlay() {
           className="pointer-events-none absolute rounded-[3px] shadow-[0_0_0_100vmax_var(--shade)] ring-[1.5px] ring-primary"
           style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
         >
-          <div className="absolute -bottom-7 right-0 rounded-full glass-strong px-2 py-0.5 text-2xs tabular-nums text-muted-foreground">
+          {/* The box's size, read off a small display under its corner. */}
+          <div className="screen lcd absolute -bottom-7 right-0 rounded-[3px] px-2 py-0.5 text-xs text-screen-foreground">
             {Math.round(box.width)} × {Math.round(box.height)}
           </div>
         </div>
       ) : (
         <div className="pointer-events-none absolute inset-0 bg-shade" />
       )}
+      {/* The instruction is a display strip at the top of the screen. */}
       <div
         className={cn(
-          'pointer-events-none absolute top-10 left-1/2 flex h-12 -translate-x-1/2 items-center gap-3 rounded-full glass-strong pr-3 pl-5 text-sm text-popover-foreground shadow-lg transition-opacity duration-200',
+          'screen pointer-events-none absolute top-10 left-1/2 flex h-12 -translate-x-1/2 items-center gap-3 rounded-[6px] pr-3 pl-5 shadow-[0_0_0_1px_var(--screen),0_20px_40px_-12px_var(--shadow-strong)] transition-opacity duration-200',
           dragging && 'opacity-0',
         )}
       >
         <ScanText className="size-4 text-primary" />
-        <span>Drag over a list of companies</span>
-        <span className="text-muted-foreground">Read on this computer</span>
-        <Kbd>esc</Kbd>
+        <span className="lcd text-lg uppercase">Drag over a list of companies</span>
+        <span className="cap text-screen-foreground/50">Read on this computer</span>
+        <Kbd className="bg-screen-dim/60 text-screen-foreground/50">esc</Kbd>
       </div>
     </div>
   );

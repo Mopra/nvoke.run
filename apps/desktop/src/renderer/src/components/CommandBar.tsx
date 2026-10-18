@@ -11,7 +11,6 @@ import { navigate as goTo, routeHref, type Route } from '@/lib/router';
 import type { SearchInput, SearchStatus } from '@/lib/types';
 import type { FrontTab, QuickClipboard } from '../../../ipc/contract';
 import { setThemePreference, useTheme } from '@/lib/theme';
-import { StatusDot } from '@/components/indicators';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Kbd } from '@/components/ui/kbd';
 
@@ -30,21 +29,24 @@ interface Command {
   run: () => void;
 }
 
-/** A search's status as an LED, shown in Field in place of the dot: lit while it runs, green when done, red when failed. */
+/** A search's status as an LED: lit while it runs, green when done, red when failed. */
 function StatusLed({ status }: { status: SearchStatus }) {
   const live = status === 'running' || status === 'queued';
   return (
     <span
       aria-hidden
       className={cn(
-        'hidden field:led',
-        live && 'field:led-on',
-        status === 'done' && 'field:bg-chart-1 field:shadow-[0_0_5px_var(--chart-1)]',
-        status === 'failed' && 'field:bg-destructive',
+        'led',
+        live && 'led-on',
+        status === 'done' && 'bg-chart-1 shadow-[0_0_5px_var(--chart-1)]',
+        status === 'failed' && 'bg-destructive',
       )}
     />
   );
 }
+
+/** The quiet grey of a screen: icons, hints and group labels. */
+const DIM = 'text-screen-foreground/40';
 
 /**
  * The command bar: one field that jumps to any search, finds any lead in the
@@ -54,10 +56,10 @@ function StatusLed({ status }: { status: SearchStatus }) {
 export function CommandBar({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* In Field the bar is a black display. The important marks beat the glass plate rule in index.css. */}
+      {/* The bar is a black display, not a plate. */}
       <DialogContent
         aria-describedby={undefined}
-        className="field:rounded-[8px] field:bg-screen field:text-screen-foreground field:shadow-[0_0_0_1px_var(--screen),0_40px_80px_-20px_var(--shadow-strong)]"
+        className="rounded-[8px] bg-screen text-screen-foreground shadow-[0_0_0_1px_var(--screen),0_40px_80px_-20px_var(--shadow-strong)]"
       >
         <DialogTitle className="sr-only">Command bar</DialogTitle>
         <DialogDescription className="sr-only">Jump to a search, find a lead or run an action.</DialogDescription>
@@ -104,7 +106,7 @@ export function Commands({
   const listRef = useRef<HTMLDivElement>(null);
 
   const commands = useMemo<Command[]>(() => {
-    const iconClass = 'size-4 text-muted-foreground field:text-screen-foreground/50';
+    const iconClass = 'size-4 text-screen-foreground/50';
     const quick = !!onStart;
     // A screen opens here in the main window, or in the main window from the quick one.
     const navigate = (route: Route): void => (quick ? quickApi()?.openInMain(routeHref(route)) : goTo(route));
@@ -115,11 +117,10 @@ export function Commands({
       hint: searchSubtitle(s),
       icon: (
         <span className="flex size-4 items-center justify-center">
-          <StatusDot status={s.status} className="field:hidden" />
           <StatusLed status={s.status} />
         </span>
       ),
-      trailing: <span className="text-xs tabular-nums text-muted-foreground field:text-inherit">{formatNumber(s.emailsFound)} emails</span>,
+      trailing: <span className="tabular-nums">{formatNumber(s.emailsFound)} emails</span>,
       run: () => navigate({ name: 'search', id: s.id }),
     }));
     list.push(
@@ -229,7 +230,7 @@ export function Commands({
       return {
         ...base,
         hint: `In ${browser}`,
-        trailing: <code className="max-w-56 truncate font-mono text-xs text-muted-foreground field:text-inherit">{domain}</code>,
+        trailing: <code className="max-w-56 truncate font-mono">{domain}</code>,
         run: () => onStart({ kind: 'domains', params: { items: [domain] }, limit: 1 }),
       };
     }
@@ -253,7 +254,7 @@ export function Commands({
       group: 'Start',
       label: 'Grab from screen',
       hint: 'Read a list of companies off any app',
-      icon: <ScanText className="size-4 text-muted-foreground field:text-screen-foreground/50" />,
+      icon: <ScanText className="size-4 text-screen-foreground/50" />,
       keywords: 'ocr scan screenshot capture exhibitors directory linkedin pdf',
       keepOpen: true,
       run: onGrab,
@@ -287,7 +288,7 @@ export function Commands({
         group: 'Start',
         label: `Find ${input.kind === 'local' ? `${input.params.niche} in ${input.params.location}` : `“${input.params.keyword}”`}`,
         hint: input.kind === 'local' ? 'Local businesses' : 'Web search',
-        icon: <Sparkles className={cn('size-4', icp?.describes ? 'text-muted-foreground field:text-screen-foreground/50' : 'text-primary')} />,
+        icon: <Sparkles className={cn('size-4', icp?.describes ? 'text-screen-foreground/50' : 'text-primary')} />,
         keepOpen: true,
         run: () => onStart(input),
       };
@@ -308,8 +309,8 @@ export function Commands({
       label: company.name || company.domain,
       hint: leadHint(company, q),
       hintMono: true,
-      icon: <Building2 className="size-4 text-muted-foreground field:text-screen-foreground/50" />,
-      trailing: <span className="max-w-40 truncate text-xs text-muted-foreground field:text-inherit">{searchTitle(search)}</span>,
+      icon: <Building2 className="size-4 text-screen-foreground/50" />,
+      trailing: <span className="max-w-40 truncate">{searchTitle(search)}</span>,
       // Opens the search filtered to this company, so the row is the first one there.
       run: () => {
         const route: Route = { name: 'search', id: search.id, q: company.domain || company.name };
@@ -350,8 +351,8 @@ export function Commands({
 
   return (
     <>
-      <div className="flex h-16 items-center gap-3.5 border-b px-5 field:h-14 field:border-screen-dim">
-        <SearchIcon className="size-5 shrink-0 text-muted-foreground field:text-screen-foreground/40" strokeWidth={1.75} />
+      <div className="flex h-14 items-center gap-3.5 border-b border-screen-dim px-5">
+        <SearchIcon className={cn('size-5 shrink-0', DIM)} strokeWidth={1.75} />
         <input
           autoFocus
           value={query}
@@ -375,15 +376,15 @@ export function Commands({
           aria-label="Search or jump to"
           spellCheck={false}
           autoComplete="off"
-          className="h-full flex-1 bg-transparent font-display text-xl tracking-[-0.02em] caret-primary outline-none placeholder:text-muted-foreground/50 field:lcd field:text-xl field:tracking-normal field:text-screen-foreground field:uppercase field:placeholder:text-screen-dim field:placeholder:[text-shadow:none]"
+          className="lcd h-full flex-1 bg-transparent text-xl text-screen-foreground uppercase caret-primary outline-none placeholder:text-screen-dim placeholder:[text-shadow:none]"
         />
-        <Kbd className="field:bg-screen-dim/60 field:text-screen-foreground/50">esc</Kbd>
+        <Kbd className="bg-screen-dim/60 text-screen-foreground/50">esc</Kbd>
       </div>
       {notice && <div className="px-5 pt-3 text-sm text-destructive">{notice}</div>}
       {/* The rows cascade in as the bar opens; after that they follow the typing at once, and found leads fade in. */}
       <div ref={listRef} role="listbox" className={cn('max-h-[min(460px,60vh)] overflow-y-auto p-2', !stagger.settled && 'stagger')}>
         {filtered.length === 0 && (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground field:cap field:text-screen-foreground/40">No matches</div>
+          <div className={cn('cap px-3 py-8 text-center', DIM)}>No matches</div>
         )}
         {filtered.map((command, index) => {
           const header = command.group !== lastGroup ? command.group : null;
@@ -396,7 +397,7 @@ export function Commands({
               className={cn(stagger.settled && command.group === 'Leads' && 'motion-safe:animate-fade-in')}
             >
               {header && (
-                <div className="flex px-3 pt-3 pb-1.5 text-xs text-muted-foreground field:cap field:tracking-[0.12em] field:text-screen-foreground/40">
+                <div className={cn('cap flex px-3 pt-3 pb-1.5 tracking-[0.12em]', DIM)}>
                   {header}
                   {header === 'Leads' && leadsMore > 0 && (
                     <span className="ml-auto tabular-nums">{formatNumber(leadsMore)} more</span>
@@ -410,10 +411,8 @@ export function Commands({
                 onMouseMove={() => setActive(index)}
                 onClick={() => run(command)}
                 className={cn(
-                  'flex h-10 items-center gap-3 rounded-[16px] px-3 text-sm transition-colors duration-100 field:rounded-[4px]',
-                  selected
-                    ? 'bg-foreground/[0.07] text-foreground field:bg-screen-dim/60 field:text-screen-foreground'
-                    : 'text-foreground/85 field:text-screen-foreground/80',
+                  'flex h-10 items-center gap-3 rounded-[4px] px-3 text-sm transition-colors duration-100',
+                  selected ? 'bg-screen-dim/60 text-screen-foreground' : 'text-screen-foreground/80',
                 )}
               >
                 {command.icon}
@@ -421,19 +420,14 @@ export function Commands({
                   {command.label}
                 </span>
                 {command.hint && (
-                  <span className={cn('truncate text-xs text-muted-foreground field:text-screen-foreground/40', command.hintMono && 'font-mono')}>
+                  <span className={cn('truncate text-xs', DIM, command.hintMono && 'font-mono')}>
                     {command.hint}
                   </span>
                 )}
-                {/* The shortcut side: in Field a cap that turns orange on the selected row, and the trailing text inherits it. */}
-                <span
-                  className={cn(
-                    'ml-auto flex shrink-0 items-center gap-2 field:cap',
-                    selected ? 'field:text-primary' : 'field:text-screen-foreground/40',
-                  )}
-                >
+                {/* The shortcut side: a cap that turns orange on the selected row, and the trailing text inherits it. */}
+                <span className={cn('cap ml-auto flex shrink-0 items-center gap-2', selected ? 'text-primary' : DIM)}>
                   {command.trailing}
-                  {selected && <CornerDownLeft className="size-3.5 text-muted-foreground field:text-inherit" />}
+                  {selected && <CornerDownLeft className="size-3.5" />}
                 </span>
               </div>
             </div>

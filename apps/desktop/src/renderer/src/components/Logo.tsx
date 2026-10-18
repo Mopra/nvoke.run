@@ -5,7 +5,8 @@ export type LogoMotion = 'loading' | 'intro' | 'hover';
 
 /**
  * The nvoke mark: a lowercase n drawn as a horseshoe magnet, its poles split
- * off, pulling a lead (the dot) in under the arch. Accent tile, light glyph.
+ * off, pulling a lead (the dot) in under the arch. An orange tile with the
+ * keycap's glow, light glyph. Every color is a token.
  */
 export function LogoMark({ className, motion }: { className?: string; motion?: LogoMotion }) {
   return (
@@ -56,5 +57,5 @@ export function LogoLoader({
 }
 
 export function Wordmark({ className }: { className?: string }) {
-  return <span className={cn('font-semibold tracking-[-0.02em]', className)}>nvoke</span>;
+  return <span className={cn('font-display font-light tracking-[-0.01em]', className)}>nvoke</span>;
 }

@@ -5,7 +5,8 @@
   "description": "shadcn theme tokens shared by apps/desktop and apps/site",
   "exports": {
     "./theme.css": "./theme.css",
-    "./motion.css": "./motion.css"
+    "./motion.css": "./motion.css",
+    "./field.css": "./field.css"
   },
-  "files": ["theme.css", "motion.css"]
+  "files": ["theme.css", "motion.css", "field.css"]
 }

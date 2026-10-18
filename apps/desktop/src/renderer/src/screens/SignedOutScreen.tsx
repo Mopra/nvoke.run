@@ -49,10 +49,10 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
   return (
     <div className="canvas relative isolate flex h-full flex-col overflow-hidden">
       <div className="app-drag absolute inset-x-0 top-0 h-(--titlebar-height)" />
-      {/* The aura: one soft field of the accent light behind the mark. */}
+      {/* A faint warmth behind the mark, the panel's one lamp. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute top-[34%] left-1/2 -z-10 h-[620px] w-[820px] -translate-x-1/2 -translate-y-1/2"
+        className="pointer-events-none absolute top-[34%] left-1/2 -z-10 h-[360px] w-[520px] -translate-x-1/2 -translate-y-1/2 opacity-60"
       >
         <div className={welcome ? 'absolute inset-0 motion-safe:animate-bloom' : 'absolute inset-0'}>
           <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,var(--aura),transparent)] motion-safe:animate-breathe" />
@@ -69,17 +69,19 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
         >
           <LogoMark
             motion={waiting ? 'loading' : 'intro'}
-            className={welcome ? 'size-[88px] motion-safe:animate-arrive' : 'size-[72px]'}
+            className={welcome ? 'size-[72px] motion-safe:animate-arrive' : 'size-[60px]'}
           />
+          <span className="cap mt-5 text-muted-foreground">Verified email lead finder</span>
 
           {waiting ? (
             <>
-              <h1 className="mt-10 font-display text-4xl font-semibold motion-safe:animate-view-in">Finish in your browser</h1>
-              <div role="status" className="mt-10 flex h-11 items-center text-sm text-muted-foreground motion-safe:animate-view-in">
+              <h1 className="mt-8 font-display text-4xl font-light motion-safe:animate-view-in">Finish in your browser</h1>
+              <div role="status" className="cap mt-8 flex h-10 items-center gap-2.5 text-muted-foreground motion-safe:animate-view-in">
+                <span className="led led-on motion-safe:animate-shimmer" />
                 Waiting on your browser
               </div>
-              <div className="mt-4 flex gap-2 motion-safe:animate-view-in">
-                <Button variant="glass" onClick={() => void signIn()}>
+              <div className="mt-4 flex gap-2.5 motion-safe:animate-view-in">
+                <Button variant="secondary" onClick={() => void signIn()}>
                   Reopen the page
                 </Button>
                 <Button variant="ghost" onClick={cancel}>
@@ -89,13 +91,13 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
             </>
           ) : welcome ? (
             <>
-              <h1 className="mt-10 font-display text-5xl font-semibold motion-safe:animate-rise" style={beat(250)}>
+              <h1 className="mt-8 font-display text-5xl font-light motion-safe:animate-rise" style={beat(250)}>
                 Welcome to nvoke
               </h1>
-              <p className="mt-4 text-lg text-balance text-muted-foreground motion-safe:animate-rise" style={beat(400)}>
+              <p className="mt-4 text-lg font-light text-balance text-muted-foreground motion-safe:animate-rise" style={beat(400)}>
                 Find companies. Get emails that actually work.
               </p>
-              <ul className="mt-12 flex flex-col gap-3.5 text-left text-sm text-muted-foreground">
+              <ul className="mt-10 flex flex-col gap-3 text-left font-mono text-xs text-muted-foreground">
                 {POINTS.map(({ icon: Icon, text }, i) => (
                   <li key={text} className="flex items-center gap-3.5 motion-safe:animate-rise" style={beat(600 + i * 110)}>
                     <Icon className="size-4 shrink-0 text-primary" strokeWidth={1.75} />
@@ -103,33 +105,33 @@ export function SignedOutScreen({ state }: { state: Exclude<AuthState, { status:
                   </li>
                 ))}
               </ul>
-              <Button size="lg" className="mt-12 px-8 motion-safe:animate-rise" style={beat(1000)} onClick={() => void signIn()}>
-                Get started
+              <Button size="lg" className="mt-10 px-8 motion-safe:animate-rise" style={beat(1000)} onClick={() => void signIn()}>
+                Start
                 <ArrowRight className="size-4 opacity-75" />
               </Button>
               {error ? (
-                <p role="alert" className="mt-4 text-xs text-destructive">
+                <p role="alert" className="mt-4 font-mono text-xs text-destructive">
                   {error}
                 </p>
               ) : (
-                <p className="mt-5 text-xs text-muted-foreground motion-safe:animate-rise" style={beat(1100)}>
+                <p className="mt-5 font-mono text-xs text-muted-foreground motion-safe:animate-rise" style={beat(1100)}>
                   You sign in with your browser. Your password never touches this app.
                 </p>
               )}
             </>
           ) : (
             <>
-              <h1 className="mt-10 font-display text-4xl font-semibold text-balance">Find companies. Get emails that actually work.</h1>
-              <Button size="lg" className="mt-12 px-8" onClick={() => void signIn()}>
+              <h1 className="mt-8 font-display text-4xl font-light text-balance">Find companies. Get emails that actually work.</h1>
+              <Button size="lg" className="mt-10 px-8" onClick={() => void signIn()}>
                 Sign in with your browser
                 <ArrowUpRight className="size-4 opacity-75" />
               </Button>
               {error ? (
-                <p role="alert" className="mt-4 text-xs text-destructive">
+                <p role="alert" className="mt-4 font-mono text-xs text-destructive">
                   {error}
                 </p>
               ) : (
-                <p className="mt-5 text-xs text-muted-foreground">Your password never touches this app.</p>
+                <p className="mt-5 font-mono text-xs text-muted-foreground">Your password never touches this app.</p>
               )}
             </>
           )}

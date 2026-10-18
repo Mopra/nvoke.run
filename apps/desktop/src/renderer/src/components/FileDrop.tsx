@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { itemDomain, SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
 import { CountryPicker } from '@/components/CountryPicker';
+import { NOTE, PLATE } from '@/components/SearchForm';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { filesApi } from '@/lib/desktop';
@@ -29,7 +30,7 @@ function hasFiles(event: DragEvent): boolean {
 }
 
 /**
- * Drop a CSV on the window: a glass target appears while a file is over it,
+ * Drop a CSV on the window: a plate appears while a file is over it,
  * then a dialog asks which column holds the domains or company names (guessed
  * first) and starts a `domains` search. When it finishes, the enriched copy
  * is written next to the original (see lib/enrich.ts).
@@ -121,7 +122,7 @@ export function FileDrop() {
   );
 }
 
-/** The glass card in the middle of the window while a file is dragged over it. */
+/** The plate in the middle of the window while a file is dragged over it. */
 function DropTarget({ on }: { on: boolean }) {
   return (
     <div
@@ -134,13 +135,13 @@ function DropTarget({ on }: { on: boolean }) {
     >
       <div
         className={cn(
-          'glass-strong flex w-[min(460px,80vw)] flex-col items-center gap-4 rounded-[28px] border border-dashed border-primary/60 px-10 py-14 text-center transition-transform duration-300 ease-spring',
+          'glass-strong flex w-[min(460px,80vw)] flex-col items-center gap-4 rounded-[6px] border border-dashed border-primary/60 px-10 py-14 text-center transition-transform duration-300 ease-spring',
           on ? 'scale-100' : 'scale-95',
         )}
       >
         <FileSpreadsheet className="size-8 text-primary" strokeWidth={1.5} />
-        <div className="font-display text-3xl font-semibold tracking-tight">Drop it to find contacts</div>
-        <p className="text-sm text-muted-foreground">A CSV with a column of domains or company names.</p>
+        <div className="font-display text-3xl font-light">Drop it to find contacts</div>
+        <p className={NOTE}>A CSV with a column of domains or company names.</p>
       </div>
     </div>
   );
@@ -190,14 +191,14 @@ function EnrichForm({
       className="flex flex-col gap-6 p-7"
     >
       <div className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground/[0.06]">
-          <FileSpreadsheet className="size-5 text-muted-foreground" strokeWidth={1.5} />
+        <div className="key flex size-10 shrink-0 items-center justify-center bg-secondary text-secondary-foreground">
+          <FileSpreadsheet className="size-5" strokeWidth={1.5} />
         </div>
         <div className="min-w-0">
-          <div className="truncate font-display text-xl font-semibold tracking-tight" title={fileName}>
+          <div className="truncate font-display text-xl font-light" title={fileName}>
             {fileName}
           </div>
-          <div className="text-xs text-muted-foreground tabular-nums">
+          <div className="cap text-muted-foreground tabular-nums">
             {formatNumber(table.rows.length)} {table.rows.length === 1 ? 'row' : 'rows'}, {formatNumber(table.headers.length)}{' '}
             {table.headers.length === 1 ? 'column' : 'columns'}
           </div>
@@ -205,13 +206,13 @@ function EnrichForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="enrich-column" className="text-xs font-medium text-muted-foreground">
+        <label htmlFor="enrich-column" className="cap text-muted-foreground">
           Which column has the domains or company names?
         </label>
         <Select value={String(col)} onValueChange={(v) => setCol(Number(v))}>
           <SelectTrigger
             id="enrich-column"
-            className="glass h-11 w-full justify-between gap-3 rounded-full px-5 text-left text-[15px] focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            className={cn(PLATE, 'h-9 w-full justify-between gap-3 py-0 text-left text-xs focus-visible:ring-[3px] focus-visible:ring-ring/40')}
           >
             <span className="min-w-0 flex-1 truncate">
               <SelectValue />
@@ -230,7 +231,7 @@ function EnrichForm({
 
       <div
         aria-live="polite"
-        className="flex min-h-14 flex-col gap-2 rounded-[20px] bg-foreground/[0.04] px-4 py-3 text-xs text-muted-foreground"
+        className="flex min-h-14 flex-col gap-2 border-y py-3 font-mono text-[10.5px] text-muted-foreground"
       >
         {ready ? (
           <>
@@ -250,7 +251,7 @@ function EnrichForm({
                 <span
                   key={item}
                   title={item}
-                  className={cn('max-w-44 truncate rounded-full bg-foreground/[0.06] px-2.5 py-0.5', itemDomain(item) && 'font-mono')}
+                  className="max-w-44 truncate rounded-[3px] bg-secondary px-2 py-0.5 text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]"
                 >
                   {itemDomain(item) ?? item}
                 </span>
@@ -264,21 +265,21 @@ function EnrichForm({
       </div>
 
       {found.names > 0 && (
-        <div className="flex items-center gap-3 text-sm">
-          <label htmlFor="enrich-country" className="text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <label htmlFor="enrich-country" className="cap text-muted-foreground">
             Names are companies in
           </label>
           <CountryPicker
             id="enrich-country"
             value={country}
             onChange={setCountry}
-            triggerClassName="glass h-9 rounded-full px-4 text-sm"
+            triggerClassName={cn(PLATE, 'h-9 w-auto min-w-44 py-0 text-xs [&>svg]:size-4')}
           />
         </div>
       )}
 
       <div className="flex items-center justify-between gap-4">
-        <p className="max-w-64 text-xs text-muted-foreground">
+        <p className={cn('max-w-64', NOTE)}>
           Your file stays as it is. The copy with the emails goes next to it as {enrichedName(fileName)}.
         </p>
         <div className="flex items-center gap-2">

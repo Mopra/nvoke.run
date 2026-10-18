@@ -1,15 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@nvoke/theme/theme.css";
+@import "@nvoke/theme/field.css";
 @import "@nvoke/theme/motion.css";
-/* The Field look's faces, bundled so they load offline. */
+/* The faces, bundled so they load offline. */
 @import "@fontsource-variable/space-grotesk";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@fontsource-variable/doto";
 
 @custom-variant dark (&:is(.dark *));
-/* The look, set on <html> by lib/look.ts. Calm has no attribute. */
-@custom-variant field (&:is([data-look="field"] *));
 
 /* Window chrome variants, set on <html> by lib/chrome.ts. */
 @custom-variant mac (&:is([data-platform="darwin"] *));
@@ -88,25 +87,11 @@
   }
   html {
     @apply bg-background;
-    font-feature-settings: "cv11", "ss01";
-    letter-spacing: -0.003em;
+    font-feature-settings: "ss03";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  /* The window material (vibrancy, Mica) shows through wherever the page is clear. */
-  html[data-material="vibrancy"],
-  html[data-material="mica"] {
-    background: transparent;
-  }
-  /* The Field chassis is a solid: the window material would thin it out. */
-  html[data-look="field"] {
-    background: var(--background);
-    font-feature-settings: "ss03";
-    letter-spacing: 0;
-  }
-  html[data-look="field"] ::selection {
-    background: color-mix(in oklab, var(--primary) 32%, transparent);
-  }
+  /* The chassis is a solid: the window material (vibrancy, Mica) would thin it out. */
   /* The quick window floats over other apps: nothing around its panel is painted. */
   html[data-quick],
   html[data-quick] body,
@@ -132,7 +117,7 @@
     user-select: text;
   }
   ::selection {
-    background: color-mix(in oklab, var(--primary) 26%, transparent);
+    background: color-mix(in oklab, var(--primary) 32%, transparent);
   }
   /* Native buttons keep the arrow; only hyperlinks to the web get the hand, as in native apps. */
   button,
@@ -196,25 +181,16 @@
   }
 }
 
-/*
- * The canvas: the window's one surface. Opaque by default; over vibrancy or
- * Mica it turns translucent so the material shows through the whole window.
- */
+/* The canvas: the window's one surface, the chassis. */
 @utility canvas {
   background-color: var(--background);
-  :where([data-material="vibrancy"], [data-material="mica"]) & {
-    background-color: color-mix(in oklab, var(--background) 74%, transparent);
-  }
-  [data-look="field"] & {
-    background-color: var(--background);
-  }
 }
 
 /*
- * The Field look's parts, used with the `field:` variant. A keycap sits on
- * the chassis with a lip at its foot and sinks when pressed; `key-primary`
- * is the orange one with its glow. A screen is the black display. A cap is
- * a panel label: tiny mono capitals. An LED is a status dot that can be lit.
+ * The panel's parts. A keycap sits on the chassis with a lip at its foot and
+ * sinks when pressed; `key-primary` is the orange one with its glow. A screen
+ * is the black display. A cap is a panel label: tiny mono capitals. An LED is
+ * a status dot that can be lit.
  */
 @utility key {
   border-radius: 4px;
@@ -295,34 +271,29 @@
   background-color: var(--primary);
   box-shadow: 0 0 6px var(--primary);
 }
+/* The orange cap of a knob: a highlight at the top left, a collar on the chassis. */
+@utility knob-cap {
+  background: radial-gradient(
+    circle at 40% 35%,
+    color-mix(in oklab, var(--primary) 78%, oklch(1 0 0)),
+    var(--primary) 55%,
+    color-mix(in oklab, var(--primary) 82%, oklch(0 0 0))
+  );
+  box-shadow:
+    0 0 0 7px var(--background),
+    0 0 0 8px var(--glass-edge),
+    0 10px 18px -6px var(--shadow-strong),
+    inset 0 -2px 0 oklch(0 0 0 / 0.15);
+}
 
-/*
- * Liquid glass. A floating control: translucent fill, backdrop blur, a
- * specular top edge and a hairline rim, then a wide soft drop shadow.
- */
-/* Field has no liquid: glass turns into a plate with a hairline and a lip. `:where` keeps `field:` utilities on top. */
+/* A plate: a lifted panel on the chassis with a hairline and a lip. Kept under the glass names the screens use. */
 @utility glass {
-  background-color: var(--glass);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  backdrop-filter: blur(28px) saturate(180%);
-  box-shadow: var(--shadow-float);
-  :where([data-look="field"]) & {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background-color: var(--glass-strong);
-    box-shadow: var(--shadow-plate);
-  }
+  background-color: var(--glass-strong);
+  box-shadow: var(--shadow-plate);
 }
 @utility glass-strong {
   background-color: var(--glass-strong);
-  -webkit-backdrop-filter: blur(36px) saturate(190%);
-  backdrop-filter: blur(36px) saturate(190%);
-  box-shadow: var(--shadow-float);
-  :where([data-look="field"]) & {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    box-shadow: var(--shadow-plate);
-  }
+  box-shadow: var(--shadow-plate);
 }
 
 /* Fades content out under the floating bars instead of a hard edge. */

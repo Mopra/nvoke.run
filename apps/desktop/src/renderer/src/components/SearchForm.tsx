@@ -2,6 +2,7 @@ import { useState, type Ref } from 'react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import { CountryPicker } from '@/components/CountryPicker';
 import { Line, Pill, SENTENCE, SentenceInput } from '@/components/Sentence';
+import { Knob } from '@/components/ui/knob';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { itemDomain, SEARCH_LIMIT_MAX, splitList } from '@nvoke/shared';
 import { formatNumber, WINDOW_DAYS, WINDOW_LABEL, type LaunchWindow } from '@/lib/format';
@@ -13,18 +14,13 @@ import { cn } from '@/lib/utils';
 /** Drop searches come from drops, never from this form. Describe your customer (`icp`) has a form of its own. */
 export type FormKind = Exclude<SearchKind, 'drop' | 'icp'>;
 
-const LIMIT_PRESETS = ['25', '100', '250', '500'] as const;
+/** The limit's detents: the knob's ticks on New search, a row of keycaps elsewhere. */
+const LIMIT_PRESETS: number[] = [25, 100, 250, 500];
 
-/**
- * The Field look's sentence: the lead words thin, the fields regular. The
- * lead words are `Line` labels, reached from the grid since `Line` is shared.
- */
-export const FIELD_GRID = 'field:[&_label]:font-light field:[&_label]:text-muted-foreground';
-export const FIELD_WORD = 'field:font-normal';
 /** A recessed plate for pasted text: mono on the card color, sunk into the chassis. */
-export const FIELD_PLATE = 'field:rounded-[4px] field:bg-card field:px-3 field:py-2 field:font-mono field:shadow-[inset_0_1px_2px_var(--shadow-strong)]';
+export const PLATE = 'rounded-[4px] bg-card px-3 py-2 font-mono shadow-[inset_0_1px_2px_var(--shadow-strong)]';
 /** Small print under a key: mono, with the figure that matters in orange. */
-export const FIELD_NOTE = 'field:font-mono field:text-[10.5px] field:leading-[1.6] field:text-muted-foreground';
+export const NOTE = 'font-mono text-[10.5px] leading-[1.6] text-muted-foreground';
 
 export function isFormKind(value: string | null): value is FormKind {
   return value === 'local' || value === 'web' || value === 'launches' || value === 'domains';
@@ -113,25 +109,27 @@ export type SearchForm = ReturnType<typeof useSearchForm>;
 /**
  * The sentence's lines for the form's kind, in the two column grid of
  * `Line`. `more` words it as another run of a search: the limit counts new
- * companies and there is no daily drop offer.
+ * companies and there is no daily drop offer. `presets` is the row of limit
+ * keycaps under the sentence; New search turns it off and shows the knob.
  */
 export function SearchFields({
   form,
   firstField,
   listField,
   more = false,
+  presets = true,
 }: {
   form: SearchForm;
   firstField?: Ref<HTMLInputElement>;
   listField?: Ref<HTMLTextAreaElement>;
   more?: boolean;
+  presets?: boolean;
 }) {
   const { kind, values: v, set, touched, items, tooLong, maxLimit } = form;
   const invalid = (value: string): boolean => touched && !value.trim();
-  const preset = LIMIT_PRESETS.find((p) => Number(p) === v.limit) ?? null;
 
   return (
-    <div className={cn('grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3', FIELD_GRID)}>
+    <div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3">
       {kind === 'local' && (
         <>
           <Line lead="Find" htmlFor="niche">
@@ -142,7 +140,6 @@ export function SearchFields({
               onChange={(e) => set.setNiche(e.target.value)}
               placeholder="dentists"
               aria-invalid={invalid(v.niche)}
-              className={FIELD_WORD}
             />
           </Line>
           <Line lead="in" htmlFor="location">
@@ -152,7 +149,6 @@ export function SearchFields({
               onChange={(e) => set.setLocation(e.target.value)}
               placeholder="Austin"
               aria-invalid={invalid(v.location)}
-              className={FIELD_WORD}
             />
           </Line>
         </>
@@ -168,11 +164,10 @@ export function SearchFields({
               onChange={(e) => set.setKeyword(e.target.value)}
               placeholder="headless CMS"
               aria-invalid={invalid(v.keyword)}
-              className={FIELD_WORD}
             />
           </Line>
           <Line lead="in" htmlFor="country">
-            <CountryPicker id="country" value={v.country} onChange={set.setCountry} triggerClassName={cn(SENTENCE, FIELD_WORD)} />
+            <CountryPicker id="country" value={v.country} onChange={set.setCountry} triggerClassName={SENTENCE} />
           </Line>
         </>
       )}
@@ -186,7 +181,6 @@ export function SearchFields({
               value={v.launchKeyword}
               onChange={(e) => set.setLaunchKeyword(e.target.value)}
               placeholder="any launch"
-              className={FIELD_WORD}
             />
           </Line>
           <Line lead="from the" htmlFor="launch-window">
@@ -198,11 +192,8 @@ export function SearchFields({
             />
           </Line>
           {!more && (
-            <div className="col-start-2 -mt-1 -ml-3 mb-4">
-              <Pill
-                onClick={() => navigate({ name: 'drop', id: null, keyword: v.launchKeyword.trim() || null })}
-                className="inline-flex items-center gap-1.5 field:cap field:rounded-[3px]"
-              >
+            <div className="col-start-2 mt-1 mb-4">
+              <Pill onClick={() => navigate({ name: 'drop', id: null, keyword: v.launchKeyword.trim() || null })}>
                 Get the new ones every day
                 <ArrowRight className="size-3" />
               </Pill>
@@ -225,7 +216,7 @@ export function SearchFields({
           <ListSummary items={items} domains={form.domainCount} names={form.nameCount} max={maxLimit} />
           {form.nameCount > 0 && (
             <Line lead="names in" htmlFor="list-country">
-              <CountryPicker id="list-country" value={v.listCountry} onChange={set.setListCountry} triggerClassName={cn(SENTENCE, FIELD_WORD)} />
+              <CountryPicker id="list-country" value={v.listCountry} onChange={set.setListCountry} triggerClassName={SENTENCE} />
             </Line>
           )}
         </>
@@ -243,30 +234,53 @@ export function SearchFields({
                 value={Number.isNaN(v.limit) ? '' : v.limit}
                 onChange={(e) => set.setLimit(e.target.valueAsNumber)}
                 style={{ width: `${Math.max(2, String(Number.isNaN(v.limit) ? '' : v.limit).length) + 0.4}ch` }}
-                className={cn(SENTENCE, 'tabular-nums [&::-webkit-inner-spin-button]:appearance-none', FIELD_WORD)}
+                className={cn(SENTENCE, 'tabular-nums [&::-webkit-inner-spin-button]:appearance-none')}
               />
-              <span className="font-display text-4xl font-semibold text-muted-foreground/50 field:font-light field:text-muted-foreground">
-                {more ? 'more' : 'companies'}
-              </span>
+              <span className="font-display text-4xl font-light text-muted-foreground">{more ? 'more' : 'companies'}</span>
             </div>
           </Line>
-          <div className="col-start-2 -mt-1 -ml-3 flex gap-1 field:mt-1 field:ml-0 field:gap-2" role="group" aria-label="Preset limits">
-            {LIMIT_PRESETS.map((p) => (
-              <Pill
-                key={p}
-                pressed={preset === p}
-                onClick={() => set.setLimit(Number(p))}
-                className={cn(
-                  'field:key field:h-6 field:rounded-[3px] field:bg-secondary field:px-2 field:font-mono field:text-[10px] field:text-secondary-foreground field:uppercase',
-                  preset === p && 'field:key-down field:bg-primary field:text-primary-foreground',
-                )}
-              >
-                {p}
-              </Pill>
-            ))}
-          </div>
+          {presets && (
+            <div className="col-start-2 mt-1 flex gap-2" role="group" aria-label="Preset limits">
+              {LIMIT_PRESETS.map((p) => (
+                <Pill key={p} pressed={p === v.limit} onClick={() => set.setLimit(p)}>
+                  {p}
+                </Pill>
+              ))}
+            </div>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The limit as a knob with the presets as its ticks, under a bracketed LIMIT
+ * label. It follows the typed limit when that is a preset, and points at the
+ * nearest one otherwise; turning it writes the preset back into the sentence.
+ */
+export function LimitKnob({ form }: { form: SearchForm }) {
+  const { values, set } = form;
+  const typed = Number.isNaN(values.limit) ? 0 : values.limit;
+  const nearest = LIMIT_PRESETS.reduce((best, p) => (Math.abs(p - typed) < Math.abs(best - typed) ? p : best));
+  return (
+    <div className="flex flex-col items-center gap-3.5">
+      <Bracket label="Limit" />
+      <Knob value={nearest} options={LIMIT_PRESETS} onChange={set.setLimit} label="Limit" format={formatNumber} size={170} />
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="led led-on" />
+        <span className="cap text-muted-foreground">Turn or click</span>
+      </div>
+    </div>
+  );
+}
+
+/** A panel label over a bracket: the cap sits in a gap in the bracket's top line. */
+function Bracket({ label }: { label: string }) {
+  return (
+    <div aria-hidden className="relative h-3.5 w-[150px]">
+      <span className="absolute inset-x-1 top-0.5 h-1.5 border border-b-0 border-muted-foreground" />
+      <span className="cap absolute -top-1 left-1/2 -translate-x-1/2 bg-background px-1.5 text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -274,15 +288,15 @@ export function SearchFields({
 /** The line under the submit button: what is wrong, or what a search costs. */
 export function SearchFootnote({ form }: { form: SearchForm }) {
   const { me, kind, values, maxLimit, problem } = form;
-  if (problem) return <span className="text-sm text-destructive field:font-mono field:text-[10.5px]">{problem}</span>;
+  if (problem) return <span className="font-mono text-[10.5px] text-destructive">{problem}</span>;
   const remaining = me.data ? me.data.usage.emailsLimit - me.data.usage.emailsVerified : null;
   return (
-    <p className={cn('max-w-sm text-xs text-muted-foreground', FIELD_NOTE)}>
+    <p className={cn('max-w-sm', NOTE)}>
       Only verified emails count.
       {remaining !== null && (
         <>
           {' '}
-          <span className="field:font-medium field:text-primary">{formatNumber(Math.max(0, remaining))}</span> left this month.
+          <span className="font-medium text-primary">{formatNumber(Math.max(0, remaining))}</span> left this month.
         </>
       )}
       {me.data && kind !== 'domains' && values.limit > maxLimit && ` Max ${formatNumber(maxLimit)} companies per search.`}
@@ -292,7 +306,7 @@ export function SearchFootnote({ form }: { form: SearchForm }) {
 }
 
 /**
- * The pasted list in display type, growing with its lines up to a scroll.
+ * The pasted list on a recessed plate, growing with its lines up to a scroll.
  * Monospace, since most of what lands here is domains.
  */
 function ListField({
@@ -321,7 +335,7 @@ function ListField({
       aria-invalid={invalid}
       aria-describedby="list-summary"
       placeholder={'acme.com\nhttps://linear.app\nStripe'}
-      className={cn(SENTENCE, 'block w-full resize-none overflow-y-auto font-mono text-2xl leading-[1.45] font-normal tracking-tight', FIELD_PLATE, 'field:text-lg')}
+      className={cn(SENTENCE, 'block w-full resize-none overflow-y-auto text-lg leading-[1.45] font-normal tracking-tight', PLATE)}
     />
   );
 }
@@ -337,7 +351,7 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
     <div
       id="list-summary"
       aria-live="polite"
-      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground field:font-mono field:text-[10.5px]"
+      className="col-start-2 -mt-1 mb-4 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[10.5px] text-muted-foreground"
     >
       {items.length === 0 ? (
         <span>One per line: domains, websites, email addresses or company names. Up to {formatNumber(max)}.</span>
@@ -346,18 +360,15 @@ function ListSummary({ items, domains, names, max }: { items: string[]; domains:
           <span className={cn('mr-1 tabular-nums', items.length > max ? 'text-destructive' : 'text-foreground')}>
             {items.length > max ? `More than ${formatNumber(max)}` : parts.join(', ')}
           </span>
-          {shown.map((item) => {
-            const domain = itemDomain(item);
-            return (
-              <span
-                key={item}
-                title={item}
-                className={cn('max-w-48 truncate rounded-full bg-foreground/[0.05] px-2.5 py-0.5 field:rounded-[3px] field:bg-secondary', domain && 'font-mono')}
-              >
-                {domain ?? item}
-              </span>
-            );
-          })}
+          {shown.map((item) => (
+            <span
+              key={item}
+              title={item}
+              className="max-w-48 truncate rounded-[3px] bg-secondary px-2 py-0.5 text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]"
+            >
+              {itemDomain(item) ?? item}
+            </span>
+          ))}
           {items.length > shown.length && items.length <= max && <span>and {formatNumber(items.length - shown.length)} more</span>}
         </>
       )}
@@ -379,7 +390,7 @@ function SentenceSelect({
   // Radix reserves the empty string for "no value", so "any" stands in for it.
   return (
     <Select value={value || ANY} onValueChange={(v) => onChange(v === ANY ? '' : v)}>
-      <SelectTrigger id={id} className={cn(SENTENCE, 'w-full text-left', FIELD_WORD)}>
+      <SelectTrigger id={id} className={cn(SENTENCE, 'w-full text-left')}>
         {/* Room for descenders: truncation clips to the line box at this size. */}
         <span className="min-w-0 flex-1 truncate py-[0.12em]">
           <SelectValue />

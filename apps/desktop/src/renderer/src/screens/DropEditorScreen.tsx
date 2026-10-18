@@ -23,7 +23,7 @@ export function DropEditorScreen({ id, keyword }: { id: string | null; keyword?:
   if (id && isPending) {
     return (
       <>
-        <PageHeader leading={<BackButton />} newSearch={false} />
+        <PageHeader leading={<BackButton />} />
         <div className="mx-auto w-full max-w-[760px] px-8 pt-[9vh]">
           <Skeleton className="h-10 w-96" />
           <Skeleton className="mt-6 h-10 w-80" />
@@ -34,7 +34,7 @@ export function DropEditorScreen({ id, keyword }: { id: string | null; keyword?:
   if (id && !drop) {
     return (
       <>
-        <PageHeader leading={<BackButton />} newSearch={false} />
+        <PageHeader leading={<BackButton />} />
         <EmptyState
           icon={Inbox}
           title="This drop is gone"
@@ -116,11 +116,11 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
 
   return (
     <>
-      <PageHeader leading={<BackButton />} newSearch={false} />
+      <PageHeader leading={<BackButton />} />
       <main className="fade-edges flex-1 overflow-auto px-8 pb-24">
         <form onSubmit={submit} className="mx-auto flex max-w-[760px] flex-col pt-[9vh] motion-safe:animate-view-in" noValidate>
-          <h1 className="font-display text-xl font-semibold text-muted-foreground field:font-light">{drop ? 'Edit drop' : 'New drop'}</h1>
-          <p className="mt-1 text-sm text-muted-foreground field:font-mono field:text-xs">
+          <h1 className="font-display text-xl font-light text-muted-foreground">{drop ? 'Edit drop' : 'New drop'}</h1>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
             Once a day, the launches that are new since the last run, crawled and verified.
           </p>
 
@@ -136,8 +136,8 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
               />
             </Line>
 
-            <span className="self-center font-display text-4xl font-semibold text-muted-foreground/50 field:font-light">from</span>
-            <div className="flex flex-wrap gap-1.5 self-center py-2" role="group" aria-label="Sources">
+            <span className="self-center font-display text-4xl font-light text-muted-foreground/50">from</span>
+            <div className="flex flex-wrap gap-2.5 self-center py-2" role="group" aria-label="Sources">
               {FEED_SOURCES.map((s) => (
                 <button
                   key={s}
@@ -146,15 +146,13 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
                   onClick={() => toggle(s)}
                   title={available(s) ? undefined : 'Not collected on this server yet'}
                   className={cn(
-                    'h-10 rounded-full px-4 text-sm outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 field:inline-flex field:h-8 field:items-center field:gap-2 field:rounded-[4px] field:px-3 field:font-mono field:text-xs field:uppercase field:tracking-[0.06em]',
-                    picked.includes(s)
-                      ? 'glass-strong font-medium text-foreground'
-                      : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
+                    'key inline-flex h-8 items-center gap-2 bg-secondary px-3 font-mono text-xs tracking-[0.06em] uppercase outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                    picked.includes(s) ? 'text-secondary-foreground' : 'text-muted-foreground hover:text-secondary-foreground',
                     !available(s) && 'opacity-50',
                   )}
                 >
-                  {/* The Field look lights an LED on each picked source. */}
-                  <span className={cn('hidden field:led', picked.includes(s) && 'field:led-on')} aria-hidden />
+                  {/* A keycap per source; its LED lights when picked. */}
+                  <span className={cn('led', picked.includes(s) && 'led-on')} aria-hidden />
                   {FEED_SOURCE_LABEL[s]}
                 </button>
               ))}
@@ -172,11 +170,10 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
                   style={{ width: `${Math.max(2, String(Number.isNaN(limit) ? '' : limit).length) + 0.4}ch` }}
                   className={cn(
                     SENTENCE,
-                    'tabular-nums [&::-webkit-inner-spin-button]:appearance-none',
-                    'field:rounded-[4px] field:bg-card field:px-2 field:font-mono field:font-light field:shadow-[inset_0_1px_2px_var(--shadow-strong)]',
+                    'rounded-[4px] bg-card px-2 font-mono font-light tabular-nums shadow-[inset_0_1px_2px_var(--shadow-strong)] [&::-webkit-inner-spin-button]:appearance-none',
                   )}
                 />
-                <span className="font-display text-4xl font-semibold text-muted-foreground/50 field:font-light">a day</span>
+                <span className="font-display text-4xl font-light text-muted-foreground/50">a day</span>
               </div>
             </Line>
             <div className="col-start-2 -mt-1 -ml-3 flex gap-1" role="group" aria-label="Preset limits">
@@ -205,9 +202,9 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
               {!pending && <CornerDownLeft className="size-3.5 opacity-70" />}
             </Button>
             {touched && !valid ? (
-              <span className="text-sm text-destructive">Pick at least one source.</span>
+              <span className="font-mono text-xs text-destructive">Pick at least one source.</span>
             ) : (
-              <p className="max-w-sm text-xs text-muted-foreground field:font-mono">
+              <p className="max-w-sm font-mono text-xs text-muted-foreground">
                 {drop
                   ? 'Changes apply from the next run.'
                   : `Runs within a minute and reaches back ${DROP_BACKFILL_DAYS} days, then once a day.`}

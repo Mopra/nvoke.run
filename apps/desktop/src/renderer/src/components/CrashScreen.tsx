@@ -20,17 +20,24 @@ export class CrashBoundary extends Component<{ children: ReactNode }, { error: E
 
   override render() {
     if (!this.state.error) return this.props.children;
+    // A plate on the chassis: a fault lamp, a light title and the message in mono.
     return (
-      <div className="canvas app-drag flex h-screen flex-col items-center justify-center px-6 text-center">
-        <h1 className="font-display text-3xl font-semibold">Something broke</h1>
-        <p className="mt-3 max-w-sm text-sm text-muted-foreground">
-          nvoke hit an error it could not draw past. Reload, and if it keeps happening, update to the latest version.
-        </p>
-        <p className="mt-4 max-w-md truncate font-mono text-xs text-muted-foreground/70">{this.state.error.message}</p>
-        <Button className="mt-8" onClick={() => location.reload()}>
-          <RotateCw />
-          Reload
-        </Button>
+      <div className="canvas app-drag flex h-screen items-center justify-center px-6">
+        <div className="glass-strong flex w-full max-w-[420px] flex-col items-start gap-4 rounded-[8px] p-6">
+          <span className="cap flex items-center gap-2 text-muted-foreground">
+            <span className="led bg-destructive shadow-[0_0_6px_var(--destructive)]" />
+            Fault
+          </span>
+          <h1 className="font-display text-2xl font-light">Something broke</h1>
+          <p className="font-mono text-xs text-muted-foreground">
+            nvoke hit an error it could not draw past. Reload, and if it keeps happening, update to the latest version.
+          </p>
+          <p className="w-full truncate font-mono text-xs text-muted-foreground/70">{this.state.error.message}</p>
+          <Button className="mt-2" onClick={() => location.reload()}>
+            <RotateCw />
+            Reload
+          </Button>
+        </div>
       </div>
     );
   }
