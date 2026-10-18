@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-18 Hourly round: the human committed the Field look and instrument panel (25fea19 to 4c6885b) past green 4769fea, tree clean, so filed 'Checks on main after the Field look and instrument panel' (sonnet, with capture). No aim.
 - 2026-10-18 Round as the human left: no commits past green 4769fea but memory. The human's uncommitted Field look work (about 30 renderer files, theme.css, docs/desktop/look.md) is theirs in progress, so no checks quest yet. No aim, nothing to file.
 - 2026-10-18 Hourly round: unchanged (only memory commits past green 4769fea, the human's 3 dirty renderer files; no aim). Nothing to do.
 - 2026-10-18 Hourly round: nothing new since 4769fea (green), only the human's 3 dirty renderer files. No aim, nothing to file.
@@ -158,7 +159,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
+- Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Checks quest filed for the Field look commits up to 4c6885b; see its result. Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
