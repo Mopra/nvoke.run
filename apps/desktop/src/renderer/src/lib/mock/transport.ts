@@ -47,6 +47,7 @@ import {
   type Webhook,
 } from '@nvoke/shared';
 import { generateCompany, mockOpener, mockSiteProfile, sourceYield, type MockCompanySeed } from './data';
+import { FILM_HISTORY, FILM_PACE, filmCompany, filmOpener, filmSiteProfile } from './film';
 
 const QUEUE_MS = 1500;
 /** How long Claude takes over one opener, before the stagger across a batch. */
@@ -118,6 +119,8 @@ export interface MockOptions {
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
   /** Seed demo searches. Defaults to true. */
   seed?: boolean;
+  /** The product film's cast instead of the demo searches (film.ts). */
+  film?: boolean;
 }
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
@@ -141,7 +144,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
 
   /** Plain words searches plan, mine directories and read team pages, so they take a few minutes. */
   function findDuration(total: number, kind: SearchInput['kind'] = 'web'): number {
-    return kind === 'icp' ? clamp(total * 0.25, 30, 200) : clamp(total * 0.18, 5, 45);
+    if (kind === 'icp') return clamp(total * 0.25, 30, 200) / (options.film ? FILM_PACE : 1);
+    return clamp(total * 0.18, 5, 45);
   }
 
   /** Companies discovered after `t` seconds of running. */
@@ -185,7 +189,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (!list) seedCache.set(rec.id, (list = []));
     for (let i = list.length; i < rec.total; i++) {
       const run = rec.runs.findLast((r) => r.foundBefore <= i);
-      list.push(generateCompany(rec.id, run?.input ?? rec.input, i));
+      list.push((options.film ? filmCompany : generateCompany)(rec.id, run?.input ?? rec.input, i));
     }
     return list;
   }
@@ -247,7 +251,8 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (queuedAt === undefined) return null;
     const doneAt = queuedAt + OPENER_MS + (index % 8) * 250;
     if (now() < doneAt) return { status: 'queued', line: null, sourceUrl: null, quote: null, draftedAt: null };
-    return mockOpener(seed.company, index, new Date(doneAt).toISOString());
+    const at = new Date(doneAt).toISOString();
+    return (options.film ? filmOpener(index, rec.input, at) : undefined) ?? mockOpener(seed.company, index, at);
   }
 
   /** POST /v1/searches/:id/openers: queues the companies with a valid email that have no opener yet, or all of them on `redo`. */
@@ -390,7 +395,9 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     return rec;
   }
 
-  if (options.seed !== false) {
+  if (options.film) {
+    for (const { input, daysAgo } of FILM_HISTORY) add(input, now() - daysAgo * 86_400_000);
+  } else if (options.seed !== false) {
     const t0 = now();
     const min = 60_000;
     const day = 24 * 60 * min;
@@ -634,7 +641,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
       }
       if (!host.includes('.')) return fail(400, 'invalid_request');
       if (host.endsWith('.invalid')) return { ok: false, status: 422, error: 'site_unreadable', detail: 'unreachable' };
-      const profile = mockSiteProfile(host, new Date(now()).toISOString());
+      const profile = (options.film ? filmSiteProfile : mockSiteProfile)(host, new Date(now()).toISOString());
       storage.setItem(SITE_PROFILE_KEY, JSON.stringify(profile));
       return json(200, profile);
     }

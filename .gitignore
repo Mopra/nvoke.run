@@ -26,3 +26,8 @@ apps/desktop/screenshots/
 
 # Crawl benchmark cache and results (apps/server/src/bench)
 .bench/
+
+# Launch film (apps/video): renders and the recorded takes.
+apps/video/out/
+apps/video/public/takes/
+apps/video/.raw/

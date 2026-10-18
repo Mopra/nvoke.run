@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { app, nativeTheme, type BrowserWindow } from 'electron';
 import type { MainContext } from '../context';
+import { FILM_SCALE, filmScenes, runFilm } from './film';
 import { createKit, sleep, waitForLoad, type CaptureExtras } from './kit';
 import { CAPTURE_STEPS } from './shots';
 
@@ -38,6 +39,8 @@ export function prepareCapture(): string | null {
     app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
     app.commandLine.appendSwitch('disable-renderer-backgrounding');
     app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+    // The film records at twice the pixels, so the camera can move in close (film/).
+    if (filmScenes()) app.commandLine.appendSwitch('force-device-scale-factor', String(FILM_SCALE));
   }
   return dir;
 }
@@ -46,7 +49,8 @@ export function prepareCapture(): string | null {
 export function registerCapture(ctx: MainContext, extras: CaptureExtras): void {
   const dir = ctx.captureDir;
   if (!dir) return;
-  ctx.on('window', (win) => void runCapture(win, dir, extras));
+  const scenes = filmScenes();
+  ctx.on('window', (win) => void (scenes ? runFilm(win, dir, scenes) : runCapture(win, dir, extras)));
 }
 
 export async function runCapture(win: BrowserWindow, dir: string, extras: CaptureExtras = { quick: null, grab: null }): Promise<void> {

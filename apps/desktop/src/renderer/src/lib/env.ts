@@ -1,6 +1,8 @@
 export const env = {
   /** VITE_MOCK=1 runs the renderer on fake data, without the main process bridge. */
   mock: import.meta.env['VITE_MOCK'] === '1',
+  /** VITE_FILM=1 swaps the mock's demo data for the product film's cast (lib/mock/film.ts). */
+  film: import.meta.env['VITE_FILM'] === '1',
   /** The marketing site, where billing and checkout happen. */
   siteUrl: (import.meta.env['VITE_SITE_URL'] as string | undefined) || (import.meta.env.PROD ? 'https://nvoke.run' : 'http://localhost:3001'),
   /** apps/server. The renderer never calls it; it only shows it, for the API and MCP setup lines. */

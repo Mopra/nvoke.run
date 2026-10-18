@@ -246,7 +246,7 @@ export function bridgeFromWindow(): NvokeBridge | null {
 
 function pickTransport(): { transport: Transport; mode: 'mock' | 'bridge' } {
   const bridge = typeof window === 'undefined' ? null : bridgeFromWindow();
-  if (env.mock || !bridge) return { transport: createMockTransport(), mode: 'mock' };
+  if (env.mock || !bridge) return { transport: createMockTransport({ film: env.film }), mode: 'mock' };
   return { transport: bridge, mode: 'bridge' };
 }
 
