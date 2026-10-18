@@ -29,18 +29,14 @@ export function VerificationBadge({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
+        {/* A cap label with its LED, printed on the chassis. */}
         <span
           className={cn(
-            'inline-flex h-[18px] shrink-0 cursor-default items-center gap-1.5 rounded-full bg-foreground/[0.05] pr-2 pl-1.5 text-2xs font-medium',
+            'cap inline-flex h-[18px] shrink-0 cursor-default items-center gap-2',
             value === 'invalid' && !pending ? 'text-muted-foreground' : 'text-foreground/75',
           )}
         >
-          <span
-            className={cn(
-              'size-1.5 rounded-full',
-              pending ? 'bg-primary/70 motion-safe:animate-pulse' : VERIFICATION_DOT[value],
-            )}
-          />
+          <span className={cn('led', pending ? 'bg-primary/70 motion-safe:animate-pulse' : VERIFICATION_DOT[value])} />
           {label}
         </span>
       </TooltipTrigger>
@@ -57,21 +53,15 @@ const STATUS_DOT: Record<SearchStatus, string> = {
   canceled: 'bg-muted-foreground/35',
 };
 
+/** An LED, lit and blinking while the search runs. The one-property color utilities win over `led`. */
 export function StatusDot({ status, className }: { status: SearchStatus; className?: string }) {
   const live = status === 'running' || status === 'queued';
-  return (
-    <span className={cn('relative inline-flex size-[7px] shrink-0', className)}>
-      {live && (
-        <span className={cn('absolute -inset-px rounded-full opacity-50 motion-safe:animate-ping', STATUS_DOT[status])} />
-      )}
-      <span className={cn('relative inline-flex size-[7px] rounded-full', STATUS_DOT[status])} />
-    </span>
-  );
+  return <span className={cn('led', STATUS_DOT[status], live && 'led-on motion-safe:animate-pulse', className)} />;
 }
 
 export function StatusLabel({ status }: { status: SearchStatus }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <span className="cap inline-flex items-center gap-2 text-muted-foreground">
       <StatusDot status={status} />
       {STATUS_LABEL[status]}
     </span>
