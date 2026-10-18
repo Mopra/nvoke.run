@@ -60,7 +60,7 @@ export function SearchWorking({ search }: { search: Search }) {
     >
       <div className="relative size-44 shrink-0">
         {/* The aura behind the mark breathes while it works. */}
-        <div className="absolute inset-10 rounded-full bg-primary/15 blur-2xl motion-safe:animate-breathe" />
+        <div className="absolute inset-4 rounded-full bg-radial from-primary/20 to-transparent to-70% motion-safe:animate-breathe" />
         {[0, 1, 2].map((ring) => (
           <span
             key={ring}
