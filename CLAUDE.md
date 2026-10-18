@@ -34,6 +34,10 @@ pnpm workspaces, TypeScript everywhere, Node 24.
   and sign up are `app/sign-in` and `app/sign-up`; the desktop sign-in and
   billing pages are under `app/desktop`. Clerk runs only on those routes and
   `/claim` (`proxy.ts`); the marketing pages stay static.
+- `apps/video`: the product videos (Remotion). Takes are recorded from the
+  real desktop app by `pnpm --filter @nvoke/desktop film`, sound is
+  synthesized by `scripts/teaser-audio.py`. The style that works and the
+  whole recipe are in `docs/video.md`; read it before making a video.
 - `packages/theme`: `theme.css`, the single source of the shadcn color tokens
   (plus a few extras: `sidebar-material`, `glow`, `sheen`, `scrim`, layered
   shadows). Imported by the desktop renderer's `index.css` and the site's
@@ -159,12 +163,13 @@ local copy) and is sold from `/download` and the Account page.
 ## Desktop window
 
 The main window is frameless with native controls (`src/main/window.ts`).
-macOS: `hiddenInset` traffic lights at the top left of the canvas, `sidebar`
-vibrancy. Windows: hidden title bar with `titleBarOverlay` caption buttons (clear
-over Mica), Mica on Windows 11 (build 22000+), opaque on Windows 10. Linux: the same
-overlay, opaque. There is no sidebar: a floating glass island at the top center opens the
-command bar and shows a running search's progress (`components/AppShell.tsx`).
-The renderer reads `window.nvoke.window.getChrome()` and sets
+macOS: `hiddenInset` traffic lights at the top left of the canvas. Windows and
+Linux: hidden title bar with `titleBarOverlay` caption buttons. The canvas is
+opaque (the window material, where the OS offers one, stays behind it). There
+is no sidebar: the device frame in `components/AppShell.tsx` is the way
+around. Ports along the top edge are the navigation, the name plate and the
+speaker grille sit below them, and the black display strip shows the running
+search and opens the command bar (docs/desktop/look.md). The renderer reads `window.nvoke.window.getChrome()` and sets
 `data-platform`, `data-material` and `data-controls` on `<html>`
 (`lib/chrome.ts`); CSS variants `mac:`, `material:`, `blurred:` and
 `fullscreen:` follow them. Drag regions use the `app-drag` utility; buttons,
@@ -238,20 +243,17 @@ it through `protocols` in `electron-builder.yml`.
    `border-border`, `ring-ring`, `bg-sidebar` and so on. ESLint enforces this in
    `apps/desktop/src/renderer` and `apps/site`. All colors live in
    `packages/theme/theme.css`, so a theme swaps in one file for both apps.
-   The desktop has a second look, Field (an instrument panel, orange on warm
-   grey), behind `data-look="field"` and the `field:` variant; its parts and
-   rules are in `docs/desktop/look.md`. Calm stays the default.
-2. **Theme direction.** How Apple would design a native app in 2030: calm,
-   extreme whitespace, premium. Cool near-neutral grays (oklch hue about 265,
-   chroma under 0.01) and one accent, "iris" (oklch about 0.57 0.215 268),
-   spent sparingly: the primary action (with a soft glow), focus, running
-   progress, and the aura (ambient iris light that rises only while a search
-   runs). Large display type (`font-display`, `text-3xl` to `text-5xl`), thin
-   numerals for figures, pills and large continuous radii (20 to 28px),
-   floating liquid glass (`glass`, `glass-strong`) for controls, no boxes
-   around content. System fonts, monospace for domains and emails. The desktop
-   window is one translucent canvas (`canvas`) over the window material
-   (vibrancy on macOS, Mica on Windows 11), opaque where there is none.
+   The desktop's tokens are `packages/theme/field.css`, imported after
+   `theme.css`; the site still uses `theme.css` alone.
+2. **Theme direction.** An instrument panel in the Braun and Teenage
+   Engineering line (docs/desktop/look.md): a warm grey chassis, an off-white
+   plate for cards, one signal orange spent on the primary action, running
+   progress and the chosen state, keycap buttons that sink when pressed, a
+   black display strip with dot matrix figures, tiny mono capital labels,
+   channel rows with hairlines and LED dots. Space Grotesk for text (light
+   display titles, thin numerals), JetBrains Mono for labels, domains and
+   emails, Doto on the screen. Small radii (4 to 8px), no liquid glass; the
+   canvas is opaque. Light and dark are two finishes of the same device.
 3. **No em dashes, en dashes or `--` as punctuation** in code comments, docs,
    UI strings or commit messages. Rewrite the sentence with a comma, colon,
    parentheses or a full stop. `scripts/check-punctuation.mjs` catches the
