@@ -1,0 +1,196 @@
+/*
+ * nvoke motion. Shared by apps/desktop and apps/site, imported right after
+ * theme.css. Motion helps: it shows where content came from, that work is
+ * happening, and what changed. It is quick (120 to 420ms for UI), eases out,
+ * never bounces more than the spring below, and costs nothing at rest.
+ * Everything here stops under prefers-reduced-motion.
+ */
+@theme {
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-view-in: view-in 360ms var(--ease-out-expo) both;
+  --animate-item-in: item-in 420ms var(--ease-out-expo) both;
+  --animate-fade-in: fade-in 240ms ease-out both;
+  --animate-pop-in: pop-in 320ms var(--ease-out-expo) both;
+  --animate-skeleton: skeleton 1.6s ease-in-out infinite;
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes item-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes skeleton {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+ * Staggered lists: put `stagger` on the list and give each child its index
+ * as `style={{ '--i': index }}`. Only the first 12 rows wait; later rows come
+ * in with the twelfth, so long lists never feel slow.
+ */
+@utility stagger {
+  & > * {
+    animation: item-in 420ms var(--ease-out-expo) both;
+    animation-delay: calc(min(var(--i, 0), 12) * 28ms);
+  }
+}
+
+/*
+ * The logo in motion. Markup: the mark's svg gets `logo-motion` plus one
+ * state class; its arch path has class `logo-arch`, the two poles
+ * `logo-poles`, the lead dot `logo-lead`.
+ *
+ * logo-loading: the magnet draws, then keeps pulling the lead up under the
+ * arch, a calm loop for any wait.
+ * logo-intro: the same pull once, for a first paint or sign-in.
+ * logo-hover (on a parent with `group`): the lead hops on hover.
+ */
+.logo-motion .logo-arch {
+  stroke-dasharray: 30;
+}
+.logo-motion .logo-lead {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.logo-loading .logo-arch {
+  animation: logo-arch 1.6s var(--ease-out-expo) infinite;
+}
+.logo-loading .logo-poles {
+  animation: logo-poles 1.6s var(--ease-out-expo) infinite;
+}
+.logo-loading .logo-lead {
+  animation: logo-lead 1.6s var(--ease-out-expo) infinite;
+}
+.logo-intro .logo-arch {
+  animation: logo-arch-once 700ms var(--ease-out-expo) both;
+}
+.logo-intro .logo-poles {
+  animation: logo-poles-once 700ms 120ms var(--ease-out-expo) both;
+}
+.logo-intro .logo-lead {
+  animation: logo-lead-once 900ms 260ms var(--ease-spring, var(--ease-out-expo)) both;
+}
+.group:hover .logo-hover .logo-lead,
+.logo-hover:hover .logo-lead {
+  animation: logo-hop 520ms var(--ease-out-expo);
+}
+
+@keyframes logo-arch {
+  0% {
+    stroke-dashoffset: 30;
+  }
+  35%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes logo-poles {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  40%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes logo-lead {
+  0%,
+  30% {
+    opacity: 0;
+    transform: translateY(9px) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.08);
+  }
+  72%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@keyframes logo-arch-once {
+  from {
+    stroke-dashoffset: 30;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes logo-poles-once {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes logo-lead-once {
+  from {
+    opacity: 0;
+    transform: translateY(9px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes logo-hop {
+  40% {
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > *,
+  .logo-motion * {
+    animation: none !important;
+  }
+  .logo-motion .logo-arch {
+    stroke-dasharray: none;
+  }
+}

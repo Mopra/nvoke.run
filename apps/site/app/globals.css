@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@nvoke/theme/theme.css";
+@import "@nvoke/theme/motion.css";
+@import "./motion-app.css";
+@import "./motion-mockups.css";
+@import "./motion-journey.css";
 
 @custom-variant dark (&:is(.dark *));
 
