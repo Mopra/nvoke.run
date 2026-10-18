@@ -92,8 +92,8 @@ export function IcpSearchScreen() {
   }
 
   return (
-    <main className={cn(APP_FRAME, 'pb-24')}>
-      <form onSubmit={submit} noValidate className={cn(APP_INSET, 'flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')}>
+    <main className={cn(APP_FRAME, 'app-view pb-24')}>
+      <form onSubmit={submit} noValidate className={cn(APP_INSET, 'flex flex-col pt-8 sm:pt-[6vh]')}>
         <BackLink />
 
         <h1 className="mt-8 font-display text-[34px]/[42px] font-semibold tracking-[-0.035em] text-balance sm:text-5xl/[1.15]">

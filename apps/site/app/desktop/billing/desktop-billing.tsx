@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SignIn, useAuth, useUser } from '@clerk/nextjs';
 import { CheckoutButton, SubscriptionDetailsButton, usePlans } from '@clerk/nextjs/experimental';
 import { FREE_PLAN, MeResponse, PAID_PLANS, PLAN_ORDER, planLabel, type Plan } from '@nvoke/shared';
+import { LogoLoader } from '@/components/app/motion';
 import { PlanSlider } from '@/components/site/plan-slider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,9 +36,9 @@ export function DesktopBilling({
   title = true,
 }: BillingProps) {
   const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!isLoaded) return <LogoLoader />;
   if (!isSignedIn) {
-    return <SignIn routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
+    return <SignIn fallback={<LogoLoader />} routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
   return <Billing returnUrl={returnUrl} doneHint={doneHint} onPlanChange={onPlanChange} title={title} />;
 }
@@ -67,7 +68,7 @@ function Billing({
     };
   }, [getToken, version]);
 
-  if (load.kind === 'loading') return <p className="text-sm text-muted-foreground">Loading your plan…</p>;
+  if (load.kind === 'loading') return <LogoLoader label="Loading your plan" />;
   if (load.kind === 'error') {
     return (
       <Card className="w-full max-w-md">

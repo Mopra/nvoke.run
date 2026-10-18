@@ -164,8 +164,8 @@ export function WebsiteScreen({ fresh = false }: { fresh?: boolean }) {
   }
 
   return (
-    <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className={cn(APP_INSET, 'relative flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')}>
+    <main className={cn(APP_FRAME, 'app-view pb-24')}>
+      <div className={cn(APP_INSET, 'relative flex flex-col pt-8 sm:pt-[6vh]')}>
         <BackLink />
         <div className="mt-6">{body}</div>
       </div>

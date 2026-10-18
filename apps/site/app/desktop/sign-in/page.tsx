@@ -28,7 +28,7 @@ export default async function DesktopSignInPage({ searchParams }: { searchParams
         className="halo pointer-events-none absolute top-24 left-1/2 h-[30rem] w-[44rem] max-w-[140vw] -translate-x-1/2 opacity-35 dark:opacity-40"
       />
       <div className="relative mx-auto flex min-h-[70dvh] max-w-md flex-col items-center gap-8 px-6 py-16 sm:py-24">
-        <LogoMark className="size-14" />
+        <LogoMark motion="intro" className="size-14" />
         {state.success && codeChallenge.success ? (
           <DesktopSignIn state={state.data} codeChallenge={codeChallenge.data} />
         ) : (

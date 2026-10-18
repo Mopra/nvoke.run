@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { SignIn } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
+import { LogoLoader } from '@/components/app/motion';
 import { AuthFrame } from '@/components/site/auth-frame';
 
 export const metadata: Metadata = { title: 'Sign in', robots: { index: false, follow: true } };
@@ -11,7 +12,7 @@ export default async function SignInPage() {
   if ((await auth()).userId) redirect('/app');
   return (
     <AuthFrame title="Welcome back" lede="Sign in to your searches.">
-      <SignIn path="/sign-in" routing="path" signUpUrl="/sign-up" fallbackRedirectUrl="/app" />
+      <SignIn fallback={<LogoLoader label="Loading sign in" />} path="/sign-in" routing="path" signUpUrl="/sign-up" fallbackRedirectUrl="/app" />
     </AuthFrame>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { SignUp } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
+import { LogoLoader } from '@/components/app/motion';
 import { AuthFrame } from '@/components/site/auth-frame';
 import { PLANS } from '@nvoke/shared';
 
@@ -18,7 +19,7 @@ export default async function SignUpPage() {
       title="Start free"
       lede={`${PLANS.free.emailsPerMonth} verified emails a month, no card. Runs in your browser, nothing to install.`}
     >
-      <SignUp path="/sign-up" routing="path" signInUrl="/sign-in" fallbackRedirectUrl="/app" />
+      <SignUp fallback={<LogoLoader label="Loading sign up" />} path="/sign-up" routing="path" signInUrl="/sign-in" fallbackRedirectUrl="/app" />
     </AuthFrame>
   );
 }

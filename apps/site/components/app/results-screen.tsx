@@ -531,7 +531,7 @@ type View = 'people' | 'companies';
 /** The page before its search loads: the route's loading state, and the screen's own while the first answer comes. */
 export function ResultsLoading() {
   return (
-    <main className={APP_FRAME}>
+    <main className={cn(APP_FRAME, 'app-view')}>
       <div className={cn(APP_INSET, 'flex items-center gap-2 pt-8')}>
         <BackLink />
       </div>
@@ -806,7 +806,7 @@ export function ResultsScreen({ id }: { id: string }) {
   if (searchQuery.error) {
     const missing = searchQuery.error instanceof ApiError && (searchQuery.error.status === 404 || searchQuery.error.status === 400);
     return (
-      <main className={APP_FRAME}>
+      <main className={cn(APP_FRAME, 'app-view')}>
         {header}
         {missing ? (
           <EmptyState
@@ -829,7 +829,7 @@ export function ResultsScreen({ id }: { id: string }) {
 
   if (!search) {
     return (
-      <main className={APP_FRAME}>
+      <main className={cn(APP_FRAME, 'app-view')}>
         {header}
         <div className={cn(APP_INSET, 'pt-6 pb-10')}>
           <Skeleton className="h-8 w-80 max-w-full" />
@@ -854,7 +854,7 @@ export function ResultsScreen({ id }: { id: string }) {
         : `${formatNumber(total)} companies`;
 
   return (
-    <main className={cn(APP_FRAME, 'pb-40')}>
+    <main className={cn(APP_FRAME, 'app-view pb-40')}>
       {header}
       <Overview
         search={search}
@@ -1021,7 +1021,7 @@ export function ResultsScreen({ id }: { id: string }) {
             {inboxChecking(search.inboxesPending)}
           </div>
         )}
-        <div className="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-[24px] p-1.5 motion-safe:animate-rise lg:flex-nowrap lg:rounded-full">
+        <div className="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-[24px] p-1.5 motion-safe:animate-rise motion-safe:[animation-delay:120ms] lg:flex-nowrap lg:rounded-full">
           <div className="relative w-full lg:w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <input

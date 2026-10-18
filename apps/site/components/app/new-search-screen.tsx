@@ -118,8 +118,8 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
   const problem = touched ? formProblem(form, maxLimit) : null;
 
   return (
-    <main className={cn(APP_FRAME, 'pb-24')}>
-      <form onSubmit={submit} className={cn(APP_INSET, 'flex flex-col pt-8 motion-safe:animate-rise sm:pt-[6vh]')} noValidate>
+    <main className={cn(APP_FRAME, 'app-view pb-24')}>
+      <form onSubmit={submit} className={cn(APP_INSET, 'flex flex-col pt-8 sm:pt-[6vh]')} noValidate>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <BackLink />
           <div className="-mr-3 flex flex-wrap items-center">

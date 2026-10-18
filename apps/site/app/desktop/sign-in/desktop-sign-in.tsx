@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SignIn, useAuth, useClerk, useUser } from '@clerk/nextjs';
 import { DesktopAuthorizeResponse } from '@nvoke/shared';
+import { LogoLoader } from '@/components/app/motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
@@ -63,11 +64,11 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
   }, [isLoaded, isSignedIn, authorize]);
 
   if (!isLoaded) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return <LogoLoader />;
   }
 
   if (!isSignedIn) {
-    return <SignIn routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
+    return <SignIn fallback={<LogoLoader />} routing="hash" withSignUp forceRedirectUrl={returnUrl} signUpForceRedirectUrl={returnUrl} />;
   }
 
   const who = user?.primaryEmailAddress?.emailAddress ?? user?.fullName ?? 'your account';

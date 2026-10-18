@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { LogoLoader } from '@/components/app/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiUrl } from '@/lib/api';
 import { formatNumber, periodLabel, relativeTime, resetDate } from '@/lib/app/desktop';
@@ -378,17 +379,13 @@ export function AccountScreen() {
   usePlanSync();
 
   return (
-    <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className={cn(APP_INSET, 'motion-safe:animate-rise')}>
+    <main className={cn(APP_FRAME, 'app-view pb-24')}>
+      <div className={APP_INSET}>
         <DisplayTitle>Account</DisplayTitle>
         {error ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : !me ? (
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-12 w-48" />
-            <Skeleton className="h-1 w-full" />
-            <Skeleton className="h-3 w-64" />
-          </div>
+          <LogoLoader label="Loading your account" />
         ) : (
           <div className="flex flex-col gap-14">
             <div className="flex items-center gap-4">

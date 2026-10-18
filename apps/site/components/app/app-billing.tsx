@@ -13,8 +13,8 @@ export function AppBilling() {
   const client = useQueryClient();
   const onPlanChange = useCallback(() => void client.invalidateQueries({ queryKey: keys.me }), [client]);
   return (
-    <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className={cn(APP_INSET, 'pt-8 motion-safe:animate-rise')}>
+    <main className={cn(APP_FRAME, 'app-view pb-24')}>
+      <div className={cn(APP_INSET, 'pt-8')}>
         <BackLink href="/app/account" label="Account" />
         <DisplayTitle className="pt-6">Your plan</DisplayTitle>
         <DesktopBilling

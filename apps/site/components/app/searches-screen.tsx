@@ -285,8 +285,8 @@ export function SearchesScreen() {
       : 'Start your first one. Results show up here as nvoke finds them.';
 
   return (
-    <main className={cn(APP_FRAME, 'pb-24')}>
-      <div className="motion-safe:animate-rise">
+    <main className={cn(APP_FRAME, 'app-view pb-24')}>
+      <div>
         <DisplayTitle className={APP_INSET} subtitle={subtitle}>
           Searches
         </DisplayTitle>

@@ -1,1 +1,40 @@
 /* Motion for the web app (/app). See packages/theme/motion.css for the shared pieces. */
+
+/*
+ * A screen coming in, on every navigation: put `app-view` on the screen's
+ * main. Its children rise into place together; a fixed child (the results
+ * dock) is left out, since a transform on its parent would pin it to the page
+ * instead of the window while the screen settles.
+ */
+@utility app-view {
+  & > :not(.fixed) {
+    animation: var(--animate-view-in);
+  }
+}
+
+/* The logo loader waits a beat before it shows, so a fast load never flashes it. */
+.logo-loader {
+  animation: fade-in 320ms 180ms ease-out both;
+}
+
+/*
+ * Skeletons breathe while a first load runs (components/ui/skeleton.tsx asks
+ * for `animate-shimmer`, which nothing defines; this is the shared pulse).
+ */
+[data-slot='skeleton'] {
+  animation: var(--animate-skeleton);
+}
+
+/* A tab's content, swapped in place (keyed by the tab). */
+@utility tab-in {
+  animation: item-in 280ms var(--ease-out-expo) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-view > *,
+  .logo-loader,
+  .tab-in,
+  [data-slot='skeleton'] {
+    animation: none !important;
+  }
+}

@@ -4,6 +4,17 @@ import type { ReactNode } from 'react';
 import { RotateCw, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { LogoLoader } from '@/components/app/motion';
+import { APP_FRAME } from '@/components/app/shell';
+
+/** A screen's first load: the logo loader in the frame, where the screen will be. Used by every route's loading.tsx. */
+export function LoadingState({ label }: { label?: string }) {
+  return (
+    <main className={cn(APP_FRAME, 'app-view')}>
+      <LogoLoader page label={label} />
+    </main>
+  );
+}
 
 /** One quiet glyph, one line, at most one action. */
 export function EmptyState({

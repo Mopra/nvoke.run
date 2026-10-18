@@ -19,7 +19,7 @@ export default function DesktopBillingPage() {
         className="halo pointer-events-none absolute top-24 left-1/2 h-[30rem] w-[44rem] max-w-[140vw] -translate-x-1/2 opacity-30 dark:opacity-35"
       />
       <div className="relative mx-auto flex min-h-[70dvh] max-w-2xl flex-col items-center gap-8 px-4 py-16 sm:px-6 sm:py-24">
-        <LogoMark className="size-14" />
+        <LogoMark motion="intro" className="size-14" />
         <DesktopBilling />
       </div>
     </section>
