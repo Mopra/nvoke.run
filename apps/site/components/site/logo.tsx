@@ -12,7 +12,14 @@ export const LOGO = {
  * The nvoke mark, as in the desktop app: a lowercase n drawn as a horseshoe
  * magnet, its poles split off, pulling a lead (the dot) in under the arch.
  */
-export function LogoMark({ className }: { className?: string }) {
+export function LogoMark({
+  className,
+  motion,
+}: {
+  className?: string;
+  /** Animates the mark (packages/theme/motion.css): a loading loop, a one-off intro, or a hop on hover. */
+  motion?: 'loading' | 'intro' | 'hover';
+}) {
   return (
     <span
       aria-hidden="true"
@@ -22,9 +29,14 @@ export function LogoMark({ className }: { className?: string }) {
       )}
     >
       <span className="absolute inset-0 bg-linear-to-b from-highlight/40 to-transparent" />
-      <svg viewBox="0 0 24 24" className="relative size-[62%]" fill="none">
-        <path d={`${LOGO.arch}${LOGO.poles}`} stroke="currentColor" strokeWidth={LOGO.stroke} />
-        <circle {...LOGO.lead} fill="currentColor" />
+      <svg
+        viewBox="0 0 24 24"
+        className={cn('relative size-[62%]', motion && `logo-motion logo-${motion}`)}
+        fill="none"
+      >
+        <path className="logo-arch" d={LOGO.arch} stroke="currentColor" strokeWidth={LOGO.stroke} />
+        <path className="logo-poles" d={LOGO.poles} stroke="currentColor" strokeWidth={LOGO.stroke} />
+        <circle className="logo-lead" {...LOGO.lead} fill="currentColor" />
       </svg>
     </span>
   );
