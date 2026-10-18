@@ -24,7 +24,7 @@ import {
  * a double click on the drag region maximizes it and the edges resize it.
  */
 
-const TITLE_BAR = 48;
+const TITLE_BAR = 36;
 
 /**
  * Paint the chassis before the renderer has loaded, so the window never

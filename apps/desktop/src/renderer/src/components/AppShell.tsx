@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, type RefObject } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { transportMode } from '@/lib/api';
@@ -175,7 +175,7 @@ function Power() {
 /** The name plate on the left, the speaker grille on the right. */
 function Head({ working }: { working: boolean }) {
   return (
-    <div className="app-drag grid shrink-0 grid-cols-[1fr_232px] px-3.5 pt-1">
+    <div className="app-drag grid shrink-0 grid-cols-[1fr_232px] px-3.5">
       <Plate />
       <Grille working={working} />
     </div>
@@ -298,7 +298,7 @@ function Display({ searches, live, route, onOpen }: { searches: Search[]; live: 
       type="button"
       onClick={onOpen}
       aria-label="Search or jump to"
-      className="screen app-no-drag relative mx-3.5 grid h-[52px] shrink-0 grid-cols-[auto_1fr_auto] items-center gap-5 overflow-hidden rounded-none rounded-b-[3px] px-5 text-left outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/60"
+      className="screen app-no-drag relative mx-3.5 grid h-[62px] shrink-0 grid-cols-[auto_1fr_auto] items-center gap-5 overflow-hidden rounded-none rounded-b-[3px] px-5 text-left outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring/60"
     >
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,transparent_40%,oklch(1_0_0/0.05)_55%,transparent_70%)]" />
       <Blocks searches={searches} />
@@ -383,5 +383,64 @@ export function DisplayTitle({
       <h1 className="font-display text-4xl font-light tracking-[-0.02em] text-balance">{children}</h1>
       {subtitle && <p className="cap mt-3 text-primary">{subtitle}</p>}
     </div>
+  );
+}
+
+/**
+ * A group of keys under a bracket that names what they do, like the BPM and
+ * METRONOME brackets on a sampler.
+ */
+export function KeyGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="relative flex items-end gap-2.5 pt-4">
+      <span aria-hidden className="pointer-events-none absolute inset-x-1 top-[5px] h-1.5 border border-b-0 border-muted-foreground/70" />
+      <span className="cap absolute top-0 left-1/2 -translate-x-1/2 bg-background px-1.5 text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** A key with its LED above it, lit when the key is the one to press. */
+export function LedKey({ on = false, children }: { on?: boolean; children: ReactNode }) {
+  return (
+    <div className="relative pt-2.5">
+      <span aria-hidden className={cn('led absolute top-0 left-1/2 -translate-x-1/2', on && 'led-on')} />
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The chassis darkens at the foot of a panel that scrolls, so the rows run
+ * out under the edge instead of stopping at it. Shown only while there is
+ * more below.
+ */
+export function ScrollShade({ of }: { of: RefObject<HTMLElement | null> }) {
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const el = of.current;
+    if (!el) return;
+    const check = (): void => setMore(el.scrollHeight - el.clientHeight - el.scrollTop > 8);
+    const id = requestAnimationFrame(check);
+    el.addEventListener('scroll', check, { passive: true });
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    const content = new MutationObserver(check);
+    content.observe(el, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(id);
+      el.removeEventListener('scroll', check);
+      observer.disconnect();
+      content.disconnect();
+    };
+  }, [of]);
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(to_bottom,transparent,var(--shade-foot))] transition-opacity duration-300',
+        more ? 'opacity-100' : 'opacity-0',
+      )}
+    />
   );
 }

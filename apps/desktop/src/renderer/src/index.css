@@ -79,10 +79,7 @@
     line-height: 18px;
   }
   :root {
-    --titlebar-height: 48px;
-  }
-  [data-platform="darwin"] {
-    --titlebar-height: 52px;
+    --titlebar-height: 36px;
   }
   html {
     @apply bg-background;
