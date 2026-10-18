@@ -3,6 +3,8 @@ import { Composition, type CalculateMetadataFunction } from 'remotion';
 import { Film, type FilmProps } from './Film';
 import { Launch, type LaunchProps } from './launch/Launch';
 import { LAUNCH_DURATION } from './launch/timing';
+import { Teaser, type TeaserProps } from './teaser/Teaser';
+import { TEASER_DURATION } from './teaser/timing';
 import { loadTakes, placeholderTakes } from './takes';
 import { DURATION, FPS } from './timeline';
 import './fonts';
@@ -24,6 +26,18 @@ const launch = {
   calculateMetadata: withLaunchTakes,
 } as const;
 
+const withTeaserTakes: CalculateMetadataFunction<TeaserProps> = async ({ props }) => ({
+  props: { ...props, takes: await loadTakes() },
+});
+
+const teaser = {
+  component: Teaser,
+  durationInFrames: TEASER_DURATION,
+  fps: FPS,
+  defaultProps: { takes: placeholderTakes(), voice: 'af_heart' },
+  calculateMetadata: withTeaserTakes,
+} as const;
+
 const shared = {
   component: Film,
   durationInFrames: DURATION,
@@ -34,6 +48,9 @@ const shared = {
 
 export const Root: React.FC = () => (
   <>
+    {/* The teaser: Nothing style, dots and sound, 29 s. */}
+    <Composition id="Teaser" width={2560} height={1440} {...teaser} />
+    <Composition id="TeaserVertical" width={1080} height={1920} {...teaser} />
     {/* The launch cut: about 29 s on the music's grid. */}
     <Composition id="Launch" width={2560} height={1440} {...launch} />
     <Composition id="LaunchSquare" width={1440} height={1440} {...launch} />
