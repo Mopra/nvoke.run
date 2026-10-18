@@ -28,7 +28,9 @@ companies, the user widens it in place and the new finds join the same list.
   it. It sends `/more` with the latest run's words and the rest of that
   run's limit, so the search goes on where it left off, into the same list,
   without the editor (`continueInput` in `components/SearchMore.tsx`). The
-  Stop key on a running search is red.
+  Stop key on a running search is red. A stopped describe search gets the
+  same Continue key next to its "Keeps finding new leads" switch; it turns
+  the switch on, which is how such a search goes on (docs/desktop/people.md).
 
 ## Local copy
 

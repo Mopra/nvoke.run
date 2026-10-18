@@ -259,28 +259,36 @@ function OngoingSwitch({ search }: { search: Search }) {
   const saving = useUpdatingSearch(search.id);
   const on = Boolean(search.ongoing);
   const active = isActive(search.status);
+  // A stopped search goes on from where it was once the switch is back on.
+  const stopped = search.status === 'canceled';
   const line = on
     ? active
       ? 'When this run ends, nvoke keeps looking and adds new people as it finds them.'
       : 'nvoke looks for new companies a few times a day and adds the people it finds here.'
-    : 'Off. The list stays as it is.';
+    : stopped
+      ? 'Off. Continue picks it up where it stopped.'
+      : 'Off. The list stays as it is.';
+  const set = (ongoing: boolean): void =>
+    update.mutate(
+      { id: search.id, ongoing },
+      { onSuccess: () => toast(ongoing ? (stopped ? 'Continuing' : 'Keeps finding new leads') : 'Stopped looking for new leads') },
+    );
   return (
-    <label data-ongoing className="mt-8 flex cursor-pointer items-center gap-3.5">
-      <Switch
-        checked={on}
-        disabled={saving}
-        onCheckedChange={(ongoing) =>
-          update.mutate(
-            { id: search.id, ongoing },
-            { onSuccess: () => toast(ongoing ? 'Keeps finding new leads' : 'Stopped looking for new leads') },
-          )
-        }
-      />
-      <span className="shrink-0 text-sm font-medium">Keeps finding new leads</span>
-      <span className="min-w-0 truncate text-sm text-muted-foreground" title={line}>
-        {line}
-      </span>
-    </label>
+    <div className="mt-8 flex items-center gap-4">
+      {stopped && !on && (
+        <Button onClick={() => set(true)} disabled={saving}>
+          <Play />
+          Continue
+        </Button>
+      )}
+      <label data-ongoing className="flex min-w-0 cursor-pointer items-center gap-3.5">
+        <Switch checked={on} disabled={saving} onCheckedChange={set} />
+        <span className="shrink-0 text-sm font-medium">Keeps finding new leads</span>
+        <span className="min-w-0 truncate text-sm text-muted-foreground" title={line}>
+          {line}
+        </span>
+      </label>
+    </div>
   );
 }
 
