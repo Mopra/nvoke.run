@@ -311,19 +311,19 @@ function Section({ searches, offset = 0 }: { searches: Search[]; offset?: number
   );
 }
 
-/** The screen's own keys, under a bracket that names what they do, each with its LED. */
+/** The two ways to start, under a bracket: describe your customer in plain words, or start from your website. */
 function StartKeys() {
   return (
     <KeyGroup label="Start">
       <LedKey>
-        <Button variant="secondary" onClick={() => navigate({ name: 'new', kind: 'icp' })}>
-          Describe
+        <Button variant="secondary" onClick={() => navigate({ name: 'new', kind: 'website' })}>
+          Website
         </Button>
       </LedKey>
       <LedKey on>
         <Button onClick={() => navigate({ name: 'new', kind: null })}>
           <span className="led bg-primary-foreground" />
-          New search
+          Describe
         </Button>
       </LedKey>
     </KeyGroup>
