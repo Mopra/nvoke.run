@@ -146,7 +146,7 @@ function Stat({ label, value, sub }: { label: string; value: number; sub?: strin
         {sub && <span className="truncate text-sm tabular-nums text-muted-foreground field:hidden">{sub}</span>}
       </div>
       <div className="mt-1 text-sm text-muted-foreground field:cap field:mt-2.5 field:flex field:justify-between field:gap-2 field:text-screen-foreground/45">
-        <span className="truncate">{label}</span>
+        {field ? <span className="truncate">{label}</span> : label}
         {field && sub && <span className={cn('shrink-0', sub.endsWith('%') && 'text-primary')}>{sub}</span>}
       </div>
     </div>
