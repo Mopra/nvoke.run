@@ -108,13 +108,6 @@ async function waitDone(d: Director): Promise<void> {
   throw new Error(`[film] the search never finished: ${status}`);
 }
 
-/** Tags the first element `expr` returns and records its rectangle, or skips quietly when it is not there. */
-async function tagRect(d: Director, name: string, expr: string): Promise<void> {
-  const ok = await d.js<boolean>(`(() => { const el = ${expr}; if (el) el.setAttribute('data-film', ${JSON.stringify(name)}); return !!el; })()`);
-  if (ok) await d.rect(name, `[data-film="${name}"]`);
-  else console.warn(`[film] no ${name} to measure`);
-}
-
 /** Opens the film's finished plain words search, the one the montage shows off. */
 async function openHero(d: Director): Promise<void> {
   await fresh(d, '#/');
