@@ -81,6 +81,20 @@ function listFetch() {
   });
 }
 
+/** A Sql that answers the stored plan and the companies the search holds, and records every query. */
+function fakeSql(rows: { plan: unknown; domains?: string[] }): Sql & { queries: { text: string; values: unknown[] }[] } {
+  const queries: { text: string; values: unknown[] }[] = [];
+  const sql = (async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?');
+    queries.push({ text, values });
+    if (/select plan from searches/.test(text)) return [{ plan: rows.plan }];
+    if (/select domain from companies/.test(text)) return (rows.domains ?? []).map((domain) => ({ domain }));
+    return [];
+  }) as unknown as Sql & { queries: typeof queries };
+  Object.assign(sql, { queries, json: (v: unknown) => v });
+  return sql;
+}
+
 async function run(
   adapter: SourceAdapter<IcpSearchParams>,
   limit: number,
@@ -152,19 +166,28 @@ describe('icp adapter', () => {
 
   it('widens tier by tier, reads deeper pages of queries that paid off and says when it runs out', async () => {
     const brave = fakeBrave({
-      'cold email agency|0': { companies: [result('a1.com'), result('a2.com')], more: true },
+      'cold email agency|0': { companies: [result('a1.com'), result('a2.com'), result('a4.com')], more: true },
       'cold email agency|1': { companies: [result('a3.com')], more: false },
       'appointment setting agency|0': { companies: [result('bad1.com'), result('bad2.com')], more: true },
       'sdr outsourcing|0': { companies: [result('b1.com')] },
       'cold email agency Ireland|0': { companies: [result('c1.ie')] },
     });
     const { out, stages } = await run(icpAdapter({ brave, ai: fakeAi(), listFetch: listFetch(), crawl: { limiter: new RateLimiter(0) } }), 50);
-    expect(out.map((c) => c.website)).toEqual(['https://a1.com', 'https://a2.com', 'https://b1.com', 'https://c1.ie', 'https://a3.com']);
+    expect(out.map((c) => c.website)).toEqual(['https://a1.com', 'https://a2.com', 'https://a4.com', 'https://b1.com', 'https://c1.ie', 'https://a3.com']);
     expect(stages.map(([s]) => s)).toEqual(expect.arrayContaining(['adjacent', 'widen_geo', 'deeper', 'exhausted']));
-    expect(stages.find(([s]) => s === 'widen_geo')?.[1]).toBe('Found 3 so far. Looking in 1 more country');
+    expect(stages.find(([s]) => s === 'widen_geo')?.[1]).toBe('Found 4 so far. Looking in 1 more country');
     // The query whose results did not fit gets no second page.
     expect(brave.asked.some((r) => r.q === 'appointment setting agency' && r.page === 1)).toBe(false);
-    expect(stages.at(-1)).toEqual(['exhausted', 'Every planned search is done: found 5 fitting candidates, short of 50. Describe your customer more broadly or add countries to find more.']);
+    expect(stages.at(-1)).toEqual(['exhausted', 'Every planned search is done: found 6 fitting candidates, short of 50. Describe your customer more broadly or add countries to find more.']);
+  });
+
+  it('reads no deeper page of a query whose page kept fewer than three', async () => {
+    const brave = fakeBrave({
+      'cold email agency|0': { companies: [result('a1.com'), result('a2.com')], more: true },
+      'cold email agency|1': { companies: [result('a3.com')] },
+    });
+    await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), listFetch: listFetch(), crawl: { limiter: new RateLimiter(0) } }), 50);
+    expect(brave.asked.some((r) => r.page === 1)).toBe(false);
   });
 
   it('runs local pairs through the local adapter and scores them too', async () => {
@@ -221,10 +244,35 @@ describe('icp adapter limits', () => {
   it('holds a stored plan to the smaller Brave budget an ongoing round reserved', async () => {
     const brave = fakeBrave({});
     const stored = { ...toPlan(PLAN, { description: 'Outbound agencies' }), braveBudget: 1 };
-    const sql = (async () => [{ plan: stored }]) as unknown as Sql;
+    const sql = fakeSql({ plan: stored });
     const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), sql, braveBudget: 120 }), 50, { searchId: 'search_1' });
     expect(brave.asked).toHaveLength(1);
     expect(stages.find(([s]) => s === 'budget')?.[1]).toContain("Used this search's 1 web searches");
+  });
+
+  it('never scores a site again that the search holds or an earlier round turned down, and saves what the run learned', async () => {
+    const brave = fakeBrave({
+      'cold email agency|0': { companies: [result('held.com'), result('old-bad.com'), result('new-bad.com'), result('fresh.com')] },
+    });
+    const stored = { ...toPlan(PLAN, { description: 'Outbound agencies' }), rejected: ['old-bad.com'], ran: ['earlier query|us'], yields: { 'earlier query|us': { pages: 2, kept: 5 }, 'long gone|us': { pages: 1, kept: 0 } } };
+    const sql = fakeSql({ plan: stored, domains: ['www.held.com'] });
+    const ai = fakeAi();
+    const scored: string[] = [];
+    const structured = ai.structured.bind(ai);
+    ai.structured = (async (req: StructuredRequest<never>) => {
+      if (req.task === 'fit') scored.push(...[...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!));
+      return structured(req);
+    }) as Ai['structured'];
+    const { out } = await run(icpAdapter({ readHeads: false, brave, ai, sql }), 50, { searchId: 'search_1' });
+    expect(scored).toEqual(['new-bad.com', 'fresh.com']);
+    expect(out.map((c) => c.website)).toEqual(['https://fresh.com']);
+    const saved = sql.queries.find((q) => /update searches set plan = plan \|\|/.test(q.text));
+    const learned = saved?.values[0] as { rejected: string[]; yields: Record<string, { pages: number; kept: number }> };
+    expect(learned.rejected).toEqual(['old-bad.com', 'new-bad.com']);
+    expect(learned.yields['cold email agency|us']).toEqual({ pages: 1, kept: 1 });
+    expect(learned.yields['earlier query|us']).toEqual({ pages: 2, kept: 5 });
+    // A query that fell out of the capped ran list leaves the record too.
+    expect(learned.yields['long gone|us']).toBeUndefined();
   });
 
   it('skips a place the map cannot find instead of failing the search', async () => {

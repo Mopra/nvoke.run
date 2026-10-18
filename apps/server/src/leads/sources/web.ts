@@ -1,5 +1,6 @@
 // Companies from a web search, via the Brave Search API.
 // https://api-dashboard.search.brave.com/app/documentation/web-search
+// When Brave refuses us, a free provider takes over (free-search.ts).
 //
 // Result domains are deduplicated and platforms (social networks,
 // marketplaces, Wikipedia, news) are dropped by the find job. Brave bills
@@ -138,6 +139,8 @@ export interface BraveClient {
   readonly configured: boolean;
   /** One result page, from the cache when it can. */
   page(req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage>;
+  /** The page from the cache only, or null: free, and works while Brave refuses us. */
+  cached?(req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage | null>;
 }
 
 export function braveClient(opts: WebAdapterOptions): BraveClient {
@@ -186,8 +189,18 @@ export function braveClient(opts: WebAdapterOptions): BraveClient {
     };
   };
 
+  const fromCache = async (req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage | null> => {
+    const cached = await opts.cache?.get({ q: req.q, country: req.country, page: req.page }).catch((err: unknown) => {
+      ctx.log.warn({ err }, 'brave: cache read failed');
+      return null;
+    });
+    if (cached) ctx.onUsage?.('cache_hit');
+    return cached ?? null;
+  };
+
   return {
     configured: Boolean(opts.apiKey),
+    cached: fromCache,
     async page(req, ctx) {
       if (!opts.apiKey) {
         throw new PermanentError(
@@ -196,14 +209,8 @@ export function braveClient(opts: WebAdapterOptions): BraveClient {
         );
       }
       const key = { q: req.q, country: req.country, page: req.page };
-      const cached = await opts.cache?.get(key).catch((err: unknown) => {
-        ctx.log.warn({ err }, 'brave: cache read failed');
-        return null;
-      });
-      if (cached) {
-        ctx.onUsage?.('cache_hit');
-        return cached;
-      }
+      const cached = await fromCache(req, ctx);
+      if (cached) return cached;
       const result = await fetchPage(opts.apiKey, req, ctx);
       await opts.cache?.put(key, result).catch((err: unknown) => ctx.log.warn({ err }, 'brave: cache write failed'));
       return result;

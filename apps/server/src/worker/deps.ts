@@ -25,7 +25,7 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
     sql,
     log,
     ai,
-    adapters: createAdapters(env, { sql, ai, crawl }),
+    adapters: createAdapters(env, { sql, ai, crawl, alert }),
     alert,
     braveBudget: env.BRAVE_MONTHLY_BUDGET_USD
       ? { monthlyUsd: env.BRAVE_MONTHLY_BUDGET_USD, costPer1000Usd: env.BRAVE_COST_PER_1000_USD }

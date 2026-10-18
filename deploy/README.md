@@ -54,6 +54,8 @@ units read it. The API needs the first block; the worker reads the second.
 | `WORKER_CONCURRENCY` | worker | Jobs at once, default 16 |
 | `BRAVE_SEARCH_API_KEY` | worker | Needed for `web` searches; without it they fail with a clear error |
 | `BRAVE_REQUESTS_PER_SECOND` | worker | What the Brave plan allows, default 1 (free plan); 50 here |
+| `FREE_SEARCH` | worker, API | The free web search (Mwmbl): `fallback` (default; the owner accepted Mwmbl's terms on 2026-10-18) answers when Brave refuses us, is paused or has no key, `first` asks it before Brave, `off` is Brave alone. While Brave is paused the API keeps taking web searches unless this is `off` or the free search is paused too (`free_search` in `source_pauses`) |
+| `FREE_SEARCH_INTERVAL_MS` | worker | Milliseconds between two free search requests, default 3000 |
 | `BRAVE_MONTHLY_BUDGET_USD` | worker | Brave spend that triggers alert emails at 80% and 100%; match the usage limit in the Brave dashboard |
 | `ICP_BRAVE_BUDGET` | worker | Paid Brave requests per run of a Describe your customer search, fresh rounds included, default 120 |
 | `ICP_DAILY_BRAVE_BUDGET`, `ONGOING_DAILY_BRAVE_BUDGET` | worker | Paid Brave requests an ongoing search's daily round may make (default 40) and all daily rounds together per UTC day (default 250, about $37 a month at most). Each round reserves its whole budget up front (a query may read 4 result pages), so real spend stays well under the reservation |

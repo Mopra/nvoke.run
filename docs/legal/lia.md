@@ -12,7 +12,7 @@ Sources cited as [R] refer to `docs/research/gdpr-competitors.md` and its number
 
 | # | Activity | Personal data involved |
 |---|---|---|
-| A | Find companies in public sources (OpenStreetMap Nominatim and Overpass, Brave Search API, Product Hunt, Show HN through Algolia's HN Search API) | Company name, website, address, phone, category. Personal data only where the business is a sole trader or the listing names a person. |
+| A | Find companies in public sources (OpenStreetMap Nominatim and Overpass, Brave Search API, the Mwmbl search API as a free fallback, Product Hunt, Show HN through Algolia's HN Search API) | Company name, website, address, phone, category. Personal data only where the business is a sole trader or the listing names a person. |
 | B | Crawl the company's own public website (max 8 pages and 2 MB: homepage, contact, about, team, impressum, privacy, legal). Respect robots.txt, 1 request per second per domain, named user agent `nvokebot/1.0 (+https://nvoke.run/bot)`, no logins, no CAPTCHA solving. | Email addresses published on those pages, with the source URL. |
 | C | Classify each address as `generic` (a role mailbox such as info@, kontakt@, salg@) or `personal` (anything else, such as firstname@). Rule based on the local part, and always `personal` on webmail domains (gmail.com, hotmail.com and similar). | The address. |
 | D | Verify each address: syntax, disposable domain list, MX lookup, SMTP RCPT probe that never sends a message, catch-all detection with a random decoy address. | The address, the result (`valid`, `invalid`, `risky`, `catch_all`, `unknown`), the MX host, a timestamp. Cached in `email_checks` for 30 days. |

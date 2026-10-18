@@ -24,7 +24,7 @@ import { hiringSnippet, postingFromResult, resolvePosting, type HiringPosting } 
 import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
 import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead, type MineResult } from '../listicle.js';
-import { makePlan, savePlan, storedPlan, type IcpPlan, type LocalPair, type PlanQuery } from '../planner.js';
+import { keptYields, makePlan, ranKeys, savePlan, storedPlan, type IcpPlan, type LocalPair, type PlanQuery, type QueryYield } from '../planner.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import { braveQuery, type BraveClient } from './web.js';
 
@@ -52,10 +52,14 @@ const MAX_FAILED_IN_A_ROW = 4;
 const MAX_DEEP_PAGE = 3;
 /** Share of a query's results that must fit for tier 4 to read its next page. */
 const DEEP_FIT_RATE = 0.25;
+/** Candidates kept from a query's last page before tier 4 pays for its next one, so a page that kept one or two buys no more. */
+export const DEEP_MIN_FITS = 3;
 /** Homepages one run reads for fit scoring. Each is free but takes a second or two. */
 export const MAX_HEADS = 2_500;
 /** Paid Brave requests per search when the server sets none (ICP_BRAVE_BUDGET). */
 export const DEFAULT_BRAVE_BUDGET = 120;
+/** Sites turned down that a plan remembers, newest kept: about 100 KB of plan at most. */
+export const MAX_REJECTED = 5_000;
 
 export interface IcpAdapterOptions {
   brave: BraveClient;
@@ -195,6 +199,26 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       const seen = new Set<string>();
       // The same company under another country's domain ("acme.de" and "acme.com") is one company.
       const brands = new Set<string>();
+      // Sites this search already holds, and sites the fit score turned down in an earlier round, are never
+      // scored again: a fresh round's results overlap the last one's, and every score is a paid call.
+      if (opts.sql && ctx.searchId) {
+        const held = await opts.sql<{ domain: string }[]>`select domain from companies where search_id = ${ctx.searchId}`;
+        for (const { domain } of held) {
+          const site = registrableDomain(domain);
+          seen.add(site);
+          const brand = brandOf(site);
+          if (brand) brands.add(brand);
+        }
+      }
+      for (const site of plan.rejected ?? []) seen.add(site);
+      const rejectedNow: string[] = [];
+      // Result pages read and candidates kept per query, this round and the ones before it.
+      const yields = new Map<string, QueryYield>(Object.entries(plan.yields ?? {}).map(([k, y]) => [k, { ...y }]));
+      const yieldOf = (key: string): QueryYield => {
+        let y = yields.get(key);
+        if (!y) yields.set(key, (y = { pages: 0, kept: 0 }));
+        return y;
+      };
       const heads = { left: MAX_HEADS };
       const mined = new Set<string>();
       // Job boards already mapped this run ("lever:acme"): one company, however many postings.
@@ -254,7 +278,13 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           return batch.flatMap((p, i) => {
             const v = verdicts[i];
             const stat = p.key ? stats.get(p.key) : undefined;
-            if (v && v.fit < FIT_THRESHOLD) return [];
+            if (v && v.fit < FIT_THRESHOLD) {
+              // A score Claude gave, not the 0 of a batch it could not score, holds for the rest of the search.
+              const domain = normalizeDomain(p.company.website);
+              if (domain && !v.unscored) rejectedNow.push(registrableDomain(domain));
+              return [];
+            }
+            if (v && p.key) yieldOf(p.key).kept++;
             // No verdict means Claude could not be asked: a web result stays unscored, a bare link from a list page is dropped.
             if (!v) {
               unscored = true;
@@ -466,6 +496,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           if (phrase) await stage(phraseStage, note(phrase));
         }
         stats.set(unit.key, { query: unit.query, page: unit.page, more: page.more, candidates: out.length, fits: 0 });
+        yieldOf(unit.key).pages++;
         if (lists.length > 0) {
           const directories = lists.filter((u) => isDirectoryDomain(hostOf(u))).length;
           const reading = [
@@ -517,60 +548,81 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       /** Whether the next tier may run: short of the limit, not canceled, paid searches left. */
       const more = () => !enough() && !ctx.signal.aborted && !budgetSpent();
 
-      // Tier 1: core queries, directories and local pairs, interleaved.
-      const tier1 = interleave<Unit>([webUnits(plan.core), webUnits(plan.directories), plan.local.map((pair) => ({ type: 'local', pair }))]);
-      const countries = new Set([...plan.core, ...plan.directories].map((q) => q.country).filter(Boolean));
-      const webCount = plan.core.length + plan.directories.length;
-      const searching = [
-        webCount ? `${plural(webCount, 'query', 'queries')} in ${countries.size ? plural(countries.size, 'country', 'countries') : 'every country'}` : '',
-        plan.local.length ? `${plural(plan.local.length, 'place', 'places')} on the map` : '',
-      ].filter(Boolean);
-      await setPhrase('core', `Searching ${searching.join(' and ')}`);
-      yield* run(tier1);
+      /** Writes what this run learned to the plan, for the next round: per query yields and the sites turned down. */
+      const persist = async () => {
+        if (!opts.sql || !ctx.searchId) return;
+        const rejected = [...new Set([...(plan.rejected ?? []), ...rejectedNow])].slice(-MAX_REJECTED);
+        const learned = { yields: keptYields(Object.fromEntries(yields), ranKeys(plan)), rejected };
+        await opts.sql`
+          update searches set plan = plan || ${opts.sql.json(learned as never)} where id = ${ctx.searchId} and plan->>'key' = ${plan.key}
+        `;
+      };
 
-      // Tier 2: synonyms and adjacent niches.
-      if (more() && plan.adjacent.length) {
-        await setPhrase('adjacent', 'Widening to adjacent niches');
-        yield* run(webUnits(plan.adjacent));
-      }
+      const runPlan: IcpPlan = plan;
+      async function* tiers(): AsyncGenerator<FoundCompany> {
+        const plan = runPlan;
+        // Tier 1: core queries, directories and local pairs, interleaved.
+        const tier1 = interleave<Unit>([webUnits(plan.core), webUnits(plan.directories), plan.local.map((pair) => ({ type: 'local', pair }))]);
+        const countries = new Set([...plan.core, ...plan.directories].map((q) => q.country).filter(Boolean));
+        const webCount = plan.core.length + plan.directories.length;
+        const searching = [
+          webCount ? `${plural(webCount, 'query', 'queries')} in ${countries.size ? plural(countries.size, 'country', 'countries') : 'every country'}` : '',
+          plan.local.length ? `${plural(plan.local.length, 'place', 'places')} on the map` : '',
+        ].filter(Boolean);
+        await setPhrase('core', `Searching ${searching.join(' and ')}`);
+        yield* run(tier1);
 
-      // Tier 3: further countries or cities.
-      if (more() && plan.wider.length) {
-        const fresh = new Set(plan.wider.map((q) => q.country).filter((c): c is string => !!c && !countries.has(c)));
-        await setPhrase('widen_geo', fresh.size ? `Looking in ${plural(fresh.size, 'more country', 'more countries')}` : 'Looking in more cities');
-        yield* run(webUnits(plan.wider));
-      }
+        // Tier 2: synonyms and adjacent niches.
+        if (more() && plan.adjacent.length) {
+          await setPhrase('adjacent', 'Widening to adjacent niches');
+          yield* run(webUnits(plan.adjacent));
+        }
 
-      // Tier 3b: job posts for sales roles. Many companies a request, but most are larger or out of reach of a
-      // homepage check, so they come after the queries that land on fitting companies' own words.
-      if (more() && plan.hiring?.length) {
-        await setPhrase('hiring', 'Looking for companies hiring salespeople');
-        yield* run(webUnits(plan.hiring));
-      }
+        // Tier 3: further countries or cities.
+        if (more() && plan.wider.length) {
+          const fresh = new Set(plan.wider.map((q) => q.country).filter((c): c is string => !!c && !countries.has(c)));
+          await setPhrase('widen_geo', fresh.size ? `Looking in ${plural(fresh.size, 'more country', 'more countries')}` : 'Looking in more cities');
+          yield* run(webUnits(plan.wider));
+        }
 
-      // Tier 4: further pages of the queries whose results fit.
-      for (let page = 1; page <= MAX_DEEP_PAGE && more(); page++) {
-        const worth = [...stats.entries()]
-          .filter(([, s]) => s.page === page - 1 && s.more && s.candidates > 0 && s.fits / s.candidates >= DEEP_FIT_RATE)
-          .sort(([, a], [, b]) => b.fits - a.fits);
-        if (worth.length === 0) break;
-        await setPhrase('deeper', `Reading further results of the ${plural(worth.length, 'search', 'searches')} that paid off`);
-        yield* run(worth.map(([key, s]) => ({ type: 'web', query: s.query, page, key })));
-      }
+        // Tier 3b: job posts for sales roles. Many companies a request, but most are larger or out of reach of a
+        // homepage check, so they come after the queries that land on fitting companies' own words.
+        if (more() && plan.hiring?.length) {
+          await setPhrase('hiring', 'Looking for companies hiring salespeople');
+          yield* run(webUnits(plan.hiring));
+        }
 
-      if (ctx.signal.aborted) return;
-      ctx.log.info(
-        { yielded, paid, candidates: seen.size, listPagesRead, listPagesTried, listBytes, listMs, postingsRead, boards: boards.size, deadHosts: [...deadHosts] },
-        'icp: finished',
-      );
-      if (!enough()) {
-        const why = budgetSpent() ? `This search used its ${budget} web searches` : 'Every planned search is done';
-        await stage(
-          'exhausted',
-          yielded === 0
-            ? `${why} and none of the companies fit. Describe your customer in other words or add countries.`
-            : `${why}: found ${yielded} fitting candidates, short of ${ctx.limit}. Describe your customer more broadly or add countries to find more.`,
+        // Tier 4: further pages of the queries whose results fit.
+        for (let page = 1; page <= MAX_DEEP_PAGE && more(); page++) {
+          const worth = [...stats.entries()]
+            .filter(([, s]) => s.page === page - 1 && s.more && s.fits >= DEEP_MIN_FITS && s.fits / s.candidates >= DEEP_FIT_RATE)
+            .sort(([, a], [, b]) => b.fits - a.fits);
+          if (worth.length === 0) break;
+          await setPhrase('deeper', `Reading further results of the ${plural(worth.length, 'search', 'searches')} that paid off`);
+          yield* run(worth.map(([key, s]) => ({ type: 'web', query: s.query, page, key })));
+        }
+
+        if (ctx.signal.aborted) return;
+        ctx.log.info(
+          { yielded, paid, candidates: seen.size, listPagesRead, listPagesTried, listBytes, listMs, postingsRead, boards: boards.size, deadHosts: [...deadHosts] },
+          'icp: finished',
         );
+        if (!enough()) {
+          const why = budgetSpent() ? `This search used its ${budget} web searches` : 'Every planned search is done';
+          await stage(
+            'exhausted',
+            yielded === 0
+              ? `${why} and none of the companies fit. Describe your customer in other words or add countries.`
+              : `${why}: found ${yielded} fitting candidates, short of ${ctx.limit}. Describe your customer more broadly or add countries to find more.`,
+          );
+        }
+      }
+
+      try {
+        yield* tiers();
+      } finally {
+        // Also when the pipeline stops early (the limit is reached) or the search is canceled.
+        await persist().catch((err: unknown) => ctx.log.warn({ err }, 'icp: could not save what the run learned'));
       }
     },
   };
