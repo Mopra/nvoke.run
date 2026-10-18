@@ -121,9 +121,9 @@ Where it stands against the six done criteria:
   or charged, but they are a third of the people found.
 - **Cost.** Fit scoring is 74% of the Claude spend. Homepage reads for
   every candidate above 20 are the next cut.
-- **Registry directors** (Companies House) need a free key only the owner
-  can register (Horadric quest, optional). CVR is dropped: Denmark is not
-  the target market.
+- **Registry directors** are out of scope. nvoke runs fully without
+  registry keys (no Companies House, no CVR): people come from company
+  sites, job posts and address patterns.
 - **Proof.** The 60 minute bar and the 25 of 30 bar need one more real run
   after the three fixes above. It needs the owner's approval to spend.
 

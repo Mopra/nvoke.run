@@ -60,6 +60,9 @@ pipeline, real SMTP from this machine (port 25 is open here). Results in
   company's own pages.
 - 2026-10-18: Owner dropped CVR. Denmark is the wrong target; nvoke sells to
   the international market. Companies House stays optional.
+- 2026-10-18: Owner dropped Companies House too. nvoke works fully without
+  registry keys: people come from company sites, job posts and address
+  patterns. Quest closed.
 
 ## Findings (baseline)
 
