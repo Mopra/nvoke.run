@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Round after the GA4 quest landed: checks green at cc48271 (the GA4 session's two red tests, lists and drops limits, were the human's plan caps work in progress), log empty, no aim. Nothing to file; shipping is the human's.
 - 2026-10-19 Hourly round: the human committed 9 site and web app display look commits (ebb04a5 to 657bf47) past green 261ecfd, tree clean, so filed 'Checks on main after the site display look and paper web app' (sonnet, with build). No aim.
 - 2026-10-19 Hourly round: unchanged (only memory commits past green 261ecfd, tree clean, no aim). Nothing to do; shipping is the human's.
 - 2026-10-19 Round as the human left: unchanged (only memory commits past green 261ecfd, tree clean, no aim). Nothing to do; shipping is the human's.
@@ -169,6 +170,7 @@
 
 ## Open
 
+- GA4 sign_up and file_download events landed (cc48271); after a site ship, sign_up must be marked a key event in GA4 Admin (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, not shipped yet.
 - Go public aim reached (2026-10-17) but not shipped. Shipping is the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
@@ -176,7 +178,7 @@
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
-- Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Field look checks green at 4c6885b, searches table and chassis checks green at 6da9e30, site and web app device look checks green at 261ecfd; checks on 657bf47 (site display look) filed 2026-10-19. Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
+- Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Field look checks green at 4c6885b, searches table and chassis checks green at 6da9e30, site and web app device look checks green at 261ecfd; site display look checked; main green at cc48271 (2026-10-20). Desktop v0.1.3 shipped (3ed5e68). Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
 - CSV drop landed (e1a8d2c); the real OS drop and the enriched file write were never tested by hand, and a CSV dropped mid search is lost if the app quits (jobs live in the renderer).
 - "Desktop: live in the tray and start at login" was never checked on screen (tray menu, Account start-at-login switch). Capture now retries and says so clearly when the display is locked; the human should run capture with the screen on and look at the tray and Account shots.
 - Notifications landed (9d23c82, f0613da); the Account notifications switch and badge were never seen on screen.
