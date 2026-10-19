@@ -18,15 +18,15 @@ export const metadata: Metadata = {
 const STEPS: ToolStep[] = [
   {
     title: 'Syntax and domain',
-    body: 'We check the address is well formed, the domain is not a typo of a big provider and not a throwaway service.',
+    body: 'Well formed, not a typo of a big provider, not a throwaway service.',
   },
   {
     title: 'DNS',
-    body: 'We look up the domain’s MX records. No mail server, or a parked domain, means nothing can arrive.',
+    body: 'The domain needs a mail server. None, or a parked domain, and nothing arrives.',
   },
   {
     title: 'The mailbox',
-    body: 'We open an SMTP conversation with the mail server, ask about the mailbox and hang up before a message would be sent. We also test a made up address, to catch servers that say yes to everything.',
+    body: 'We ask the mail server about the mailbox and hang up before sending. A made up address catches servers that say yes to all.',
   },
 ];
 
@@ -82,9 +82,9 @@ export default function EmailVerifierPage() {
     <ToolPage
       slug="email-verifier"
       title={title}
-      intro="Paste an address. We ask its mail server whether the mailbox exists, and hang up before anything is sent."
+      intro="Paste an address. Its own mail server says if the mailbox exists. Nothing gets sent."
       widget={<EmailVerifier />}
-      stepsIntro="Three checks, in order. Each one can stop the next."
+      stepsIntro="Three checks in order. Each can stop the next."
       steps={STEPS}
       termsTitle="What the results mean"
       terms={TERMS}

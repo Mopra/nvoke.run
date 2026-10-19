@@ -17,15 +17,15 @@ export const metadata: Metadata = {
 const STEPS: ToolStep[] = [
   {
     title: 'MX and SPF',
-    body: 'We look up the mail servers, then the SPF record. We follow every include and count the DNS lookups, because more than 10 breaks SPF silently.',
+    body: 'The mail servers, then SPF. We follow every include and count lookups: more than 10 breaks SPF silently.',
   },
   {
     title: 'DMARC',
-    body: 'We read the record at _dmarc on your domain and grade its policy. None watches, quarantine sends to spam, reject blocks.',
+    body: 'The record at _dmarc, graded by policy. None watches, quarantine sends to spam, reject blocks.',
   },
   {
     title: 'DKIM',
-    body: 'DKIM keys hide behind selectors and DNS has no index of them. We try the common ones (Google, Microsoft, the big senders). Not finding one proves nothing.',
+    body: 'Keys hide behind selectors DNS cannot list. We try the common ones. Not finding one proves nothing.',
   },
 ];
 
@@ -83,7 +83,7 @@ export default function SpfDmarcCheckerPage() {
     <ToolPage
       slug="spf-dmarc-checker"
       title={title}
-      intro="Enter the domain you send from. We read its DNS and grade the four records that decide inbox or spam."
+      intro="The four DNS records that decide inbox or spam, graded in a second."
       widget={<EmailAuthChecker />}
       stepsIntro="Public DNS only. We never touch your mail."
       steps={STEPS}

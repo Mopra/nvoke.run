@@ -5,13 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import { ToolEmailAuthResponse } from '@nvoke/shared';
 import { cleanDomain, DOMAIN } from '@/lib/domain';
 import { ERROR_COPY, postTool, shareInUrl } from './api';
+import { AuthDemo, AuthDisplay, authRunning, useElapsed } from './displays';
 import { ResultCta } from './result-cta';
 import { StatusPill } from './status-pill';
-import { ResultCard, ResultScreen, ToolForm } from './tool-form';
+import { Announce, ToolForm } from './tool-form';
 
 type Phase =
   | { kind: 'idle' }
-  | { kind: 'checking' }
+  | { kind: 'checking'; domain: string; startedAt: number }
   | { kind: 'done'; result: ToolEmailAuthResponse }
   | { kind: 'error'; message: string };
 
@@ -58,7 +59,7 @@ export function EmailAuthChecker() {
       return;
     }
     setValue(domain);
-    setPhase({ kind: 'checking' });
+    setPhase({ kind: 'checking', domain, startedAt: Date.now() });
     const res = await postTool('/v1/tools/email-auth', { domain }, ToolEmailAuthResponse);
     if (res.ok) {
       setPhase({ kind: 'done', result: res.data });
@@ -79,7 +80,7 @@ export function EmailAuthChecker() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <ToolForm
         label="Domain"
         placeholder="example.com"
@@ -93,11 +94,27 @@ export function EmailAuthChecker() {
         busy={phase.kind === 'checking'}
         submitLabel="Check"
         busyLabel="Reading DNS"
-        hint="The domain you send email from. Paste an address and we take the part after the @."
+        hint="The domain you send from. An address works too."
         error={phase.kind === 'error' ? phase.message : null}
       />
-      {phase.kind === 'done' ? <AuthResult result={phase.result} /> : null}
+      {phase.kind === 'checking' ? (
+        <Running domain={phase.domain} startedAt={phase.startedAt} />
+      ) : phase.kind === 'done' ? (
+        <AuthResult result={phase.result} />
+      ) : (
+        <AuthDemo />
+      )}
     </div>
+  );
+}
+
+function Running({ domain, startedAt }: { domain: string; startedAt: number }) {
+  const ms = useElapsed(startedAt, 100);
+  return (
+    <>
+      <Announce>Reading the DNS records of {domain}.</Announce>
+      <AuthDisplay view={authRunning(domain, ms)} hidden />
+    </>
   );
 }
 
@@ -117,27 +134,28 @@ function Row({
   notes: string[];
 }) {
   return (
-    <li className="flex flex-col gap-3 py-5 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col">
-          <h3 className="font-mono text-[15px] font-medium tracking-[0.04em]">{name}</h3>
-          <p className="text-sm text-muted-foreground">{what}</p>
-        </div>
+    <li className="grid gap-3 border-t py-6 sm:grid-cols-[10rem_1fr] sm:gap-8">
+      <div className="flex items-start justify-between gap-3 sm:flex-col sm:justify-start">
+        <h3 className="font-mono text-[15px] font-medium tracking-[0.04em]">{name}</h3>
         <StatusPill tone={GRADE[grade].tone}>{GRADE[grade].label}</StatusPill>
       </div>
-      {record ? (
-        <pre className="screen overflow-x-auto px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-all">
-          {record}
-        </pre>
-      ) : null}
-      {extra ? <p className="text-sm text-muted-foreground">{extra}</p> : null}
-      {notes.length > 0 ? (
-        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-pretty text-muted-foreground marker:text-muted-foreground/50">
-          {notes.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      ) : null}
+      <div className="flex min-w-0 flex-col gap-3">
+        <p className="text-[15px] text-muted-foreground">{what}</p>
+        {record ? (
+          <pre className="font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-all text-foreground">{record}</pre>
+        ) : null}
+        {extra ? <p className="cap text-muted-foreground">{extra}</p> : null}
+        {notes.length > 0 ? (
+          <ul className="flex flex-col gap-1.5 text-[15px] text-pretty">
+            {notes.map((n) => (
+              <li key={n} className="flex gap-2.5">
+                <span aria-hidden="true" className="led mt-[0.55em]" />
+                {n}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -145,23 +163,43 @@ function Row({
 function AuthResult({ result }: { result: ToolEmailAuthResponse }) {
   const next = cta(result);
   const { mx, spf, dmarc, dkim } = result;
-  const passed = [mx, spf, dmarc, dkim].filter((r) => r.grade === 'pass').length;
+  const records = [
+    { name: 'MX', r: mx },
+    { name: 'SPF', r: spf },
+    { name: 'DMARC', r: dmarc },
+    { name: 'DKIM', r: dkim },
+  ];
+  const passed = records.filter(({ r }) => r.grade === 'pass').length;
+  const worst = records.some(({ r }) => r.grade === 'fail') ? 'bad' : records.some(({ r }) => r.grade === 'warn') ? 'warn' : 'good';
   return (
-    <>
-      <ResultCard>
-        <ResultScreen subject={result.domain} figure={`${passed}/4`} unit="pass" />
+    <div className="flex flex-col gap-8">
+      <Announce>
+        {result.domain}: {passed} of 4 pass. {records.map(({ name, r }) => `${name} ${GRADE[r.grade].label}`).join(', ')}.
+      </Announce>
+      <AuthDisplay
+        hidden
+        view={{
+          lamp: worst,
+          mode: 'Result',
+          meta: 'Public DNS',
+          subject: result.domain,
+          passed,
+          channels: records.map(({ name, r }) => ({ name, lamp: GRADE[r.grade].tone, word: GRADE[r.grade].label })),
+        }}
+      />
+      <div>
         <h2 className="sr-only">{passed} of 4 pass</h2>
-        <ul className="flex flex-col divide-y">
+        <ul className="flex flex-col border-b">
           <Row
             name="MX"
-            what="Where mail for the domain goes"
+            what="Where mail for the domain goes."
             grade={mx.grade}
             record={mx.hosts.length > 0 ? mx.hosts.join('\n') : null}
             notes={mx.notes}
           />
           <Row
             name="SPF"
-            what="Which servers may send as the domain"
+            what="Which servers may send as the domain."
             grade={spf.grade}
             record={spf.record}
             extra={spf.record ? `${spf.lookups} of 10 DNS lookups${spf.all ? `, ends in ${spf.all}` : ''}` : null}
@@ -169,7 +207,7 @@ function AuthResult({ result }: { result: ToolEmailAuthResponse }) {
           />
           <Row
             name="DMARC"
-            what="What receivers do when SPF and DKIM fail"
+            what="What receivers do when SPF and DKIM fail."
             grade={dmarc.grade}
             record={dmarc.record}
             extra={dmarc.policy ? `Policy: ${dmarc.policy}` : null}
@@ -177,14 +215,14 @@ function AuthResult({ result }: { result: ToolEmailAuthResponse }) {
           />
           <Row
             name="DKIM"
-            what="Signatures that prove a message was not changed"
+            what="Signatures that prove a message was not changed."
             grade={dkim.grade}
             record={dkim.selectors.length > 0 ? dkim.selectors.map((s) => `${s}._domainkey.${result.domain}`).join('\n') : null}
             notes={dkim.notes}
           />
         </ul>
-      </ResultCard>
+      </div>
       <ResultCta tool="spf-dmarc-checker" title={next.title} body={next.body} />
-    </>
+    </div>
   );
 }

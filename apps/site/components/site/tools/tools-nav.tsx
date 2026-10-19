@@ -3,10 +3,10 @@ import { cn } from '@/lib/utils';
 import { tools, type ToolSlug } from '@/lib/tools';
 
 /** A row of keys linking every tool; the current one is held down with its LED lit. */
-export function ToolsNav({ current }: { current?: ToolSlug }) {
+export function ToolsNav({ current, className }: { current?: ToolSlug; className?: string }) {
   return (
     <nav aria-label="Free tools">
-      <ul className="flex flex-wrap gap-2">
+      <ul className={cn('flex flex-wrap gap-2', className)}>
         {tools.map((tool) => {
           const active = tool.slug === current;
           return (

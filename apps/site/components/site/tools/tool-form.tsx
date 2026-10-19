@@ -3,11 +3,14 @@
 import { useId, type FormEvent, type ReactNode } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+
+/** A big mono field on a hairline, no box: the tools and the opt-out form share it. */
+export const fieldClass =
+  'h-14 w-full min-w-0 rounded-none bg-transparent px-0.5 font-mono text-[18px] shadow-[inset_0_-1px_0_var(--border)] outline-none transition-shadow duration-150 placeholder:text-muted-foreground/70 focus-visible:shadow-[inset_0_-2px_0_var(--foreground)] aria-invalid:shadow-[inset_0_-2px_0_var(--destructive)] sm:text-[22px]';
 
 /**
- * The one-field form every tool uses: a recessed field on a plate and the
- * orange key beside it (under it on phones), then a hint or an error.
+ * The one-field form every tool uses: the field on a hairline and the dark
+ * key beside it (under it on phones), then a hint or an error.
  */
 export function ToolForm({
   label,
@@ -48,10 +51,10 @@ export function ToolForm({
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <label htmlFor={`${id}-input`} className="sr-only">
+      <label htmlFor={`${id}-input`} className="cap text-muted-foreground">
         {label}
       </label>
-      <div className="plate flex flex-col gap-2 rounded-[6px] p-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
         <input
           id={`${id}-input`}
           name={type}
@@ -67,9 +70,9 @@ export function ToolForm({
           onChange={(e) => onChange(e.target.value)}
           aria-describedby={[hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined}
           aria-invalid={error ? true : undefined}
-          className="h-12 min-w-0 flex-1 rounded-[4px] bg-background/60 px-4 font-mono text-base shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-shadow placeholder:text-muted-foreground/90 focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/25 sm:text-[16px]"
+          className={`${fieldClass} flex-1`}
         />
-        <Button type="submit" size="lg" disabled={busy} aria-busy={busy} className="h-12 w-full sm:w-auto">
+        <Button type="submit" size="xl" variant="dark" disabled={busy} aria-busy={busy} className="w-full sm:w-auto">
           {busy ? <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : null}
           {busy ? busyLabel : submitLabel}
         </Button>
@@ -89,47 +92,11 @@ export function ToolForm({
   );
 }
 
-/** The plate a result sits on. */
-export function ResultCard({ children, className }: { children: ReactNode; className?: string }) {
+/** What a result says, for screen readers: the screen itself is drawn for the eye. */
+export function Announce({ children }: { children: ReactNode }) {
   return (
-    <div role="status" aria-live="polite" className={cn('plate flex flex-col gap-6 rounded-[6px] p-5 sm:p-8', className)}>
+    <p role="status" aria-live="polite" className="sr-only">
       {children}
-    </div>
-  );
-}
-
-/**
- * The subject of a result on the black screen: what was checked on the left,
- * the figure that matters lit in the dot matrix on the right.
- */
-export function ResultScreen({ subject, figure, unit }: { subject: string; figure?: string; unit?: string }) {
-  return (
-    <div className="screen flex items-center justify-between gap-4 px-4 py-3">
-      <span className="min-w-0 font-mono text-[14px] break-all text-screen-foreground/70">{subject}</span>
-      {figure ? (
-        <span className="flex shrink-0 items-baseline gap-2">
-          <span className="lcd text-[34px] leading-none">{figure}</span>
-          {unit ? <span className="cap text-screen-foreground/50">{unit}</span> : null}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-/** A 16 segment meter, lit orange from the left: the running state. */
-export function LedMeter({ value }: { value: number }) {
-  const lit = Math.round(Math.max(0, Math.min(1, value)) * 16);
-  return (
-    <div className="flex gap-0.5" aria-hidden="true">
-      {Array.from({ length: 16 }, (_, i) => (
-        <span
-          key={i}
-          className={cn(
-            'h-2.5 flex-1 rounded-[1px] transition-colors duration-300',
-            i < lit ? 'bg-primary' : 'bg-foreground/[0.12]',
-          )}
-        />
-      ))}
-    </div>
+    </p>
   );
 }

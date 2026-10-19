@@ -3,6 +3,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { OptOutRequest } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
+import { fieldClass } from '@/components/site/tools/tool-form';
 import { apiUrl } from '@/lib/api';
 import { site } from '@/lib/site';
 
@@ -23,15 +24,15 @@ const COPY = {
     emailHint: 'We delete this address and never collect it again.',
     domainHint: 'We delete every address on this domain and its subdomains. nvokebot stops visiting.',
     submit: 'Opt out',
-    sending: 'Opting out...',
+    sending: 'Opting out',
     badEmail: 'Enter a full email address, like name@example.com.',
     badDomain: 'Enter a domain, like example.com, without a name or @ in front.',
     rateLimited: 'Too many requests from your network. Give it a few minutes.',
     failed: (status: number) => `That failed (${status}). Try again, or write to ${site.email.privacy}.`,
     offline: `Could not reach our server. Try again, or write to ${site.email.privacy}.`,
-    doneTitle: 'Done. You are opted out.',
+    doneTitle: 'Opted out',
     doneBody: (target: string) =>
-      `If nvoke held anything about ${target}, it is gone now, and we will not collect it again. Customers who had it in a search no longer see it in nvoke.`,
+      `If nvoke held anything about ${target}, it is gone now and will not be collected again. Customers no longer see it in nvoke.`,
     again: 'Opt out something else',
 } as const;
 
@@ -93,30 +94,28 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
     }
   }
 
-  const card = 'plate flex flex-col gap-5 rounded-[6px] p-5 text-card-foreground sm:p-6';
-
   if (phase.kind === 'done') {
     return (
-      <div role="status" aria-live="polite" className={card}>
-        <div className="flex flex-col gap-2">
-          <p className="cap flex items-center gap-2 text-foreground">
-            <span aria-hidden="true" className="led bg-chart-1" />
-            Done
-          </p>
-          <p className="text-[21px] font-light tracking-[-0.02em]">{t.doneTitle}</p>
-          <p className="text-pretty text-muted-foreground">{t.doneBody(phase.target)}</p>
+      <div role="status" aria-live="polite" className="flex flex-col gap-6">
+        <div className="screen screen-hero p-5 sm:p-8">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="led bg-chart-1 shadow-[0_0_6px_var(--chart-1)]" />
+            <span className="cap text-screen-foreground/55">Done</span>
+            <span className="cap ml-auto text-screen-foreground/50">Permanent</span>
+          </div>
+          <p className="lcd mt-6 text-[34px] leading-none uppercase sm:mt-8 sm:text-[56px]">{t.doneTitle}</p>
+          <p className="mt-4 font-mono text-[14px] break-all text-screen-foreground/70 sm:text-[15px]">{phase.target}</p>
         </div>
-        <Button type="button" variant="secondary" className="w-fit" onClick={() => setPhase({ kind: 'idle' })}>
+        <p className="text-[15px] text-pretty text-muted-foreground">{t.doneBody(phase.target)}</p>
+        <Button type="button" variant="secondary" size="lg" className="w-fit" onClick={() => setPhase({ kind: 'idle' })}>
           {t.again}
         </Button>
       </div>
     );
   }
 
-  const field =
-    'h-10 w-full rounded-[4px] bg-background/60 px-3 font-mono text-[15px] shadow-[inset_0_1px_2px_var(--shadow-strong)] outline-none transition-shadow duration-150 placeholder:text-muted-foreground/90 focus-visible:ring-[3px] focus-visible:ring-ring/25 aria-invalid:ring-[3px] aria-invalid:ring-destructive/25';
   const option =
-    'key group/opt flex h-8 flex-1 cursor-pointer items-center justify-center gap-2 bg-secondary px-3 font-mono text-[11.5px] font-medium tracking-[0.07em] text-secondary-foreground uppercase has-checked:key-down has-focus-visible:ring-[3px] has-focus-visible:ring-ring/40';
+    'key group/opt flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 bg-secondary px-3 font-mono text-[11.5px] font-medium tracking-[0.07em] text-secondary-foreground uppercase has-checked:key-down has-focus-visible:ring-[3px] has-focus-visible:ring-ring/40';
 
   const inputId = `${id}-value`;
   const hintId = `${id}-hint`;
@@ -124,10 +123,10 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
   const error = phase.kind === 'error' ? phase.message : null;
 
   return (
-    <form onSubmit={submit} noValidate className={card}>
+    <form onSubmit={submit} noValidate className="flex flex-col gap-8">
       <fieldset className="flex flex-col gap-2">
         <legend className="cap mb-2 text-muted-foreground">{t.legend}</legend>
-        <div className="flex gap-2">
+        <div className="flex max-w-md gap-2">
           {(['email', 'domain'] as const).map((k) => (
             <label key={k} className={option}>
               <input
@@ -165,7 +164,7 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
           onChange={(e) => setValue(e.target.value)}
           aria-describedby={error ? `${hintId} ${errorId}` : hintId}
           aria-invalid={error ? true : undefined}
-          className={field}
+          className={fieldClass}
         />
         <p id={hintId} className="text-sm text-muted-foreground">
           {kind === 'email' ? t.emailHint : t.domainHint}
@@ -177,7 +176,7 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
           </p>
         ) : null}
       </div>
-      <Button type="submit" className="w-fit" disabled={phase.kind === 'sending'}>
+      <Button type="submit" size="xl" variant="dark" className="w-full sm:w-fit" disabled={phase.kind === 'sending'}>
         {phase.kind === 'sending' ? t.sending : t.submit}
       </Button>
     </form>

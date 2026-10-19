@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, AtSign, Globe, ShieldCheck } from 'lucide-react';
-import { Faq } from '@/components/site/faq';
-import { ChannelSteps, SheetHead, SheetSection } from '@/components/docs/sheet';
+import type { ReactNode } from 'react';
+import { RevealHeading } from '@/components/site/home/reveal';
 import { Container } from '@/components/site/section';
+import { AuthDemo, ExtractDemo, VerifyDemo } from '@/components/site/tools/displays';
 import { JsonLd } from '@/components/site/tools/json-ld';
-import { ToolsCtaBand, type ToolFaq } from '@/components/site/tools/tool-page';
+import { SplitSection, ToolsCtaBand, type ToolFaq } from '@/components/site/tools/tool-page';
+import { Faq } from '@/components/site/faq';
 import { site } from '@/lib/site';
-import { toolBySlug, toolOpenGraph, tools, type ToolSlug } from '@/lib/tools';
+import { toolBySlug, tools, toolOpenGraph, type ToolSlug } from '@/lib/tools';
 
 const description =
   'Free email tools from nvoke: verify an email address with its mail server, find the emails on a company website, and check SPF, DMARC and DKIM. No sign-up.';
@@ -19,44 +20,50 @@ export const metadata: Metadata = {
   openGraph: toolOpenGraph('Free email tools', description, '/tools'),
 };
 
-const ICONS: Record<ToolSlug, typeof AtSign> = {
-  'email-verifier': AtSign,
-  'website-email-extractor': Globe,
-  'spf-dmarc-checker': ShieldCheck,
+const DEMOS: Record<ToolSlug, ReactNode> = {
+  'email-verifier': <VerifyDemo compact />,
+  'website-email-extractor': <ExtractDemo compact />,
+  'spf-dmarc-checker': <AuthDemo compact />,
 };
 
 /** Start from the problem, not the tool. */
 const PROBLEMS: { symptom: string; why: string; tool: ToolSlug }[] = [
   {
     symptom: 'Your emails bounce',
-    why: 'The address may not exist anymore. Ask its mail server before you send again.',
+    why: 'The address may be gone. Ask its mail server first.',
     tool: 'email-verifier',
   },
   {
     symptom: 'You guessed firstname@company.com',
-    why: 'Guesses bounce and burn your domain. Check the guess, or find what the company really publishes.',
+    why: 'Guesses bounce and burn your domain. Check it first.',
     tool: 'email-verifier',
   },
   {
     symptom: 'You have a company, not a contact',
-    why: 'Most companies publish an address somewhere on their site. We read the pages where it hides.',
+    why: 'Most publish an address somewhere. We read where it hides.',
     tool: 'website-email-extractor',
   },
   {
     symptom: 'The contact page is a form',
-    why: 'The imprint, privacy policy or team page often still lists an address.',
+    why: 'The imprint, privacy or team page often lists one anyway.',
     tool: 'website-email-extractor',
   },
   {
     symptom: 'Your mail lands in spam',
-    why: 'Missing or weak SPF, DKIM or DMARC is the usual cause. Gmail and Yahoo require all three from bulk senders.',
+    why: 'Weak SPF, DKIM or DMARC. Gmail and Yahoo demand all three.',
     tool: 'spf-dmarc-checker',
   },
   {
-    symptom: 'You just set up a new sending domain',
-    why: 'Check the records before the first message, not after the first hundred go to spam.',
+    symptom: 'You set up a new sending domain',
+    why: 'Check before the first send, not after a hundred land in spam.',
     tool: 'spf-dmarc-checker',
   },
+];
+
+const ENGINE = [
+  { title: 'Asks, never guesses', body: 'Verdicts come from the mail server. When it will not answer, we say so.' },
+  { title: 'Polite crawler', body: 'robots.txt first, one page a second, eight pages a site at most.' },
+  { title: 'Nothing gets sent', body: 'No test email, no tracking pixel. nvoke has no send button.' },
 ];
 
 const FAQ: ToolFaq[] = [
@@ -113,111 +120,95 @@ export default function ToolsPage() {
   };
 
   return (
-    <Container>
+    <>
       <JsonLd data={jsonLd} />
-      <SheetHead
-        eyebrow="Free tools"
-        title="Free email tools"
-        intro="Check an address, find the emails on a website, fix the records that send you to spam. No sign-up. The same engine that runs nvoke."
-      />
+      <section className="pt-16 pb-20 sm:pt-28 sm:pb-28">
+        <Container>
+          <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+            <p className="cap text-primary">Free &#183; No sign-up</p>
+            <RevealHeading as="h1" className="mt-6 text-display font-light" lines={['Free email tools.']} />
+            <p className="mt-6 max-w-lg text-lede text-pretty text-muted-foreground">
+              Check an address. Find a site’s emails. Fix what sends you to spam. On the engine that runs nvoke.
+            </p>
+          </div>
 
-      <ol className="mb-16 grid border-b md:grid-cols-3 md:gap-x-8 md:border-b-0 sm:mb-24">
-        {tools.map((tool, i) => {
-          const Icon = ICONS[tool.slug];
-          return (
-            <li key={tool.slug} className="md:border-b">
-              <Link
-                href={tool.href}
-                className="group flex h-full flex-col gap-3 border-t py-6 outline-none transition-colors hover:bg-foreground/[0.035] focus-visible:ring-[3px] focus-visible:ring-ring/40"
-              >
-                <span className="flex items-center justify-between">
-                  <span className="cap text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
-                  <Icon className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+          <ol className="mt-16 grid gap-x-8 gap-y-16 sm:mt-24 md:grid-cols-3">
+            {tools.map((tool, i) => (
+              <li key={tool.slug}>
+                <Link
+                  href={tool.href}
+                  className="group flex h-full flex-col outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                >
+                  <div className="transition-transform duration-300 ease-out-soft group-hover:-translate-y-1 motion-reduce:transform-none">
+                    {DEMOS[tool.slug]}
+                  </div>
+                  <span className="mt-8 flex items-center gap-2.5 border-t pt-5">
+                    <span aria-hidden="true" className="led group-hover:led-on" />
+                    <span className="cap text-muted-foreground tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                  </span>
+                  <h2 className="mt-4 text-title font-light text-balance">{tool.name}</h2>
+                  <p className="mt-2 mb-6 text-[15px] text-pretty text-muted-foreground">{tool.description}</p>
+                  <span className="key mt-auto inline-flex h-10 w-fit items-center bg-secondary px-5 font-mono text-[12.5px] font-medium tracking-[0.07em] text-secondary-foreground uppercase">
+                    Open
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </Container>
+      </section>
+
+      <SplitSection id="problems" title="Start from the symptom.">
+        <ul className="border-b">
+          {PROBLEMS.map((p) => {
+            const tool = toolBySlug(p.tool);
+            return (
+              <li key={p.symptom} className="border-t">
+                <Link
+                  href={tool.href}
+                  className="group grid gap-1.5 py-5 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:grid-cols-[1fr_auto] sm:items-baseline sm:gap-8"
+                >
+                  <span className="flex flex-col gap-1">
+                    <span className="text-[19px] font-light tracking-[-0.01em] text-pretty">{p.symptom}</span>
+                    <span className="text-[15px] text-pretty text-muted-foreground">{p.why}</span>
+                  </span>
+                  <span className="cap inline-flex items-center gap-2 whitespace-nowrap text-muted-foreground transition-colors group-hover:text-foreground">
+                    <span aria-hidden="true" className="led group-hover:led-on" />
+                    {tool.short}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </SplitSection>
+
+      <section id="why" aria-labelledby="why-title" className="py-20 sm:py-28">
+        <Container>
+          <RevealHeading id="why-title" className="text-headline font-light" lines={['Not demo toys.']} />
+          <p className="mt-5 max-w-md text-lede text-pretty text-muted-foreground">
+            The verifier and crawler nvoke customers use, with the same rules.
+          </p>
+          <ol className="mt-14 grid gap-x-10 gap-y-12 sm:mt-20 md:grid-cols-3">
+            {ENGINE.map((e, i) => (
+              <li key={e.title} className="border-t pt-6">
+                <span className="flex items-center gap-2.5">
+                  <span aria-hidden="true" className="led led-on" />
+                  <span className="cap text-muted-foreground tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                 </span>
-                <h2 className="mt-2 text-[28px] leading-tight font-light tracking-[-0.03em] text-balance">{tool.name}</h2>
-                <p className="text-[15px] text-pretty text-muted-foreground">{tool.description}</p>
-                <span className="cap mt-auto inline-flex items-center gap-1.5 pt-3 text-foreground">
-                  Open
-                  <ArrowRight
-                    className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ol>
+                <h3 className="mt-8 text-title font-light">{e.title}</h3>
+                <p className="mt-3 max-w-xs text-[15px] text-pretty text-muted-foreground">{e.body}</p>
+              </li>
+            ))}
+          </ol>
+        </Container>
+      </section>
 
-      <SheetSection
-        id="problems"
-        label="Symptoms"
-        title="Start from the problem"
-        intro="You rarely need a tool. You need a symptom gone. Find yours."
-      >
-        <table className="w-full max-w-4xl text-left">
-          <caption className="sr-only">Symptoms and the tool that fixes each</caption>
-          <thead className="sr-only sm:not-sr-only">
-            <tr className="cap text-muted-foreground">
-              <th scope="col" className="pb-3 font-medium">
-                If
-              </th>
-              <th scope="col" className="hidden pb-3 font-medium md:table-cell">
-                Why
-              </th>
-              <th scope="col" className="pb-3 text-right font-medium">
-                Use
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y border-y">
-            {PROBLEMS.map((p) => {
-              const tool = toolBySlug(p.tool);
-              return (
-                <tr key={p.symptom} className="align-top">
-                  <th scope="row" className="py-5 pr-6 text-[17px] font-normal tracking-[-0.01em]">
-                    {p.symptom}
-                    <p className="mt-1.5 text-[15px] text-pretty text-muted-foreground md:hidden">{p.why}</p>
-                  </th>
-                  <td className="hidden py-5 pr-6 text-[15px] text-pretty text-muted-foreground md:table-cell">{p.why}</td>
-                  <td className="py-5 text-right">
-                    <Link
-                      href={tool.href}
-                      className="cap inline-flex items-center gap-1 whitespace-nowrap text-foreground underline-offset-4 hover:underline"
-                    >
-                      {tool.short}
-                      <ArrowRight className="size-3.5" aria-hidden="true" />
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </SheetSection>
-
-      <SheetSection
-        id="why"
-        label="Engine"
-        title="Built on the real engine"
-        intro="Not demo toys. Every check runs on the verifier and crawler nvoke customers use, with the same rules."
-      >
-        <ChannelSteps
-          steps={[
-            { title: 'Asks, never guesses', body: 'Verdicts come from the mail server. When it will not answer, we say so.' },
-            { title: 'Polite crawler', body: 'nvokebot reads robots.txt first, one page a second, at most eight pages a site.' },
-            { title: 'Nothing gets sent', body: 'No test email, no tracking pixel. nvoke has no send button anywhere.' },
-          ]}
-        />
-      </SheetSection>
-
-      <SheetSection id="faq" label="FAQ" title="Questions">
-        <div className="max-w-3xl">
-          <Faq items={FAQ} />
-        </div>
-      </SheetSection>
+      <SplitSection id="faq" title="Questions.">
+        <Faq items={FAQ} />
+      </SplitSection>
 
       <ToolsCtaBand campaign="tools" />
-    </Container>
+    </>
   );
 }

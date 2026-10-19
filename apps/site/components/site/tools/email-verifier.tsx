@@ -4,18 +4,20 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ToolVerifyEmailResponse, type Verification } from '@nvoke/shared';
 import { ERROR_COPY, postTool, shareInUrl } from './api';
+import { useElapsed, VerifyDemo, VerifyDisplay, verifyRunning, type Step, type VerifyView } from './displays';
 import { ResultCta } from './result-cta';
-import { StatusPill, type Tone } from './status-pill';
-import { ResultCard, ResultScreen, ToolForm } from './tool-form';
+import type { Tone } from './status-pill';
+import { Announce, ToolForm } from './tool-form';
 import { useTurnstile } from './turnstile';
 
 type Phase =
   | { kind: 'idle' }
-  | { kind: 'checking' }
+  | { kind: 'checking'; email: string; startedAt: number }
   | { kind: 'done'; result: ToolVerifyEmailResponse }
   | { kind: 'error'; message: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BAD_EMAIL = 'Enter a full email address, like name@example.com.';
 
 export const VERDICT: Record<Verification, { label: string; tone: Tone }> = {
   valid: { label: 'Deliverable', tone: 'good' },
@@ -99,6 +101,40 @@ function cta(result: ToolVerifyEmailResponse): { title: string; body: string } {
   }
 }
 
+/** Which of the three checks passed, read from the reason the server gave. */
+const FIRST_STEP_FAIL = new Set(['syntax', 'typo_domain', 'disposable']);
+const DNS_FAIL = new Set(['no_mx', 'null_mx', 'parked_domain', 'dns_error']);
+const MAILBOX_SKIPPED = new Set(['mx_only', 'mx_only_port25_blocked', 'smtp_paced']);
+
+const MAILBOX_WORD: Record<Verification, string> = {
+  valid: 'Exists',
+  invalid: 'Rejected',
+  risky: 'Unclear',
+  catch_all: 'Says yes',
+  unknown: 'No answer',
+};
+
+function resultView(result: ToolVerifyEmailResponse): VerifyView {
+  const verdict = VERDICT[result.verification];
+  const pass: Step = { lamp: 'good', word: 'Pass' };
+  const fail: Step = { lamp: 'bad', word: 'Fail' };
+  const skipped: Step = { lamp: 'off', word: 'Skipped' };
+  let steps: [Step, Step, Step];
+  if (FIRST_STEP_FAIL.has(result.reason)) steps = [fail, skipped, skipped];
+  else if (DNS_FAIL.has(result.reason))
+    steps = [pass, result.reason === 'dns_error' ? { lamp: 'warn', word: 'No answer' } : fail, skipped];
+  else if (result.depth === 'domain' || MAILBOX_SKIPPED.has(result.reason)) steps = [pass, pass, skipped];
+  else steps = [pass, pass, { lamp: verdict.tone, word: MAILBOX_WORD[result.verification] }];
+  return {
+    lamp: verdict.tone,
+    mode: 'Result',
+    meta: result.mxHost ?? 'No mail server',
+    subject: result.email,
+    steps,
+    verdict: verdict.label,
+  };
+}
+
 /** The email verifier: one address, asked of its mail server. */
 export function EmailVerifier() {
   const params = useSearchParams();
@@ -109,10 +145,10 @@ export function EmailVerifier() {
   async function check(raw: string) {
     const email = raw.trim().toLowerCase();
     if (!EMAIL.test(email)) {
-      setPhase({ kind: 'error', message: 'Enter a full email address, like name@example.com.' });
+      setPhase({ kind: 'error', message: BAD_EMAIL });
       return;
     }
-    setPhase({ kind: 'checking' });
+    setPhase({ kind: 'checking', email, startedAt: Date.now() });
     const turnstileToken = await turnstile.getToken();
     const res = await postTool('/v1/tools/verify-email', { email, turnstileToken }, ToolVerifyEmailResponse, 30_000);
     turnstile.reset();
@@ -120,10 +156,7 @@ export function EmailVerifier() {
       setPhase({ kind: 'done', result: res.data });
       shareInUrl('email', email);
     } else {
-      setPhase({
-        kind: 'error',
-        message: res.error === 'invalid' ? 'Enter a full email address, like name@example.com.' : ERROR_COPY[res.error],
-      });
+      setPhase({ kind: 'error', message: res.error === 'invalid' ? BAD_EMAIL : ERROR_COPY[res.error] });
     }
   }
 
@@ -138,7 +171,7 @@ export function EmailVerifier() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <ToolForm
         label="Email address"
         placeholder="name@company.com"
@@ -151,47 +184,53 @@ export function EmailVerifier() {
         onSubmit={() => void check(value)}
         busy={phase.kind === 'checking'}
         submitLabel="Verify"
-        busyLabel="Asking the server"
-        hint="We talk to the mail server and hang up before anything is sent."
+        busyLabel="Asking"
+        hint="We ask the mail server and hang up before anything is sent."
         error={phase.kind === 'error' ? phase.message : null}
       >
         {turnstile.widget}
       </ToolForm>
-      {phase.kind === 'done' ? <VerifyResult result={phase.result} /> : null}
+      {phase.kind === 'checking' ? (
+        <Running email={phase.email} startedAt={phase.startedAt} />
+      ) : phase.kind === 'done' ? (
+        <VerifyResult result={phase.result} />
+      ) : (
+        <VerifyDemo />
+      )}
     </div>
+  );
+}
+
+function Running({ email, startedAt }: { email: string; startedAt: number }) {
+  const ms = useElapsed(startedAt, 100);
+  return (
+    <>
+      <Announce>Asking the mail server about {email}.</Announce>
+      <VerifyDisplay view={verifyRunning(email, ms)} hidden />
+    </>
   );
 }
 
 function VerifyResult({ result }: { result: ToolVerifyEmailResponse }) {
   const verdict = VERDICT[result.verification];
   const next = cta(result);
+  const reason = reasonText(result.reason);
   return (
-    <>
-      <ResultCard>
-        <ResultScreen subject={result.email} />
-        <div className="flex flex-col gap-3">
-          <StatusPill tone={verdict.tone}>{result.verification.replace('_', '-')}</StatusPill>
-          <h2 className="text-[34px] leading-[1.05] font-light tracking-[-0.035em] sm:text-[44px]">{verdict.label}</h2>
-          <p className="text-[16px] text-pretty text-muted-foreground">{reasonText(result.reason)}</p>
-        </div>
+    <div className="flex flex-col gap-8">
+      <Announce>
+        {result.email}: {verdict.label}. {reason}
+      </Announce>
+      <VerifyDisplay view={resultView(result)} hidden />
+      <div className="flex flex-col gap-3">
+        <p className="text-lede text-pretty">{reason}</p>
         {result.depth === 'domain' ? (
-          <p className="flex items-center gap-2.5 border-y py-3 text-[15px] text-pretty">
+          <p className="flex items-center gap-2.5 text-[15px] text-pretty text-muted-foreground">
             <span aria-hidden="true" className="led bg-chart-2" />
-            We checked the domain, not the mailbox. Sign up for the full mailbox check.
+            Domain checked, mailbox not. Sign up for the full check.
           </p>
         ) : null}
-        <dl className="grid gap-x-8 gap-y-4 border-t pt-5 text-sm sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <dt className="cap text-muted-foreground">Mail server</dt>
-            <dd className="font-mono break-all">{result.mxHost ?? 'None found'}</dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="cap text-muted-foreground">Checked</dt>
-            <dd>{result.depth === 'mailbox' ? 'Syntax, DNS and the mailbox' : 'Syntax and DNS'}</dd>
-          </div>
-        </dl>
-      </ResultCard>
+      </div>
       <ResultCta tool="email-verifier" title={next.title} body={next.body} />
-    </>
+    </div>
   );
 }

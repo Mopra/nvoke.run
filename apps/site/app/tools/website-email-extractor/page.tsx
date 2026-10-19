@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Container } from '@/components/site/section';
 import { EmailExtractor } from '@/components/site/tools/email-extractor';
 import { ToolPage, type ToolFaq, type ToolStep, type ToolTerm } from '@/components/site/tools/tool-page';
 import { toolOpenGraph } from '@/lib/tools';
@@ -18,15 +19,15 @@ export const metadata: Metadata = {
 const STEPS: ToolStep[] = [
   {
     title: 'robots.txt first',
-    body: 'nvokebot reads the site’s robots.txt before anything else. If it says keep out, we keep out and tell you.',
+    body: 'Read before anything else. If it says keep out, we keep out and tell you.',
   },
   {
     title: 'Up to eight pages',
-    body: 'The home page, then the pages most likely to list contacts: contact, about, team, imprint, privacy. At most one request a second.',
+    body: 'The home page, then contact, about, team, imprint and privacy. One request a second.',
   },
   {
     title: 'Only the company’s own addresses',
-    body: 'We collect addresses on the site’s own domain, including ones written as "name [at] domain [dot] com". Gmail addresses and other people’s domains are left out.',
+    body: 'Addresses on the site’s own domain, even "name [at] domain [dot] com". No Gmail, no strangers.',
   },
 ];
 
@@ -88,26 +89,28 @@ export default function WebsiteEmailExtractorPage() {
     <ToolPage
       slug="website-email-extractor"
       title={title}
-      intro="Enter a company’s domain. We read its website the polite way and list the email addresses it publishes."
+      intro="Enter a company’s domain. We read its site the polite way and list the addresses it publishes."
       widget={<EmailExtractor />}
-      stepsIntro="A careful crawler, not a scraper. Here is exactly what it does."
+      stepsIntro="A careful crawler, not a scraper."
       steps={STEPS}
       termsTitle="What the results mean"
       terms={TERMS}
       faq={FAQ}
     >
-      <section className="border-t py-10">
-        <p className="max-w-2xl text-[15px] text-pretty text-muted-foreground">
-          The crawler is nvokebot. Its user agent, limits and robots.txt rules are on the{' '}
-          <Link href="/bot" className="text-foreground underline underline-offset-4">
-            nvokebot page
-          </Link>
-          . Site owners can{' '}
-          <Link href="/opt-out" className="text-foreground underline underline-offset-4">
-            opt out
-          </Link>{' '}
-          in one step.
-        </p>
+      <section aria-label="The crawler" className="py-8">
+        <Container>
+          <p className="mx-auto max-w-xl text-center text-[15px] text-pretty text-muted-foreground">
+            The crawler is nvokebot. Its rules are on the{' '}
+            <Link href="/bot" className="text-foreground underline underline-offset-4">
+              nvokebot page
+            </Link>
+            . Site owners{' '}
+            <Link href="/opt-out" className="text-foreground underline underline-offset-4">
+              opt out
+            </Link>{' '}
+            in one step.
+          </p>
+        </Container>
       </section>
     </ToolPage>
   );
