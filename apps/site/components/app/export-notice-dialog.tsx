@@ -67,7 +67,7 @@ export function ExportNoticeDialog({
         </label>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <Button onClick={proceed}>
+          <Button variant="dark" onClick={proceed}>
             <Download />
             Export CSV
           </Button>

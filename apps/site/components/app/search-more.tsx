@@ -8,7 +8,8 @@ import { SEARCH_LIMIT_MAX, type Search } from '@nvoke/shared';
 import { SearchFields } from '@/components/app/search-fields';
 import { Button } from '@/components/ui/button';
 import { isQuotaError } from '@/lib/app/api';
-import { formatNumber, KIND_LABEL, runsAdded, runTitle, searchRuns } from '@/lib/app/desktop';
+import { formatNumber, isActive, KIND_LABEL, runsAdded, runTitle, searchRuns } from '@/lib/app/desktop';
+import { cn } from '@/lib/utils';
 import { BILLING_PATH } from '@/lib/app/quota';
 import { useMe, useSearchMore } from '@/lib/app/queries';
 import { buildSearchInput, formFromSearch, formProblem, type FormKind, type SearchForm } from '@/lib/app/search-form';
@@ -27,13 +28,13 @@ export function RunsLine({ search }: { search: Search }) {
   if (runs.length <= 1) return null;
   const added = runsAdded(search);
   return (
-    <ol data-search-runs className="cap mt-3 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground" aria-label="Runs of this search">
+    <ol data-search-runs className="cap flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground" aria-label="Runs of this search">
       {runs.map((run, i) => (
         <li key={`${run.createdAt}-${i}`} className="flex min-w-0 items-baseline gap-1.5">
           <span className="max-w-72 truncate" title={runTitle({ kind: search.kind, params: run.params } as Search)}>
             {runTitle({ kind: search.kind, params: run.params } as Search)}
           </span>
-          <span className="tabular-nums text-primary">
+          <span className={cn('tabular-nums', i === runs.length - 1 && isActive(search.status) ? 'text-primary' : 'text-foreground')}>
             {i === runs.length - 1 && search.status === 'queued' ? '…' : `+${formatNumber(Math.max(0, added[i] ?? 0))}`}
           </span>
         </li>
@@ -46,21 +47,20 @@ export function RunsLine({ search }: { search: Search }) {
 export function FoundFewNote({ search, onSearchMore }: { search: Search & { kind: FormKind }; onSearchMore: () => void }) {
   const n = search.companiesFound;
   return (
-    <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
       <Button variant="secondary" onClick={onSearchMore}>
         <ListPlus />
         Search more
       </Button>
       <span className="min-w-0 flex-1 text-sm text-pretty text-muted-foreground">
-        <span className="text-foreground">{n === 0 ? 'Nothing so far.' : `Only ${formatNumber(n)} so far.`}</span> Widen it: {WIDEN[search.kind]}{' '}
-        adds to this list, and what it already holds is skipped.
+        <span className="text-foreground">{n === 0 ? 'Nothing so far.' : `Only ${formatNumber(n)} so far.`}</span> Widen it: {WIDEN[search.kind]}.
       </span>
     </div>
   );
 }
 
 /**
- * Search more, in place of the stat screens: the New search sentence for the
+ * Search more, under the display in place of its keys: the New search sentence for the
  * search's kind, filled in from its latest run. Submitting runs the same
  * search again; only companies it does not hold yet are added.
  */
@@ -103,7 +103,7 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
   }
 
   return (
-    <section className="mt-10 motion-safe:animate-rise" aria-labelledby="search-more-title">
+    <section className="motion-safe:animate-rise" aria-labelledby="search-more-title">
       <form
         onSubmit={submit}
         onKeyDown={(e) => {
@@ -116,9 +116,7 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
           <h2 id="search-more-title" className="cap text-foreground">
             Search more into this list
           </h2>
-          <span className="text-sm text-muted-foreground">
-            {KIND_LABEL[search.kind]}. Companies already in it are skipped.
-          </span>
+          <span className="text-sm text-muted-foreground">{KIND_LABEL[search.kind]}. Companies it holds are skipped.</span>
         </div>
         <SearchFields
           className="mt-8"
@@ -131,7 +129,7 @@ export function SearchMorePanel({ search, onClose }: { search: Search & { kind: 
           more
         />
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          <Button type="submit" size="lg" disabled={more.isPending} className="min-w-40">
+          <Button type="submit" size="lg" variant="dark" disabled={more.isPending} className="min-w-40">
             {more.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
             Search more
             {!more.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}

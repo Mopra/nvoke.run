@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { VerificationBadge } from '@/components/app/indicators';
+import { FLASH_ROW, useFlash } from '@/components/app/results/fresh';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -80,7 +81,7 @@ function Who({ row }: { row: PersonRow }) {
   );
 }
 
-function Address({ row, live }: { row: PersonRow; live: boolean }) {
+function Address({ row, live, lit }: { row: PersonRow; live: boolean; lit: boolean }) {
   const { email } = row;
   const how = foundViaLabel(email);
   const [local, ...rest] = email.address.split('@');
@@ -90,7 +91,10 @@ function Address({ row, live }: { row: PersonRow; live: boolean }) {
         <button
           type="button"
           onClick={() => void copy(email.address, email.address)}
-          className="-my-1.5 flex min-w-0 items-center gap-1.5 rounded-sm py-1.5 text-left font-mono text-xs text-foreground/85 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50 sm:my-0 sm:py-0 dark:text-foreground/70 dark:hover:text-primary"
+          className={cn(
+            '-my-1.5 flex min-w-0 items-center gap-1.5 rounded-sm py-1.5 text-left font-mono text-xs outline-none transition-colors duration-1000 hover:text-primary hover:duration-150 focus-visible:ring-2 focus-visible:ring-ring/50 sm:my-0 sm:py-0 dark:hover:text-primary',
+            lit ? 'text-primary' : 'text-foreground/85 dark:text-foreground/70',
+          )}
           title={`Copy ${email.address}`}
         >
           {/* Phones show the whole address over two lines rather than cutting it. */}
@@ -132,27 +136,33 @@ export function PersonRowView({
   live,
   onOpenCompany,
   style,
+  fresh = false,
 }: {
   row: PersonRow;
   live: boolean;
+  /** Found by a poll while the search runs: the row lights up as it lands. */
+  fresh?: boolean;
   /** Carries the row's stagger index (`--i`). */
   style?: CSSProperties;
   /** Shows the company with all its addresses, openers and crawl state. */
   onOpenCompany: (domain: string) => void;
 }) {
   const { company } = row;
+  const lit = useFlash(fresh);
   return (
     <div
       data-person-row
+      data-fresh={lit || undefined}
       style={style}
       className={cn(
         PEOPLE_COLUMNS,
         // A hairline row on the chassis.
-        'group flex flex-col gap-2.5 border-t border-border py-4 transition-colors duration-150 last:border-b hover:bg-foreground/[0.035] md:items-start sm:px-3',
+        'group flex flex-col gap-2.5 border-t border-border py-4 transition-[background-color,box-shadow] duration-[1200ms] last:border-b hover:bg-foreground/[0.035] hover:duration-150 md:items-start sm:px-3',
+        lit && FLASH_ROW,
       )}
     >
       <Who row={row} />
-      <Address row={row} live={live} />
+      <Address row={row} live={live} lit={lit} />
       <div className="min-w-0 leading-5">
         <div className="flex min-w-0 items-center gap-2">
           <button

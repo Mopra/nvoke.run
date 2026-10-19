@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { STATUS_LABEL, VERIFICATION_HINT, VERIFICATION_LABEL } from '@/lib/app/desktop';
 import type { SearchStatus, Verification } from '@nvoke/shared';
@@ -25,6 +26,10 @@ export function VerificationBadge({
   label?: string;
 }) {
   const label = pending ? 'Checking' : (words ?? VERIFICATION_LABEL[value]);
+  // The LED pops when the check lands while the row is on screen, not on the first paint.
+  const state = pending ? 'pending' : value;
+  const [first] = useState(state);
+  const settled = state !== first;
   const hint = pending ? 'nvoke is checking whether this address receives mail.' : VERIFICATION_HINT[value];
   return (
     <Tooltip>
@@ -36,7 +41,10 @@ export function VerificationBadge({
             value === 'invalid' && !pending ? 'text-muted-foreground' : 'text-foreground/75',
           )}
         >
-          <span className={cn('led', pending ? 'bg-primary/70 motion-safe:animate-pulse' : VERIFICATION_DOT[value])} />
+          <span
+            key={state}
+            className={cn('led', pending ? 'bg-primary/70 motion-safe:animate-pulse' : VERIFICATION_DOT[value], settled && 'motion-safe:animate-pop-in')}
+          />
           {label}
         </span>
       </TooltipTrigger>

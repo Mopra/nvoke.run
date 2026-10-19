@@ -22,17 +22,17 @@ import {
   Search as SearchIcon,
   SearchX,
   Trash2,
-  TriangleAlert,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Company, CreateSearchInput, DraftOpenersInput, Email, Opener, Search } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
-import { StatusLabel, VerificationBadge } from '@/components/app/indicators';
-import { Figure, useArrivals } from '@/components/app/motion';
+import { VerificationBadge } from '@/components/app/indicators';
+import { useArrivals } from '@/components/app/motion';
+import { FLASH_ROW, useFlash, useFresh } from '@/components/app/results/fresh';
+import { SearchDisplay, SearchDisplaySkeleton } from '@/components/app/results/search-display';
 import { copy, PEOPLE_COLUMNS, PeopleSkeleton, PersonRowView } from '@/components/app/people-list';
-import { progressCaption, SearchProgress } from '@/components/app/search-progress';
 import { FoundFewNote, RunsLine, SearchMorePanel } from '@/components/app/search-more';
 import { APP_FRAME, APP_INSET, BackLink, PageHeader } from '@/components/app/shell';
 import { EmptyState, ErrorState } from '@/components/app/states';
@@ -53,7 +53,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ApiError, isQuotaError } from '@/lib/app/api';
 import {
   csvFileName,
-  duration,
   errorMessage,
   formatNumber,
   emailsLeft,
@@ -61,9 +60,7 @@ import {
   inboxCost,
   INBOX_FOLLOW_MS,
   isActive,
-  relativeTime,
   searchRuns,
-  searchSubtitle,
   searchTitle,
   SHARED_INBOXES,
   shouldShowExportNotice,
@@ -75,7 +72,6 @@ import {
   peopleCounts,
   peopleRows,
   personName,
-  stageLine,
   type PeopleCounts,
   type PeopleFilters,
 } from '@/lib/app/icp';
@@ -132,83 +128,16 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /* Overview */
 
-/** A small display: the figure lit over unlit segments, the label a cap row below with its share in orange. */
-function Stat({ label, value, plus = false, sub }: { label: string; value: number; plus?: boolean; sub?: string }) {
-  return (
-    <div className="screen flex min-w-0 flex-col px-3.5 py-3">
-      <div className="relative flex items-baseline justify-end gap-2">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute right-0 font-lcd text-3xl leading-none font-extrabold tracking-normal tabular-nums text-screen-dim select-none sm:text-4xl"
-        >
-          888
-        </span>
-        <span className="lcd relative text-3xl leading-none tracking-normal text-screen-foreground sm:text-4xl">
-          <Figure value={value} suffix={plus ? '+' : ''} />
-        </span>
-      </div>
-      <div className="cap mt-2.5 flex justify-between gap-2 text-screen-foreground/45">
-        <span className="truncate">{label}</span>
-        {sub && <span className={cn('shrink-0', sub.endsWith('%') && 'text-primary')}>{sub}</span>}
-      </div>
-    </div>
-  );
-}
-
-function StatsSkeleton() {
-  return (
-    <div className="mt-10 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="screen flex flex-col items-end gap-2.5 px-3.5 py-3">
-          <Skeleton className="h-9 w-16 bg-screen-dim" />
-          <Skeleton className="h-3 w-full bg-screen-dim" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * The live line under the screens while the search runs or keeps filling:
- * the meter and what the search is doing in its own words, then the people
- * found so far.
- */
-function LiveLine({ search, counts, partial }: { search: Search; counts: PeopleCounts | null; partial: boolean }) {
-  const active = isActive(search.status);
-  const note = stageLine(search) ?? (active ? progressCaption(search) : 'Watching for new companies');
-  return (
-    <div className="mt-8" aria-live="polite">
-      <div className="flex items-center gap-5">
-        {active ? (
-          <SearchProgress search={search} className="h-[3px] min-w-24 flex-1" />
-        ) : (
-          <span className="led bg-primary/50" aria-hidden />
-        )}
-        <span data-stage-note className="cap max-w-[60%] shrink-0 truncate tabular-nums text-muted-foreground" title={note}>
-          {note}
-        </span>
-      </div>
-      {counts && <p className="cap mt-3 tabular-nums text-foreground/75">{countsLine(counts, partial)} so far</p>}
-      {active && (
-        <p className="mt-3 max-w-[68ch] text-sm text-pretty text-muted-foreground">
-          New people show up here as they’re found. Every address is checked with its own mail server, so the LEDs fill in
-          over a few minutes. Close the tab if you like: the search keeps running.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /** Keep finding new leads, on a plain words search. */
 function OngoingSwitch({ search, onChange, saving }: { search: Search; onChange: (on: boolean) => void; saving: boolean }) {
   const on = Boolean(search.ongoing);
   const line = on
     ? isActive(search.status)
-      ? 'When this run ends, nvoke keeps looking and adds new people as it finds them.'
-      : 'nvoke looks for new companies a few times a day and adds the people it finds here.'
+      ? 'Keeps looking when this run ends.'
+      : 'Looks a few times a day and adds new people here.'
     : 'Off. The list stays as it is.';
   return (
-    <label data-ongoing className="mt-8 flex min-w-0 cursor-pointer flex-wrap items-center gap-x-3.5 gap-y-1">
+    <label data-ongoing className="flex min-w-0 cursor-pointer flex-wrap items-center gap-x-3.5 gap-y-1">
       <Switch checked={on} onCheckedChange={onChange} disabled={saving} aria-label="Keep finding new leads" />
       <span className="shrink-0 text-sm font-medium">Keeps finding new leads</span>
       <span className="min-w-0 text-sm text-pretty text-muted-foreground sm:truncate" title={line}>
@@ -234,7 +163,6 @@ function continueInput(search: Search): CreateSearchInput | null {
 
 function Overview({
   search,
-  timing,
   onRunAgain,
   starting,
   onContinue,
@@ -248,12 +176,11 @@ function Overview({
   savingOngoing,
 }: {
   search: Search;
-  timing: string;
   onRunAgain: () => void;
   starting: boolean;
   onContinue: () => void;
   continuing: boolean;
-  /** Search more is open in place of the screens. */
+  /** Search more is open under the display, in place of its keys. */
   editing: boolean;
   onSearchMore: () => void;
   onCloseMore: () => void;
@@ -265,8 +192,6 @@ function Overview({
   savingOngoing: boolean;
 }) {
   const active = isActive(search.status);
-  const showLive = active || Boolean(search.ongoing);
-  const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   const more = canSearchMore(search) && !stoppedByQuota(search);
   const few = more && foundFew(search) && search.companiesFound > 0;
   const resume = continueInput(search) && (
@@ -275,73 +200,61 @@ function Overview({
       Continue
     </Button>
   );
+  const ongoingSwitch = canBeOngoing(search) && !(search.status === 'failed' && stoppedByQuota(search));
   return (
-    <section className={cn(APP_INSET, 'pt-8 pb-10')}>
-      <h1
-        className="font-display text-3xl font-light tracking-[-0.02em] text-balance"
-        title={search.kind === 'icp' ? search.params.description : undefined}
-      >
-        {searchTitle(search)}
-      </h1>
-      <div className="cap mt-2 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-muted-foreground">
-        <StatusLabel status={search.status} />
-        <span className="min-w-0 sm:truncate" title={`${searchSubtitle(search)}, ${timing}`}>
-          {searchSubtitle(search)}, {timing}
-        </span>
-      </div>
-      <RunsLine search={search} />
+    <section className={cn(APP_INSET, 'flex flex-col gap-6 pt-6 pb-10')}>
+      <SearchDisplay search={search} />
+      {(counts || searchRuns(search).length > 1) && (
+        <div className="-mt-1 flex flex-col gap-2">
+          {counts && (
+            <p data-counts className="cap tabular-nums text-foreground/75">
+              {countsLine(counts, partial)}
+              {(active || search.ongoing) && ' so far'}
+            </p>
+          )}
+          <RunsLine search={search} />
+        </div>
+      )}
       {editing && canSearchMore(search) ? (
         <SearchMorePanel search={search} onClose={onCloseMore} />
       ) : (
         <>
-          <div className="mt-10 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <Stat label="Companies" value={search.companiesFound} sub={search.ongoing ? undefined : `of ${formatNumber(search.limit)}`} />
-            <Stat label="Websites crawled" value={search.companiesCrawled} />
-            <Stat label="Emails found" value={search.emailsFound} />
-            <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
-          </div>
-          {showLive ? (
-            <LiveLine search={search} counts={counts} partial={partial} />
-          ) : (
-            counts && <p className="cap mt-5 tabular-nums text-muted-foreground">{countsLine(counts, partial)}</p>
-          )}
-          {canBeOngoing(search) && !(search.status === 'failed' && stoppedByQuota(search)) && (
-            <OngoingSwitch search={search} onChange={onOngoing} saving={savingOngoing} />
-          )}
+          {ongoingSwitch && <OngoingSwitch search={search} onChange={onOngoing} saving={savingOngoing} />}
           {search.status === 'failed' ? (
-            <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[4px] border-y border-destructive/40 bg-destructive/8 px-4 py-3 text-sm">
-              <TriangleAlert className="size-4 shrink-0 text-destructive" />
-              <span className="min-w-0 flex-1">{errorMessage(search.error)} The results found until then are kept below.</span>
+            <div role="alert" className="flex flex-wrap items-center gap-x-4 gap-y-3 border-y border-destructive/30 py-3 text-sm">
+              <span aria-hidden className="led bg-destructive shadow-[0_0_6px_var(--destructive)]" />
+              <span className="min-w-0 flex-1">{errorMessage(search.error)} What it found is kept.</span>
               {stoppedByQuota(search) ? (
-                <Button asChild size="sm" variant="outline">
+                <Button asChild size="sm" variant="dark">
                   <Link href={BILLING_PATH}>
                     Upgrade
                     <ArrowUpRight className="size-3.5 opacity-70" />
                   </Link>
                 </Button>
               ) : search.kind === 'drop' ? null : (
-                <>
-                  <Button size="sm" variant="ghost" onClick={onRunAgain} disabled={starting}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={onRunAgain} disabled={starting}>
                     <RotateCw />
                     Run again
                   </Button>
                   {more && (
-                    <Button size="sm" variant="outline" onClick={onSearchMore}>
+                    <Button size="sm" variant="secondary" onClick={onSearchMore}>
                       <ListPlus />
                       Search more
                     </Button>
                   )}
-                </>
+                </div>
               )}
             </div>
           ) : few ? (
-            <>
-              {resume && <div className="mt-8">{resume}</div>}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+              {resume}
               <FoundFewNote search={search} onSearchMore={onSearchMore} />
-            </>
+            </div>
           ) : (
-            more && (
-              <div className="mt-8 flex flex-wrap items-center gap-4">
+            more &&
+            !active && (
+              <div className="flex flex-wrap items-center gap-3">
                 {resume}
                 <Button variant="secondary" onClick={onSearchMore}>
                   <ListPlus />
@@ -379,20 +292,15 @@ function workingStep(search: Search): number {
 }
 
 /**
- * The wait between starting a search and its first leads: rings pulse out
- * from the mark, the line under the title says what the pipeline is doing,
- * and each step has its LED. It replaces the empty list while a search runs.
+ * The wait between starting a search and its first leads, in place of the
+ * empty list: rings pulse out from the mark and each step has its LED. The
+ * display above says what the pipeline is doing in its own words.
  */
 function SearchWorking({ search }: { search: Search }) {
   const at = workingStep(search);
-  const caption = stageLine(search) ?? progressCaption(search);
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex flex-col items-center justify-center gap-10 border-t border-border px-2 pt-10 pb-20 motion-safe:animate-rise sm:flex-row sm:gap-14"
-    >
-      <div className="relative size-36 shrink-0 sm:size-44">
+    <div className="flex flex-col items-center justify-center gap-10 border-t border-border px-2 pt-12 pb-20 motion-safe:animate-rise sm:flex-row sm:gap-14">
+      <div aria-hidden className="relative size-36 shrink-0 sm:size-44">
         {[0, 1, 2].map((ring) => (
           <span
             key={ring}
@@ -410,13 +318,11 @@ function SearchWorking({ search }: { search: Search }) {
         <h2 className="font-display text-2xl font-light tracking-[-0.02em]">
           {search.kind === 'icp' ? 'Looking for your customers' : 'Looking for companies'}
         </h2>
-        <p key={caption} className="mt-1.5 truncate text-sm text-muted-foreground motion-safe:animate-fade-in">
-          {caption}
-        </p>
-        <ol className="mt-6 flex flex-col gap-2.5 text-sm">
+        <ol aria-label="Steps" className="mt-6 flex flex-col gap-2.5 text-sm">
           {workingSteps(search).map((label, i) => (
             <li
               key={label}
+              aria-current={i === at ? 'step' : undefined}
               className={cn(
                 'flex items-center gap-3 transition-colors duration-500',
                 i < at && 'text-muted-foreground',
@@ -435,9 +341,7 @@ function SearchWorking({ search }: { search: Search }) {
             </li>
           ))}
         </ol>
-        <p className="mt-6 max-w-sm text-sm text-muted-foreground">
-          First leads usually land within a minute or two. Close the tab if you like: the search keeps running.
-        </p>
+        <p className="cap mt-6 text-muted-foreground">First leads in a minute or two. Closing the tab is fine.</p>
       </div>
     </div>
   );
@@ -582,9 +486,12 @@ function CompanyRow({
   onDraftOpener,
   onCheckInboxes,
   style,
+  fresh = false,
 }: {
   company: Company;
   live: boolean;
+  /** Found by a poll while the search runs: the row lights up as it lands. */
+  fresh?: boolean;
   /** Carries the row's stagger index (`--i`). */
   style?: CSSProperties;
   onDraftOpener: (company: Company) => void;
@@ -595,12 +502,18 @@ function CompanyRow({
   const opener = company.opener;
   const draftable = canDraftOpener(company) && opener?.status !== 'queued';
   const draftLabel = opener ? 'Draft opener again' : 'Draft opener';
+  const lit = useFlash(fresh);
   return (
     <div
       data-company-row
+      data-fresh={lit || undefined}
       style={style}
-      // A hairline row on the chassis.
-      className={cn(COLUMNS, 'group flex flex-col gap-2 border-t border-border py-4 transition-colors duration-150 last:border-b hover:bg-foreground/[0.035] md:items-start sm:px-3')}
+      // A hairline row on the page.
+      className={cn(
+        COLUMNS,
+        'group flex flex-col gap-2 border-t border-border py-4 transition-[background-color,box-shadow] duration-[1200ms] last:border-b hover:bg-foreground/[0.035] hover:duration-150 md:items-start sm:px-3',
+        lit && FLASH_ROW,
+      )}
     >
       <div className="min-w-0 leading-5">
         <div className="truncate text-[15px]" title={company.name}>
@@ -719,10 +632,8 @@ export function ResultsLoading() {
   return (
     <main className={cn(APP_FRAME, 'app-view')}>
       <PageHeader leading={<BackLink />} />
-      <div className={cn(APP_INSET, 'pt-8 pb-10')}>
-        <Skeleton className="h-8 w-80 max-w-full" />
-        <Skeleton className="mt-3 h-3.5 w-56" />
-        <StatsSkeleton />
+      <div className={cn(APP_INSET, 'pt-6 pb-10')}>
+        <SearchDisplaySkeleton />
       </div>
       <PeopleSkeleton />
     </main>
@@ -802,7 +713,10 @@ export function ResultsScreen({ id }: { id: string }) {
   const rows = view === 'companies' ? filterCompanies(loaded, peopleFilters) : [];
   const shown = view === 'people' ? people.length : rows.length;
   // Rows found by a poll, a filter or the next page come in; the rows on screen stay still.
-  const arrive = useArrivals(view === 'people' ? people.map((r) => `p:${r.key}`) : rows.map((c) => `c:${c.id}`));
+  const rowKeys = view === 'people' ? people.map((r) => `p:${r.key}`) : rows.map((c) => `c:${c.id}`);
+  const arrive = useArrivals(rowKeys);
+  // Rows a poll brings in while the search runs light up as they land.
+  const fresh = useFresh(rowKeys, live || inboxesFollowing || ongoing);
 
   // The counts come from the companies loaded without filters, so filtering keeps the last ones.
   const [counts, setCounts] = useState<PeopleCounts | null>(null);
@@ -969,14 +883,14 @@ export function ResultsScreen({ id }: { id: string }) {
         search && (
           <>
             {live && (
-              <Button variant="destructive" onClick={doCancel} disabled={cancel.isPending}>
-                <Ban />
+              <Button variant="secondary" onClick={doCancel} disabled={cancel.isPending}>
+                <Ban className="text-destructive" />
                 Stop
               </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="More actions">
+                <Button variant="secondary" size="icon" aria-label="More actions">
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
@@ -1047,19 +961,13 @@ export function ResultsScreen({ id }: { id: string }) {
     return (
       <main className={cn(APP_FRAME, 'app-view')}>
         {header}
-        <div className={cn(APP_INSET, 'pt-8 pb-10')}>
-          <Skeleton className="h-8 w-80 max-w-full" />
-          <Skeleton className="mt-3 h-3.5 w-56" />
-          <StatsSkeleton />
+        <div className={cn(APP_INSET, 'pt-6 pb-10')}>
+          <SearchDisplaySkeleton />
         </div>
-        <TableSkeleton />
+        <PeopleSkeleton />
       </main>
     );
   }
-
-  const timing = search.startedAt
-    ? `${relativeTime(search.createdAt)}, ${live ? 'running for' : 'took'} ${duration(search.startedAt, search.finishedAt)}`
-    : relativeTime(search.createdAt);
 
   const inboxesOff = !search.checkInboxes;
   const more = hasNextPage ? '+' : '';
@@ -1075,7 +983,6 @@ export function ResultsScreen({ id }: { id: string }) {
       {header}
       <Overview
         search={search}
-        timing={timing}
         onRunAgain={runAgain}
         starting={create.isPending}
         onContinue={continueSearch}
@@ -1089,7 +996,7 @@ export function ResultsScreen({ id }: { id: string }) {
         savingOngoing={update.isPending}
       />
 
-      <div className={cn(APP_INSET, 'flex flex-wrap items-center justify-between gap-3 pb-4')}>
+      <div className={cn(APP_INSET, 'flex flex-wrap items-center justify-between gap-3 pb-3')}>
         <Segmented<View>
           label="Show"
           size="sm"
@@ -1169,12 +1076,13 @@ export function ResultsScreen({ id }: { id: string }) {
             </EmptyState>
           )
         ) : (
-          <div className="stagger flex flex-col">
+          <div key={view} className="stagger flex flex-col">
             {view === 'people'
               ? people.map((row) => (
                   <PersonRowView
                     key={row.key}
                     style={arrive(`p:${row.key}`)}
+                    fresh={fresh.has(`p:${row.key}`)}
                     row={row}
                     live={live || inboxesFollowing}
                     onOpenCompany={(domain) => {
@@ -1187,6 +1095,7 @@ export function ResultsScreen({ id }: { id: string }) {
                   <CompanyRow
                     key={company.id}
                     style={arrive(`c:${company.id}`)}
+                    fresh={fresh.has(`c:${company.id}`)}
                     company={company}
                     live={live || inboxesFollowing}
                     onDraftOpener={draftOpener}
@@ -1200,12 +1109,12 @@ export function ResultsScreen({ id }: { id: string }) {
         )}
       </div>
 
-      {/* The key bar: filters and export on a plate over the list, with the notices on plates above it. */}
+      {/* The key bar: filters and export floating over the list, with its notices above it. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2 px-3 sm:bottom-6">
         {view === 'people' && peopleFilters.showAll && inboxesOff && (
           <div
             data-inbox-notice
-            className="plate pointer-events-auto flex w-full max-w-[640px] flex-col gap-3 rounded-[6px] py-3 pr-3 pl-5 motion-safe:animate-rise sm:flex-row sm:items-center sm:gap-4"
+            className="pointer-events-auto flex w-full max-w-[640px] flex-col gap-3 rounded-[6px] bg-background py-3 pr-3 pl-5 shadow-[0_0_0_1px_var(--border),0_12px_24px_-12px_var(--shadow-color)] motion-safe:animate-rise sm:flex-row sm:items-center sm:gap-4"
           >
             <div className="min-w-0 leading-5">
               <div className="text-sm font-medium">{SHARED_INBOXES.title}</div>
@@ -1225,13 +1134,13 @@ export function ResultsScreen({ id }: { id: string }) {
             data-inbox-checking
             role="status"
             aria-live="polite"
-            className="plate pointer-events-auto flex min-h-9 items-center gap-2 rounded-[6px] px-4 py-2 text-xs text-muted-foreground motion-safe:animate-rise"
+            className="pointer-events-auto flex min-h-9 items-center gap-2 rounded-[6px] bg-background px-4 py-2 text-xs text-muted-foreground shadow-[0_0_0_1px_var(--border)] motion-safe:animate-rise"
           >
             <Loader2 className="size-3.5 shrink-0 text-primary motion-safe:animate-spin" aria-hidden />
             {inboxChecking(search.inboxesPending)}
           </div>
         )}
-        {/* A flat plate in the chassis colour with a hairline, deeper at the top so the keys' LEDs have room. */}
+        {/* Flat, in the page colour with a hairline. */}
         <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2.5 rounded-[6px] bg-background px-3 pt-3.5 pb-3 shadow-[0_-16px_20px_-8px_var(--background),0_0_0_1px_var(--border)] motion-safe:animate-rise motion-safe:[animation-delay:120ms] lg:flex-nowrap">
           <div className="relative w-full lg:w-60">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1288,9 +1197,13 @@ export function ResultsScreen({ id }: { id: string }) {
           </div>
           <span className="cap hidden min-w-24 items-center justify-end gap-1.5 px-2 tabular-nums text-muted-foreground lg:flex">
             {companies.isPlaceholderData && <Loader2 className="size-3 motion-safe:animate-spin" />}
-            {companies.data && dockCount}
+            {companies.data && (
+              <span key={view} className="motion-safe:animate-fade-in">
+                {dockCount}
+              </span>
+            )}
           </span>
-          <Button onClick={requestExport} disabled={exporting || search.emailsFound === 0}>
+          <Button variant="dark" onClick={requestExport} disabled={exporting || search.emailsFound === 0}>
             {exporting ? <Loader2 className="motion-safe:animate-spin" /> : <Download />}
             Export CSV
           </Button>
@@ -1336,7 +1249,7 @@ function FilterKey({ on, onChange, children }: { on: boolean; onChange: (on: boo
       onClick={() => onChange(!on)}
       className="key inline-flex h-8 shrink-0 items-center gap-2 bg-secondary px-3.5 font-mono text-[11px] font-medium tracking-[0.08em] whitespace-nowrap text-secondary-foreground uppercase outline-none hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      <span aria-hidden className={cn('led', on && 'led-on')} />
+      <span aria-hidden className={cn('led transition-[background-color,box-shadow] duration-200', on && 'led-on')} />
       {children}
     </button>
   );
