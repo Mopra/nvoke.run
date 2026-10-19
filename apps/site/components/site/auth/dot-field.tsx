@@ -18,52 +18,61 @@ const GLYPH: Record<string, string[]> = {
   '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
 };
 
+/* An 8 by 8 at sign: what the leads are, for the sign in page. */
+export const AT_SIGN = ['.######.', '#......#', '#.####.#', '#.#..#.#', '#.#..#.#', '#.#####.', '#.......', '.######.'];
+
 const COLS = 36;
-const ROWS = 26;
 const SCALE = 3;
 
 type Dot = { x: number; y: number; lit: boolean; at: number; spark: number };
 
-function layout(figure: string): Dot[] {
+/** A figure as rows of dots: digits from the 5 by 7 glyphs with a blank column between them. */
+function patternOf(figure: string): string[] {
   const glyphs = [...figure].map((c) => GLYPH[c] ?? GLYPH['0']!);
-  const width = (glyphs.length * 6 - 1) * SCALE;
+  return Array.from({ length: 7 }, (_, y) => glyphs.map((g) => g[y]).join('0'));
+}
+
+function layout(pattern: string[]): { dots: Dot[]; rows: number } {
+  const width = Math.max(...pattern.map((row) => row.length)) * SCALE;
+  const height = pattern.length * SCALE;
+  const rows = Math.max(26, height + 4);
   const left = Math.floor((COLS - width) / 2);
-  const top = Math.floor((ROWS - 7 * SCALE) / 2);
+  const top = Math.floor((rows - height) / 2);
   const lit = new Set<string>();
-  glyphs.forEach((g, n) =>
-    g.forEach((row, y) =>
-      [...row].forEach((bit, x) => {
-        if (bit !== '1') return;
-        for (let dy = 0; dy < SCALE; dy++)
-          for (let dx = 0; dx < SCALE; dx++) lit.add(`${left + (n * 6 + x) * SCALE + dx},${top + y * SCALE + dy}`);
-      }),
-    ),
+  pattern.forEach((row, y) =>
+    [...row].forEach((bit, x) => {
+      if (bit !== '1' && bit !== '#') return;
+      for (let dy = 0; dy < SCALE; dy++)
+        for (let dx = 0; dx < SCALE; dx++) lit.add(`${left + x * SCALE + dx},${top + y * SCALE + dy}`);
+    }),
   );
   const dots: Dot[] = [];
-  for (let y = 0; y < ROWS; y++)
+  for (let y = 0; y < rows; y++)
     for (let x = 0; x < COLS; x++) {
       const on = lit.has(`${x},${y}`);
       // Lit dots come on one by one, in a scattered order, over the first second and a half.
       dots.push({ x, y, lit: on, at: on ? 300 + Math.random() * 1500 : 0, spark: 0 });
     }
-  return dots;
+  return { dots, rows };
 }
 
 /**
- * Sign up's field: a grid of dots printed on the paper that gathers into the
- * free allowance, dot by dot. Dots near the pointer light up in orange, and
+ * The sign in and sign up field: a grid of dots printed on the paper that
+ * gathers into a figure (the free allowance) or a pattern (the at sign), dot
+ * by dot. Dots near the pointer light up in orange, and
  * now and then a stray dot sparks, like a lead being found. No black box:
  * the page itself is the display. Under reduced motion the figure stands
  * still.
  */
-export function DotField({ figure, className }: { figure: string; className?: string }) {
+export function DotField({ figure, pattern, className }: { figure?: string; pattern?: string[]; className?: string }) {
+  const shape = (pattern ?? patternOf(figure ?? '0')).join('|');
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const el = canvas.current;
     const ctx = el?.getContext('2d');
     if (!el || !ctx) return;
-    const dots = layout(figure);
+    const { dots, rows: ROWS } = layout(shape.split('|'));
     const still = prefersReducedMotion();
     const pointer = { x: -1e4, y: -1e4 };
     let colors = { ink: '', primary: '' };
@@ -153,7 +162,7 @@ export function DotField({ figure, className }: { figure: string; className?: st
       window.removeEventListener('pointermove', move);
       document.removeEventListener('pointerleave', leave);
     };
-  }, [figure]);
+  }, [shape]);
 
   return <canvas ref={canvas} aria-hidden="true" className={cn('block w-full', className)} />;
 }
