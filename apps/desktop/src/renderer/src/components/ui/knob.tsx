@@ -1,10 +1,11 @@
-import { useRef, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
+import { useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
  * A knob with detents: one of a few values, read off the tick it points at.
- * Click to step, scroll or drag up and down, or use the arrow keys. The cap
- * springs to the chosen tick.
+ * Hold it and turn it round with the pointer, as a real knob, and it picks
+ * the nearest tick; let go and the cap springs onto it. Click to step,
+ * scroll, or use the arrow keys.
  */
 export function Knob<T extends number>({
   value,
@@ -26,7 +27,9 @@ export function Knob<T extends number>({
   const index = Math.max(0, options.indexOf(value));
   const span = 240;
   const angleOf = (i: number): number => -span / 2 + (span / Math.max(1, options.length - 1)) * i;
-  const drag = useRef<{ y: number; index: number } | null>(null);
+  const drag = useRef<{ cx: number; cy: number; x: number; y: number; moved: boolean } | null>(null);
+  // The pointer's angle while the knob is held, so the cap follows the hand and snaps on release.
+  const [held, setHeld] = useState<number | null>(null);
 
   function step(by: number): void {
     const next = options[Math.min(options.length - 1, Math.max(0, index + by))];
@@ -42,21 +45,38 @@ export function Knob<T extends number>({
     event.preventDefault();
     step(event.deltaY > 0 ? 1 : -1);
   }
+  /** Degrees clockwise from twelve o'clock, from -180 to 180, of a point around the knob's centre. */
+  function angleAt(x: number, y: number): number {
+    const d = drag.current!;
+    return (Math.atan2(x - d.cx, d.cy - y) * 180) / Math.PI;
+  }
   function onPointerDown(event: PointerEvent<HTMLButtonElement>): void {
-    drag.current = { y: event.clientY, index };
+    const box = event.currentTarget.getBoundingClientRect();
+    drag.current = { cx: box.left + box.width / 2, cy: box.top + box.height / 2, x: event.clientX, y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function onPointerMove(event: PointerEvent<HTMLButtonElement>): void {
-    if (!drag.current) return;
-    // Thirty pixels of travel per detent.
-    const moved = Math.round((drag.current.y - event.clientY) / 30);
-    const next = options[Math.min(options.length - 1, Math.max(0, drag.current.index + moved))];
+    const d = drag.current;
+    if (!d) return;
+    if (!d.moved && Math.hypot(event.clientX - d.x, event.clientY - d.y) < 4) return;
+    d.moved = true;
+    const angle = angleAt(event.clientX, event.clientY);
+    // Below the dial, past either end stop, the knob stays where it was rather than jumping across.
+    if (Math.abs(angle) > span / 2 + 20) return;
+    const clamped = Math.max(-span / 2, Math.min(span / 2, angle));
+    setHeld(clamped);
+    let nearest = 0;
+    options.forEach((_, i) => {
+      if (Math.abs(angleOf(i) - clamped) < Math.abs(angleOf(nearest) - clamped)) nearest = i;
+    });
+    const next = options[nearest];
     if (next !== undefined && next !== value) onChange(next);
   }
-  function onPointerUp(event: PointerEvent<HTMLButtonElement>): void {
+  function onPointerUp(): void {
     // A tap without travel steps to the next detent.
-    if (drag.current && Math.abs(drag.current.y - event.clientY) < 4) step(index === options.length - 1 ? -(options.length - 1) : 1);
+    if (drag.current && !drag.current.moved) step(index === options.length - 1 ? -(options.length - 1) : 1);
     drag.current = null;
+    setHeld(null);
   }
 
   const radius = size / 2 - 10;
@@ -95,9 +115,15 @@ export function Knob<T extends number>({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => (drag.current = null)}
-        className="knob-cap absolute top-1/2 left-1/2 cursor-grab touch-none rounded-full outline-none transition-transform duration-300 ease-spring select-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        style={{ width: cap, height: cap, margin: -cap / 2, transform: `rotate(${angleOf(index)}deg)` }}
+        onPointerCancel={() => {
+          drag.current = null;
+          setHeld(null);
+        }}
+        className={cn(
+          'knob-cap absolute top-1/2 left-1/2 cursor-grab touch-none rounded-full outline-none select-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          held === null && 'transition-transform duration-300 ease-spring',
+        )}
+        style={{ width: cap, height: cap, margin: -cap / 2, transform: `rotate(${held ?? angleOf(index)}deg)` }}
       >
         <span aria-hidden className="absolute top-2.5 left-1/2 h-4 w-1 -translate-x-1/2 rounded-full bg-primary-foreground" />
       </button>
