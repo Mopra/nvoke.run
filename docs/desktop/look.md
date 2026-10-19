@@ -26,13 +26,18 @@ LED status dots. Light and dark are two finishes of the same device.
   opens the command bar.
 - **The panel**: the screens. `PageHeader` renders a screen's back key and
   its own keys; `DisplayTitle` is a light display title with its figure as
-  an orange cap label.
+  an orange cap label. Screen titles rise in word by word on first show
+  (`components/Reveal.tsx`, ported from the site's headline reveal).
 
 ## The parts
 
 - `packages/theme/field.css` holds the `:root` and `.dark` tokens, imported
-  by the renderer right after `theme.css` (the marketing site keeps
-  `theme.css` alone for now). Three tokens are the display: `screen`,
+  by the renderer right after `theme.css`. The site imports it too and
+  overrides the surface tokens with its paper finish, so the glass, sidebar,
+  popover and `screen-rim` tokens are the desktop's alone. Light is a pale,
+  airy grey chassis with near white plates and soft hairlines; dark is a near
+  black chassis with plates a step above it, crisp near white text and the
+  screen set in a visible rim (`--screen-rim`). Three tokens are the display: `screen`,
   `screen-foreground`, `screen-dim`. The faces are Space Grotesk for text,
   JetBrains Mono for labels and Doto for the screen (`--font-lcd`), bundled
   from `@fontsource-variable` so they load offline.
@@ -43,5 +48,16 @@ LED status dots. Light and dark are two finishes of the same device.
 - `components/ui/knob.tsx` is a knob with detents, used for the search
   limit: click, scroll, drag or arrow keys step it.
 
+- `components/SearchDisplay.tsx` is the results screen's one display, as in
+  the web app: the status LED with WAIT, RUN and DONE, the stage note, the
+  16 segment meter and the four figures over ghost digits (`ghost`), each
+  gliding to its new value with a `+n` beside its label. It carries no title,
+  so the display strip above stays the big screen.
+
+No box in box: a group of figures is one screen, a group of settings is rows
+with hairlines. Kinds and states in lists (Local, Web, Describe, Drop,
+Website, Daily) are printed `cap` labels in muted text, not filled tags.
 Keep orange for the primary action, running progress and the chosen state;
-everything else is grey, plate or black screen.
+everything else is grey, plate or black screen. Lists rise in row by row on
+first show (`stagger`) and figures count up (`useCountUp`); all motion is
+`motion-safe`.
