@@ -28,6 +28,7 @@ import {
   API_KEY_PREFIX,
   CreateDropRequest,
   DROP_DAILY_LIMIT_DEFAULT,
+  DROP_DAILY_LIMIT_MAX,
   FEED_SOURCES,
   isDecisionMaker,
   PLANS,
@@ -555,6 +556,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
         plan: MOCK_PLAN,
         usage: { period, emailsVerified: used + 412, emailsLimit: PLANS[MOCK_PLAN].emailsPerMonth },
         maxSearchLimit: MAX_LIMIT,
+        maxDropDailyLimit: DROP_DAILY_LIMIT_MAX,
         account: { createdBy: 'human', agentName: null, claimedAt: new Date(now()).toISOString() },
         billingUrl: 'https://nvoke.run/desktop/billing',
       };

@@ -22,8 +22,10 @@ export const DROPS_PATH = '/app/drops';
 export const NEW_DROP_PATH = '/app/drops/new';
 export const dropPath = (id: string): string => `${DROPS_PATH}/${encodeURIComponent(id)}`;
 
-/** The knob's ticks for the daily limit. */
-export const DROP_LIMIT_PRESETS = [10, 25, 50, 100, DROP_DAILY_LIMIT_MAX] as const;
+/** The knob's ticks for the daily limit, ending at the plan's `max`. */
+export function dropLimitPresets(max: number = DROP_DAILY_LIMIT_MAX): number[] {
+  return [...[10, 25, 50, 100].filter((p) => p < max), max];
+}
 
 /** A run is due within this long of `nextRunAt`: the worker picks drops up every minute. */
 const DUE_MS = 60_000;
@@ -104,9 +106,9 @@ export function autoName(keyword: string): string {
   return k ? capitalize(k) : 'Every launch';
 }
 
-/** The daily limit the server accepts: a whole number from 1 to the max, the default when empty. */
-export function clampLimit(limit: number): number {
-  return Math.min(DROP_DAILY_LIMIT_MAX, Math.max(1, Math.round(limit) || DROP_DAILY_LIMIT_DEFAULT));
+/** The daily limit the server accepts: a whole number from 1 to the plan's `max`, the default when empty. */
+export function clampLimit(limit: number, max: number = DROP_DAILY_LIMIT_MAX): number {
+  return Math.min(max, Math.max(1, Math.round(limit) || DROP_DAILY_LIMIT_DEFAULT));
 }
 
 /** What is wrong with the form, or null when it can be saved. */
@@ -114,22 +116,22 @@ export function dropFormProblem(form: DropForm): string | null {
   return form.sources.length === 0 ? 'Pick at least one source.' : null;
 }
 
-export function buildCreateDrop(form: DropForm): CreateDropRequest | null {
+export function buildCreateDrop(form: DropForm, max?: number): CreateDropRequest | null {
   if (dropFormProblem(form)) return null;
   const keyword = form.keyword.trim();
   return {
     name: form.name.trim() || autoName(keyword),
     ...(keyword ? { keyword } : {}),
     sources: form.sources,
-    dailyLimit: clampLimit(form.limit),
+    dailyLimit: clampLimit(form.limit, max),
   };
 }
 
 /** The whole form as an update; an emptied keyword removes it. */
-export function buildUpdateDrop(form: DropForm): UpdateDropRequest | null {
+export function buildUpdateDrop(form: DropForm, max?: number): UpdateDropRequest | null {
   if (dropFormProblem(form)) return null;
   const keyword = form.keyword.trim();
-  return { name: form.name.trim() || autoName(keyword), keyword: keyword || null, sources: form.sources, dailyLimit: clampLimit(form.limit) };
+  return { name: form.name.trim() || autoName(keyword), keyword: keyword || null, sources: form.sources, dailyLimit: clampLimit(form.limit, max) };
 }
 
 /** Puts a changed drop into the cached list: replaced in place, or first when it is new. */

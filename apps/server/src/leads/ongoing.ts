@@ -16,9 +16,9 @@ import { IcpSearchParams } from '@nvoke/shared';
 import type { Ai } from '../ai/client.js';
 import { searchFinished } from '../webhooks/events.js';
 import { stillToCheck, type PolicyEmail } from './check-policy.js';
-import { MAX_SEARCH_LIMIT } from './plans.js';
+import { maxSearchLimit } from './plans.js';
 import { IcpPlan, PLAN_CAPS, freshCountries, replan, savePlan } from './planner.js';
-import { quotaExhausted } from './quota.js';
+import { planOf, quotaExhausted } from './quota.js';
 import { startAutoRun } from './repo.js';
 
 type Db = Sql | TransactionSql;
@@ -415,7 +415,7 @@ async function startRound(deps: OngoingDeps, c: Claimed): Promise<void> {
   const note = `${ongoing ? 'Daily round. ' : ''}Found ${counts.verified} verified so far. ${roundNote(previous.data, plan)}`;
   await savePlan(sql, c.id, plan);
   const started = await startAutoRun(sql, c.id, {
-    limit: Math.min(userLimit(runs, c.limit), MAX_SEARCH_LIMIT),
+    limit: Math.min(userLimit(runs, c.limit), maxSearchLimit(await planOf(sql, c.clerk_user_id))),
     trigger: c.trigger,
     braveBudget: ongoing ? budget : undefined,
     stage: STAGES.round,

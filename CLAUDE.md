@@ -101,8 +101,8 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   (`src/agents/signup.ts`) and the owner claims on the site's `/claim`.
   Details in `docs/SPEC.md`, "API and agents".
 - `GET /v1/me` returns `MeResponse`: the Clerk profile (`user`), how the
-  request authenticated (`via`), and `plan`, `usage` and `maxSearchLimit`
-  from `accountSummary()`.
+  request authenticated (`via`), and `plan`, `usage`, `maxSearchLimit` and
+  `maxDropDailyLimit` (both per plan, `plans.ts`) from `accountSummary()`.
 - Pricing: one plan for everyone, priced by verified emails a month. The
   ladder is `packages/shared/src/plans.ts`; each paid key is a Clerk Billing
   user plan slug. Checkout is on the site (`app/desktop/billing`, shown in

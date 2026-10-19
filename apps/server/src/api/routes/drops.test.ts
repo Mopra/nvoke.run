@@ -72,7 +72,13 @@ describe('drop routes', () => {
   it('rejects bad input', async () => {
     expect((await create('alice', { name: '' })).statusCode).toBe(400);
     expect((await create('alice', { name: 'x', sources: ['reddit'] })).statusCode).toBe(400);
-    expect((await create('alice', { name: 'x', dailyLimit: 5000 })).statusCode).toBe(400);
+    expect((await create('alice', { name: 'x', dailyLimit: 5001 })).statusCode).toBe(400);
+  });
+
+  it('holds the daily limit to the plan', async () => {
+    expect(Drop.parse((await create('alice', { name: 'Big', dailyLimit: 5000 })).json()).dailyLimit).toBe(200);
+    await db.sql`update accounts set plan = 'emails_100000' where clerk_user_id = 'alice'`;
+    expect(Drop.parse((await create('alice', { name: 'Bigger', dailyLimit: 5000 })).json()).dailyLimit).toBe(5000);
   });
 
   it('updates, pauses, runs and deletes, scoped to the owner', async () => {

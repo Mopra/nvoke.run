@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
-import { PLANS } from '@nvoke/shared';
-import { emailsPerMonth, periodOf } from './plans.js';
+import { DROP_DAILY_LIMIT_MAX, PLAN_ORDER, PLANS, SEARCH_LIMIT_MAX } from '@nvoke/shared';
+import { emailsPerMonth, maxSearchLimit, periodOf } from './plans.js';
 import { accountSummary, chargeVerified, emailsVerified, ensureAccount, quotaExhausted } from './quota.js';
 
 let db: TestDb;
@@ -20,9 +20,22 @@ const charge = (user: string, address: string, at?: Date) => db.sql.begin((tx) =
 
 describe('plans', () => {
   it('match the ladder: 50 free, then 1,000 to 100,000 verified emails a month', () => {
-    expect(PLANS.free).toEqual({ emailsPerMonth: 50, priceUsd: 0 });
-    expect(PLANS.emails_1000).toEqual({ emailsPerMonth: 1_000, priceUsd: 5 });
-    expect(PLANS.emails_100000).toEqual({ emailsPerMonth: 100_000, priceUsd: 149 });
+    expect(PLANS.free).toMatchObject({ emailsPerMonth: 50, priceUsd: 0 });
+    expect(PLANS.emails_1000).toMatchObject({ emailsPerMonth: 1_000, priceUsd: 5 });
+    expect(PLANS.emails_100000).toMatchObject({ emailsPerMonth: 100_000, priceUsd: 149 });
+  });
+
+  it('raise the search and drop caps with the plan, never past the schema ceilings', () => {
+    let previous = PLANS.free;
+    for (const key of PLAN_ORDER) {
+      const meta = PLANS[key];
+      expect(meta.maxSearchLimit).toBeGreaterThanOrEqual(previous.maxSearchLimit);
+      expect(meta.maxDropDailyLimit).toBeGreaterThanOrEqual(previous.maxDropDailyLimit);
+      expect(meta.maxSearchLimit).toBeLessThanOrEqual(SEARCH_LIMIT_MAX);
+      expect(meta.maxDropDailyLimit).toBeLessThanOrEqual(DROP_DAILY_LIMIT_MAX);
+      previous = meta;
+    }
+    expect(maxSearchLimit('business')).toBe(PLANS.free.maxSearchLimit);
   });
 
   it('give an unknown plan the free allowance', () => {
@@ -85,7 +98,8 @@ describe('quota', () => {
       userId: 'u5',
       plan: 'emails_20000',
       usage: { period: '2026-10', emailsVerified: 12, emailsLimit: 20_000 },
-      maxSearchLimit: 1_000,
+      maxSearchLimit: 20_000,
+      maxDropDailyLimit: 2_000,
       account: { createdBy: 'human', agentName: null, claimedAt: expect.any(String) },
     });
   });

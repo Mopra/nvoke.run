@@ -222,7 +222,7 @@ describe('api keys', () => {
 describe('meta', () => {
   it('serves the plans and an OpenAPI document covering every endpoint', async () => {
     const plans = await app.inject({ method: 'GET', url: '/v1/plans' });
-    expect(plans.json().plans[0]).toEqual({ key: 'free', emailsPerMonth: 50, priceUsd: 0 });
+    expect(plans.json().plans[0]).toEqual({ key: 'free', emailsPerMonth: 50, priceUsd: 0, maxSearchLimit: 1_000, maxDropDailyLimit: 200 });
 
     const doc = (await app.inject({ method: 'GET', url: '/v1/openapi.json' })).json();
     expect(doc.openapi).toBe('3.1.0');

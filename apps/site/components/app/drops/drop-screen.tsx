@@ -21,7 +21,7 @@ import {
   buildCreateDrop,
   buildUpdateDrop,
   clampLimit,
-  DROP_LIMIT_PRESETS,
+  dropLimitPresets,
   dropForm,
   dropFormProblem,
   dropPath,
@@ -33,7 +33,7 @@ import {
   toggleSource,
   type DropForm,
 } from '@/lib/app/drops';
-import { useCreateDrop, useDrops, useSearches, useUpdateDrop } from '@/lib/app/queries';
+import { useCreateDrop, useDrops, useMe, useSearches, useUpdateDrop } from '@/lib/app/queries';
 import { cn } from '@/lib/utils';
 
 /**
@@ -95,8 +95,8 @@ function DropKeys({ drop }: { drop: Drop }) {
   );
 }
 
-function sameUpdate(form: DropForm, drop: Drop): boolean {
-  const next = buildUpdateDrop(form);
+function sameUpdate(form: DropForm, drop: Drop, max: number): boolean {
+  const next = buildUpdateDrop(form, max);
   return (
     !!next &&
     next.name === drop.name &&
@@ -119,6 +119,7 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
   const create = useCreateDrop();
   const update = useUpdateDrop();
   const searches = useSearches();
+  const maxLimit = useMe().data?.maxDropDailyLimit ?? DROP_DAILY_LIMIT_MAX;
   const pending = create.isPending || update.isPending;
   const runs: Search[] = drop ? dropRuns(searches.data, drop.id) : [];
 
@@ -136,16 +137,16 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
 
   const set = <K extends keyof DropForm>(key: K) => (value: DropForm[K]) => setForm((f) => ({ ...f, [key]: value }));
   const problem = touched ? dropFormProblem(form) : null;
-  const unchanged = drop ? sameUpdate(form, drop) : false;
+  const unchanged = drop ? sameUpdate(form, drop, maxLimit) : false;
   const name = form.name.trim() || autoName(form.keyword);
-  const lim = clampLimit(form.limit);
+  const lim = clampLimit(form.limit, maxLimit);
 
   function submit(event?: FormEvent): void {
     event?.preventDefault();
     setTouched(true);
     if (pending) return;
     if (drop) {
-      const patch = buildUpdateDrop(form);
+      const patch = buildUpdateDrop(form, maxLimit);
       if (!patch || unchanged) return;
       update.mutate(
         { id: drop.id, update: patch },
@@ -156,7 +157,7 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
       );
       return;
     }
-    const input = buildCreateDrop(form);
+    const input = buildCreateDrop(form, maxLimit);
     if (!input) return;
     create.mutate(input, {
       onSuccess: (created) => {
@@ -168,8 +169,9 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
   }
 
   const state = drop ? dropState(drop, runs) : 'paused';
-  const preset = DROP_LIMIT_PRESETS.find((p) => p === form.limit) ?? null;
-  const knobAt = DROP_LIMIT_PRESETS.reduce((best, p) => (Math.abs(p - lim) < Math.abs(best - lim) ? p : best));
+  const presets = dropLimitPresets(maxLimit);
+  const preset = presets.find((p) => p === form.limit) ?? null;
+  const knobAt = presets.reduce((best, p) => (Math.abs(p - lim) < Math.abs(best - lim) ? p : best));
 
   return (
     <main className={cn(APP_FRAME, 'app-view pb-24')}>
@@ -237,7 +239,7 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  max={DROP_DAILY_LIMIT_MAX}
+                  max={maxLimit}
                   value={Number.isNaN(form.limit) ? '' : form.limit}
                   onChange={(e) => set('limit')(e.target.valueAsNumber)}
                   style={{ width: `${Math.max(2, String(Number.isNaN(form.limit) ? '' : form.limit).length) + 0.6}ch` }}
@@ -247,7 +249,7 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
               </div>
             </Line>
             <div className="col-start-2 -mt-1 flex flex-wrap gap-1 lg:hidden" role="group" aria-label="Preset limits">
-              {DROP_LIMIT_PRESETS.map((p) => (
+              {presets.map((p) => (
                 <Pill key={p} pressed={preset === p} onClick={() => set('limit')(p)}>
                   {p}
                 </Pill>
@@ -284,7 +286,7 @@ function DropEditor({ drop, sources, initialKeyword }: { drop?: Drop; sources: F
 
         <div className="hidden flex-col items-center gap-3.5 pt-10 lg:flex">
           <KeyGroup label="A day">
-            <Knob value={knobAt} options={[...DROP_LIMIT_PRESETS]} onChange={set('limit')} label="Companies a day" format={formatNumber} size={170} />
+            <Knob value={knobAt} options={presets} onChange={set('limit')} label="Companies a day" format={formatNumber} size={170} />
           </KeyGroup>
           <div className="flex items-center gap-2">
             <span aria-hidden className="led" />

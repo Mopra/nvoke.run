@@ -4,6 +4,7 @@ import {
   buildCreateDrop,
   buildUpdateDrop,
   clampLimit,
+  dropLimitPresets,
   dropForm,
   dropPath,
   dropRuns,
@@ -109,9 +110,15 @@ describe('the drop form', () => {
 
   it('clamps the limit and falls back to the default', () => {
     expect(clampLimit(Number.NaN)).toBe(DROP_DAILY_LIMIT_DEFAULT);
-    expect(clampLimit(1000)).toBe(DROP_DAILY_LIMIT_MAX);
+    expect(clampLimit(99_999)).toBe(DROP_DAILY_LIMIT_MAX);
+    expect(clampLimit(1000, 200)).toBe(200);
     expect(clampLimit(-3)).toBe(1);
     expect(clampLimit(12.4)).toBe(12);
+  });
+
+  it('ends the presets at the plan max', () => {
+    expect(dropLimitPresets(200)).toEqual([10, 25, 50, 100, 200]);
+    expect(dropLimitPresets(50)).toEqual([10, 25, 50]);
   });
 
   it('builds a create request, naming it after the keyword when the name is empty', () => {

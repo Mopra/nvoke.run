@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/states';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { capitalize, FEED_SOURCE_LABEL, formatNumber } from '@/lib/format';
-import { useCreateDrop, useDrops, useUpdateDrop } from '@/lib/queries';
+import { useCreateDrop, useDrops, useMe, useUpdateDrop } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import type { Drop, FeedSource, FeedSourceStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -64,6 +64,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
   const firstField = useRef<HTMLInputElement>(null);
   const create = useCreateDrop();
   const update = useUpdateDrop();
+  const maxLimit = useMe().data?.maxDropDailyLimit ?? DROP_DAILY_LIMIT_MAX;
   const pending = create.isPending || update.isPending;
 
   useEffect(() => {
@@ -73,7 +74,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
   const available = (s: FeedSource): boolean => sources.find((x) => x.source === s)?.available ?? true;
   const k = keyword.trim();
   const autoName = k ? capitalize(k) : 'Every launch';
-  const lim = Math.min(DROP_DAILY_LIMIT_MAX, Math.max(1, Math.round(limit) || DROP_DAILY_LIMIT_DEFAULT));
+  const lim = Math.min(maxLimit, Math.max(1, Math.round(limit) || DROP_DAILY_LIMIT_DEFAULT));
   const valid = picked.length > 0;
 
   function toggle(source: FeedSource): void {
@@ -164,7 +165,7 @@ function DropForm({ drop, initialKeyword, sources }: { drop?: Drop; initialKeywo
                   id="drop-limit"
                   type="number"
                   min={1}
-                  max={DROP_DAILY_LIMIT_MAX}
+                  max={maxLimit}
                   value={Number.isNaN(limit) ? '' : limit}
                   onChange={(e) => setLimit(e.target.valueAsNumber)}
                   style={{ width: `${Math.max(2, String(Number.isNaN(limit) ? '' : limit).length) + 0.4}ch` }}

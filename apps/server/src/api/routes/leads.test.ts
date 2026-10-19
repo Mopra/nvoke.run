@@ -94,6 +94,13 @@ describe('lead routes', () => {
     expect(account).toEqual({ plan: 'free' });
   });
 
+  it('holds the limit to the plan', async () => {
+    const big = { kind: 'web', params: { keyword: 'design studio', country: 'DK' }, limit: 25_000 } as const;
+    expect(Search.parse((await createSearch('alice', big)).json()).limit).toBe(1000);
+    await db.sql`update accounts set plan = 'emails_7500' where clerk_user_id = 'alice'`;
+    expect(Search.parse((await createSearch('alice', big)).json()).limit).toBe(10_000);
+  });
+
   it('uses the default limit of 100', async () => {
     await db.sql`insert into accounts (clerk_user_id, plan) values ('bob', 'emails_2500')`;
     const res = await createSearch('bob', { kind: 'launches', params: { days: 3 } });
@@ -549,6 +556,7 @@ describe('lead routes in the real app', () => {
       plan: 'free',
       usage: { emailsVerified: 0, emailsLimit: 50 },
       maxSearchLimit: 1000,
+      maxDropDailyLimit: 200,
     });
   });
 });

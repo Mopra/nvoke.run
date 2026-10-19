@@ -14,7 +14,8 @@ export type FeedSource = z.infer<typeof FeedSource>;
 export const FEED_SOURCES = FeedSource.options;
 
 export const DROP_DAILY_LIMIT_DEFAULT = 25;
-export const DROP_DAILY_LIMIT_MAX = 200;
+/** The highest daily limit on any plan. Each plan's own is `PLANS[plan].maxDropDailyLimit`. */
+export const DROP_DAILY_LIMIT_MAX = 5_000;
 /** How far back the first run of a new drop reaches. */
 export const DROP_BACKFILL_DAYS = 7;
 

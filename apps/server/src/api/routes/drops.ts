@@ -21,6 +21,7 @@ import {
   runDropNow,
   updateDrop,
 } from '../../feed/drops.js';
+import { maxDropDailyLimit } from '../../leads/plans.js';
 import { ensureAccount } from '../../leads/quota.js';
 import { requireUser } from '../user.js';
 
@@ -32,6 +33,11 @@ export interface DropsRoutesOptions {
 }
 
 type DropsErrorCode = 'not_found' | 'invalid_request' | 'too_many_drops' | 'database_unavailable';
+
+/** The daily limit held to what the plan allows, like a search's limit. */
+function withPlanLimit<T extends { dailyLimit?: number }>(req: T, plan: string): T {
+  return req.dailyLimit === undefined ? req : { ...req, dailyLimit: Math.min(req.dailyLimit, maxDropDailyLimit(plan)) };
+}
 
 function sendError(reply: FastifyReply, status: number, error: DropsErrorCode, details?: unknown) {
   return reply.code(status).send(details === undefined ? { error } : { error, details });
@@ -61,9 +67,9 @@ export const dropsRoutes: FastifyPluginAsync<DropsRoutesOptions> = async (app, o
     const body = CreateDropRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
     const sql = opts.getSql();
-    await ensureAccount(sql, req.userId!);
+    const plan = await ensureAccount(sql, req.userId!);
     if ((await countDrops(sql, req.userId!)) >= MAX_DROPS_PER_USER) return sendError(reply, 409, 'too_many_drops');
-    return reply.code(201).send(await createDrop(sql, req.userId!, body.data));
+    return reply.code(201).send(await createDrop(sql, req.userId!, withPlanLimit(body.data, plan)));
   });
 
   app.patch('/drops/:id', async (req, reply): Promise<Drop | void> => {
@@ -71,7 +77,9 @@ export const dropsRoutes: FastifyPluginAsync<DropsRoutesOptions> = async (app, o
     if (!params.success) return sendError(reply, 404, 'not_found');
     const body = UpdateDropRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
-    const drop = await updateDrop(opts.getSql(), req.userId!, params.data.id, body.data);
+    const sql = opts.getSql();
+    const plan = await ensureAccount(sql, req.userId!);
+    const drop = await updateDrop(sql, req.userId!, params.data.id, withPlanLimit(body.data, plan));
     return drop ?? sendError(reply, 404, 'not_found');
   });
 

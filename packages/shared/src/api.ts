@@ -41,6 +41,8 @@ export const MeResponse = z.object({
   usage: Usage,
   /** Highest `limit` a single search may ask for on this plan. */
   maxSearchLimit: z.number().int().positive(),
+  /** Highest `dailyLimit` a drop may have on this plan. */
+  maxDropDailyLimit: z.number().int().positive(),
   account: AccountOrigin,
   /** Where a human changes the plan. Checkout needs a browser. */
   billingUrl: z.string(),

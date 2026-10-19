@@ -34,6 +34,7 @@ export async function meRoutes(
       plan: account.plan,
       usage: account.usage,
       maxSearchLimit: account.maxSearchLimit,
+      maxDropDailyLimit: account.maxDropDailyLimit,
       account: account.account,
       billingUrl: new URL('/desktop/billing', opts.siteUrl).toString(),
     };

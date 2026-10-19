@@ -16,7 +16,7 @@ The EDPB (WP248 rev.01) says a DPIA is generally needed when two or more of its 
 | 2. Automated decisions with legal or similar effect | No. |
 | 3. Systematic monitoring | No. One-off crawl of business pages, read again only when a later search finds the company more than 90 days after the last visit. |
 | 4. Sensitive or highly personal data | No. |
-| 5. Large scale | Likely, over time. Every customer search crawls up to 1,000 companies, across the EU. |
+| 5. Large scale | Likely, over time. Every customer search crawls up to 25,000 companies (1,000 on the free plan), across the EU. |
 | 6. Matching or combining datasets | Yes. Company listings from OSM, Brave, Product Hunt and HN are combined with addresses from the company's website. |
 | 7. Vulnerable data subjects | No. |
 | 8. Innovative technology | No. Crawling and SMTP checks are established. |

@@ -68,7 +68,8 @@ export const LaunchesSearchParams = z.object({
 export type LaunchesSearchParams = z.infer<typeof LaunchesSearchParams>;
 
 export const SEARCH_LIMIT_DEFAULT = 100;
-export const SEARCH_LIMIT_MAX = 1000;
+/** The highest search limit on any plan. Each plan's own is `PLANS[plan].maxSearchLimit`. */
+export const SEARCH_LIMIT_MAX = 25_000;
 
 /**
  * A list the user already has: domains, URLs, email addresses (for their
@@ -421,8 +422,10 @@ export const AccountSummary = z.object({
   userId: z.string(),
   plan: Plan,
   usage: Usage,
-  /** Highest `limit` a single search may ask for. The same on every plan. */
+  /** Highest `limit` a single search may ask for on this plan. */
   maxSearchLimit: z.number().int().positive(),
+  /** Highest `dailyLimit` a drop may have on this plan. */
+  maxDropDailyLimit: z.number().int().positive(),
   account: AccountOrigin,
 });
 export type AccountSummary = z.infer<typeof AccountSummary>;

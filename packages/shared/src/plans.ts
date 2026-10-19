@@ -33,16 +33,24 @@ export interface PlanMeta {
   emailsPerMonth: number;
   /** Price per month in USD, excluding VAT. 0 for the free plan. */
   priceUsd: number;
+  /**
+   * Most companies one search may ask for. Grows with the allowance so a
+   * paying user can spend it in a few searches, and stops at 25,000 so no
+   * single search turns into a job of hundreds of thousands.
+   */
+  maxSearchLimit: number;
+  /** Most companies one drop may deliver a day. */
+  maxDropDailyLimit: number;
 }
 
 export const PLANS: Record<Plan, PlanMeta> = {
-  free: { emailsPerMonth: 50, priceUsd: 0 },
-  emails_1000: { emailsPerMonth: 1_000, priceUsd: 5 },
-  emails_2500: { emailsPerMonth: 2_500, priceUsd: 9 },
-  emails_7500: { emailsPerMonth: 7_500, priceUsd: 19 },
-  emails_20000: { emailsPerMonth: 20_000, priceUsd: 39 },
-  emails_50000: { emailsPerMonth: 50_000, priceUsd: 79 },
-  emails_100000: { emailsPerMonth: 100_000, priceUsd: 149 },
+  free: { emailsPerMonth: 50, priceUsd: 0, maxSearchLimit: 1_000, maxDropDailyLimit: 200 },
+  emails_1000: { emailsPerMonth: 1_000, priceUsd: 5, maxSearchLimit: 2_500, maxDropDailyLimit: 250 },
+  emails_2500: { emailsPerMonth: 2_500, priceUsd: 9, maxSearchLimit: 5_000, maxDropDailyLimit: 500 },
+  emails_7500: { emailsPerMonth: 7_500, priceUsd: 19, maxSearchLimit: 10_000, maxDropDailyLimit: 1_000 },
+  emails_20000: { emailsPerMonth: 20_000, priceUsd: 39, maxSearchLimit: 20_000, maxDropDailyLimit: 2_000 },
+  emails_50000: { emailsPerMonth: 50_000, priceUsd: 79, maxSearchLimit: 25_000, maxDropDailyLimit: 2_500 },
+  emails_100000: { emailsPerMonth: 100_000, priceUsd: 149, maxSearchLimit: 25_000, maxDropDailyLimit: 5_000 },
 };
 
 export const FREE_PLAN: Plan = 'free';
@@ -83,6 +91,8 @@ export const PlansResponse = z.object({
       key: Plan,
       emailsPerMonth: z.number().int().positive(),
       priceUsd: z.number().nonnegative(),
+      maxSearchLimit: z.number().int().positive(),
+      maxDropDailyLimit: z.number().int().positive(),
     }),
   ),
 });

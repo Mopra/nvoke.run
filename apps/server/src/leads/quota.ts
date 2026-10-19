@@ -7,7 +7,7 @@
 
 import type { Sql, TransactionSql } from 'postgres';
 import type { AccountSummary, Plan } from '@nvoke/shared';
-import { MAX_SEARCH_LIMIT, asPlan, emailsPerMonth, periodOf } from './plans.js';
+import { asPlan, emailsPerMonth, maxDropDailyLimit, maxSearchLimit, periodOf } from './plans.js';
 
 type Db = Sql | TransactionSql;
 
@@ -49,7 +49,8 @@ export async function accountSummary(sql: Db, userId: string, now: Date = new Da
     userId,
     plan,
     usage: { period, emailsVerified: await emailsVerified(sql, userId, period), emailsLimit: emailsPerMonth(plan) },
-    maxSearchLimit: MAX_SEARCH_LIMIT,
+    maxSearchLimit: maxSearchLimit(plan),
+    maxDropDailyLimit: maxDropDailyLimit(plan),
     account: {
       createdBy: origin?.created_by ?? 'human',
       agentName: origin?.agent_name ?? null,

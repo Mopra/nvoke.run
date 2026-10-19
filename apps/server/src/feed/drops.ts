@@ -17,7 +17,8 @@ import {
   type FeedSourceStatus,
   type UpdateDropRequest,
 } from '@nvoke/shared';
-import { quotaExhausted } from '../leads/quota.js';
+import { maxDropDailyLimit } from '../leads/plans.js';
+import { planOf, quotaExhausted } from '../leads/quota.js';
 import type { FoundCompany, SourceAdapter } from '../leads/sources/types.js';
 import { enqueue } from '../worker/queue.js';
 
@@ -214,9 +215,11 @@ export async function runDueDrops(sql: Sql, log: Logger, now: Date = new Date())
         untilId,
         ...(since ? { since: since.toISOString() } : {}),
       };
+      // A drop made on a bigger plan delivers what the current plan allows.
+      const limit = Math.min(drop.daily_limit, maxDropDailyLimit(await planOf(tx, drop.clerk_user_id)));
       const [search] = await tx<{ id: string }[]>`
         insert into searches (clerk_user_id, kind, params, "limit", drop_id)
-        values (${drop.clerk_user_id}, 'drop', ${tx.json(params)}, ${drop.daily_limit}, ${drop.id})
+        values (${drop.clerk_user_id}, 'drop', ${tx.json(params)}, ${limit}, ${drop.id})
         returning id
       `;
       await enqueue(tx, { type: 'find', payload: { searchId: search!.id }, searchId: search!.id });

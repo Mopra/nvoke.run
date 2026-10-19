@@ -26,7 +26,7 @@ import {
   type SearchListResponse,
 } from '@nvoke/shared';
 import { toCsv } from '../../leads/csv.js';
-import { MAX_SEARCH_LIMIT } from '../../leads/plans.js';
+import { maxSearchLimit } from '../../leads/plans.js';
 import { ensureAccount, quotaExhausted } from '../../leads/quota.js';
 import { claimLocalCrawl, submitLocalCrawl } from '../../leads/local-crawl.js';
 import { kindPaused, requestNeedsSource } from '../../leads/source-pause.js';
@@ -65,10 +65,10 @@ function parse<T extends z.ZodType>(schema: T, value: unknown): { ok: true; data
   return result.success ? { ok: true, data: result.data } : { ok: false, issues: result.error.issues };
 }
 
-/** The request with its limit settled: a list is as long as it is, the limit only cuts it. */
-function withLimit(request: CreateSearchRequest): { request: CreateSearchRequest; limit: number } {
-  if (request.kind !== 'domains') return { request, limit: Math.min(request.limit ?? SEARCH_LIMIT_DEFAULT, MAX_SEARCH_LIMIT) };
-  const items = request.params.items.slice(0, Math.min(request.limit ?? MAX_SEARCH_LIMIT, MAX_SEARCH_LIMIT));
+/** The request with its limit settled under the plan's `max`: a list is as long as it is, the limit only cuts it. */
+function withLimit(request: CreateSearchRequest, max: number): { request: CreateSearchRequest; limit: number } {
+  if (request.kind !== 'domains') return { request, limit: Math.min(request.limit ?? SEARCH_LIMIT_DEFAULT, max) };
+  const items = request.params.items.slice(0, Math.min(request.limit ?? max, max));
   return { request: { ...request, params: { ...request.params, items } }, limit: items.length };
 }
 
@@ -90,11 +90,11 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
     const sql = opts.getSql();
     const userId = req.userId!;
-    await ensureAccount(sql, userId);
+    const plan = await ensureAccount(sql, userId);
     if (await quotaExhausted(sql, userId)) {
       return reply.code(403).send({ error: 'quota_exceeded', ...(opts.billingUrl ? { billingUrl: opts.billingUrl } : {}) });
     }
-    const { request, limit } = withLimit(body.data);
+    const { request, limit } = withLimit(body.data, maxSearchLimit(plan));
     if (await kindPaused(sql, request.kind, requestNeedsSource(request))) return sendError(reply, 503, 'source_unavailable');
     const search = await createSearch(sql, userId, request, limit);
     return reply.code(201).send(search);
@@ -107,11 +107,11 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
     const sql = opts.getSql();
     const userId = req.userId!;
-    await ensureAccount(sql, userId);
+    const plan = await ensureAccount(sql, userId);
     if (await quotaExhausted(sql, userId)) {
       return reply.code(403).send({ error: 'quota_exceeded', ...(opts.billingUrl ? { billingUrl: opts.billingUrl } : {}) });
     }
-    const { request, limit } = withLimit(body.data);
+    const { request, limit } = withLimit(body.data, maxSearchLimit(plan));
     if (await kindPaused(sql, request.kind, requestNeedsSource(request))) return sendError(reply, 503, 'source_unavailable');
     const result = await searchMore(sql, userId, params.data.id, request, limit);
     if (result === null) return sendError(reply, 404, 'not_found');

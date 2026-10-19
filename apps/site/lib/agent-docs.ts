@@ -68,7 +68,7 @@ Send \`Authorization: Bearer <apiKey>\` on every request.
    - \`{"kind":"local","params":{"niche":"dentists","location":"Austin"},"limit":50}\` (a trade in a place, OpenStreetMap)
    - \`{"kind":"web","params":{"keyword":"design studio","country":"gb"}}\` (web search)
    - \`{"kind":"launches","params":{"keyword":"ai","days":7}}\` (Product Hunt and Show HN)
-   - \`{"kind":"domains","params":{"items":["acme.com","Stripe"],"country":"us"}}\` (a list you already have: domains, URLs or company names, up to 1,000)
+   - \`{"kind":"domains","params":{"items":["acme.com","Stripe"],"country":"us"}}\` (a list you already have: domains, URLs or company names, up to maxSearchLimit from /v1/me)
    It returns the search with \`status: "queued"\`.
 2. \`GET /v1/searches/{id}\` every 5 seconds until \`status\` is \`done\`, \`failed\` or \`canceled\`. Searches take a few minutes. On \`failed\`, read \`error\`.
 3. \`GET /v1/searches/{id}/companies?verification=valid\` for companies with addresses that accept mail. Follow \`nextCursor\` as \`cursor\`.

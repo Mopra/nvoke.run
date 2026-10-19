@@ -35,7 +35,7 @@ function clean(part: string): string {
 }
 
 /** The most items one list may hold (`SEARCH_LIMIT_MAX`). */
-const MAX_ITEMS = 1000;
+const MAX_ITEMS = 25_000;
 
 /**
  * Splits pasted text into list items, one per line. A line splits further on
