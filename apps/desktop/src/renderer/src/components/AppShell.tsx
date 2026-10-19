@@ -38,14 +38,7 @@ export function AppShell({ route, children }: { route: Route; children: ReactNod
       <Ports route={route} onFind={() => setCommandOpen(true)} />
       <Head live={live} />
       <Display searches={data ?? []} live={live} route={route} onOpen={() => setCommandOpen(true)} />
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* The display casts a soft shadow on the panel, so the screens scroll in under the head. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-2 top-0 z-30 h-4 bg-[linear-gradient(to_bottom,var(--shadow-strong),var(--shadow-color)_25%,transparent)] [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]"
-        />
-        {children}
-      </div>
+      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
       <CommandBar open={commandOpen} onOpenChange={setCommandOpen} />
       <FileDrop />
     </div>
@@ -479,7 +472,33 @@ export function ScrollShade({ of }: { of: RefObject<HTMLElement | null> }) {
 }
 
 /**
- * A screen's scrolling panel: the main element with the shade at its foot.
+ * A shadow along the top edge of a panel once it scrolls, cast by the row
+ * above it, so the rows slide in under that edge instead of being cut off.
+ */
+function TopShade({ of }: { of: RefObject<HTMLElement | null> }) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const el = of.current;
+    if (!el) return;
+    const check = (): void => setScrolled(el.scrollTop > 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    return () => el.removeEventListener('scroll', check);
+  }, [of]);
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute inset-x-0 top-0 z-20 h-5 bg-[linear-gradient(to_bottom,var(--shadow-strong),var(--shadow-color)_20%,transparent)] transition-opacity duration-200',
+        scrolled ? 'opacity-100' : 'opacity-0',
+      )}
+    />
+  );
+}
+
+/**
+ * A screen's scrolling panel: the main element with a shadow along its top
+ * once it scrolls and the shade at its foot.
  * Takes a ref like a plain main, for screens that scroll it themselves.
  */
 export function Panel({ ref, className, children, ...props }: ComponentProps<'main'>) {
@@ -493,11 +512,12 @@ export function Panel({ ref, className, children, ...props }: ComponentProps<'ma
     [ref],
   );
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <main ref={setRef} className={cn('min-h-0 flex-1 overflow-auto', className)} {...props}>
         {children}
       </main>
+      <TopShade of={el} />
       <ScrollShade of={el} />
-    </>
+    </div>
   );
 }
