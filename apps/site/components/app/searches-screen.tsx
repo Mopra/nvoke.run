@@ -10,9 +10,9 @@ import { DeleteSiteProfileDialog } from '@/components/app/delete-site-profile-di
 import { StatusDot } from '@/components/app/indicators';
 import { Figure, useArrivals } from '@/components/app/motion';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
+import { MonthDisplay } from '@/components/app/searches/month-display';
 import { APP_FRAME, APP_INSET, KeyGroup, LedKey } from '@/components/app/shell';
 import { EmptyState, ErrorState } from '@/components/app/states';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -22,8 +22,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { errorMessage, formatNumber, isActive, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
-import { useCancelSearch, useLatestProfileBuild, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
+import { errorMessage, formatNumber, isActive, percent, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
+import { useCancelSearch, useLatestProfileBuild, useMe, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
 import { displayDomain, PROFILE_PATH, WEBSITE_PATH } from '@/lib/app/site-profile';
 import { cn } from '@/lib/utils';
 
@@ -104,19 +104,18 @@ function WebsiteMenu({ profile }: { profile: SiteProfile }) {
   );
 }
 
-/** The kind tag: one word, and which keycap color it prints on. */
-const KIND_TAG: Record<string, [label: string, variant: 'default' | 'secondary' | 'outline']> = {
-  local: ['Local', 'secondary'],
-  web: ['Web', 'secondary'],
-  launches: ['Launches', 'secondary'],
-  domains: ['List', 'secondary'],
-  drop: ['Drop', 'default'],
-  icp: ['Describe', 'outline'],
+/** The kind, printed as one mono word. */
+const KIND_WORD: Record<string, string> = {
+  local: 'Local',
+  web: 'Web',
+  launches: 'Launches',
+  domains: 'List',
+  drop: 'Drop',
+  icp: 'Describe',
 };
 
 function KindTag({ kind }: { kind: string }) {
-  const [label, variant] = KIND_TAG[kind] ?? ['Search', 'secondary'];
-  return <Badge variant={variant}>{label}</Badge>;
+  return <span className="cap text-muted-foreground">{KIND_WORD[kind] ?? 'Search'}</span>;
 }
 
 /** The channel number, two digits at the row's left edge. */
@@ -138,7 +137,7 @@ const ROW_LINK = 'absolute inset-0 outline-none';
 const ROW_BODY = cn('pointer-events-none relative py-4', APP_INSET, GRID);
 const ROW_TITLE = 'truncate font-display text-base';
 const ROW_SUBTITLE = 'mt-1 truncate font-mono text-[12px] tracking-[0.04em] text-muted-foreground uppercase';
-const ROW_FIGURE = 'text-right font-display text-3xl font-light tracking-[-0.02em] tabular-nums';
+const ROW_FIGURE = 'text-right font-display text-3xl font-light tracking-[-0.02em] tabular-nums transition-colors duration-500';
 const ROW_VALID = 'hidden text-right font-mono text-base tabular-nums text-muted-foreground md:block';
 const MENU = 'pointer-events-auto -mr-1 flex justify-end';
 
@@ -162,6 +161,26 @@ function PhoneLine({ children }: { children: ReactNode }) {
   return <div className="mt-2 flex items-center gap-3 md:hidden">{children}</div>;
 }
 
+/**
+ * A running row's top hairline turns into its progress: an orange line with
+ * a glow, as long as the share of companies read, gliding as the poll moves
+ * it. A queued search shows a short line that breathes while it waits.
+ */
+function RunRule({ search }: { search: Search }) {
+  const queued = search.status === 'queued';
+  const share = queued ? 6 : Math.max(3, percent(search.companiesCrawled, Math.max(search.limit, search.companiesFound, 1)));
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'absolute -top-px left-0 h-0.5 bg-primary shadow-[0_0_8px_var(--primary)] transition-[width] duration-700 ease-out-soft motion-reduce:transition-none',
+        queued && 'motion-safe:animate-pulse',
+      )}
+      style={{ width: `${share}%` }}
+    />
+  );
+}
+
 function SearchRow({ search, index, style }: { search: Search; index: number; style?: CSSProperties }) {
   const active = isActive(search.status);
   const stopped = search.status === 'failed' || search.status === 'canceled';
@@ -178,6 +197,7 @@ function SearchRow({ search, index, style }: { search: Search; index: number; st
           .join(' · ');
   return (
     <div style={style} className={ROW}>
+      {active && <RunRule search={search} />}
       <Link
         href={href(search)}
         data-search-status={search.status}
@@ -205,7 +225,7 @@ function SearchRow({ search, index, style }: { search: Search; index: number; st
         <div className="hidden md:block">
           <Status search={search} />
         </div>
-        <div className={ROW_FIGURE}>
+        <div className={cn(ROW_FIGURE, active && 'text-primary')}>
           <Figure value={search.emailsFound} />
         </div>
         <div className={ROW_VALID}>{stopped && search.emailsFound === 0 ? '' : formatNumber(search.emailsValid)}</div>
@@ -259,12 +279,12 @@ function WebsiteRow() {
               : `Your website · ${displayDomain(profile.data!.website)} · ${relativeTime(profile.data!.updatedAt)}`}
           </div>
           <PhoneLine>
-            <Badge variant="default">Website</Badge>
+            <span className="cap text-muted-foreground">Website</span>
             <WebsiteStatus reading={!!reading} planned={planned} />
           </PhoneLine>
         </div>
         <div className="hidden md:block">
-          <Badge variant="default">Website</Badge>
+          <span className="cap text-muted-foreground">Website</span>
         </div>
         <div className="hidden md:block">
           <WebsiteStatus reading={!!reading} planned={planned} />
@@ -280,7 +300,7 @@ function WebsiteRow() {
 /** The column headers. */
 function TableHead() {
   return (
-    <div className={cn('cap hidden pb-2 text-muted-foreground md:grid', APP_INSET, GRID)}>
+    <div className={cn(GRID, 'cap hidden pb-2 text-muted-foreground md:grid', APP_INSET)}>
       <span>Ch</span>
       <span>Search</span>
       <span>Kind</span>
@@ -333,12 +353,9 @@ function StartKeys() {
           <Link href={WEBSITE_PATH}>Website</Link>
         </Button>
       </LedKey>
-      <LedKey on>
-        <Button asChild>
-          <Link href="/app/new">
-            <span className="led bg-primary-foreground" />
-            Describe
-          </Link>
+      <LedKey>
+        <Button asChild variant="dark">
+          <Link href="/app/new">Describe</Link>
         </Button>
       </LedKey>
     </KeyGroup>
@@ -352,7 +369,7 @@ const BY_HAND = [
   { kind: 'domains', icon: ClipboardList, title: 'List' },
 ] as const;
 
-/** The first visit: one orange key, Describe your customer, and light keys for the other ways to search. */
+/** The first visit: one dark key, Describe your customer, and light keys for the other ways to search. */
 function FirstSearch() {
   return (
     <EmptyState
@@ -360,7 +377,7 @@ function FirstSearch() {
       title="Who do you sell to?"
       action={
         <div className="flex flex-col items-center gap-8">
-          <Button asChild size="lg">
+          <Button asChild size="lg" variant="dark">
             <Link href="/app/new">
               Describe your customer
               <ArrowRight />
@@ -386,14 +403,14 @@ function FirstSearch() {
         </div>
       }
     >
-      Say it in plain words. nvoke plans the searches, reads every site and finds the people who decide. Only verified
-      emails count toward your plan.
+      Say it in plain words. nvoke plans the searches, reads every site and finds the people who decide.
     </EmptyState>
   );
 }
 
 export function SearchesScreen() {
   const { data, error, isPending, refetch } = useSearches();
+  const me = useMe();
   const active = data?.filter((s) => isActive(s.status)) ?? [];
   const earlier = data?.filter((s) => !isActive(s.status)) ?? [];
   // The list is polled: a new search, or one that just finished and moved down, comes in; the rest stay still.
@@ -403,17 +420,22 @@ export function SearchesScreen() {
   useRefreshWhenFinished(active.length > 0, null);
 
   const empty = !!data && data.length === 0;
-  const subtitle = data && data.length > 0 ? `${data.length}${active.length ? ` / ${active.length} run` : ''}` : null;
 
   return (
     <main className={cn(APP_FRAME, 'app-view pb-24')}>
       <div className={cn(APP_INSET, 'flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-8 pb-5')}>
         <h1 className="font-display text-3xl font-light tracking-[-0.02em] sm:text-4xl">
           Searches
-          {subtitle && <span className="cap ml-3 align-top text-primary">{subtitle}</span>}
+          {data && data.length > 0 && (
+            <span className="cap ml-3 align-top text-muted-foreground">
+              {data.length}
+              {active.length > 0 && <span className="text-primary"> / {active.length} run</span>}
+            </span>
+          )}
         </h1>
         {!empty && <StartKeys />}
       </div>
+      {!error && <MonthDisplay me={me.data} searches={data} className="mb-10 sm:mb-14" />}
       {isPending ? (
         <>
           <TableHead />

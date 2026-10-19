@@ -262,7 +262,7 @@ export function LimitKnob({ limit, onChange }: { limit: number; onChange: (limit
       <Bracket label="Limit" />
       <Knob value={nearest} options={options} onChange={onChange} label="Limit" format={formatNumber} size={170} />
       <div className="flex items-center gap-2">
-        <span aria-hidden className="led led-on" />
+        <span aria-hidden className="led" />
         <span className="cap text-muted-foreground">Turn or click</span>
       </div>
     </div>

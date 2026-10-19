@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { ArrowRight, ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles, X } from 'lucide-react';
 import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
+import { Readback } from '@/components/app/new/readback';
 import { useStartSearch } from '@/components/app/new-search-screen';
-import { PLATE } from '@/components/app/search-fields';
 import { Pill } from '@/components/app/sentence';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
@@ -99,7 +99,7 @@ export function IcpSearchScreen() {
           <label htmlFor={ids.description}>Who do you sell to?</label>
         </h1>
         <p className={cn('mt-2 max-w-xl text-pretty', NOTE)}>
-          Say it like you would to a new hire. nvoke plans the searches, reads every site and finds the people who decide.
+          Say it like you would to a new hire. nvoke plans the searches and finds the people who decide.
         </p>
 
         <div className="group/line relative mt-7 pb-2">
@@ -210,14 +210,30 @@ export function IcpSearchScreen() {
           <span>
             <span className="cap block text-foreground">Keep finding new leads</span>
             <span className={cn('mt-0.5 block max-w-md text-pretty', NOTE)}>
-              After the first {formatNumber(Math.min(ICP_LIMIT, maxLimit))} companies, nvoke keeps looking and adds new
-              people as it finds them, until you switch it off.
+              Keeps looking after the first {formatNumber(Math.min(ICP_LIMIT, maxLimit))} companies, until you switch it off.
             </span>
           </span>
         </label>
 
-        <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <Button type="submit" size="lg" disabled={pending} className="min-w-40">
+        <Readback
+          className="mt-10"
+          kind="Describe"
+          title={form.description.trim()}
+          placeholder="Who you sell to"
+          detail={[
+            `Up to ${formatNumber(Math.min(ICP_LIMIT, maxLimit))} companies`,
+            form.countries.length > 0 && form.countries.map((c) => countryName(c) ?? c.toUpperCase()).join(', '),
+            form.ongoing && 'then ongoing',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+          left={quota ? quota.left : null}
+          limit={quota?.limit ?? 0}
+          pending={pending}
+        />
+
+        <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <Button type="submit" size="lg" variant="dark" disabled={pending} className="min-w-40">
             {pending ? <Loader2 className="motion-safe:animate-spin" /> : null}
             Find leads
             {!pending && <CornerDownLeft className="size-3.5 opacity-70" />}
@@ -238,16 +254,7 @@ export function IcpSearchScreen() {
               </Link>
             </p>
           ) : (
-            <p className={cn('max-w-sm text-pretty', NOTE)}>
-              Only verified emails count.
-              {quota && (
-                <>
-                  {' '}
-                  <span className="font-medium text-primary">{formatNumber(quota.left)}</span> left this month.
-                </>
-              )}{' '}
-              Results are kept for 12 months.
-            </p>
+            <p className="cap text-muted-foreground">Only verified emails count</p>
           )}
         </div>
 
@@ -274,8 +281,9 @@ export function IcpSearchScreen() {
 
 /** Small print under a key. */
 const NOTE = 'text-sm text-muted-foreground';
-/** The quiet fields: a sunk plate in small mono. */
-const QUIET_FIELD = cn(PLATE, 'h-9 w-full min-w-0 py-1.5 text-sm font-normal caret-primary outline-none placeholder:text-muted-foreground/90');
+/** The quiet fields: small mono on a hairline that turns orange with focus. No plate. */
+const QUIET_FIELD =
+  'h-9 w-full min-w-0 border-b border-border bg-transparent font-mono text-sm font-normal caret-primary outline-none transition-colors duration-300 placeholder:text-muted-foreground/80 focus-visible:border-primary aria-expanded:border-primary';
 /** An example sentence on a key: too long for capitals. */
 const EXAMPLE = 'normal-case tracking-normal text-[11.5px]';
 

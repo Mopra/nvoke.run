@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils';
 const ANY = { code: '', name: 'any country' };
 
 /**
- * A searchable country picker: the trigger shows the choice, the plate
- * below it has a search field and every country. Type to filter, arrows to
+ * A searchable country picker: the trigger shows the choice, the black
+ * screen below it (like the menus) has a search field and every country. Type to filter, arrows to
  * move, Enter to pick, Escape to close. Typing on the closed trigger opens it
  * with that text.
  */
@@ -128,13 +128,13 @@ export function CountryPicker({
             (e.currentTarget as HTMLElement).querySelector('input')?.focus();
           }}
           className={cn(
-            'glass-strong z-50 flex w-[340px] flex-col overflow-hidden rounded-[6px] text-popover-foreground outline-none',
+            'screen z-50 flex w-[min(340px,calc(100vw-32px))] flex-col overflow-hidden rounded-[6px] outline-none',
             'max-h-[min(440px,var(--radix-popover-content-available-height))]',
             'origin-(--radix-popover-content-transform-origin) duration-200 ease-spring data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.96] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100',
           )}
         >
-          <div className="flex h-12 shrink-0 items-center gap-2.5 border-b px-4">
-            <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
+          <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-screen-dim px-4">
+            <SearchIcon className="size-4 shrink-0 text-screen-foreground/50" />
             <input
               value={query}
               onChange={(e) => {
@@ -150,12 +150,12 @@ export function CountryPicker({
               aria-activedescendant={options[active] ? `${listId}-${active}` : undefined}
               autoComplete="off"
               spellCheck={false}
-              className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs caret-primary outline-none placeholder:text-muted-foreground/90"
+              className="h-full min-w-0 flex-1 bg-transparent font-mono text-xs caret-primary outline-none placeholder:text-screen-foreground/40"
             />
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-label="Countries" className="min-h-0 overflow-y-auto p-1.5">
             {options.length === 0 && (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No country matches “{query.trim()}”</div>
+              <div className="px-3 py-6 text-center text-sm text-screen-foreground/50">No country matches “{query.trim()}”</div>
             )}
             {options.map((option, index) => {
               const selected = chosen ? option.code !== '' && chosen.includes(option.code) : option.code === value;
@@ -170,11 +170,11 @@ export function CountryPicker({
                   onClick={() => pick(option.code)}
                   className={cn(
                     'relative flex h-8 cursor-pointer items-center gap-3 rounded-[3px] pr-9 pl-3 text-sm',
-                    index === active && 'bg-foreground/[0.07]',
+                    index === active && 'bg-screen-foreground/10',
                   )}
                 >
                   <span className="truncate first-letter:uppercase">{option.name}</span>
-                  {option.code && <span className="cap text-muted-foreground/70">{option.code}</span>}
+                  {option.code && <span className="cap text-screen-foreground/40">{option.code}</span>}
                   {selected && <CheckIcon className="absolute right-3 size-4 text-primary" strokeWidth={2.5} />}
                 </div>
               );

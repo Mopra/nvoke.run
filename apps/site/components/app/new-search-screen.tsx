@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { SEARCH_LIMIT_MAX, type CreateSearchInput, type Search } from '@nvoke/shared';
+import { Readback } from '@/components/app/new/readback';
 import { LimitKnob, SearchFields } from '@/components/app/search-fields';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { isQuotaError } from '@/lib/app/api';
 import { OPEN_FALLBACK_MS, searchPath, stillOpening } from '@/lib/app/navigation';
-import { formatNumber, searchTitle } from '@/lib/app/desktop';
+import { countryName, formatNumber, searchTitle, WINDOW_LABEL } from '@/lib/app/desktop';
 import { BILLING_PATH, quotaState } from '@/lib/app/quota';
 import { useCreateSearch, useMe } from '@/lib/app/queries';
 import { WEBSITE_PATH } from '@/lib/app/site-profile';
@@ -19,6 +20,7 @@ import {
   buildSearchInput,
   emptyForm,
   formProblem,
+  summarizeList,
   type FormKind,
   type SearchForm,
 } from '@/lib/app/search-form';
@@ -29,6 +31,30 @@ const SOURCES: Record<FormKind, string> = {
   web: 'Company sites from web search. No social networks, marketplaces or news.',
   launches: 'Fresh launches from Product Hunt and Show HN.',
   domains: 'Companies you already know. Domains are read as given, names are looked up on the web.',
+};
+
+/** What the display reads back: the search's title as the form stands, empty until there is one. */
+function readbackTitle(form: SearchForm, maxLimit: number): string {
+  const t = (v: string): string => v.trim();
+  switch (form.kind) {
+    case 'local':
+      return t(form.location) ? `${t(form.niche) || 'Businesses'} in ${t(form.location)}` : t(form.niche);
+    case 'web':
+      return t(form.keyword) ? `${t(form.keyword)}${form.country ? ` in ${countryName(form.country) ?? form.country}` : ''}` : '';
+    case 'launches':
+      return `${t(form.launchKeyword) || 'Launches'}, ${(WINDOW_LABEL[form.launchWindow] ?? 'Last 7 days').toLowerCase()}`;
+    case 'domains': {
+      const n = summarizeList(form.list, maxLimit).items.length;
+      return n ? `A list of ${formatNumber(n)}` : '';
+    }
+  }
+}
+
+const PLACEHOLDER: Record<FormKind, string> = {
+  local: 'Dentists in Austin',
+  web: 'Headless CMS',
+  launches: 'Launches',
+  domains: 'Your list',
 };
 
 /** The kinds in order, with the short name the keycaps carry. */
@@ -123,19 +149,20 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
   return (
     <main className={cn(APP_FRAME, 'app-view pb-24')}>
       <form onSubmit={submit} className={cn(APP_INSET, 'flex flex-col pt-6')} noValidate>
-        <BackLink />
         <h1 className="sr-only">New search</h1>
-        <div className="mt-6 mb-8 flex flex-wrap items-center gap-2">
+        <div className="mb-10 flex flex-wrap items-center gap-2">
+          <BackLink />
+          <span aria-hidden className="mx-1 hidden h-5 w-px bg-border sm:block" />
           <Button asChild variant="secondary" size="sm">
             <Link href="/app/new">
               <ArrowLeft className="size-3" />
-              Describe your customer instead
+              Describe instead
             </Link>
           </Button>
           <Button asChild variant="secondary" size="sm">
             <Link href={WEBSITE_PATH}>
               <Sparkles className="size-3" />
-              Plan from your website
+              From your website
             </Link>
           </Button>
         </div>
@@ -160,8 +187,24 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
                 presets={false}
               />
             </div>
-            <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
-              <Button type="submit" size="lg" disabled={create.isPending} className="min-w-40">
+            <Readback
+              className="mt-10"
+              kind={KINDS.find((k) => k.value === form.kind)?.label ?? 'Search'}
+              title={readbackTitle(form, maxLimit)}
+              placeholder={PLACEHOLDER[form.kind]}
+              detail={
+                form.kind === 'domains'
+                  ? `Up to ${formatNumber(maxLimit)} companies`
+                  : me.data && form.limit > maxLimit
+                    ? `Max ${formatNumber(maxLimit)} companies per search`
+                    : `Up to ${Number.isNaN(form.limit) ? 0 : formatNumber(form.limit)} companies`
+              }
+              left={quota ? quota.left : null}
+              limit={quota?.limit ?? 0}
+              pending={create.isPending}
+            />
+            <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
+              <Button type="submit" size="lg" variant="dark" disabled={create.isPending} className="min-w-40">
                 {create.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
                 Start search
                 {!create.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
@@ -180,17 +223,7 @@ export function NewSearchScreen({ initialKind }: { initialKind: FormKind }) {
                   </Link>
                 </p>
               ) : (
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Only verified emails count.
-                  {quota && (
-                    <>
-                      {' '}
-                      <span className="font-medium text-primary">{formatNumber(quota.left)}</span> left this month.
-                    </>
-                  )}
-                  {me.data && form.kind !== 'domains' && form.limit > maxLimit && ` Max ${formatNumber(maxLimit)} companies per search.`}
-                  {' Results are kept for 12 months.'}
-                </p>
+                <p className="cap text-muted-foreground">Only verified emails count</p>
               )}
             </div>
           </div>
