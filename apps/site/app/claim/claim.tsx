@@ -139,14 +139,16 @@ export function Claim() {
           <p className="text-sm text-muted-foreground">
             Signed in as <span className="font-mono text-foreground">{who(user)}</span>.
           </p>
-          <Button onClick={() => void load()}>Continue</Button>
+          <Button variant="dark" onClick={() => void load()}>
+            Continue
+          </Button>
         </div>
       );
     }
     return (
       <div className="flex w-full flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3 text-center">
-          <h1 className="font-display text-4xl font-light tracking-[-0.02em] text-balance">
+          <h1 className="font-display text-4xl font-light tracking-[-0.03em] text-balance motion-safe:animate-rise">
             {phase.kind === 'ticket-failed' ? 'This claim link no longer works' : 'Claim your nvoke account'}
           </h1>
           <p className="max-w-sm text-sm text-pretty text-muted-foreground">
@@ -177,7 +179,7 @@ function NothingToClaim({ who }: { who: string }) {
         </CardDescription>
       </CardHeader>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
-        <Button asChild className="w-full sm:flex-1">
+        <Button asChild variant="dark" className="w-full sm:flex-1">
           <Link href="/app">Open nvoke</Link>
         </Button>
         <Button asChild variant="secondary" className="w-full sm:flex-1">
@@ -253,7 +255,7 @@ function Choose({
         {phase.kind === 'choose' && phase.error ? <p className="text-sm text-destructive">{phase.error}</p> : null}
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
-        <Button className="w-full sm:flex-1" disabled={!accepted || busy} onClick={() => onClaim(true)}>
+        <Button variant="dark" className="w-full sm:flex-1" disabled={!accepted || busy} onClick={() => onClaim(true)}>
           {busy && phase.keep ? 'Claiming…' : 'Keep the agent’s key'}
         </Button>
         <Button variant="secondary" className="w-full sm:flex-1" disabled={!accepted || busy} onClick={() => onClaim(false)}>
@@ -288,7 +290,7 @@ function Done({ phase }: { phase: Extract<Phase, { kind: 'done' }> }) {
         <p>Free plan: {PLANS.free.emailsPerMonth} verified emails a month. Upgrade when you need more.</p>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row">
-        <Button asChild className="w-full sm:flex-1">
+        <Button asChild variant="dark" className="w-full sm:flex-1">
           <Link href="/app">Open nvoke</Link>
         </Button>
         <Button asChild variant="secondary" className="w-full sm:flex-1">

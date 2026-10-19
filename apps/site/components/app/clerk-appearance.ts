@@ -1,7 +1,8 @@
 /**
- * Clerk's sign in, sign up and checkout in the panel's parts: the card is a
- * plate, the primary button the one orange keycap, the social buttons light
- * keycaps, the fields recessed, the labels printed in mono capitals. Colors
+ * Clerk's sign in, sign up and checkout in the site's parts: no card, the
+ * form sits on the paper between hairlines, the primary button the dark
+ * keycap, the social buttons light keycaps, the fields recessed, the labels
+ * printed in mono capitals. Colors
  * come from the theme's CSS variables only, so both finishes follow.
  * Classes carry `!` because Clerk's own styles load after the site's.
  */
@@ -27,16 +28,16 @@ export const CLERK_APPEARANCE = {
   },
   elements: {
     rootBox: 'w-full max-w-[400px]',
-    cardBox: 'w-full! max-w-none! rounded-[8px]! shadow-(--shadow-plate)! border-0!',
-    card: 'bg-card! shadow-none! rounded-[8px]! px-6! py-7! sm:px-8!',
-    footer: 'bg-none! bg-background/40! [&_*]:font-sans',
+    cardBox: 'w-full! max-w-none! rounded-none! shadow-none! border-0! border-t! border-border! bg-transparent!',
+    card: 'bg-transparent! shadow-none! rounded-none! border-0! px-0! pt-7! pb-6!',
+    footer: 'bg-none! bg-transparent! border-t! border-border! [&_*]:font-sans [&>div]:px-0!',
     headerTitle: 'font-display! text-[22px]! font-light! tracking-[-0.01em]!',
     headerSubtitle: 'text-muted-foreground!',
     formFieldLabel: 'cap! text-muted-foreground!',
     formFieldInput:
       'h-9! rounded-[4px]! border-0! bg-card! font-mono! text-[13px]! shadow-[inset_0_1px_2px_var(--shadow-strong),inset_0_0_0_1px_var(--border)]! focus:shadow-[inset_0_1px_2px_var(--shadow-strong),0_0_0_3px_color-mix(in_oklab,var(--ring)_40%,transparent)]!',
     formButtonPrimary:
-      'key key-primary h-9! rounded-[4px]! border-0! bg-primary! font-mono! text-[12px]! font-medium! tracking-[0.07em]! text-primary-foreground! uppercase! hover:brightness-110! after:hidden! before:hidden!',
+      'key h-9! rounded-[4px]! border-0! bg-foreground! font-mono! text-[12px]! font-medium! tracking-[0.07em]! text-background! uppercase! hover:brightness-110! after:hidden! before:hidden!',
     socialButtonsBlockButton:
       'key h-9! rounded-[4px]! border-0! bg-secondary! text-secondary-foreground! hover:brightness-[0.97]!',
     socialButtonsBlockButtonText: 'font-mono! text-[12px]! font-medium! tracking-[0.07em]! uppercase!',

@@ -6,8 +6,9 @@ import { useClerk } from '@clerk/nextjs';
 import { ArrowUpRight, Check, Copy, Download, Loader2, LogOut, Monitor, Moon, Plus, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { FREE_PLAN, PLANS, type ApiKey, type MeResponse } from '@nvoke/shared';
+import { UsageDisplay } from '@/components/app/account/usage-display';
 import { Avatar } from '@/components/app/avatar';
-import { LogoLoader, useArrivals, useTweened } from '@/components/app/motion';
+import { LogoLoader, useArrivals } from '@/components/app/motion';
 import { APP_FRAME, APP_INSET, BackLink, PageHeader } from '@/components/app/shell';
 import { ErrorState } from '@/components/app/states';
 import { THEME_STORAGE_KEY } from '@/components/site/theme-script';
@@ -28,8 +29,8 @@ import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiUrl } from '@/lib/api';
-import { formatNumber, periodLabel, relativeTime, resetDate } from '@/lib/app/desktop';
-import { BILLING_PATH, planName, quotaState } from '@/lib/app/quota';
+import { relativeTime } from '@/lib/app/desktop';
+import { BILLING_PATH, planName } from '@/lib/app/quota';
 import { useApiKeys, useCreateApiKey, useMe, usePlanSync, useRevokeApiKey } from '@/lib/app/queries';
 import { cn } from '@/lib/utils';
 
@@ -71,12 +72,14 @@ function CopyField({ value, what, className }: { value: string; what: string; cl
   );
 }
 
-function SectionHeading({ title, description, action }: { title: string; description: ReactNode; action?: ReactNode }) {
+/** A section's head: a printed label, a light title, its keys on the right. */
+function SectionHeading({ label, title, description, action }: { label: string; title: string; description?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-      <div className="min-w-0 flex-1">
-        <h2 className="font-display text-xl font-light">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      <div className="min-w-0 flex-1 basis-72">
+        <div className="cap text-muted-foreground">{label}</div>
+        <h2 className="mt-2 font-display text-2xl font-light tracking-[-0.02em]">{title}</h2>
+        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -96,68 +99,7 @@ function Setting({ label, description, children }: { label: ReactNode; descripti
   );
 }
 
-/* Plan and usage */
-
-/** The usage meter's segments, as many as the desktop's LED meter. */
-const SEGMENTS = 16;
-
-/** The month's verified emails: a black screen with the figure lit over ghost digits, PLAN / USED / LEFT and a meter. */
-function Usage({ me }: { me: MeResponse }) {
-  const quota = quotaState(me);
-  const { period } = me.usage;
-  const used = useTweened(quota.used);
-  const ghost = '8'.repeat(Math.max(3, formatNumber(quota.used).length));
-  const lit = Math.min(SEGMENTS, Math.round((quota.share / 100) * SEGMENTS));
-  const note =
-    quota.level === 'out'
-      ? `Out of verified emails for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}. Or upgrade.`
-      : `${formatNumber(quota.left)} left in ${periodLabel(period)}. Resets on ${resetDate(period)}.`;
-  return (
-    <section data-usage className="screen p-4 sm:p-5">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div>
-          <div className="cap text-screen-foreground/50">Verified this month</div>
-          <div className="relative mt-2 inline-block font-lcd text-[40px] leading-none sm:text-[44px]">
-            <span aria-hidden className="absolute inset-y-0 right-0 font-extrabold text-screen-dim">
-              {ghost}
-            </span>
-            <span className="lcd relative tabular-nums">{formatNumber(used)}</span>
-          </div>
-        </div>
-        <dl className="grid grid-cols-[max-content_max-content] gap-x-4 gap-y-0.5 text-right">
-          <dt className="cap text-screen-foreground/50">Plan</dt>
-          <dd className="cap text-screen-foreground tabular-nums">{formatNumber(quota.limit)}</dd>
-          <dt className="cap text-screen-foreground/50">Used</dt>
-          <dd className="cap text-screen-foreground tabular-nums">{formatNumber(quota.used)}</dd>
-          <dt className="cap text-screen-foreground/50">Left</dt>
-          <dd className="cap text-primary tabular-nums">{formatNumber(quota.left)}</dd>
-        </dl>
-      </div>
-      <div
-        role="meter"
-        aria-label="Verified emails used this month"
-        aria-valuemin={0}
-        aria-valuemax={quota.limit}
-        aria-valuenow={quota.used}
-        className="mt-4"
-      >
-        {/* The meter on the screen: lit segments orange (red near the limit), the rest ghost segments. */}
-        <span className="flex gap-[2px]">
-          {Array.from({ length: SEGMENTS }, (_, i) => (
-            <span
-              key={i}
-              className={cn(
-                'h-2.5 min-w-0 flex-1 rounded-[1px] transition-colors duration-300',
-                i < lit ? (quota.share >= 90 ? 'bg-destructive' : 'bg-primary') : 'bg-screen-dim',
-              )}
-            />
-          ))}
-        </span>
-      </div>
-      <p className="cap mt-3 text-screen-foreground/50">{note}</p>
-    </section>
-  );
-}
+/* Plan */
 
 /** The plan, with Upgrade or Change plan on the billing page. */
 function PlanSetting({ me }: { me: MeResponse }) {
@@ -165,9 +107,9 @@ function PlanSetting({ me }: { me: MeResponse }) {
   return (
     <Setting
       label={paid ? `${planName(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month` : 'Free plan'}
-      description="Only valid emails count, each address once. Every feature on every plan."
+      description="Only valid emails count, each address once."
     >
-      <Button asChild variant={paid ? 'secondary' : 'default'}>
+      <Button asChild variant={paid ? 'secondary' : 'dark'}>
         <Link href={BILLING_PATH}>
           {paid ? 'Change plan' : 'Upgrade'}
           <ArrowUpRight className="size-3.5 opacity-60" />
@@ -220,7 +162,7 @@ function AppearanceSetting() {
   }
 
   return (
-    <Setting label="Appearance" description="System follows your computer.">
+    <Setting label="Appearance">
       <Segmented<ThemePreference>
         label="Appearance"
         size="sm"
@@ -309,7 +251,9 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                   <ArrowUpRight className="size-3.5 opacity-60" />
                 </a>
               </Button>
-              <Button onClick={() => close(false)}>Done</Button>
+              <Button variant="dark" onClick={() => close(false)}>
+                Done
+              </Button>
             </div>
           </div>
         ) : (
@@ -333,7 +277,7 @@ function NewKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
               <Button type="button" variant="ghost" onClick={() => close(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!name.trim() || create.isPending}>
+              <Button type="submit" variant="dark" disabled={!name.trim() || create.isPending}>
                 {create.isPending && <Loader2 className="motion-safe:animate-spin" />}
                 Create key
               </Button>
@@ -385,6 +329,7 @@ function ApiKeys() {
   return (
     <section data-api-keys>
       <SectionHeading
+        label="Access"
         title="API keys"
         description="For scripts and agents. A key can do everything you can."
         action={
@@ -439,10 +384,7 @@ function ApiKeys() {
 function ConnectAgent() {
   return (
     <section>
-      <SectionHeading
-        title="Use nvoke from code or an agent"
-        description="The REST API and the MCP server take the same key and do what this app does."
-      />
+      <SectionHeading label="Connect" title="Code and agents" description="The REST API and the MCP server take the same key." />
       <div className="mt-6 flex flex-col gap-5">
         <div>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
@@ -484,32 +426,28 @@ const DESKTOP_POWERS = [
   'A local copy of every result: instant, and there offline',
 ];
 
-/** The premium power tools, one key from the account: a plate, the powers in hairline rows. */
+/** The premium power tools, one key from the account: the powers in hairline rows, no box. */
 export function DesktopCard({ className }: { className?: string }) {
   return (
-    <section data-desktop-card className={cn('plate p-5 text-card-foreground sm:p-7', className)}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="cap text-muted-foreground">Power tools</span>
-        <span className="cap text-muted-foreground">Windows · macOS · Linux</span>
-      </div>
-      <h2 className="mt-4 font-display text-2xl font-light tracking-[-0.02em]">nvoke Desktop</h2>
-      <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-        The same account, plan and searches, in a native app. Everything here, plus:
-      </p>
+    <section data-desktop-card className={className}>
+      <SectionHeading label="Power tools" title="nvoke Desktop" description="Same account, plan and searches. Everything here, plus:" />
       <ul className="mt-5 flex flex-col border-b border-border text-sm">
         {DESKTOP_POWERS.map((power) => (
-          <li key={power} className="flex items-center gap-3 border-t border-border py-2.5">
-            <span className="led bg-chart-1" />
+          <li key={power} className="flex items-center gap-3 border-t border-border py-3">
+            <span className="led" />
             <span>{power}</span>
           </li>
         ))}
       </ul>
-      <Button asChild variant="dark" className="mt-6">
-        <Link href="/download">
-          <Download />
-          Get nvoke Desktop
-        </Link>
-      </Button>
+      <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <Button asChild variant="secondary">
+          <Link href="/download">
+            <Download />
+            Get nvoke Desktop
+          </Link>
+        </Button>
+        <span className="cap text-muted-foreground">Windows · macOS · Linux</span>
+      </div>
     </section>
   );
 }
@@ -539,14 +477,15 @@ export function AccountScreen() {
           <LogoLoader label="Loading your account" />
         ) : (
           <>
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-5 motion-safe:animate-rise">
               <Avatar user={me.user} className="size-14 text-base sm:size-16 sm:text-lg" />
               <div className="min-w-0">
-                <h1 className="truncate font-display text-3xl font-light" title={me.user.name ?? me.user.email ?? undefined}>
+                <div className="cap text-muted-foreground">Account</div>
+                <h1 className="mt-1 truncate font-display text-4xl font-light tracking-[-0.03em] sm:text-5xl" title={me.user.name ?? me.user.email ?? undefined}>
                   {me.user.name ?? me.user.email ?? 'Your account'}
                 </h1>
                 {me.user.name && me.user.email && (
-                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground" title={me.user.email}>
+                  <div className="mt-2 truncate font-mono text-xs text-muted-foreground" title={me.user.email}>
                     {me.user.email}
                   </div>
                 )}
@@ -559,8 +498,8 @@ export function AccountScreen() {
               </p>
             )}
 
-            <div className="mt-14">
-              <Usage me={me} />
+            <div className="mt-12">
+              <UsageDisplay me={me} />
             </div>
 
             <div className="mt-10 flex flex-col divide-y divide-border border-y border-border">
@@ -568,13 +507,13 @@ export function AccountScreen() {
               <AppearanceSetting />
             </div>
 
-            <div className="mt-16">
+            <div className="mt-20">
               <ApiKeys />
             </div>
-            <div className="mt-16">
+            <div className="mt-20">
               <ConnectAgent />
             </div>
-            <DesktopCard className="mt-16" />
+            <DesktopCard className="mt-20" />
           </>
         )}
       </div>

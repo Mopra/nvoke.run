@@ -260,7 +260,7 @@ function WebsiteForm({
       </p>
 
       <div className="mt-12 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-        <Button type="submit" size="lg" className="min-w-44">
+        <Button type="submit" size="lg" variant="dark" className="min-w-44">
           Plan my searches
           <CornerDownLeft className="size-3.5 opacity-70" />
         </Button>
@@ -494,7 +494,7 @@ function SiteIcon({ src }: { src: string }) {
   return (
     <span
       className={cn(
-        'plate flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[6px] sm:size-14',
+        'flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border sm:size-14',
         state === 'loading' && 'opacity-0',
       )}
     >
@@ -529,7 +529,7 @@ function SitePicture({ profile }: { profile: SiteProfile }) {
   return (
     <figure className="mt-12">
       {picture && (
-        <div className="plate overflow-hidden">
+        <div className="overflow-hidden rounded-[6px] border border-border">
           <img
             src={profile.image!}
             alt={`${profile.domain}, as nvoke read it`}
@@ -707,7 +707,7 @@ function ProfileEditor({ profile, onDone }: { profile: SiteProfile; onDone: () =
         </Row>
       </div>
       <div className="mt-8 flex flex-wrap items-center gap-3 sm:pl-[calc(10rem+1.5rem)]">
-        <Button type="submit" disabled={update.isPending}>
+        <Button type="submit" variant="dark" disabled={update.isPending}>
           {update.isPending && <Loader2 className="motion-safe:animate-spin" />}
           Save
         </Button>

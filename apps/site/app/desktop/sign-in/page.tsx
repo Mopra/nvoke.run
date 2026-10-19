@@ -22,7 +22,7 @@ export default async function DesktopSignInPage({ searchParams }: { searchParams
   const codeChallenge = CodeChallenge.safeParse(params['code_challenge']);
 
   return (
-    <section className="rim relative">
+    <section className="relative">
       <div className="relative mx-auto flex min-h-[70dvh] max-w-md flex-col items-center gap-8 px-4 py-16 sm:px-6 sm:py-24">
         <div className="flex flex-col items-center gap-4">
           <LogoMark motion="intro" className="size-12" />

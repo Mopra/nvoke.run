@@ -5,13 +5,15 @@ import { SignIn, useAuth, useUser } from '@clerk/nextjs';
 import { CheckoutButton, SubscriptionDetailsButton, usePlans } from '@clerk/nextjs/experimental';
 import { FREE_PLAN, MeResponse, PAID_PLANS, PLAN_ORDER, planLabel, type Plan } from '@nvoke/shared';
 import { LogoLoader } from '@/components/app/motion';
-import { PlanSlider } from '@/components/site/plan-slider';
+import { PlanLadder } from '@/components/app/account/plan-ladder';
+import { useInView } from '@/components/site/home/motion';
+import { useRunTo } from '@/components/site/pricing/motion';
 import { Button } from '@/components/ui/button';
 import { CLERK_APPEARANCE } from '@/components/app/clerk-appearance';
 import { Card, CardContent, CardDescription, CardHeader, CardLabel, CardTitle } from '@/components/app/plate';
-import { Badge } from '@/components/ui/badge';
+import { resetDate } from '@/lib/app/desktop';
 import { apiUrl } from '@/lib/api';
-import { formatCount, formatPrice, pricing } from '@/lib/pricing';
+import { formatCount, pricing } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
 
 type Load = { kind: 'loading' } | { kind: 'ready'; me: MeResponse } | { kind: 'error'; message: string };
@@ -132,92 +134,54 @@ function PlanPicker({
   title: boolean;
 }) {
   const current = Math.max(0, PLAN_ORDER.indexOf(me.plan));
-  const [index, setIndex] = useState(current);
+  const [ref, inView] = useInView<HTMLDivElement>('0px 0px -10% 0px', true);
+  // The screen climbs from Free to the plan held, then the row picks.
+  const [picked, setPicked] = useState<number | null>(null);
+  const climbed = useRunTo(current, 260, inView && picked === null);
+  const at = picked ?? climbed;
+  const index = picked ?? current;
 
-  const picked = PLAN_ORDER[index] ?? FREE_PLAN;
+  const plan = PLAN_ORDER[index] ?? FREE_PLAN;
   const planIdBySlug = useClerkPlanIds();
-  const { emailsVerified, emailsLimit } = me.usage;
-  const share = Math.min(100, Math.round((emailsVerified / Math.max(1, emailsLimit)) * 100));
+  const { emailsVerified, emailsLimit, period } = me.usage;
 
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col">
       {title ? (
-        <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="font-display text-4xl font-light tracking-[-0.02em]">Your plan</h1>
-          {who ? <p className="cap text-muted-foreground">Signed in as <span className="normal-case">{who}</span></p> : null}
+        <div className="mb-10 flex flex-col items-center gap-3 text-center">
+          <h1 className="font-display text-4xl font-light tracking-[-0.02em] motion-safe:animate-rise sm:text-5xl">Your plan</h1>
+          {who ? (
+            <p className="cap text-muted-foreground">
+              Signed in as <span className="normal-case">{who}</span>
+            </p>
+          ) : null}
         </div>
       ) : null}
 
-      {/* This month on a screen: the figure lit over ghost digits, the meter in segments. */}
-      <section className="screen p-4 sm:p-5">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-          <div>
-            <div className="cap text-screen-foreground/50">
-              {me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, ${formatPrice(tierPrice(me.plan))} a month`}
-            </div>
-            <div className="relative mt-2 inline-block font-lcd text-[40px] leading-none">
-              <span aria-hidden className="absolute inset-y-0 right-0 font-extrabold text-screen-dim">
-                {'8'.repeat(Math.max(3, formatCount(emailsVerified).length))}
-              </span>
-              <span className="lcd relative tabular-nums">{formatCount(emailsVerified)}</span>
-            </div>
-          </div>
-          <span className="cap pb-1 text-screen-foreground/50">
-            Of {formatCount(emailsLimit)} verified this month
+      <PlanLadder at={at} current={current} onPick={setPicked} screenRef={ref} live={picked !== null} />
+
+      <div className="mt-12 flex flex-col gap-5 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1.5">
+          <span className="cap text-muted-foreground tabular-nums">
+            {formatCount(emailsVerified)} of {formatCount(emailsLimit)} used · resets {resetDate(period)}
           </span>
+          <span className="text-sm text-pretty text-muted-foreground">Every feature on every plan. Changes apply at once.</span>
         </div>
-        <div
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={emailsLimit}
-          aria-valuenow={emailsVerified}
-          aria-label="Verified emails used this month"
-          className="mt-4 flex gap-[2px]"
-        >
-          {Array.from({ length: 16 }, (_, i) => (
-            <span
-              key={i}
-              className={cn('h-2.5 min-w-0 flex-1 rounded-[1px]', i < Math.round((share / 100) * 16) ? 'bg-primary' : 'bg-screen-dim')}
-            />
-          ))}
-        </div>
-      </section>
+        <PlanAction
+          plan={plan}
+          current={me.plan}
+          direction={index > current ? 'up' : 'down'}
+          planId={planIdBySlug.get(plan)}
+          onChanged={onChanged}
+          returnUrl={returnUrl}
+        />
+      </div>
 
-      <PlanSlider
-        tiers={pricing.tiers}
-        index={index}
-        onIndexChange={setIndex}
-        className="max-w-none"
-        badge={
-          index === current ? (
-            <Badge variant="secondary">Current</Badge>
-          ) : null
-        }
-      >
-        <div className="flex flex-col items-center gap-3 border-t border-border pt-7 sm:flex-row sm:justify-between">
-          <p className="text-sm text-pretty text-muted-foreground">
-            Every feature on every plan. Changes apply immediately.
-          </p>
-          <PlanAction
-            plan={picked}
-            current={me.plan}
-            direction={index > current ? 'up' : 'down'}
-            planId={planIdBySlug.get(picked)}
-            onChanged={onChanged}
-            returnUrl={returnUrl}
-          />
-        </div>
-      </PlanSlider>
-
-      <p className={cn('text-sm text-pretty text-muted-foreground', title && 'text-center')}>
+      <p className={cn('mt-6 text-sm text-pretty text-muted-foreground', title && 'text-center')}>
         {pricing.vatNote} {doneHint}
       </p>
     </div>
   );
-}
-
-function tierPrice(plan: Plan): number {
-  return pricing.tiers.find((t) => t.plan === plan)?.price ?? 0;
 }
 
 /**
@@ -264,7 +228,7 @@ function PlanAction({
   if (plan === current) {
     return (
       <Button size="lg" variant="secondary" className={wide} disabled>
-        Your current plan
+        Current plan
       </Button>
     );
   }
@@ -286,7 +250,7 @@ function PlanAction({
     return (
       // A disabled button takes no pointer events, so the reason sits on a wrapper.
       <span title={`This plan is not available for checkout: no Clerk plan matches "${plan}".`} className={cn('inline-flex', wide)}>
-        <Button size="lg" className="w-full" disabled>
+        <Button size="lg" variant="dark" className="w-full" disabled>
           {label}
         </Button>
       </span>
@@ -301,7 +265,7 @@ function PlanAction({
       // Without it, "Continue" after paying lands on the home page.
       newSubscriptionRedirectUrl={returnUrl}
     >
-      <Button size="lg" className={wide}>
+      <Button size="lg" variant="dark" className={wide}>
         {label}
       </Button>
     </CheckoutButton>

@@ -88,7 +88,7 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
           </CardDescription>
         </CardHeader>
         <CardFooter>
-          <Button asChild className="w-full">
+          <Button asChild variant="dark" className="w-full">
             <a href={phase.callbackUrl}>Open nvoke</a>
           </Button>
         </CardFooter>
@@ -112,7 +112,7 @@ export function DesktopSignIn({ state, codeChallenge }: { state: string; codeCha
         </CardContent>
       )}
       <CardFooter className="flex flex-col gap-2">
-        <Button className="w-full" disabled={phase.kind === 'working'} onClick={() => void authorize()}>
+        <Button variant="dark" className="w-full" disabled={phase.kind === 'working'} onClick={() => void authorize()}>
           {phase.kind === 'working' ? 'Opening nvoke…' : phase.kind === 'error' ? 'Try again' : 'Continue'}
         </Button>
         <Button
