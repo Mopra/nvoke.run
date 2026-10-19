@@ -5,8 +5,9 @@ import { cn } from '@/lib/utils';
 
 /**
  * A knob with detents: one of a few values, read off the tick it points at.
- * Hold it and turn it round with the pointer, as a real knob, and it picks
- * the nearest tick; let go and the cap springs onto it. Click to step,
+ * Hold it and turn it round with the pointer, as a real knob: it turns by as
+ * much as the hand does, from where it was, and stops hard at both ends. It
+ * picks the nearest tick on the way; let go and the cap springs onto it. Click to step,
  * scroll, or use the arrow keys.
  */
 export function Knob<T extends number>({
@@ -29,7 +30,7 @@ export function Knob<T extends number>({
   const index = Math.max(0, options.indexOf(value));
   const span = 240;
   const angleOf = (i: number): number => -span / 2 + (span / Math.max(1, options.length - 1)) * i;
-  const drag = useRef<{ cx: number; cy: number; x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ cx: number; cy: number; x: number; y: number; moved: boolean; last: number; turned: number } | null>(null);
   // The pointer's angle while the knob is held, so the cap follows the hand and snaps on release.
   const [held, setHeld] = useState<number | null>(null);
 
@@ -54,7 +55,9 @@ export function Knob<T extends number>({
   }
   function onPointerDown(event: PointerEvent<HTMLButtonElement>): void {
     const box = event.currentTarget.getBoundingClientRect();
-    drag.current = { cx: box.left + box.width / 2, cy: box.top + box.height / 2, x: event.clientX, y: event.clientY, moved: false };
+    const d = { cx: box.left + box.width / 2, cy: box.top + box.height / 2, x: event.clientX, y: event.clientY, moved: false, last: 0, turned: angleOf(index) };
+    drag.current = d;
+    d.last = angleAt(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function onPointerMove(event: PointerEvent<HTMLButtonElement>): void {
@@ -62,14 +65,17 @@ export function Knob<T extends number>({
     if (!d) return;
     if (!d.moved && Math.hypot(event.clientX - d.x, event.clientY - d.y) < 4) return;
     d.moved = true;
+    // Right over the centre the angle swings wildly; wait for the hand to move out.
+    if (Math.hypot(event.clientX - d.cx, event.clientY - d.cy) < 12) return;
     const angle = angleAt(event.clientX, event.clientY);
-    // Below the dial, past either end stop, the knob stays where it was rather than jumping across.
-    if (Math.abs(angle) > span / 2 + 20) return;
-    const clamped = Math.max(-span / 2, Math.min(span / 2, angle));
-    setHeld(clamped);
+    // The turn since the last move, the short way round, so crossing six o'clock is a small step, not a jump.
+    const delta = ((angle - d.last + 540) % 360) - 180;
+    d.last = angle;
+    d.turned = Math.max(-span / 2, Math.min(span / 2, d.turned + delta));
+    setHeld(d.turned);
     let nearest = 0;
     options.forEach((_, i) => {
-      if (Math.abs(angleOf(i) - clamped) < Math.abs(angleOf(nearest) - clamped)) nearest = i;
+      if (Math.abs(angleOf(i) - d.turned) < Math.abs(angleOf(nearest) - d.turned)) nearest = i;
     });
     const next = options[nearest];
     if (next !== undefined && next !== value) onChange(next);
