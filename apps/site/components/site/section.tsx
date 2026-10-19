@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { RevealHeading } from '@/components/site/home/reveal';
 import { cn } from '@/lib/utils';
 
 /** The page column: 16px gutters on phones, 24px from small screens up. */
@@ -13,8 +14,8 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
 
 /**
  * A page section: an eyebrow, a light headline and a lede, then the content.
- * `plate` sets the section on a lifted plate with the lip of light along its
- * top, the site's way of grouping a module (docs/design/manual.md).
+ * `plate` is kept for older callers and draws nothing: the site groups with
+ * space and hairlines now, not boxes. A string title rises in word by word.
  * Centered by default (the API the inner pages rely on); `align="left"` reads like a panel.
  */
 export function Section({
@@ -25,7 +26,6 @@ export function Section({
   children,
   className,
   align = 'center',
-  plate = false,
 }: {
   id?: string;
   eyebrow?: ReactNode;
@@ -46,22 +46,26 @@ export function Section({
         )}
       >
         {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-        <h2 id={headingId} className="text-headline font-light">
-          {title}
-        </h2>
+        {typeof title === 'string' ? (
+          <RevealHeading id={headingId} className="text-headline font-light" lines={[title]} />
+        ) : (
+          <h2 id={headingId} className="text-headline font-light">
+            {title}
+          </h2>
+        )}
         {intro ? <p className="max-w-2xl text-lede text-pretty text-muted-foreground">{intro}</p> : null}
       </div>
       {children ? <div className="mt-10 sm:mt-14">{children}</div> : null}
     </>
   );
   return (
-    <section id={id} aria-labelledby={headingId} className={cn('py-6 sm:py-8', !plate && 'py-14 sm:py-20', className)}>
-      <Container>{plate ? <div className="panel px-5 py-10 sm:px-10 sm:py-14">{body}</div> : body}</Container>
+    <section id={id} aria-labelledby={headingId} className={cn('py-20 sm:py-28', className)}>
+      <Container>{body}</Container>
     </section>
   );
 }
 
-/** Title block for the inner pages: an eyebrow, a light display headline, a lede. */
+/** Title block for the inner pages: an eyebrow, a light display headline that rises in, a lede. */
 export function PageHeader({
   title,
   intro,
@@ -77,11 +81,15 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <Container className="relative pt-16 pb-12 sm:pt-24 sm:pb-16">
+    <Container className="relative pt-20 pb-14 sm:pt-32 sm:pb-20">
       <div className="mx-auto flex max-w-4xl flex-col items-center gap-5 text-center">
         {icon ? <div className="mb-4">{icon}</div> : null}
         {eyebrow ? <Eyebrow className="text-primary">{eyebrow}</Eyebrow> : null}
-        <h1 className="text-display font-light">{title}</h1>
+        {typeof title === 'string' ? (
+          <RevealHeading as="h1" className="text-display font-light" lines={[title]} />
+        ) : (
+          <h1 className="text-display font-light">{title}</h1>
+        )}
         {intro ? <p className="max-w-2xl text-lede text-pretty text-muted-foreground">{intro}</p> : null}
         {children}
       </div>
