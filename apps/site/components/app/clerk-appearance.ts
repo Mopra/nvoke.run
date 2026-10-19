@@ -51,3 +51,14 @@ export const CLERK_APPEARANCE = {
     badge: 'cap! rounded-[3px]!',
   },
 } as const;
+
+/** The same, with Clerk's own heading hidden: for pages that print their own title over the form. */
+export const CLERK_APPEARANCE_UNTITLED = {
+  ...CLERK_APPEARANCE,
+  elements: {
+    ...CLERK_APPEARANCE.elements,
+    rootBox: 'w-full! max-w-[400px]!',
+    header: 'hidden!',
+    card: `${CLERK_APPEARANCE.elements.card} w-full! pt-6!`,
+  },
+};
