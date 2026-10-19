@@ -14,7 +14,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -150,7 +149,7 @@ function DropRow({ drop, index, style }: { drop: Drop; index: number; style?: CS
             {drop.lastDeliveredAt && `. Last delivery ${relativeTime(drop.lastDeliveredAt)}`}
           </div>
         </div>
-        <Badge variant="outline">{drop.enabled ? 'Daily' : 'Paused'}</Badge>
+        <span className="cap text-muted-foreground">{drop.enabled ? 'Daily' : 'Paused'}</span>
         <div className="shrink-0 text-right">
           <div className="font-display text-3xl font-light tracking-[-0.02em] tabular-nums">{formatNumber(drop.companiesDelivered)}</div>
           <div className="cap text-muted-foreground">companies delivered</div>

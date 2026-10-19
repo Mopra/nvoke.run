@@ -17,6 +17,7 @@ import { UpdateButton } from '@/components/UpdateButton';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { RevealWords } from '@/components/Reveal';
 
 /**
  * The window is one instrument. Along the top edge sit the ports, the way
@@ -403,7 +404,9 @@ export function DisplayTitle({
 }) {
   return (
     <div className={cn('pt-8 pb-8', className)}>
-      <h1 className="font-display text-4xl font-light tracking-[-0.02em] text-balance">{children}</h1>
+      <h1 className="font-display text-4xl font-light tracking-[-0.02em] text-balance">
+        {typeof children === 'string' ? <RevealWords text={children} /> : children}
+      </h1>
       {subtitle && <p className="cap mt-3 text-primary">{subtitle}</p>}
     </div>
   );

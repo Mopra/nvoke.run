@@ -8,7 +8,6 @@ import { DeleteSiteProfileDialog } from '@/components/DeleteSiteProfileDialog';
 import { StatusDot } from '@/components/indicators';
 import { progressCaption, SearchProgress } from '@/components/SearchProgress';
 import { EmptyState, ErrorState } from '@/components/states';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -35,6 +34,7 @@ import { navigate, routeHref } from '@/lib/router';
 import type { Search } from '@/lib/types';
 import type { SiteProfile } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
+import { RevealWords } from '@/components/Reveal';
 
 function RowMenu({ search }: { search: Search }) {
   const [confirm, setConfirm] = useState(false);
@@ -116,19 +116,18 @@ function WebsiteMenu({ profile }: { profile: SiteProfile }) {
   );
 }
 
-/** The kind tag: one word, and which keycap color it prints on. */
-const KIND_TAG: Record<string, [label: string, variant: 'default' | 'secondary' | 'outline']> = {
-  local: ['Local', 'secondary'],
-  web: ['Web', 'secondary'],
-  launches: ['Launches', 'secondary'],
-  domains: ['List', 'secondary'],
-  drop: ['Drop', 'default'],
-  icp: ['Describe', 'outline'],
+/** The kind, printed as one mono word on the panel. Orange is kept for what runs. */
+const KIND_WORD: Record<string, string> = {
+  local: 'Local',
+  web: 'Web',
+  launches: 'Launches',
+  domains: 'List',
+  drop: 'Drop',
+  icp: 'Describe',
 };
 
 function KindTag({ kind }: { kind: string }) {
-  const [label, variant] = KIND_TAG[kind] ?? ['Search', 'secondary'];
-  return <Badge variant={variant}>{label}</Badge>;
+  return <span className="cap text-muted-foreground">{KIND_WORD[kind] ?? 'Search'}</span>;
 }
 
 /** The channel number, two digits at the row's left edge. */
@@ -238,7 +237,7 @@ function WebsiteRow() {
           </div>
         </div>
         <div>
-          <Badge variant="default">Website</Badge>
+          <span className="cap text-muted-foreground">Website</span>
         </div>
         <div className="flex items-center gap-2.5">
           {reading !== null ? (
@@ -352,7 +351,7 @@ export function SearchesScreen() {
         <div className="motion-safe:animate-view-in">
           <div className="flex items-end justify-between pt-6 pb-5">
             <h1 className="font-display text-4xl font-light tracking-[-0.02em]">
-              Searches
+              <RevealWords text="Searches" />
               {subtitle && <span className="cap ml-3 align-top text-primary">{subtitle}</span>}
             </h1>
             <StartKeys />

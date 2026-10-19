@@ -12,7 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -90,7 +89,7 @@ function KeyRow({ apiKey, onRevoke, style }: { apiKey: ApiKey; onRevoke: () => v
           <span className="truncate text-[15px]" title={apiKey.name}>
             {apiKey.name}
           </span>
-          {apiKey.origin === 'agent_signup' && <Badge>agent</Badge>}
+          {apiKey.origin === 'agent_signup' && <span className="cap text-muted-foreground">Agent</span>}
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[12px] tracking-[0.04em] text-muted-foreground uppercase">
           <span className="font-mono" data-selectable>
