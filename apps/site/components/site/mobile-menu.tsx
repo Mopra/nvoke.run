@@ -16,9 +16,9 @@ const links = [
 ];
 
 /**
- * The header's links on phones: a light key that drops a plate under the
- * header, its links as hairline rows with channel numbers. Closes on
- * navigation, Escape and a tap outside.
+ * The header's links on phones: a light key that drops the page's own paper
+ * under the header, edge to edge, its links as large hairline rows with
+ * channel numbers. No plate. Closes on navigation, Escape and a tap outside.
  */
 export function MobileMenu() {
   // Remembers the page it was opened on, so any navigation closes it.
@@ -52,18 +52,25 @@ export function MobileMenu() {
       {open
         ? createPortal(
             <>
-              <div aria-hidden="true" className="fixed inset-0 z-40 md:hidden" onClick={() => setOpen(false)} />
-              <nav id="mobile-menu" aria-label="Menu" className="panel fixed inset-x-4 top-[4rem] z-50 px-4 py-2 md:hidden">
+              <div aria-hidden="true" className="fixed inset-0 top-[calc(3.5rem+1px)] z-40 bg-scrim md:hidden" onClick={() => setOpen(false)} />
+              <nav
+                id="mobile-menu"
+                aria-label="Menu"
+                className="fixed inset-x-0 top-[calc(3.5rem+1px)] z-50 max-h-[calc(100dvh-3.5rem-1px)] overflow-y-auto border-b bg-background px-4 pt-2 pb-8 md:hidden"
+              >
                 <ul className="flex flex-col">
                   {links.map((link, i) => (
-                    <li key={link.href} className="border-t first:border-t-0">
+                    <li key={link.href} className="border-b">
                       <Link
                         href={link.href}
                         onClick={() => setOpen(false)}
-                        className="grid h-12 grid-cols-[2.25rem_1fr] items-center outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                        aria-current={pathname === link.href ? 'page' : undefined}
+                        className="group grid h-14 grid-cols-[2.5rem_1fr] items-center outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
                       >
-                        <span className="cap text-muted-foreground tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                        <span className="cap text-foreground">{link.label}</span>
+                        <span className="cap text-muted-foreground tabular-nums group-aria-[current=page]:text-primary">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span className="text-[22px] font-light tracking-[-0.02em] text-foreground">{link.label}</span>
                       </Link>
                     </li>
                   ))}

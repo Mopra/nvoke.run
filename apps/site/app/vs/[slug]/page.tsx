@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Faq, type FaqItem } from '@/components/site/faq';
-import { SheetClose, SheetHead, SheetSection } from '@/components/docs/sheet';
+import { RevealHeading } from '@/components/site/home/reveal';
 import { Container } from '@/components/site/section';
 import { VsCalculator } from '@/components/site/vs-calculator';
 import { Button } from '@/components/ui/button';
@@ -45,7 +46,7 @@ const CONTENT: Record<Competitor['slug'], Content> = {
       },
       {
         q: 'How was the price calculated?',
-        a: 'From the plans on Hunter’s pricing page on the date shown above the calculator, assuming one credit per verified email. Hunter charges in euros, so the saving uses an approximate exchange rate.',
+        a: 'From the plans on Hunter’s pricing page on the date shown under the calculator, assuming one credit per verified email. Hunter charges in euros, so the saving uses an approximate exchange rate.',
       },
     ],
   },
@@ -74,7 +75,7 @@ const CONTENT: Record<Competitor['slug'], Content> = {
       },
       {
         q: 'How was the price calculated?',
-        a: 'From the plans on Snov.io’s pricing page on the date shown above the calculator. Yearly prices are only shown where Snov.io lists a yearly saving.',
+        a: 'From the plans on Snov.io’s pricing page on the date shown under the calculator. Yearly prices are only shown where Snov.io lists a yearly saving.',
       },
     ],
   },
@@ -103,7 +104,7 @@ const CONTENT: Record<Competitor['slug'], Content> = {
       },
       {
         q: 'How was the price calculated?',
-        a: 'From the plans on Apollo’s pricing page on the date shown above the calculator, for both monthly and yearly billing.',
+        a: 'From the plans on Apollo’s pricing page on the date shown under the calculator, for both monthly and yearly billing.',
       },
     ],
   },
@@ -127,6 +128,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
+/** A part of the page: a hairline, a printed label, a headline that rises in. */
+function Part({ id, label, title, children }: { id: string; label: string; title: string; children: ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-28 border-t py-20 sm:py-28">
+      <p className="cap text-muted-foreground">{label}</p>
+      <RevealHeading id={`${id}-title`} className="mt-6 max-w-3xl text-headline font-light" lines={[title]} />
+      <div className="mt-12 sm:mt-16">{children}</div>
+    </section>
+  );
+}
+
 export default async function VsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const c = COMPETITORS[slug as Competitor['slug']];
@@ -138,33 +150,39 @@ export default async function VsPage({ params }: { params: Promise<{ slug: strin
 
   return (
     <Container>
-      <SheetHead
-        crumbs={[{ label: 'Compare' }, { label: `vs ${c.name}` }]}
-        title={content.headline}
-        intro={content.intro}
-      />
+      {/* The head and the calculator: the two displays counting the bill are the hero. */}
+      <section aria-labelledby="vs-title" className="pt-20 pb-20 sm:pt-32 sm:pb-28">
+        <nav aria-label="Breadcrumb">
+          <ol className="cap flex items-center gap-2 text-muted-foreground">
+            <li>Compare</li>
+            <li aria-hidden="true">/</li>
+            <li aria-current="page" className="text-primary">
+              vs {c.name}
+            </li>
+          </ol>
+        </nav>
+        <RevealHeading as="h1" id="vs-title" className="mt-6 max-w-4xl text-display font-light" lines={[content.headline]} />
+        <p className="mt-6 max-w-2xl text-lede text-pretty text-muted-foreground">{content.intro}</p>
+        <p className="cap mt-6 text-muted-foreground">
+          nvoke: {free} free a month, then from {cheapest}
+        </p>
+        <div className="mt-16 sm:mt-24">
+          <VsCalculator slug={c.slug} />
+        </div>
+      </section>
 
-      <SheetSection
-        id="cost"
-        label="Calculator"
-        title="What your volume costs"
-        intro={`Type how many verified emails you need each month. nvoke is free for ${free} a month, then from ${cheapest}.`}
-      >
-        <VsCalculator slug={c.slug} />
-      </SheetSection>
-
-      <SheetSection id="where" label="Honest" title="Who wins where">
-        <div className="grid gap-12 md:grid-cols-2 md:gap-8">
+      <Part id="where" label="Honest" title="Who wins where.">
+        <div className="grid gap-16 md:grid-cols-2 md:gap-10">
           {[
             { title: `Pick ${c.name} when`, items: content.theyWin },
             { title: 'Pick nvoke when', items: content.weWin },
           ].map((side) => (
-            <div key={side.title} className="flex flex-col gap-4">
-              <h3 className="text-[21px] font-light tracking-[-0.02em]">{side.title}</h3>
-              <ul className="border-b">
+            <div key={side.title} className="flex flex-col">
+              <h3 className="text-title font-light">{side.title}</h3>
+              <ul className="mt-8 border-b">
                 {side.items.map((t, i) => (
-                  <li key={t} className="grid grid-cols-[2.25rem_1fr] gap-2 border-t py-3.5 text-[15px] text-pretty text-muted-foreground">
-                    <span className="cap pt-0.5">{String(i + 1).padStart(2, '0')}</span>
+                  <li key={t} className="grid grid-cols-[2.25rem_1fr] gap-2 border-t py-4 text-[15px] text-pretty text-muted-foreground">
+                    <span className="cap pt-0.5 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                     {t}
                   </li>
                 ))}
@@ -172,36 +190,37 @@ export default async function VsPage({ params }: { params: Promise<{ slug: strin
             </div>
           ))}
         </div>
-      </SheetSection>
+      </Part>
 
-      <SheetSection id="faq" label="FAQ" title="Questions">
-        <div className="max-w-3xl">
-          <Faq items={content.faq} />
-        </div>
-      </SheetSection>
+      <section id="faq" aria-labelledby="faq-title" className="grid gap-12 border-t py-20 sm:py-28 lg:grid-cols-[1fr_2fr] lg:gap-16">
+        <RevealHeading id="faq-title" className="text-headline font-light" lines={['Questions.']} />
+        <Faq items={content.faq} />
+      </section>
 
-      <SheetClose
-        title="Try it on your own list"
-        body={
-          <>
-            In your browser, nothing to install. Other comparisons:{' '}
-            {others.map((o, i) => (
-              <span key={o.slug}>
-                {i > 0 ? ', ' : ''}
-                <Link href={`/vs/${o.slug}`} className="text-foreground underline underline-offset-4">
-                  {o.name}
-                </Link>
-              </span>
-            ))}
-            .
-          </>
-        }
-        action={
-          <Button asChild size="lg">
+      <section aria-labelledby="close-title" className="flex flex-col items-center border-t py-24 text-center sm:py-36">
+        <RevealHeading id="close-title" className="max-w-3xl text-display font-light" lines={['Try it on', 'your own list.']} />
+        <div className="mt-12 flex flex-wrap justify-center gap-3">
+          <Button asChild size="xl" variant="dark">
             <Link href="/sign-up">Start free</Link>
           </Button>
-        }
-      />
+          <Button asChild size="xl" variant="secondary">
+            <Link href="/pricing">See pricing</Link>
+          </Button>
+        </div>
+        <p className="cap mt-6 text-muted-foreground">{free} verified emails a month, free</p>
+        <p className="mt-12 text-[15px] text-muted-foreground">
+          Other comparisons:{' '}
+          {others.map((o, i) => (
+            <span key={o.slug}>
+              {i > 0 ? ', ' : ''}
+              <Link href={`/vs/${o.slug}`} className="text-foreground underline underline-offset-4">
+                {o.name}
+              </Link>
+            </span>
+          ))}
+          .
+        </p>
+      </section>
     </Container>
   );
 }

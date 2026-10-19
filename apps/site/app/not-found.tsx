@@ -6,28 +6,24 @@ import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = { title: 'Page not found' };
 
+/** The 404 as a display: the code in huge dot matrix figures, one line, the key home. */
 export default function NotFound() {
   return (
-    <Container className="py-16 sm:py-24">
-      <div className="panel flex flex-col items-center gap-6 px-5 py-14 text-center sm:py-20">
-        <div className="screen flex items-center gap-4 px-6 py-5">
-          <span className="led bg-destructive shadow-[0_0_6px_var(--destructive)]" />
-          <span className="cap text-screen-foreground/50">Error</span>
-          <Figure value="404" ghost="888" className="text-[56px] sm:text-[72px]" />
+    <Container className="flex flex-col items-center py-20 text-center sm:py-32">
+      <div className="screen screen-hero w-full max-w-3xl p-6 sm:p-10">
+        <div className="flex items-center gap-3">
+          <span aria-hidden="true" className="led bg-destructive shadow-[0_0_6px_var(--destructive)] motion-safe:animate-blink" />
+          <span className="cap text-destructive">Error</span>
+          <span className="cap ml-auto text-screen-foreground/50">No signal</span>
         </div>
-        <h1 className="text-headline font-light">Nothing here.</h1>
-        <p className="max-w-md text-lede text-pretty text-muted-foreground">
-          Old link or a typo. Either way, this page does not exist.
-        </p>
-        <div className="flex flex-wrap justify-center gap-3 pt-2">
-          <Button asChild size="lg" variant="dark">
-            <Link href="/">Home page</Link>
-          </Button>
-          <Button asChild size="lg" variant="secondary">
-            <Link href="/download">nvoke Desktop</Link>
-          </Button>
-        </div>
+        <Figure value="404" ghost="888" className="mt-8 text-[clamp(6rem,30vw,15rem)] sm:mt-10" />
+        <p className="cap mt-6 text-screen-foreground/50">Page not found</p>
       </div>
+      <h1 className="mt-16 text-headline font-light sm:mt-20">Nothing here.</h1>
+      <p className="mt-5 max-w-md text-lede text-pretty text-muted-foreground">Old link or a typo. The page does not exist.</p>
+      <Button asChild size="xl" variant="dark" className="mt-10">
+        <Link href="/">Home</Link>
+      </Button>
     </Container>
   );
 }
