@@ -6,6 +6,7 @@
  * "Web app" in CLAUDE.md). Next compiles them from source like @nvoke/shared.
  */
 export {
+  FEED_SOURCE_LABEL,
   KIND_LABEL,
   STATUS_LABEL,
   VERIFICATION_HINT,
@@ -19,6 +20,7 @@ export {
   formatNumber,
   isActive,
   listTitle,
+  nextRunLabel,
   percent,
   periodLabel,
   relativeTime,
@@ -28,6 +30,7 @@ export {
   searchSubtitle,
   searchRuns,
   searchTitle,
+  sourcesLabel,
   type LaunchWindow,
   type SearchRun,
 } from '../../../desktop/src/renderer/src/lib/format';

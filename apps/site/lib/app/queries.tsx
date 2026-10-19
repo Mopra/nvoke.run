@@ -2,10 +2,23 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import type { ApiKey, CompaniesPage, CreateSearchInput, DraftOpenersInput, Search, SiteProfile, UpdateSearchRequest, UpdateSiteProfileRequest } from '@nvoke/shared';
+import type {
+  ApiKey,
+  CompaniesPage,
+  CreateDropRequest,
+  CreateSearchInput,
+  DraftOpenersInput,
+  DropListResponse,
+  Search,
+  SiteProfile,
+  UpdateDropRequest,
+  UpdateSearchRequest,
+  UpdateSiteProfileRequest,
+} from '@nvoke/shared';
 import { toast } from 'sonner';
 import { ApiError, type CompaniesQuery, type WebApi } from './api';
 import { inboxPollMs } from './desktop';
+import { dropsPollInterval, storeDrop } from './drops';
 import { pendingInboxPages } from './inboxes';
 import { companiesPollInterval, edgePages, edgePollInterval } from './openers';
 import { listPollInterval, searchPollInterval } from './quota';
@@ -35,6 +48,7 @@ export const keys = {
   apiKeys: ['api-keys'] as const,
   siteProfile: ['site-profile'] as const,
   siteProfileBuild: ['site-profile', 'build'] as const,
+  drops: ['drops'] as const,
 };
 
 export function useSearches() {
@@ -424,5 +438,80 @@ export function useDeleteSiteProfile() {
   return useMutation({
     mutationFn: () => api.deleteSiteProfile(),
     onSuccess: () => client.setQueryData<SiteProfile | null>(keys.siteProfile, null),
+  });
+}
+
+/** The drops and the feed's week per source. Polled only while a run is due (dropsPollInterval). */
+export function useDrops() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.drops,
+    queryFn: api.listDrops,
+    refetchInterval: (query) => dropsPollInterval(query.state.data),
+  });
+}
+
+/** The searches list again, a little later: a drop's run lands within a minute. */
+function useRefreshSearchesSoon(): (delays: number[]) => void {
+  const client = useQueryClient();
+  return useCallback(
+    (delays: number[]) => {
+      for (const ms of delays) {
+        setTimeout(() => {
+          void client.invalidateQueries({ queryKey: keys.searches, exact: true });
+          void client.invalidateQueries({ queryKey: keys.drops });
+        }, ms);
+      }
+    },
+    [client],
+  );
+}
+
+export function useCreateDrop() {
+  const api = useApi();
+  const client = useQueryClient();
+  const refresh = useRefreshSearchesSoon();
+  return useMutation({
+    mutationFn: (input: CreateDropRequest) => api.createDrop(input),
+    onSuccess: (drop) => {
+      client.setQueryData<DropListResponse>(keys.drops, (list) => storeDrop(list, drop));
+      refresh([0, 20_000, 65_000]);
+    },
+  });
+}
+
+/** Saves a change or pauses and resumes (`enabled`). */
+export function useUpdateDrop() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, update }: { id: string; update: UpdateDropRequest }) => api.updateDrop(id, update),
+    onSuccess: (drop) => client.setQueryData<DropListResponse>(keys.drops, (list) => storeDrop(list, drop)),
+  });
+}
+
+/** Runs a drop now. The worker picks it up within a minute, so the lists are refreshed a little later. */
+export function useRunDrop() {
+  const api = useApi();
+  const client = useQueryClient();
+  const refresh = useRefreshSearchesSoon();
+  return useMutation({
+    mutationFn: (id: string) => api.runDrop(id),
+    onSuccess: (drop) => {
+      client.setQueryData<DropListResponse>(keys.drops, (list) => storeDrop(list, drop));
+      refresh([20_000, 65_000]);
+    },
+  });
+}
+
+/** Deletes a drop. The searches it delivered stay. */
+export function useDeleteDrop() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDrop(id),
+    onSuccess: (_void, id) => {
+      client.setQueryData<DropListResponse>(keys.drops, (list) => (list ? { ...list, drops: list.drops.filter((d) => d.id !== id) } : list));
+    },
   });
 }

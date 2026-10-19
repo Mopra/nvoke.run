@@ -3,7 +3,10 @@ import type {
   ApiKeyListResponse,
   CompaniesPage,
   CreateApiKeyResponse,
+  CreateDropRequest,
   CreateSearchInput,
+  Drop,
+  DropListResponse,
   DraftOpenersInput,
   DraftOpenersResponse,
   LeadFilters,
@@ -11,6 +14,7 @@ import type {
   Search,
   SearchListResponse,
   SiteProfile,
+  UpdateDropRequest,
   UpdateSearchRequest,
   UpdateSiteProfileRequest,
 } from '@nvoke/shared';
@@ -54,6 +58,7 @@ export function describeError(status: number, code: string): string {
   }
   if (code === 'claim_required') return 'This account needs to be claimed first. Check the email we sent.';
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
+  if (code === 'too_many_drops') return 'You have 20 drops. Delete one first.';
   if (code === 'site_unreadable') return 'We couldn’t read that website.';
   if (code === 'ai_unavailable') return 'Claude isn’t answering right now. Try again in a few minutes.';
   if (code === 'cancelled') return 'Stopped.';
@@ -191,6 +196,15 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     updateSiteProfile: (patch: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', patch),
     deleteSiteProfile: async (): Promise<void> => {
       await call<null>('DELETE', '/v1/site-profile');
+    },
+    /** The drops and what the feed collected per source this week. */
+    listDrops: (): Promise<DropListResponse> => call('GET', '/v1/drops'),
+    createDrop: (input: CreateDropRequest): Promise<Drop> => call('POST', '/v1/drops', input),
+    updateDrop: (id: string, update: UpdateDropRequest): Promise<Drop> => call('PATCH', `/v1/drops/${enc(id)}`, update),
+    /** Runs the drop within a minute instead of at its daily time. */
+    runDrop: (id: string): Promise<Drop> => call('POST', `/v1/drops/${enc(id)}/run`),
+    deleteDrop: async (id: string): Promise<void> => {
+      await call<null>('DELETE', `/v1/drops/${enc(id)}`);
     },
   };
 }
