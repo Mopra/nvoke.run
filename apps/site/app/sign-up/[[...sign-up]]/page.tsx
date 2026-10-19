@@ -3,7 +3,7 @@ import { SignUp } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { CLERK_APPEARANCE_UNTITLED } from '@/components/app/clerk-appearance';
-import { FreeDisplay } from '@/components/site/auth/free-display';
+import { DotField } from '@/components/site/auth/dot-field';
 import { LogoLoader } from '@/components/app/motion';
 import { AuthFrame } from '@/components/site/auth-frame';
 import { PLANS } from '@nvoke/shared';
@@ -20,7 +20,16 @@ export default async function SignUpPage() {
     <AuthFrame
       title="Start free"
       label="Sign up"
-      display={<FreeDisplay emails={PLANS.free.emailsPerMonth} />}
+      display={
+        <figure>
+          <DotField figure={String(PLANS.free.emailsPerMonth)} />
+          <figcaption className="mt-6 grid grid-cols-3 gap-4 border-t pt-4">
+            <span className="cap text-foreground">Verified emails</span>
+            <span className="cap text-muted-foreground">Every month</span>
+            <span className="cap text-right text-primary">No card</span>
+          </figcaption>
+        </figure>
+      }
       lede="Runs in your browser. Nothing to install."
     >
       <SignUp appearance={CLERK_APPEARANCE_UNTITLED} fallback={<LogoLoader label="Loading sign up" />} path="/sign-up" routing="path" signInUrl="/sign-in" fallbackRedirectUrl="/app" />
