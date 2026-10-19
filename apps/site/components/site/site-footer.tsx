@@ -9,7 +9,7 @@ const row = 'cap flex h-10 items-center border-t text-foreground/80 transition-c
 /** The foot of the sheet: the name plate line, then the links as hairline rows in mono capitals. */
 export function SiteFooter() {
   return (
-    <footer className="mt-10 border-t">
+    <footer className="border-t">
       <Container className="grid gap-10 pt-12 pb-10 md:grid-cols-[1fr_2fr] md:gap-16">
         <div className="flex flex-col gap-3">
           <Logo />

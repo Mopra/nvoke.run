@@ -1,20 +1,16 @@
 import Link from 'next/link';
 import { LiveSearch } from '@/components/mockups/live-search';
 import { Faq, type FaqItem } from '@/components/site/faq';
+import { AgentCall, ShortcutKeys } from '@/components/site/home/demos';
+import { LeadCounter } from '@/components/site/home/lead-counter';
+import { Pipeline } from '@/components/site/home/pipeline';
+import { PriceDisplay } from '@/components/site/home/price-display';
+import { RevealHeading } from '@/components/site/home/reveal';
 import { Container, Eyebrow } from '@/components/site/section';
 import { Button } from '@/components/ui/button';
-import { formatCount, formatPrice, pricing } from '@/lib/pricing';
-import { cn } from '@/lib/utils';
+import { formatCount, pricing } from '@/lib/pricing';
 
 const freeEmails = formatCount(pricing.free.emailsPerMonth);
-
-/** How it works in four words and four lines. The detail lives in the docs and the FAQ. */
-const STEPS = [
-  { cap: 'Find', line: 'Local businesses, web results or this week’s launches.' },
-  { cap: 'Crawl', line: 'Their own website, read today. Not a list from last year.' },
-  { cap: 'Verify', line: 'The mail server says if the mailbox exists.' },
-  { cap: 'Export', line: 'CSV, API or MCP. nvoke never sends.' },
-] as const;
 
 const FAQ: FaqItem[] = [
   {
@@ -56,7 +52,6 @@ const FAQ: FaqItem[] = [
   },
 ];
 
-const ch = (i: number) => String(i + 1).padStart(2, '0');
 
 export default function HomePage() {
   return (
@@ -90,18 +85,8 @@ export default function HomePage() {
       {/* How it works: four columns on a hairline, a word and a line each. */}
       <section id="how-it-works" aria-labelledby="how-title" className="py-20 sm:py-28">
         <Container>
-          <h2 id="how-title" className="max-w-2xl text-headline font-light">
-            nvoke finds and checks. Your tool sends.
-          </h2>
-          <ol className="mt-16 grid gap-x-10 gap-y-12 sm:mt-24 sm:grid-cols-2 lg:grid-cols-4">
-            {STEPS.map((step, i) => (
-              <li key={step.cap} className="border-t pt-6">
-                <span className="cap text-muted-foreground tabular-nums">{ch(i)}</span>
-                <h3 className="mt-8 text-title font-light">{step.cap}</h3>
-                <p className="mt-3 max-w-[16rem] text-[15px] text-pretty text-muted-foreground">{step.line}</p>
-              </li>
-            ))}
-          </ol>
+          <RevealHeading id="how-title" className="max-w-2xl text-headline font-light" lines={['A search in.', 'Verified emails out.']} />
+          <Pipeline />
         </Container>
       </section>
 
@@ -110,9 +95,7 @@ export default function HomePage() {
         <Container>
           <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 id="pricing-title" className="text-headline font-light">
-                Pay for emails that work.
-              </h2>
+              <RevealHeading id="pricing-title" className="text-headline font-light" lines={['Pay for emails that work.']} />
               <p className="mt-5 max-w-md text-lede text-pretty text-muted-foreground">
                 One plan. Only valid addresses count.
               </p>
@@ -121,21 +104,8 @@ export default function HomePage() {
               <Link href="/pricing">See pricing</Link>
             </Button>
           </div>
-          <ul className="mt-16 grid grid-cols-2 gap-x-6 gap-y-10 sm:mt-24 sm:grid-cols-4 lg:grid-cols-7">
-            {pricing.tiers.map((t) => (
-              <li key={t.plan} className="border-t pt-5">
-                <span className={cn('cap', t.price === 0 ? 'text-primary' : 'text-muted-foreground')}>
-                  {t.price === 0 ? 'Free' : formatPrice(t.price)}
-                </span>
-                <p className="mt-3 text-[28px] leading-none font-light tracking-[-0.03em] tabular-nums">
-                  {formatCount(t.emailsPerMonth)}
-                </p>
-              </li>
-            ))}
-          </ul>
-          <p className="cap mt-8 text-muted-foreground normal-case tracking-[0.02em]">
-            Verified emails a month. {pricing.vatNote}
-          </p>
+          <PriceDisplay />
+          <p className="cap mt-8 text-muted-foreground normal-case tracking-[0.02em]">{pricing.vatNote}</p>
         </Container>
       </section>
 
@@ -144,20 +114,22 @@ export default function HomePage() {
         <Container className="grid gap-16 sm:grid-cols-2 sm:gap-10">
           <div id="desktop" className="flex flex-col items-start border-t pt-6">
             <Eyebrow>nvoke Desktop</Eyebrow>
-            <h2 className="mt-8 text-title font-light">The power tools.</h2>
+            <RevealHeading className="mt-8 text-title font-light" lines={['The power tools.']} />
             <p className="mt-3 max-w-sm text-[15px] text-pretty text-muted-foreground">
               Local render, daily drops and a quick search over any app. Windows, macOS and Linux.
             </p>
+            <ShortcutKeys />
             <Button asChild size="lg" variant="secondary" className="mt-8">
               <Link href="/download">Get nvoke Desktop</Link>
             </Button>
           </div>
           <div id="agents" className="flex flex-col items-start border-t pt-6">
             <Eyebrow>Agents</Eyebrow>
-            <h2 className="mt-8 text-title font-light">Or let your agent do it.</h2>
+            <RevealHeading className="mt-8 text-title font-light" lines={['Or let your agent do it.']} />
             <p className="mt-3 max-w-sm text-[15px] text-pretty text-muted-foreground">
               Every search, export and check over REST or MCP. Your agent can sign up alone.
             </p>
+            <AgentCall />
             <Button asChild size="lg" variant="secondary" className="mt-8">
               <Link href="/agents">nvoke for agents</Link>
             </Button>
@@ -167,18 +139,15 @@ export default function HomePage() {
 
       <section id="faq" aria-labelledby="faq-title" className="py-20 sm:py-28">
         <Container className="grid gap-12 lg:grid-cols-[1fr_2fr] lg:gap-16">
-          <h2 id="faq-title" className="text-headline font-light">
-            Questions.
-          </h2>
+          <RevealHeading id="faq-title" className="text-headline font-light" lines={['Questions.']} />
           <Faq items={FAQ} />
         </Container>
       </section>
 
-      <section aria-labelledby="cta-title" className="pt-24 pb-32 sm:pt-36 sm:pb-48">
-        <Container className="flex flex-col items-center text-center">
-          <h2 id="cta-title" className="max-w-3xl text-display font-light">
-            Your first search is a minute away.
-          </h2>
+      {/* The last call, over a huge counter climbing like a search finding leads. */}
+      <section aria-labelledby="cta-title" className="relative overflow-hidden pt-24 sm:pt-36">
+        <Container className="relative z-10 flex flex-col items-center text-center">
+          <RevealHeading id="cta-title" className="max-w-4xl text-display font-light" lines={['Your first search', 'is a minute away.']} />
           <div className="mt-12 flex flex-wrap justify-center gap-3">
             <Button asChild size="xl" variant="dark">
               <Link href="/sign-up">Start free</Link>
@@ -187,7 +156,11 @@ export default function HomePage() {
               <Link href="/download">Get the desktop app</Link>
             </Button>
           </div>
+          <p className="cap mt-6 text-muted-foreground">{freeEmails} verified emails a month, free</p>
         </Container>
+        <div className="mt-12 sm:mt-16">
+          <LeadCounter />
+        </div>
       </section>
     </>
   );
