@@ -5,6 +5,15 @@ sections the user has not seen yet on the first start after an update, and the
 release workflow uses the section as the GitHub release notes. One `## x.y.z`
 heading per version, then a short bullet per change, written for the user.
 
+## 0.1.3
+
+- A new look: nvoke is an instrument panel now, with a black display that shows your running searches, keycaps and a level meter of leads coming in. Light and dark are two finishes of the same device.
+- Results show one display with companies, crawled sites, emails and valid ones counting up live.
+- Turn the limit knob round with the mouse, like a real one.
+- Back takes you to the screen you came from.
+- Stopped a search? Continue it from where it left off.
+- A new orange icon.
+
 ## 0.1.2
 
 - Remove your website from Searches: the row's menu and the website page both have Remove. Searches you started from it stay.
