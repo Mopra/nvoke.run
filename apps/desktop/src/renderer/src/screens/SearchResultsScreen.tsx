@@ -25,7 +25,7 @@ import { BackButton, PageHeader, Panel } from '@/components/AppShell';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VerificationBadge } from '@/components/indicators';
-import { progressCaption, SearchProgress } from '@/components/SearchProgress';
+import { SearchDisplay, SearchDisplaySkeleton } from '@/components/SearchDisplay';
 import { SearchWorking } from '@/components/SearchWorking';
 import { canSearchMore, continueInput, fewFoundLine, RunsLine, SearchMoreEditor } from '@/components/SearchMore';
 import { EmptyState, ErrorState } from '@/components/states';
@@ -88,13 +88,13 @@ import {
   SHARED_INBOXES,
   shownEmails,
 } from '@/lib/people';
-import { useCountUp } from '@/lib/motion';
 import { navigate } from '@/lib/router';
 import { clickSelect, EMPTY_SELECTION, pickSelected, type Selection } from '@/lib/selection';
 import type { Company, DraftOpenersInput, Email, Opener, Search, SearchInput } from '@/lib/types';
 import { useDesktopSettings } from '@/lib/desktop';
 import { handsToLocalCrawl } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
+import { RevealWords } from '@/components/Reveal';
 
 const COLUMNS = 'grid grid-cols-[minmax(11rem,0.9fr)_minmax(21rem,2fr)_minmax(7rem,0.55fr)_4rem] gap-6';
 
@@ -126,26 +126,6 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /* Overview */
 
-/** A small display: the figure lit over unlit segments, the label a cap row below with its share in orange. */
-function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
-  // While a search runs the figures glide up between polls.
-  const shown = useCountUp(value);
-  return (
-    <div className="screen flex min-w-0 flex-col px-3.5 py-3">
-      <div className="relative flex items-baseline justify-end gap-2">
-        <span aria-hidden className="pointer-events-none absolute right-0 font-lcd text-4xl leading-none font-extrabold tracking-normal tabular-nums text-screen-dim select-none">
-          888
-        </span>
-        <span className="lcd relative text-4xl leading-none tracking-normal text-screen-foreground">{formatNumber(shown)}</span>
-      </div>
-      <div className="cap mt-2.5 flex justify-between gap-2 text-screen-foreground/45">
-        <span className="truncate">{label}</span>
-        {sub && <span className={cn('shrink-0', sub.endsWith('%') && 'text-primary')}>{sub}</span>}
-      </div>
-    </div>
-  );
-}
-
 function Overview({
   search,
   timing,
@@ -169,12 +149,12 @@ function Overview({
   onSearchMore: () => void;
   onCloseMore: () => void;
 }) {
-  const active = isActive(search.status);
   const few = fewFoundLine(search);
-  const validShare = search.emailsFound > 0 ? Math.round((search.emailsValid / search.emailsFound) * 100) : null;
   return (
     <section className="px-6 pt-8 pb-10">
-      <h1 className="font-display text-3xl font-light tracking-[-0.02em] text-balance">{searchTitle(search)}</h1>
+      <h1 className="font-display text-3xl font-light tracking-[-0.02em] text-balance">
+        <RevealWords text={searchTitle(search)} />
+      </h1>
       <div className="cap mt-2 flex items-center gap-2.5 text-muted-foreground">
         <StatusLabel status={search.status} />
         <span className="truncate" title={`${searchSubtitle(search)}, ${timing}`}>
@@ -186,24 +166,7 @@ function Overview({
         <SearchMoreEditor search={search} onClose={onCloseMore} />
       ) : (
         <>
-          <div className="mt-10 grid grid-cols-4 gap-2.5">
-            <Stat label="Companies" value={search.companiesFound} sub={`of ${formatNumber(search.limit)}`} />
-            <Stat label="Websites crawled" value={search.companiesCrawled} />
-            <Stat label="Emails found" value={search.emailsFound} />
-            <Stat label="Valid emails" value={search.emailsValid} sub={validShare === null ? undefined : `${validShare}%`} />
-          </div>
-          {active && (
-            <div className="mt-8 flex items-center gap-5">
-              <SearchProgress search={search} className="h-[3px] flex-1" />
-              <span
-                data-stage-note
-                className="cap max-w-[60%] shrink-0 truncate tabular-nums text-muted-foreground"
-                title={progressCaption(search)}
-              >
-                {progressCaption(search)}
-              </span>
-            </div>
-          )}
+          <SearchDisplay search={search} className="mt-8" />
           {/* A search the quota stopped cannot go on; the failed banner says why. */}
           {search.kind === 'icp' && search.error !== 'quota_exceeded' && <OngoingSwitch search={search} />}
           {canSearchMore(search) && search.status !== 'failed' && (
@@ -1096,14 +1059,7 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
           <div className="px-6 pt-8 pb-10">
             <Skeleton className="h-8 w-80" />
             <Skeleton className="mt-3 h-3.5 w-56" />
-            <div className="mt-10 grid grid-cols-4 gap-2.5">
-              {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="screen flex flex-col items-end gap-2.5 px-3.5 py-3">
-                  <Skeleton className="h-9 w-16 bg-screen-dim" />
-                  <Skeleton className="h-3 w-full bg-screen-dim" />
-                </div>
-              ))}
-            </div>
+            <SearchDisplaySkeleton className="mt-8" />
           </div>
           <TableSkeleton />
         </div>

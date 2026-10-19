@@ -1,12 +1,14 @@
 import { formatNumber, percent, periodLabel, resetDate } from '@/lib/format';
+import { ghostOf, useCountUp } from '@/lib/motion';
 import type { Me } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-/** The month's verified emails: a small black screen with the figure lit and a PLAN / USED / LEFT readout over a meter. */
+/** The month's verified emails: a small black screen with the figure lit over ghost digits and a PLAN / USED / LEFT readout over a meter. */
 export function Usage({ me }: { me: Me }) {
   const { emailsVerified: used, emailsLimit: limit, period } = me.usage;
   const share = percent(used, limit);
   const left = Math.max(0, limit - used);
+  const shown = useCountUp(used);
   const note =
     left === 0
       ? `Out of verified emails for ${periodLabel(period)}. Searches stop at the limit until ${resetDate(period)}. Or upgrade.`
@@ -14,7 +16,13 @@ export function Usage({ me }: { me: Me }) {
   return (
     <section className="screen p-4">
       <div className="flex items-baseline justify-between gap-6">
-        <div className="lcd text-4xl text-screen-foreground tabular-nums">{formatNumber(used)}</div>
+        {/* The figure lit over its ghost digits, gliding when a search verifies more. */}
+        <div className="relative text-4xl leading-none">
+          <span aria-hidden className="ghost">
+            {ghostOf(Math.max(limit, used))}
+          </span>
+          <span className="lcd absolute inset-y-0 left-0 text-screen-foreground">{formatNumber(shown)}</span>
+        </div>
         <dl className="grid grid-cols-[max-content_max-content] gap-x-4 gap-y-0.5 text-right">
           <dt className="cap text-screen-foreground/50">Plan</dt>
           <dd className="cap text-screen-foreground tabular-nums">{formatNumber(limit)}</dd>

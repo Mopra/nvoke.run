@@ -64,8 +64,7 @@ const journey: Scene = {
     d.mark('first-row');
     await d.rect('rows', '[data-company-row]');
     await d.move({ x: 1060, y: 610 }, 900);
-    await d.js(`[...document.querySelectorAll('div')].find((e) => e.textContent.trim() === 'Websites crawled')?.closest('.grid')?.setAttribute('data-film', 'counters')`);
-    await d.rect('counters', '[data-film="counters"]');
+    await d.rect('counters', '[data-search-display] dl');
     // Running: counters climb, rows land. Wait for the end.
     await waitDone(d);
     d.mark('done');

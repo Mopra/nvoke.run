@@ -65,3 +65,9 @@ export function useCountUp(value: number, ms = 700): number {
 export function CountUp({ value }: { value: number }) {
   return <>{formatNumber(useCountUp(value))}</>;
 }
+
+/** The unlit pattern under a figure on a screen, wide enough for the largest it can reach: "888" at least. */
+export function ghostOf(max: number): string {
+  const digits = formatNumber(max).replace(/\d/g, '8');
+  return digits.replace(/\D/g, '').length < 3 ? '888' : digits;
+}
