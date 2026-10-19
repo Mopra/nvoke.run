@@ -58,9 +58,10 @@ shots `20-whats-new` and `20b-update-ready`.
    section as its notes. A version with a suffix (`0.3.0-beta.1`) is published
    as a prerelease, which only prerelease builds pick up.
 
-The installed apps see it within 4 hours. The site's download page reads the
-version from `apps/desktop/package.json`, so set `DOWNLOAD_BASE_URL` on
-Vercel to `https://github.com/Mopra/nvoke.run/releases/latest/download`.
+The installed apps see it within 4 hours. The site's download page links to
+the release of the version in `apps/desktop/package.json`
+(`apps/site/lib/download.ts`), so its links work once the release workflow
+has published; no Vercel setting is needed.
 
 Requirements: the repository must be public (installed apps read the release
 without a token), and the workflow needs nothing beyond the default
