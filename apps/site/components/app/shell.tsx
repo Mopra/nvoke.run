@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowUpRight, ChevronLeft } from 'lucide-react';
 import { LedMeter, litSegments } from '@/components/app/search-progress';
-import { LogoMark } from '@/components/site/logo';
+import { LogoMark, Wordmark } from '@/components/site/logo';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/app/desktop';
@@ -14,16 +14,15 @@ import { useMe, useSearches } from '@/lib/app/queries';
 import { cn } from '@/lib/utils';
 
 /**
- * The web app is the desktop's panel without the chassis: no name plate, no
- * grille, no display strip. A slim header carries the ports as tabs (dark
- * for the screens, light for New, grey for Account, the lit one orange) and
- * the month's figures in printed capitals; the screens sit on the chassis
- * below it. `data-app` switches to the desktop type scale.
+ * The web app on the site's paper: a slim header with the mark, the screens
+ * as printed links (the open one lit by an LED and an orange rule), the
+ * running search and the month's figures on a small black display. The
+ * screens sit below it, unboxed. `data-app` switches to the desktop type scale.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div data-app className="relative isolate flex min-h-dvh flex-col bg-background text-foreground">
-      <Ports />
+      <Header />
       <QuotaNotice />
       <div className="flex flex-1 flex-col">{children}</div>
       <PageShade />
@@ -34,92 +33,77 @@ export function AppShell({ children }: { children: ReactNode }) {
 /**
  * One frame for the header and every screen, so all edges line up. Every
  * screen fills it. `APP_INSET` is the text inset inside the frame, matching
- * the list rows and the first port.
+ * the list rows and the first link.
  */
 export const APP_FRAME = 'mx-auto w-full max-w-6xl px-4 sm:px-6';
 export const APP_INSET = 'sm:px-3';
 
-/* The ports */
+/* The header */
 
-const PORT =
-  'inline-flex h-[34px] min-w-0 shrink-0 items-center justify-center gap-1.5 self-start rounded-b-[5px] px-3 cap outline-none transition-[filter,transform] duration-100 hover:brightness-[1.06] active:translate-y-px focus-visible:ring-2 focus-visible:ring-ring/60 sm:min-w-[86px] sm:px-3.5';
-const PORT_TONE = {
-  dark: 'bg-foreground text-background',
-  light: 'bg-secondary text-secondary-foreground shadow-[0_1px_0_var(--glass-edge)]',
-  grey: 'bg-muted-foreground text-background',
-} as const;
-
-function Port({
-  href,
-  current = false,
-  tone,
-  children,
-  className,
-  label,
-}: {
-  href: string;
-  current?: boolean;
-  tone: keyof typeof PORT_TONE;
-  children: ReactNode;
-  className?: string;
-  label?: string;
-}) {
+/** A screen's link: mono capitals, an LED and an orange rule under it when it is the open one. */
+function NavLink({ href, current = false, children, label }: { href: string; current?: boolean; children: ReactNode; label?: string }) {
   return (
     <Link
       href={href}
       aria-label={label}
       aria-current={current ? 'page' : undefined}
-      className={cn(PORT, current ? 'bg-primary text-primary-foreground' : PORT_TONE[tone], className)}
+      className={cn(
+        'cap relative flex h-14 shrink-0 items-center gap-2 px-1 outline-none transition-colors focus-visible:text-foreground sm:px-2',
+        current ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+      )}
     >
+      <span aria-hidden className={cn('led transition-colors', current ? 'led-on' : 'bg-transparent')} />
       {children}
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-x-1 -bottom-px h-0.5 origin-left bg-primary transition-transform duration-300 ease-out-soft',
+          current ? 'scale-x-100' : 'scale-x-0',
+        )}
+      />
     </Link>
   );
 }
 
-/** A port's notch: the small dot on the New label. */
-function Notch() {
-  return <span aria-hidden className="size-[3px] rounded-full bg-current opacity-70" />;
-}
-
 /**
- * The top edge: the ports are the way around, labelled like the sockets on a
- * sampler, hanging from the rim. The lit one is where you are. Results shows
- * only on a search's page, as on the desktop.
+ * The top edge: the mark and wordmark, the screens, a running search when
+ * its page is not open, and the month on a display. Results shows only on a
+ * search's page.
  */
-function Ports() {
+function Header() {
   const path = usePathname() ?? '/app';
   const onSearches = path === '/app' || path === '/app/';
   const result = path.match(/^\/app\/searches\/([^/]+)/);
   const onNew = path.startsWith('/app/new') || path.startsWith('/app/website');
   const onAccount = path.startsWith('/app/account') || path.startsWith(BILLING_PATH);
   return (
-    <header className="rim sticky top-0 z-40 shadow-[0_1px_0_var(--border)]">
-      <nav aria-label="App" className={cn(APP_FRAME, 'flex h-11 items-start gap-2 sm:gap-2.5')}>
+    <header className="sticky top-0 z-40 border-b bg-background">
+      <nav aria-label="App" className={cn(APP_FRAME, 'flex h-14 items-center gap-3 sm:gap-5')}>
         <Link
           href="/app"
           aria-label="nvoke searches"
-          className="mt-[7px] mr-1 hidden shrink-0 items-center gap-2 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:flex"
+          className="mr-1 flex shrink-0 items-center gap-2.5 rounded-[6px] text-[20px] leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:mr-3"
         >
-          <LogoMark motion="hover" className="size-[22px]" />
+          <LogoMark motion="hover" className="size-[24px]" />
+          <Wordmark className="hidden sm:inline" />
         </Link>
-        <Port href="/app" current={onSearches} tone="dark">
+        <NavLink href="/app" current={onSearches}>
           Searches
-        </Port>
-        <Port href="/app/new" current={onNew} tone="light" label="New search">
-          <Notch />
+        </NavLink>
+        <NavLink href="/app/new" current={onNew} label="New search">
           New
-        </Port>
+        </NavLink>
         {result && (
-          <Port href={path} current tone="dark">
+          <NavLink href={path} current>
             Results
-          </Port>
+          </NavLink>
         )}
         <LiveSearch path={path} />
-        <div className="ml-auto flex items-start gap-3 sm:gap-4">
+        <div className="ml-auto flex items-center gap-3 sm:gap-5">
           <Readout />
-          <Port href="/app/account" current={onAccount} tone="grey">
+          <NavLink href="/app/account" current={onAccount}>
             Account
-          </Port>
+          </NavLink>
         </div>
       </nav>
     </header>
@@ -139,7 +123,7 @@ function LiveSearch({ path }: { path: string }) {
   return (
     <Link
       href={`/app/searches/${current.id}`}
-      className="mt-[7px] hidden h-5 min-w-0 items-center gap-2.5 rounded-[3px] px-1.5 outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60 lg:flex"
+      className="hidden h-7 min-w-0 items-center gap-2.5 rounded-[3px] px-1.5 outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60 lg:flex"
     >
       <span className="led led-on motion-safe:animate-pulse" />
       <span className="cap max-w-48 truncate" title={searchTitle(current)}>
@@ -153,35 +137,36 @@ function LiveSearch({ path }: { path: string }) {
   );
 }
 
-/** PLAN, USED and LEFT in printed capitals, the figures from the desktop's name plate. */
+/** The month on a small black display: the verified emails left, lit, over the plan. */
 function Readout() {
   const { data } = useMe();
   if (!data) return null;
-  const left = Math.max(0, data.usage.emailsLimit - data.usage.emailsVerified);
+  const limit = data.usage.emailsLimit;
+  const left = Math.max(0, limit - data.usage.emailsVerified);
+  const lit = String(formatNumber(left));
+  const ghost = formatNumber(limit).replace(/\d/g, '8');
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Link
           href={BILLING_PATH}
-          aria-label={`${formatNumber(left)} verified emails left this month`}
-          className="mt-[9px] hidden items-baseline gap-3 rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
+          aria-label={`${formatNumber(left)} of ${formatNumber(limit)} verified emails left this month`}
+          className="screen hidden h-9 items-center gap-2.5 px-3 outline-none transition-[filter] hover:brightness-125 focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
         >
-          <Figure label="Plan" value={formatNumber(data.usage.emailsLimit)} />
-          <Figure label="Used" value={formatNumber(data.usage.emailsVerified)} />
-          <Figure label="Left" value={formatNumber(left)} lit />
+          <span className={cn('led', left > 0 ? 'led-on' : 'bg-destructive')} />
+          <span className="cap text-screen-foreground/50">Left</span>
+          <span className="relative text-[17px] leading-none">
+            <span aria-hidden className="ghost">
+              {ghost}
+            </span>
+            <span className="lcd absolute inset-y-0 right-0">{lit}</span>
+          </span>
         </Link>
       </TooltipTrigger>
-      <TooltipContent>Verified emails this month</TooltipContent>
+      <TooltipContent>
+        {formatNumber(data.usage.emailsVerified)} of {formatNumber(limit)} verified emails used this month
+      </TooltipContent>
     </Tooltip>
-  );
-}
-
-function Figure({ label, value, lit = false }: { label: string; value: string; lit?: boolean }) {
-  return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="cap text-muted-foreground">{label}</span>
-      <span className={cn('font-mono text-[11.5px] font-medium tabular-nums', lit && 'text-primary')}>{value}</span>
-    </span>
   );
 }
 
@@ -285,8 +270,8 @@ export function PageHeader({ leading, actions, className }: { leading?: ReactNod
 /** A screen's display title: large, light, with its figure as a label in orange. */
 export function DisplayTitle({ children, subtitle, className }: { children: ReactNode; subtitle?: ReactNode; className?: string }) {
   return (
-    <div className={cn('pt-8 pb-8', className)}>
-      <h1 className="font-display text-3xl font-light tracking-[-0.02em] text-balance sm:text-4xl">{children}</h1>
+    <div className={cn('pt-10 pb-10', className)}>
+      <h1 className="font-display text-4xl font-light tracking-[-0.03em] text-balance sm:text-5xl">{children}</h1>
       {subtitle && <p className="cap mt-3 text-primary">{subtitle}</p>}
     </div>
   );

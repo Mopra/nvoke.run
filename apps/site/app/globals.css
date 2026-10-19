@@ -50,12 +50,11 @@
 }
 
 /*
- * The marketing site's finish: the desktop's parts on a bright paper page,
- * no plates, more air. Dark is near black, so the white keys, the orange and
- * the screen's rim carry the contrast. The web app ([data-app]) keeps the
- * desktop's chassis.
+ * The site's finish, the web app included: the desktop's parts on a bright
+ * paper page, no plates, more air. Dark is near black, so the white keys, the
+ * orange and the screen's rim carry the contrast.
  */
-:root:not(:has([data-app])) {
+:root {
   --background: oklch(0.968 0.003 95);
   --foreground: oklch(0.17 0.004 100);
   --card: oklch(0.99 0.002 95);
@@ -69,7 +68,7 @@
   --screen: oklch(0.11 0 0);
   --screen-dim: oklch(0.27 0 0);
 }
-:root.dark:not(:has([data-app])) {
+:root.dark {
   --background: oklch(0.115 0.002 100);
   --foreground: oklch(0.975 0.003 95);
   --card: oklch(0.16 0.002 100);
