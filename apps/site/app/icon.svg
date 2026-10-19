@@ -1,17 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6187ff"/><stop offset="1" stop-color="#4366f4"/>
+      <stop offset="0" stop-color="#ff7b30"/><stop offset="1" stop-color="#ec3c00"/>
     </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
+    <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.9" stop-color="#b22800" stop-opacity="0"/><stop offset="0.91" stop-color="#b22800" stop-opacity="0.55"/><stop offset="1" stop-color="#b22800" stop-opacity="0.75"/>
+    </linearGradient>
+    <filter id="led" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="0.6" flood-color="#fffaf5" flood-opacity="0.8"/>
+    </filter>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="6.144" stdDeviation="7.168" flood-color="#0b1240" flood-opacity="0.32"/>
+      <feDropShadow dx="0" dy="6.144" stdDeviation="7.168" flood-color="#3a1200" flood-opacity="0.32"/>
     </filter>
   </defs>
-  <rect x="0" y="0" width="512" height="512" rx="143.36" fill="url(#fill)"/>
-  <rect x="0" y="0" width="512" height="512" rx="143.36" fill="url(#sheen)"/>
-  <rect x="0.5" y="0.5" width="511" height="511" rx="143.36" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
-  <svg x="97.28" y="97.28" width="317.44" height="317.44" viewBox="0 0 24 24"><path d="M7 15V11a5 5 0 0 1 10 0v4M7 16.3v3.2M17 16.3v3.2" stroke="#fafcff" stroke-width="3" fill="none"/><circle cx="12" cy="16.7" r="1.75" fill="#fafcff"/></svg>
+  <rect x="0" y="0" width="512" height="512" rx="71.68" fill="url(#fill)"/>
+  <rect x="0" y="0" width="512" height="512" rx="71.68" fill="url(#sheen)"/>
+  <rect x="0" y="0" width="512" height="512" rx="71.68" fill="url(#lip)"/>
+  <rect x="0.5" y="0.5" width="511" height="511" rx="71.68" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+  <svg x="97.28" y="97.28" width="317.44" height="317.44" viewBox="0 0 24 24"><g filter="url(#led)"><path d="M7 15V11a5 5 0 0 1 10 0v4M7 16.3v3.2M17 16.3v3.2" stroke="#fffaf5" stroke-width="3" stroke-linecap="square" fill="none"/><circle cx="12" cy="16.7" r="1.9" fill="#fffaf5"/></g></svg>
 </svg>
