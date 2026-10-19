@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
+import { SignUpTracking } from '@/components/site/sign-up-tracking';
 
 /**
  * Clerk for the pages that need it (the web app, sign in and sign up,
- * /desktop and /claim, see proxy.ts). The marketing pages stay static. The
- * Clerk UI takes its colors from the shared theme tokens.
+ * /desktop and /claim, see proxy.ts). The marketing pages stay static. Sends GA4
+ * sign_up on a new account (SignUpTracking). The Clerk UI takes its colors from the shared theme tokens.
  */
 export function SiteClerkProvider({ children }: { children: ReactNode }) {
   return (
@@ -32,6 +33,7 @@ export function SiteClerkProvider({ children }: { children: ReactNode }) {
         },
       }}
     >
+      <SignUpTracking />
       {children}
     </ClerkProvider>
   );

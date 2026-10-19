@@ -35,6 +35,18 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/**
+ * Sends a GA4 event under the same consent as the page views: without
+ * analytics consent GA gets a cookieless ping. Waits a few seconds for the
+ * tag to load, so an event fired on first render is not lost. Does nothing
+ * when NEXT_PUBLIC_GA_MEASUREMENT_ID is empty.
+ */
+export function trackEvent(name: string, params: Record<string, string> = {}, tries = 20) {
+  if (!GA_ID || typeof window === 'undefined') return;
+  if (window.gtag) window.gtag('event', name, params);
+  else if (tries > 0) setTimeout(() => trackEvent(name, params, tries - 1), 250);
+}
+
 /** Reopens the consent bar, for the footer's Cookie settings link. */
 export function openCookieSettings() {
   window.dispatchEvent(new Event(OPEN_EVENT));

@@ -8,6 +8,7 @@ import { useRunTo } from '@/components/site/pricing/motion';
 import { Button } from '@/components/ui/button';
 import type { DownloadTarget, Downloads, OsId } from '@/lib/download';
 import { cn } from '@/lib/utils';
+import { trackEvent } from '@/components/site/analytics';
 
 type NavigatorWithUAData = Navigator & { userAgentData?: { platform?: string } };
 
@@ -28,6 +29,18 @@ function useOs(): OsId | null {
   return useSyncExternalStore(noop, detectOs, () => null);
 }
 
+/**
+ * GA4 file_download (a key event) with the system and the extension.
+ * Enhanced measurement sends it for .exe links on its own, so this skips
+ * those and covers .dmg and .AppImage, which it does not know.
+ */
+function trackDownload(target: DownloadTarget, fileName: string) {
+  const ext = fileName.slice(fileName.lastIndexOf('.') + 1);
+  if (ext === 'exe') return;
+  const os = target.os === 'mac' ? (fileName.includes('arm64') ? 'mac-arm64' : 'mac-x64') : target.os;
+  trackEvent('file_download', { os, file_extension: ext, file_name: fileName });
+}
+
 function FileKeys({ target, available, primary }: { target: DownloadTarget; available: boolean; primary: boolean }) {
   if (!available) {
     return (
@@ -41,7 +54,7 @@ function FileKeys({ target, available, primary }: { target: DownloadTarget; avai
       {target.files.map((file, i) =>
         file.url ? (
           <Button key={file.fileName} asChild size="lg" variant={primary && i === 0 ? 'dark' : 'secondary'}>
-            <a href={file.url} download>
+            <a href={file.url} download onClick={() => trackDownload(target, file.fileName)}>
               <Download />
               {file.label}
             </a>

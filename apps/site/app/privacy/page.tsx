@@ -245,7 +245,8 @@ export default function PrivacyPage() {
         </p>
         <h3>Analytics</h3>
         <p>
-          We use Google Analytics to count visits and see which pages people use. It only runs with your consent: until
+          We use Google Analytics to count visits, see which pages people use and
+          which visits end in a sign-up or a desktop download. It only runs with your consent: until
           you click Accept, Google Analytics sets no cookies and Google gets no cookie identifiers. If you accept, it
           sets cookies that measure your visits to this site, and Google Ireland Limited processes that data for us
           (GDPR article 6(1)(a), your consent). Ad signals stay off either way. Your choice is stored in your browser.
