@@ -14,7 +14,7 @@ export function AppBilling() {
   const onPlanChange = useCallback(() => void client.invalidateQueries({ queryKey: keys.me }), [client]);
   return (
     <main className={cn(APP_FRAME, 'app-view pb-24')}>
-      <PageHeader leading={<BackLink href="/app/account" label="Account" />} />
+      <PageHeader leading={<BackLink href="/app/account" />} />
       <div className={cn(APP_INSET, 'mx-auto w-full max-w-3xl')}>
         <DisplayTitle subtitle="Priced by verified emails a month">Your plan</DisplayTitle>
         <DesktopBilling

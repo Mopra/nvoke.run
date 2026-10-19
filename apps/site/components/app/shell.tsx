@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ArrowUpRight, ChevronLeft } from 'lucide-react';
 import { LedMeter, litSegments } from '@/components/app/search-progress';
 import { LogoMark, Wordmark } from '@/components/site/logo';
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
  * screens sit below it, unboxed. `data-app` switches to the desktop type scale.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  useTrail();
   return (
     <div data-app className="relative isolate flex min-h-dvh flex-col bg-background text-foreground">
       <Header />
@@ -241,11 +242,36 @@ function PageShade() {
 
 /* Pieces the screens use */
 
-/** The way back, a light keycap: to the searches list unless a screen says otherwise. */
+/*
+ * The pages visited in the app this visit, oldest first. A step back pops the
+ * last one, so the trail matches the browser's history inside the app.
+ */
+const trail: string[] = [];
+
+function useTrail(): void {
+  const path = usePathname();
+  useEffect(() => {
+    if (!path) return;
+    if (trail[trail.length - 2] === path) trail.pop();
+    else if (trail[trail.length - 1] !== path) trail.push(path);
+  }, [path]);
+}
+
+/**
+ * The way back, a light keycap: to the page you came from in the app. Opened
+ * straight from a link or a new tab, it goes to `href` instead, the searches
+ * list unless a screen says otherwise.
+ */
 export function BackLink({ href = '/app', label = 'Back' }: { href?: string; label?: string }) {
+  const router = useRouter();
+  function onClick(event: MouseEvent<HTMLAnchorElement>): void {
+    if (trail.length < 2 || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    event.preventDefault();
+    router.back();
+  }
   return (
     <Button asChild variant="secondary" size="sm" className="self-start">
-      <Link href={href} aria-label={label === 'Back' ? 'Back to searches' : `Back to ${label.toLowerCase()}`}>
+      <Link href={href} onClick={onClick} aria-label={label === 'Back' ? 'Back' : `Back to ${label.toLowerCase()}`}>
         <ChevronLeft className="size-3.5" />
         {label}
       </Link>
