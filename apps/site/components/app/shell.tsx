@@ -76,6 +76,7 @@ function Header() {
   const onSearches = path === '/app' || path === '/app/';
   const result = path.match(/^\/app\/searches\/([^/]+)/);
   const onNew = path.startsWith('/app/new') || path.startsWith('/app/website');
+  const onDrops = path.startsWith('/app/drops');
   const onAccount = path.startsWith('/app/account') || path.startsWith(BILLING_PATH);
   return (
     <header className="sticky top-0 z-40 border-b bg-background">
@@ -93,6 +94,9 @@ function Header() {
         </NavLink>
         <NavLink href="/app/new" current={onNew} label="New search">
           New
+        </NavLink>
+        <NavLink href="/app/drops" current={onDrops}>
+          Drops
         </NavLink>
         {result && (
           <NavLink href={path} current>
