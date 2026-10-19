@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { RevealHeading } from '@/components/site/home/reveal';
 import { cn } from '@/lib/utils';
 
-/** Page title block for a docs page: a printed label, a light title, a short lede. */
+/** Page title block for a docs page: a printed label, a light title that rises in, a short lede. */
 export function DocsTitle({ title, intro, eyebrow = 'Docs' }: { title: string; intro: ReactNode; eyebrow?: string }) {
   return (
-    <header className="flex flex-col gap-4 pb-12">
+    <header className="flex flex-col gap-5 pb-14">
       <p className="cap text-muted-foreground">{eyebrow}</p>
-      <h1 className="text-4xl font-light tracking-[-0.04em] text-balance sm:text-[56px] sm:leading-[1.02]">{title}</h1>
+      <RevealHeading as="h1" className="text-display font-light text-balance" lines={[title]} />
       <p className="max-w-2xl text-[17px] leading-relaxed text-pretty text-muted-foreground">{intro}</p>
     </header>
   );
