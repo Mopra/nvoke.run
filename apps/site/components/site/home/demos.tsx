@@ -34,13 +34,13 @@ export function ShortcutKeys() {
   const tick = useTicker(160, inView, 4) % 16;
 
   return (
-    <div ref={ref} aria-hidden="true" className="mt-10 flex items-center gap-2">
+    <div ref={ref} aria-hidden="true" className="mt-10 flex flex-wrap items-center gap-2">
       {KEYS.map((k, i) => (
         <span
           key={k}
           className={cn(
             'key inline-flex h-12 min-w-12 items-center justify-center bg-secondary px-4 font-mono text-[12px] tracking-[0.07em] text-secondary-foreground uppercase',
-            k === 'Space' && 'min-w-32',
+            k === 'Space' && 'min-w-24 sm:min-w-32',
             tick > i && tick < 9 && 'key-down',
           )}
         >

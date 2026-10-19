@@ -80,16 +80,16 @@ export function AgentFace({ className }: { className?: string }) {
         <rect width="100%" height="100%" fill="url(#agent-face-ghost)" />
         <g fill="currentColor">
           {HEAD.map(([x, y]) => (
-            <rect key={`h${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} opacity={0.075} />
+            <rect key={`h${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} opacity={0.06} />
           ))}
           {mouth.map(([x, y]) => (
-            <rect key={`m${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} opacity={0.1} />
+            <rect key={`m${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} opacity={0.075} />
           ))}
           {eyes.map(([x, y]) => (
-            <rect key={`e${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} opacity={0.15} />
+            <rect key={`e${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} opacity={0.1} />
           ))}
         </g>
-        <g fill="var(--primary)" opacity={antennaOn ? 0.55 : 0.15} style={{ transition: 'opacity 120ms' }}>
+        <g fill="var(--primary)" opacity={antennaOn ? 0.45 : 0.12} style={{ transition: 'opacity 120ms' }}>
           {rect(22, 1, 4, 2).map(([x, y]) => (
             <rect key={`a${x}.${y}`} x={x * CELL + 1.5} y={y * CELL + 1.5} width={DOT} height={DOT} rx={1} />
           ))}
