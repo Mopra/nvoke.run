@@ -29,7 +29,7 @@ function stageOf(p: number): string {
  * over their ghost digits, then it reads DONE and the next search starts.
  * Under reduced motion it shows the first search, finished, and stays still.
  */
-export function LiveSearch({ className }: { className?: string }) {
+export function LiveSearch({ className, large = false }: { className?: string; large?: boolean }) {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export function LiveSearch({ className }: { className?: string }) {
     <div
       role="img"
       aria-label={`A search for ${run.title} running in nvoke: companies found, websites read, emails checked with the mail server.`}
-      className={cn('screen relative overflow-hidden p-5 sm:p-6', className)}
+      className={cn('screen relative overflow-hidden p-5 sm:p-6', large && 'screen-hero sm:p-10', className)}
     >
       <div aria-hidden="true">
         <div className="flex items-center gap-3">
@@ -74,21 +74,21 @@ export function LiveSearch({ className }: { className?: string }) {
           </span>
         </div>
 
-        <p className="lcd mt-5 truncate text-[22px] leading-tight uppercase sm:text-[26px]">{run.title}</p>
+        <p className={cn('lcd mt-5 truncate text-[22px] leading-tight uppercase sm:text-[26px]', large && 'sm:mt-8 sm:text-[44px]')}>{run.title}</p>
         <p className="cap mt-2 truncate text-screen-foreground/50">
           {done ? `${run.companies} companies read` : `${stageOf(p)} · ${crawled} of ${found}`}
         </p>
-        <ScreenMeter lit={lit} dim={dim} className="mt-4" />
+        <ScreenMeter lit={lit} dim={dim} className={cn('mt-4', large && 'sm:mt-6')} />
 
-        <div className="mt-6 grid grid-cols-3 gap-3 border-t border-screen-dim pt-5">
+        <div className={cn('mt-6 grid grid-cols-3 gap-3 border-t border-screen-dim pt-5', large && 'sm:mt-10 sm:pt-8')}>
           <Readout label="Companies">
-            <Figure value={found} ghost="888" className="text-[30px] sm:text-[40px]" />
+            <Figure value={found} ghost="888" className={cn('text-[30px] sm:text-[40px]', large && 'self-start sm:text-[72px]')} />
           </Readout>
           <Readout label="Emails">
-            <Figure value={emails} ghost="888" className="text-[30px] sm:text-[40px]" />
+            <Figure value={emails} ghost="888" className={cn('text-[30px] sm:text-[40px]', large && 'self-start sm:text-[72px]')} />
           </Readout>
           <Readout label="Valid" className="[&>span:first-child]:text-primary">
-            <Figure value={valid} ghost="888" className="text-[30px] sm:text-[40px]" />
+            <Figure value={valid} ghost="888" className={cn('text-[30px] sm:text-[40px]', large && 'self-start sm:text-[72px]')} />
           </Readout>
         </div>
       </div>
