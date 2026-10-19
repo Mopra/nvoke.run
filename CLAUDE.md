@@ -135,9 +135,10 @@ nvoke.run/app is the front door: every marketing CTA ("Start free") goes to
 with the API: start every search kind, poll progress every 2 seconds, browse
 and filter companies and emails, export the CSV, show usage against the plan
 and the upgrade path (`/app/billing`, the same Clerk Billing checkout as
-`/desktop/billing`), and create or revoke API keys. nvoke Desktop stays the
-premium power tools (local render crawl, drops, quick search, grab, CSV drop,
-local copy) and is sold from `/download` and the Account page.
+`/desktop/billing`), create or revoke API keys, and make, edit, pause and
+delete daily drops and open their runs (`/app/drops`). nvoke Desktop stays the
+premium power tools (local render crawl, quick search, grab, CSV drop, local
+copy, drop notifications) and is sold from `/download` and the Account page.
 
 - Auth: `proxy.ts` protects `/app` with Clerk (`auth.protect()`, signed out
   goes to `/sign-in`). The browser calls `/v1` on the API directly with the
@@ -146,6 +147,7 @@ local copy) and is sold from `/download` and the Account page.
   PATCH and DELETE.
 - Data: `lib/app/api.ts` (fetch client, `ApiError`), `lib/app/queries.tsx`
   (React Query hooks with the desktop's keys and polling),
+  `lib/app/drops.ts` (the drop form, a drop's runs and state),
   `lib/app/search-form.ts` (the New search form as data) and
   `lib/app/quota.ts` (usage level, upgrade path, poll intervals). Tests sit
   next to them.

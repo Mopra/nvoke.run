@@ -116,7 +116,7 @@ export default function HomePage() {
             <Eyebrow>nvoke Desktop</Eyebrow>
             <RevealHeading className="mt-8 text-title font-light" lines={['The power tools.']} />
             <p className="mt-3 max-w-sm text-[15px] text-pretty text-muted-foreground">
-              Local render, daily drops and a quick search over any app. Windows, macOS and Linux.
+              Local render, a quick search over any app and grab from the screen. Windows, macOS and Linux.
             </p>
             <ShortcutKeys />
             <Button asChild size="lg" variant="secondary" className="mt-8">

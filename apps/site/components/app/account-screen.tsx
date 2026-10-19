@@ -421,7 +421,7 @@ function ConnectAgent() {
 
 const DESKTOP_POWERS = [
   'Read sites that refuse servers or need JavaScript, from your own computer',
-  'Daily drops: fresh launches delivered every morning, with notifications',
+  'Daily drops in the tray: a notification the moment one lands',
   'Quick search over any app, grab companies from the screen, drop a CSV to enrich it',
   'A local copy of every result: instant, and there offline',
 ];

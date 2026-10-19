@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 
 const POWERS = [
   { cap: 'Local render', line: 'Sites that block servers or need JavaScript, read from your own computer.', tag: 'On your machine' },
-  { cap: 'Daily drops', line: 'Launches from Product Hunt, Show HN and Y Combinator every morning.', tag: 'Every morning' },
-  { cap: 'Quick search', line: 'A shortcut over any app. Grab names off the screen or drop a CSV.', tag: 'Ctrl Shift Space' },
+  { cap: 'Quick search', line: 'A shortcut over any app. Drop a CSV on it to enrich the list.', tag: 'Ctrl Shift Space' },
+  { cap: 'Grab', line: 'Drag a box over any list on screen. nvoke reads the names and finds the companies.', tag: 'On screen' },
   { cap: 'Local copy', line: 'Every result on your computer. Instant filters, offline, drag into Excel.', tag: 'Offline' },
 ] as const;
 
