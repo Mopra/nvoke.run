@@ -7,7 +7,7 @@ import { formatNumber, isActive, percent, searchTitle } from '@/lib/format';
 import { modKey, useModHotkey } from '@/lib/hotkeys';
 import { CountUp } from '@/lib/motion';
 import { useMe, useSearches } from '@/lib/queries';
-import { navigate, routeHref, type Route } from '@/lib/router';
+import { goBack, routeHref, type Route } from '@/lib/router';
 import type { Search } from '@/lib/types';
 import { CommandBar } from '@/components/CommandBar';
 import { FileDrop } from '@/components/FileDrop';
@@ -38,7 +38,14 @@ export function AppShell({ route, children }: { route: Route; children: ReactNod
       <Ports route={route} onFind={() => setCommandOpen(true)} />
       <Head live={live} />
       <Display searches={data ?? []} live={live} route={route} onOpen={() => setCommandOpen(true)} />
-      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* The display casts a soft shadow on the panel, so the screens scroll in under the head. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-2 top-0 z-30 h-4 bg-[linear-gradient(to_bottom,var(--shadow-strong),var(--shadow-color)_25%,transparent)] [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]"
+        />
+        {children}
+      </div>
       <CommandBar open={commandOpen} onOpenChange={setCommandOpen} />
       <FileDrop />
     </div>
@@ -367,10 +374,10 @@ function Display({ searches, live, route, onOpen }: { searches: Search[]; live: 
 
 /* Pieces the screens use */
 
-/** Back to the searches list, for every screen below it. */
+/** Back to the screen you came from, or to the searches list when there is none. */
 export function BackButton() {
   return (
-    <Button variant="secondary" size="sm" aria-label="Back to searches" onClick={() => navigate({ name: 'searches' })}>
+    <Button variant="secondary" size="sm" aria-label="Back" onClick={() => goBack()}>
       <ChevronLeft className="size-3.5" />
       Back
     </Button>

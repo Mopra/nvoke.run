@@ -54,9 +54,34 @@ export function routeHref(route: Route): string {
   }
 }
 
+/*
+ * The screens visited this session, oldest first, as hashes. A step back pops
+ * the last one, so the trail matches the window's history and Back can return
+ * to the screen you came from.
+ */
+const trail: string[] = [];
+
+function record(): void {
+  const hash = window.location.hash || '#/';
+  if (trail[trail.length - 2] === hash) trail.pop();
+  else if (trail[trail.length - 1] !== hash) trail.push(hash);
+}
+
+if (typeof window !== 'undefined') {
+  record();
+  window.addEventListener('hashchange', record);
+}
+
+/** Back to the screen you came from, or to `fallback` when this is the first screen of the session. */
+export function goBack(fallback: Route = { name: 'searches' }): void {
+  if (trail.length > 1) window.history.back();
+  else navigate(fallback);
+}
+
 export function navigate(route: Route, options: { replace?: boolean } = {}): void {
   const href = routeHref(route);
   if (options.replace) {
+    if (typeof window !== 'undefined') trail[Math.max(0, trail.length - 1)] = href;
     window.history.replaceState(null, '', href);
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   } else {
