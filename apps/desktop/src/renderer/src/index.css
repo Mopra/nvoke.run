@@ -185,6 +185,24 @@
  * floats over a drag region without sitting inside it (the island) needs
  * `app-no-drag` itself, since Electron hit tests drag regions by geometry.
  */
+/*
+ * A scrolling panel's top edge: once it scrolls, the rows dissolve into the
+ * chassis over 40px instead of being cut off under the row of keys above.
+ * The fade's depth is a registered length, so it eases in and out.
+ */
+@property --fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@utility fade-top {
+  mask-image: linear-gradient(to bottom, transparent 0, black var(--fade-top));
+  transition: --fade-top 220ms ease-out;
+  &[data-scrolled] {
+    --fade-top: 40px;
+  }
+}
+
 @utility app-drag {
   -webkit-app-region: drag;
 }
