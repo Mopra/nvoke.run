@@ -57,7 +57,11 @@
   --animate-indeterminate: indeterminate 1.5s var(--ease-out-soft) infinite;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-breathe: breathe 4.8s ease-in-out infinite;
+  /* A live LED on a screen: on, then a short off, like the site's. */
+  --animate-blink: blink 1.1s steps(1, end) infinite;
   --animate-rise: rise 520ms var(--ease-out-soft) both;
+  /* A title's words, each rising out of its own line (components/Reveal.tsx). */
+  --animate-word-in: word-in 700ms var(--ease-out-soft) both;
   /* The first launch: the mark lands, the aura opens behind it. */
   --animate-arrive: arrive 900ms var(--ease-spring) both;
   --animate-bloom: bloom 1600ms var(--ease-out-soft) both;
@@ -267,6 +271,7 @@
   border-radius: 4px;
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.08),
+    0 0 0 1px var(--screen-rim),
     0 1px 0 var(--highlight);
 }
 /* Figures on a screen: the dot matrix face, lit. */
@@ -275,6 +280,13 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 8px color-mix(in oklab, var(--screen-foreground) 55%, transparent);
+}
+/* The unlit segments under a figure on a screen ("888" under "34"). */
+@utility ghost {
+  font-family: var(--font-lcd);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--screen-dim);
 }
 @utility cap {
   font-family: var(--font-mono);
@@ -366,6 +378,17 @@
   }
 }
 
+@keyframes blink {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  61%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
 @keyframes breathe {
   0%,
   100% {
@@ -382,6 +405,19 @@
   from {
     opacity: 0;
     transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.6em);
     filter: blur(6px);
   }
   to {
