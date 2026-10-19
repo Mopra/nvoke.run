@@ -36,7 +36,7 @@ export function LedMeter({
             i < lit && tone === 'failed' && 'bg-destructive/70',
             i < lit && tone === 'canceled' && 'bg-foreground/30',
             i >= lit && i < dim && (tone === 'primary' ? 'bg-primary/30' : 'bg-foreground/25'),
-            pulse && i < lit && 'motion-safe:animate-pulse',
+            pulse && i < lit && 'motion-safe:animate-blink',
           )}
         />
       ))}

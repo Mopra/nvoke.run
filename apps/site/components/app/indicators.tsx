@@ -64,7 +64,7 @@ const STATUS_DOT: Record<SearchStatus, string> = {
 /** An LED, lit and blinking while the search runs. The one-property color utilities win over `led`. */
 export function StatusDot({ status, className }: { status: SearchStatus; className?: string }) {
   const live = status === 'running' || status === 'queued';
-  return <span className={cn('led', STATUS_DOT[status], live && 'led-on motion-safe:animate-pulse', className)} />;
+  return <span className={cn('led', STATUS_DOT[status], live && 'led-on motion-safe:animate-blink', className)} />;
 }
 
 export function StatusLabel({ status }: { status: SearchStatus }) {

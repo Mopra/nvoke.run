@@ -334,7 +334,7 @@ function SearchWorking({ search }: { search: Search }) {
                 {i < at ? (
                   <Check className="size-4 text-primary motion-safe:animate-pop-in" strokeWidth={2.25} />
                 ) : (
-                  <span className={cn('led', i === at && 'led-on motion-safe:animate-pulse')} />
+                  <span className={cn('led', i === at && 'led-on motion-safe:animate-blink')} />
                 )}
               </span>
               {label}

@@ -52,7 +52,7 @@ function NavLink({ href, current = false, children, label }: { href: string; cur
         current ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
       )}
     >
-      <span aria-hidden className={cn('led transition-colors', current ? 'led-on' : 'bg-transparent')} />
+      <span aria-hidden className={cn('led transition-colors max-sm:hidden', current ? 'led-on' : 'bg-transparent')} />
       {children}
       <span
         aria-hidden
@@ -78,7 +78,7 @@ function Header() {
   const onAccount = path.startsWith('/app/account') || path.startsWith(BILLING_PATH);
   return (
     <header className="sticky top-0 z-40 border-b bg-background">
-      <nav aria-label="App" className={cn(APP_FRAME, 'flex h-14 items-center gap-3 sm:gap-5')}>
+      <nav aria-label="App" className={cn(APP_FRAME, 'flex h-14 items-center gap-2 sm:gap-5')}>
         <Link
           href="/app"
           aria-label="nvoke searches"
@@ -99,7 +99,7 @@ function Header() {
           </NavLink>
         )}
         <LiveSearch path={path} />
-        <div className="ml-auto flex items-center gap-3 sm:gap-5">
+        <div className="ml-auto flex items-center gap-2 sm:gap-5">
           <Readout />
           <NavLink href="/app/account" current={onAccount}>
             Account
@@ -125,7 +125,7 @@ function LiveSearch({ path }: { path: string }) {
       href={`/app/searches/${current.id}`}
       className="hidden h-7 min-w-0 items-center gap-2.5 rounded-[3px] px-1.5 outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60 lg:flex"
     >
-      <span className="led led-on motion-safe:animate-pulse" />
+      <span className="led led-on motion-safe:animate-blink" />
       <span className="cap max-w-48 truncate" title={searchTitle(current)}>
         {searchTitle(current)}
       </span>

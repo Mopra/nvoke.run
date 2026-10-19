@@ -354,7 +354,7 @@ function Building({
           >
             <span
               aria-hidden
-              className={cn('led', i < current && 'bg-chart-1', i === current && 'led-on motion-safe:animate-pulse')}
+              className={cn('led', i < current && 'bg-chart-1', i === current && 'led-on motion-safe:animate-blink')}
             />
             {phase.label(domain)}
           </li>
