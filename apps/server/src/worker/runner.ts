@@ -17,6 +17,7 @@ import {
 } from './pipeline.js';
 import { onOpenerGaveUp, runOpener } from '../openers/openers.js';
 import { onPeopleGaveUp, runPeople, settleCompanyLead } from './people-job.js';
+import { onWriteGaveUp, runWriteJob, writePayload } from '../sending/write.js';
 import { claim, complete, fail, release, requeueStale, type Job, type JobType } from './queue.js';
 
 export interface RunnerOptions {
@@ -38,6 +39,8 @@ const DEFAULT_TIMEOUTS: Record<JobType, number> = {
   opener: 3 * 60_000,
   // One SMTP session per company, behind the MX host's lock.
   people: 3 * 60_000,
+  // Two Claude calls for a batch of campaign leads.
+  write: 5 * 60_000,
 };
 
 class ShutdownSignal extends Error {
@@ -74,6 +77,7 @@ export class Runner {
       crawl: n,
       opener: Math.max(1, Math.floor(n / 4)),
       people: Math.max(1, Math.floor(n / 4)),
+      write: Math.max(1, Math.floor(n / 4)),
     };
   }
 
@@ -133,11 +137,11 @@ export class Runner {
   }
 
   private async fill(): Promise<number> {
-    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0 };
+    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0, write: 0 };
     for (const r of this.running.values()) counts[r.job.type]++;
     let claimed = 0;
     // Verify gets its share before crawl takes whatever is left.
-    for (const type of ['find', 'verify', 'people', 'opener', 'crawl'] as const) {
+    for (const type of ['find', 'verify', 'people', 'opener', 'write', 'crawl'] as const) {
       const free = this.opts.concurrency - this.running.size;
       const room = Math.min(free, this.caps[type] - counts[type]);
       if (room <= 0 || this.stopping) continue;
@@ -167,6 +171,11 @@ export class Runner {
     await runOpener({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log }, job);
   }
 
+  private async write(job: Job): Promise<void> {
+    if (!this.deps.ai) throw new PermanentError('Claude is not configured for the worker');
+    await runWriteJob({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log }, writePayload(job));
+  }
+
   private async execute(job: Job, signal: AbortSignal): Promise<void> {
     const log = this.deps.log.child({ jobId: job.id, type: job.type, attempt: job.attempts });
     try {
@@ -174,6 +183,7 @@ export class Runner {
       else if (job.type === 'crawl') await runCrawl(this.deps, job, signal);
       else if (job.type === 'opener') await this.opener(job);
       else if (job.type === 'people') await runPeople(this.deps, job, signal);
+      else if (job.type === 'write') await this.write(job);
       else await runVerify(this.deps, job, signal);
       await complete(this.deps.sql, job.id);
       // Now this people job is off the queue, a company that was waiting on it can settle.
@@ -196,6 +206,7 @@ export class Runner {
         else if (job.type === 'crawl') await onCrawlGaveUp(this.deps, job);
         else if (job.type === 'opener') await onOpenerGaveUp(this.deps, job);
         else if (job.type === 'people') onPeopleGaveUp(this.deps, job);
+        else if (job.type === 'write') await onWriteGaveUp(this.deps, writePayload(job));
         else await onVerifyGaveUp(this.deps, job);
       }
     }
