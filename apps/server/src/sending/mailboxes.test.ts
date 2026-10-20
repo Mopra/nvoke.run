@@ -6,6 +6,7 @@ import { ensureAccount } from '../leads/quota.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { silentLog } from '../testing/fakes.js';
 import { createFakeTransport, type FakeTransport } from './fake-transport.js';
+import { seedCampaign, seedLead } from './test-seed.js';
 import {
   checkMailbox,
   checkReason,
@@ -116,7 +117,19 @@ describe('check reasons', () => {
     expect(checkReason(hosts, { ok: false, step: 'imap', kind: 'auth', message: '' })).toMatch(/^The IMAP server refused/);
     expect(checkReason(hosts, { ok: false, step: 'smtp', kind: 'connect', message: '' })).toBe('Could not reach mail.example.org on port 587. Check the SMTP host and port.');
     expect(checkReason(hosts, { ok: false, step: 'smtp', kind: 'tls', message: '' })).toMatch(/465 uses TLS/);
-    expect(checkReason(hosts, { ok: false, step: 'imap', kind: 'other', message: 'BYE too many connections' })).toBe('The IMAP server said: BYE too many connections');
+  });
+
+  it('never echoes what the server said', () => {
+    const banner = '220 PostgreSQL 17.2 on x86_64-pc-linux-gnu ready';
+    const other = checkReason(hosts, { ok: false, step: 'imap', kind: 'other', message: banner });
+    expect(other).toBe('The IMAP server did not accept the check. Check the IMAP host, port and username, then try again.');
+    for (const kind of ['connect', 'tls', 'auth'] as const) {
+      expect(checkReason(hosts, { ok: false, step: 'smtp', kind, message: banner })).not.toContain('PostgreSQL');
+    }
+    expect(checkReason({ ...hosts, smtp_host: '127.0.0.1' }, { ok: false, step: 'smtp', kind: 'connect', message: 'private address' })).toBe(
+      "127.0.0.1 is not a public address. Use your provider's SMTP server.",
+    );
+    expect(checkReason({ ...hosts, imap_port: 5432 }, { ok: false, step: 'imap', kind: 'connect', message: 'port not allowed' })).toBe('Port 5432 is not a mail port. IMAP runs on 993 or 143.');
   });
 });
 
@@ -181,5 +194,70 @@ describe('update and delete', () => {
     expect(await deleteMailbox(db.sql, 'u2', m.id)).toBe(false);
     expect(await deleteMailbox(db.sql, 'u1', m.id)).toBe(true);
     expect(await listMailboxes(db.sql, 'u1')).toEqual([]);
+  });
+});
+
+describe('delete with campaigns', () => {
+  const active = async (address: string) => {
+    const m = await connectMailbox(deps, 'u1', req({ address }));
+    await settled(m.id);
+    return m.id;
+  };
+  const lead = (id: string) =>
+    db.sql<{ mailbox_id: string | null; status: string; skip_reason: string | null }[]>`
+      select mailbox_id, status, skip_reason from campaign_leads where id = ${id}`.then((r) => r[0]!);
+  const campaign = (id: string) => db.sql<{ status: string }[]>`select status from campaigns where id = ${id}`.then((r) => r[0]!.status);
+
+  it('moves unsent leads to the mailbox with the fewest and stops threads under way', async () => {
+    const [a, b, c] = [await active('a@acme.io'), await active('b@acme.io'), await active('c@acme.io')];
+    const camp = await seedCampaign(db.sql, [a, b, c]);
+    const fresh = [];
+    for (let i = 0; i < 4; i++) fresh.push(await seedLead(db.sql, camp, a, { address: `new${i}@beta.io` }));
+    const sent = await seedLead(db.sql, camp, a, { address: 'mid@beta.io' });
+    await db.sql`update campaign_leads set status = 'active', next_step = 2, thread_message_id = '<t1@acme.io>' where id = ${sent}`;
+    await seedLead(db.sql, camp, b, { address: 'onb@beta.io' });
+    await seedLead(db.sql, camp, b, { address: 'onb2@beta.io' });
+
+    expect(await deleteMailbox(db.sql, 'u1', a)).toBe(true);
+
+    const moved = await Promise.all(fresh.map(lead));
+    expect(moved.every((l) => l.status === 'queued' && (l.mailbox_id === b || l.mailbox_id === c))).toBe(true);
+    // b had 2, c had 0: c takes three, then they are level and b takes the last.
+    expect(moved.filter((l) => l.mailbox_id === c)).toHaveLength(3);
+    expect(await lead(sent)).toEqual({ mailbox_id: null, status: 'stopped', skip_reason: 'mailbox_deleted' });
+    expect(await campaign(camp)).toBe('scheduled');
+  });
+
+  it('prefers a working mailbox and pauses a campaign left with none', async () => {
+    const [a, b] = [await active('a@acme.io'), await active('b@acme.io')];
+    await db.sql`update mailboxes set status = 'paused' where id = ${b}`;
+    const camp = await seedCampaign(db.sql, [a, b]);
+    const l = await seedLead(db.sql, camp, a, { address: 'new@beta.io' });
+
+    await deleteMailbox(db.sql, 'u1', a);
+    // Only a paused mailbox is left: the lead waits there and the campaign pauses.
+    expect(await lead(l)).toMatchObject({ mailbox_id: b, status: 'queued' });
+    expect(await campaign(camp)).toBe('paused');
+  });
+
+  it('finishes a list campaign with nothing left', async () => {
+    const a = await active('a@acme.io');
+    const camp = await seedCampaign(db.sql, [a], { status: 'sending' });
+    const l = await seedLead(db.sql, camp, a, { address: 'mid@beta.io' });
+    await db.sql`update campaign_leads set status = 'active', thread_message_id = '<t1@acme.io>' where id = ${l}`;
+
+    await deleteMailbox(db.sql, 'u1', a);
+    expect(await lead(l)).toMatchObject({ status: 'stopped', skip_reason: 'mailbox_deleted' });
+    expect(await campaign(camp)).toBe('done');
+  });
+
+  it('pauses a campaign whose only mailbox goes, with unsent leads waiting', async () => {
+    const a = await active('a@acme.io');
+    const camp = await seedCampaign(db.sql, [a], { status: 'sending' });
+    const l = await seedLead(db.sql, camp, a, { address: 'new@beta.io' });
+
+    await deleteMailbox(db.sql, 'u1', a);
+    expect(await lead(l)).toMatchObject({ mailbox_id: null, status: 'queued' });
+    expect(await campaign(camp)).toBe('paused');
   });
 });

@@ -52,15 +52,21 @@ export const Mailbox = z.object({
 export type Mailbox = z.infer<typeof Mailbox>;
 
 const host = z.string().trim().min(1).max(253);
-const port = z.number().int().min(1).max(65535);
+
+/** SMTP submission ports a mailbox may use: TLS from the start on 465, STARTTLS on 587 and 2525. */
+export const SMTP_PORTS: readonly number[] = [465, 587, 2525];
+/** IMAP ports a mailbox may use: TLS on 993, STARTTLS on 143. */
+export const IMAP_PORTS: readonly number[] = [993, 143];
+const oneOf = (ports: readonly number[]) =>
+  z.number().int().refine((p) => ports.includes(p), { message: `port must be ${ports.join(', ')}` });
 
 export const ConnectMailboxRequest = z.object({
   address: z.email().transform((v) => v.toLowerCase()),
   displayName: z.string().trim().min(1).max(80),
   smtpHost: host,
-  smtpPort: port,
+  smtpPort: oneOf(SMTP_PORTS),
   imapHost: host,
-  imapPort: port,
+  imapPort: oneOf(IMAP_PORTS),
   /** The address when left out. */
   username: z.string().trim().min(1).max(254).optional(),
   password: z.string().min(1).max(1024),

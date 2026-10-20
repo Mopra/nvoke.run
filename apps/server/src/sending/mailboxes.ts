@@ -7,6 +7,8 @@ import { MAX_MAILBOXES, type ConnectMailboxRequest, type Mailbox, type UpdateMai
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { SecretsError, type Secrets } from '../crypto/secrets.js';
+import { pauseOrphanedCampaigns } from './health.js';
+import { finishIfDone } from './outcomes.js';
 import { mailboxCapacity } from './schedule.js';
 import type { CheckResult, MailboxCredentials, TransportFactory } from './types.js';
 
@@ -189,13 +191,17 @@ export function checkReason(row: Pick<MailboxRow, 'smtp_host' | 'smtp_port' | 'i
       if (microsoft) return 'Microsoft refused the login. Your admin must allow SMTP AUTH for this mailbox, and an account with MFA needs an app password.';
       return `The ${side} server refused the username or password. Check them, or make an app password if the account has two-step login.`;
     case 'connect':
+      // Our own words from the transport's guard, never the server's.
+      if (r.message === 'private address') return `${host} is not a public address. Use your provider's ${side} server.`;
+      if (r.message === 'port not allowed') return `Port ${port} is not a mail port. ${side} runs on ${r.step === 'smtp' ? '465, 587 or 2525' : '993 or 143'}.`;
       return `Could not reach ${host} on port ${port}. Check the ${side} host and port.`;
     case 'tls':
       return r.step === 'smtp'
         ? `The secure connection to ${host}:${port} failed. Port 465 uses TLS from the start, 587 uses STARTTLS.`
         : `The secure connection to ${host}:${port} failed. IMAP over TLS is usually port 993.`;
     default:
-      return `The ${side} server said: ${r.message.slice(0, 200)}`;
+      // The server's own words stay in the log: echoing them would show what answers on any host and port.
+      return `The ${side} server did not accept the check. Check the ${side} host, port and username, then try again.`;
   }
 }
 
@@ -239,8 +245,62 @@ export async function updateMailbox(deps: MailboxDeps, userId: string, id: strin
   return mailbox;
 }
 
-/** Its sent messages and leads stay, with the mailbox set null. */
-export async function deleteMailbox(sql: Sql, userId: string, id: string): Promise<boolean> {
-  const rows = await sql`delete from mailboxes where id = ${id} and clerk_user_id = ${userId} returning id`;
-  return rows.length > 0;
+/**
+ * Its sent messages stay, with the mailbox set null. Its leads that have not
+ * sent step 1 move to another mailbox of the same campaign (a working one
+ * first, then the one with the fewest leads); a thread already under way
+ * cannot change mailbox, so those leads stop. A list campaign with nothing
+ * left finishes, and a running campaign with no working mailbox left pauses.
+ */
+export async function deleteMailbox(sql: Sql, userId: string, id: string, now: Date = new Date()): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const [own] = await tx`select id from mailboxes where id = ${id} and clerk_user_id = ${userId} for update`;
+    if (!own) return false;
+    const campaigns = (await tx<{ campaign_id: string }[]>`
+      select campaign_id from campaign_mailboxes where mailbox_id = ${id} order by campaign_id`).map((r) => r.campaign_id);
+    // Leads may also sit in a campaign that no longer lists this mailbox.
+    const live = await tx<{ id: string; campaign_id: string; fresh: boolean }[]>`
+      select id, campaign_id, thread_message_id is null as fresh from campaign_leads
+      where mailbox_id = ${id} and status in ('writing', 'queued', 'active')
+      order by created_at, id
+      for update`;
+
+    const fresh = new Map<string, string[]>();
+    for (const l of live) if (l.fresh) fresh.set(l.campaign_id, [...(fresh.get(l.campaign_id) ?? []), l.id]);
+    for (const [campaignId, leadIds] of fresh) {
+      const others = await tx<{ id: string; usable: boolean; n: number }[]>`
+        select m.id, m.status in ('active', 'checking') as usable,
+          (select count(*)::int from campaign_leads l
+            where l.campaign_id = cm.campaign_id and l.mailbox_id = m.id and l.status in ('writing', 'queued', 'active')) as n
+        from campaign_mailboxes cm join mailboxes m on m.id = cm.mailbox_id
+        where cm.campaign_id = ${campaignId} and m.id <> ${id}
+        order by m.id`;
+      const pool = others.some((m) => m.usable) ? others.filter((m) => m.usable) : others;
+      // No other mailbox: the lead keeps a null mailbox, and editing the campaign's mailboxes picks it up again.
+      if (pool.length === 0) continue;
+      const moves = new Map<string, string[]>();
+      for (const leadId of leadIds) {
+        const target = pool.reduce((a, b) => (b.n < a.n ? b : a));
+        target.n += 1;
+        moves.set(target.id, [...(moves.get(target.id) ?? []), leadId]);
+      }
+      for (const [mailboxId, ids] of moves) {
+        await tx`update campaign_leads set mailbox_id = ${mailboxId} where id in ${tx(ids)}`;
+      }
+    }
+    const midThread = live.filter((l) => !l.fresh).map((l) => l.id);
+    if (midThread.length > 0) {
+      await tx`
+        update campaign_leads set status = 'stopped', skip_reason = 'mailbox_deleted', next_send_at = null
+        where id in ${tx(midThread)}`;
+    }
+
+    // Finish before pausing: a list campaign with nothing left is done, not paused.
+    for (const c of new Set([...campaigns, ...live.map((l) => l.campaign_id)])) await finishIfDone(tx, c, now);
+    // Out of the running first, so the campaigns it leaves count it as gone.
+    await tx`update mailboxes set status = 'disconnected' where id = ${id}`;
+    await pauseOrphanedCampaigns(tx, id);
+    await tx`delete from mailboxes where id = ${id}`;
+    return true;
+  });
 }

@@ -3,11 +3,20 @@
 // nodemailer; replies, bounces and auto replies come in over IMAP with
 // imapflow, read only, from INBOX and the spam folder (special use \Junk),
 // and mailparser turns each raw message into an IncomingMail.
+//
+// The hosts and ports come from the user and the connection goes out from
+// our VPS, so every connection resolves the host with the webhook guard
+// (public addresses only), connects to exactly the checked address and keeps
+// the hostname for SNI and the certificate check. Only the mail ports are
+// allowed, so a mailbox is no way to probe the VPS's own network.
 
+import { IMAP_PORTS, SMTP_PORTS } from '@nvoke/shared';
 import { ImapFlow, type FetchMessageObject, type ListResponse } from 'imapflow';
 import { simpleParser, type AddressObject, type ParsedMail } from 'mailparser';
 import nodemailer from 'nodemailer';
+import { isIP } from 'node:net';
 import type { ConnectionOptions } from 'node:tls';
+import { resolvePublic, type Resolve } from '../webhooks/address.js';
 import type {
   CheckResult,
   IncomingMail,
@@ -30,42 +39,103 @@ export interface TransportOptions {
   /** TLS options for both sides; tests pass `{ rejectUnauthorized: false }` for a self-signed server. */
   tls?: ConnectionOptions;
   now?: () => Date;
+  /** Tests only: allow loopback and private addresses and any port, for a local server. */
+  allowPrivate?: boolean;
+  /** DNS for the guard; tests pass their own. */
+  resolve?: Resolve;
 }
+
+/** A host or port the guard refused. Its message is ours, never the server's. */
+export class MailHostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MailHostError';
+  }
+}
+
+export interface PinnedHost {
+  /** The checked address the socket connects to. */
+  ip: string;
+  /** The name for SNI and the certificate check; undefined when the user gave an IP. */
+  servername: string | undefined;
+}
+
+/**
+ * Checks the port against the allowed mail ports and resolves the host to
+ * public addresses only. Throws MailHostError.
+ */
+export async function pinHost(
+  host: string,
+  port: number,
+  ports: readonly number[],
+  opts: Pick<TransportOptions, 'allowPrivate' | 'resolve'> = {},
+): Promise<PinnedHost> {
+  const allowPrivate = opts.allowPrivate ?? false;
+  if (!allowPrivate && !ports.includes(port)) throw new MailHostError('port not allowed');
+  const bare = host.replace(/^\[|\]$/g, '').toLowerCase();
+  if (!allowPrivate && (bare === 'localhost' || /\.(localhost|local|internal)$/.test(bare))) throw new MailHostError('private address');
+  let ip: string;
+  try {
+    ip = (await resolvePublic(bare, { allowPrivate }, opts.resolve))[0]!.address;
+  } catch (err) {
+    throw new MailHostError(err instanceof Error && err.message === 'private address' ? 'private address' : 'host does not resolve');
+  }
+  return { ip, servername: isIP(bare) ? undefined : bare };
+}
+
+/** The caller's TLS options with the hostname for SNI and the certificate check. */
+const pinnedTls = (tls: ConnectionOptions | undefined, pin: PinnedHost): ConnectionOptions => ({
+  ...tls,
+  ...(pin.servername ? { servername: pin.servername } : {}),
+});
 
 export const smtpImapTransport: TransportFactory = (creds) => createSmtpImapTransport(creds);
 
 export function createSmtpImapTransport(creds: MailboxCredentials, opts: TransportOptions = {}): MailTransport {
   const now = opts.now ?? (() => new Date());
-  // true: TLS from the first byte (465). false: STARTTLS, and refuse to go on without it.
-  const smtp = nodemailer.createTransport({
-    host: creds.smtpHost,
-    port: creds.smtpPort,
-    secure: creds.smtpSecure,
-    requireTLS: !creds.smtpSecure,
-    auth: { user: creds.username, pass: creds.password },
-    connectionTimeout: TIMEOUT_MS,
-    greetingTimeout: TIMEOUT_MS,
-    socketTimeout: TIMEOUT_MS,
-    tls: opts.tls,
-  });
+  // Resolved and checked on first use; every SMTP connection of this
+  // transport goes to that one address.
+  let smtpReady: ReturnType<typeof nodemailer.createTransport> | undefined;
+  const smtp = async () => {
+    if (smtpReady) return smtpReady;
+    const pin = await pinHost(creds.smtpHost, creds.smtpPort, SMTP_PORTS, opts);
+    // true: TLS from the first byte (465). false: STARTTLS, and refuse to go on without it.
+    smtpReady = nodemailer.createTransport({
+      host: pin.ip,
+      servername: pin.servername,
+      port: creds.smtpPort,
+      secure: creds.smtpSecure,
+      requireTLS: !creds.smtpSecure,
+      auth: { user: creds.username, pass: creds.password },
+      connectionTimeout: TIMEOUT_MS,
+      greetingTimeout: TIMEOUT_MS,
+      socketTimeout: TIMEOUT_MS,
+      tls: pinnedTls(opts.tls, pin),
+    });
+    return smtpReady;
+  };
 
-  const imap = () =>
-    new ImapFlow({
-      host: creds.imapHost,
+  // Resolved and checked again for every IMAP connection.
+  const imap = async () => {
+    const pin = await pinHost(creds.imapHost, creds.imapPort, IMAP_PORTS, opts);
+    return new ImapFlow({
+      host: pin.ip,
+      servername: pin.servername,
       port: creds.imapPort,
       secure: creds.imapPort !== 143,
       auth: { user: creds.username, pass: creds.password },
       logger: false,
-      tls: opts.tls,
+      tls: pinnedTls(opts.tls, pin),
       connectionTimeout: TIMEOUT_MS,
       greetingTimeout: TIMEOUT_MS,
       socketTimeout: TIMEOUT_MS * 2,
     });
+  };
 
   return {
     async send(mail: OutgoingMail): Promise<SendResult> {
       try {
-        const info = await smtp.sendMail({
+        const info = await (await smtp()).sendMail({
           from: { name: creds.displayName, address: creds.address },
           to: mail.to,
           subject: mail.subject,
@@ -84,7 +154,7 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
     },
 
     async poll(state: PollState): Promise<PollResult> {
-      const client = imap();
+      const client = await imap();
       await client.connect();
       try {
         const folders = pollFolders(await client.list());
@@ -129,11 +199,16 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
 
     async check(): Promise<CheckResult> {
       try {
-        await smtp.verify();
+        await (await smtp()).verify();
       } catch (err) {
         return { ok: false, step: 'smtp', ...checkFailure(err) };
       }
-      const client = imap();
+      let client: ImapFlow;
+      try {
+        client = await imap();
+      } catch (err) {
+        return { ok: false, step: 'imap', ...checkFailure(err) };
+      }
       try {
         await client.connect();
       } catch (err) {
@@ -145,7 +220,7 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
     },
 
     async close() {
-      smtp.close();
+      smtpReady?.close();
     },
   };
 }
@@ -234,6 +309,8 @@ interface MailError {
 const AUTH_CODES = new Set([530, 534, 535]);
 
 export function sendFailure(err: unknown): SendResult {
+  // The mailbox passed its check, so its host changed since: try later, and the next check says why.
+  if (err instanceof MailHostError) return { ok: false, kind: 'temporary', response: `refused: ${err.message}` };
   const e = (err ?? {}) as MailError;
   const response = e.response ?? e.message ?? String(err);
   if (e.code === 'EAUTH' || (e.responseCode !== undefined && AUTH_CODES.has(e.responseCode))) return { ok: false, kind: 'auth', response };
@@ -244,6 +321,7 @@ export function sendFailure(err: unknown): SendResult {
 const CONNECT_CODES = new Set(['ECONNECTION', 'ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'EHOSTUNREACH', 'EDNS', 'NoConnection']);
 
 export function checkFailure(err: unknown): { kind: 'auth' | 'connect' | 'tls' | 'other'; message: string } {
+  if (err instanceof MailHostError) return { kind: 'connect', message: err.message };
   const e = (err ?? {}) as MailError;
   const message = (e.response ?? e.message ?? String(err)).slice(0, 300);
   if (e.authenticationFailed || e.code === 'EAUTH' || (e.responseCode !== undefined && AUTH_CODES.has(e.responseCode))) return { kind: 'auth', message };

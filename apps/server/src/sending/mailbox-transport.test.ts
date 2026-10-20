@@ -52,7 +52,7 @@ vi.mock('imapflow', () => ({
   },
 }));
 
-const { checkFailure, createSmtpImapTransport, parseIncoming, planFolder, pollFolders, sendFailure } = await import('./mailbox-transport.js');
+const { checkFailure, createSmtpImapTransport, MailHostError, parseIncoming, pinHost, planFolder, pollFolders, sendFailure } = await import('./mailbox-transport.js');
 
 // A real SMTP server: STARTTLS with smtp-server's own self-signed cert, a
 // login check and per recipient answers.
@@ -122,7 +122,7 @@ function creds(over: Partial<MailboxCredentials> = {}): MailboxCredentials {
 
 const NOW = new Date('2026-10-20T10:00:00Z');
 const transport = (over: Partial<MailboxCredentials> = {}) =>
-  createSmtpImapTransport(creds(over), { tls: { rejectUnauthorized: false }, now: () => NOW });
+  createSmtpImapTransport(creds(over), { tls: { rejectUnauthorized: false }, now: () => NOW, allowPrivate: true });
 
 const mail = (to: string) => ({
   to,
@@ -196,6 +196,60 @@ describe('check', () => {
     const t = transport();
     expect(await t.check()).toMatchObject({ ok: false, step: 'imap', kind: 'auth' });
     await t.close();
+  });
+});
+
+describe('host guard', () => {
+  const dns = (map: Record<string, string[]>) => async (host: string) =>
+    (map[host] ?? []).map((address) => ({ address, family: address.includes(':') ? 6 : 4 }));
+  const SMTP = [465, 587, 2525];
+
+  it('pins a public host to its checked address and keeps the name for TLS', async () => {
+    expect(await pinHost('SMTP.Acme.io', 465, SMTP, { resolve: dns({ 'smtp.acme.io': ['93.184.216.34'] }) })).toEqual({ ip: '93.184.216.34', servername: 'smtp.acme.io' });
+    expect(await pinHost('93.184.216.34', 587, SMTP)).toEqual({ ip: '93.184.216.34', servername: undefined });
+  });
+
+  it('refuses loopback, private, link local and reserved addresses, and names that hide them', async () => {
+    for (const host of ['127.0.0.1', '10.0.0.5', '169.254.169.254', '192.168.1.1', '240.0.0.1', '::1', '[::ffff:127.0.0.1]', 'localhost', 'db.internal']) {
+      await expect(pinHost(host, 465, SMTP)).rejects.toMatchObject({ message: 'private address' });
+    }
+    // A mixed answer is how DNS rebinding starts.
+    await expect(pinHost('rebind.acme.io', 465, SMTP, { resolve: dns({ 'rebind.acme.io': ['93.184.216.34', '127.0.0.1'] }) })).rejects.toMatchObject({ message: 'private address' });
+    await expect(pinHost('nowhere.acme.io', 465, SMTP, { resolve: dns({}) })).rejects.toMatchObject({ message: 'host does not resolve' });
+  });
+
+  it('allows only the mail ports', async () => {
+    for (const port of [25, 22, 5432, 6379, 80]) {
+      await expect(pinHost('93.184.216.34', port, SMTP)).rejects.toBeInstanceOf(MailHostError);
+    }
+    await expect(pinHost('93.184.216.34', 993, [993, 143])).resolves.toMatchObject({ ip: '93.184.216.34' });
+  });
+
+  it('never connects to a refused host and answers in its own words', async () => {
+    const t = createSmtpImapTransport(creds({ smtpHost: '127.0.0.1', smtpPort }), { tls: { rejectUnauthorized: false } });
+    expect(await t.check()).toEqual({ ok: false, step: 'smtp', kind: 'connect', message: 'port not allowed' });
+    expect(await t.send(mail('ben@beta.io'))).toEqual({ ok: false, kind: 'temporary', response: 'refused: port not allowed' });
+    await t.close();
+    expect(received).toHaveLength(0);
+
+    const metadata = createSmtpImapTransport(creds({ smtpHost: '169.254.169.254', smtpPort: 587 }));
+    expect(await metadata.check()).toMatchObject({ ok: false, step: 'smtp', kind: 'connect', message: 'private address' });
+    await metadata.close();
+
+    const imapSide = createSmtpImapTransport(creds({ imapHost: 'localhost' }), { tls: { rejectUnauthorized: false }, allowPrivate: true, resolve: dns({}) });
+    expect(await imapSide.check()).toMatchObject({ ok: false, step: 'imap', kind: 'connect', message: 'host does not resolve' });
+    await imapSide.close();
+  });
+
+  it('connects to the address the guard resolved, not a second lookup', async () => {
+    const t = createSmtpImapTransport(creds({ smtpHost: 'mail.nvoke.test', imapHost: 'imap.nvoke.test' }), {
+      tls: { rejectUnauthorized: false },
+      allowPrivate: true,
+      resolve: dns({ 'mail.nvoke.test': ['127.0.0.1'], 'imap.nvoke.test': ['127.0.0.1'] }),
+    });
+    expect(await t.send(mail('ben@beta.io'))).toMatchObject({ ok: true });
+    await t.close();
+    expect(received).toHaveLength(1);
   });
 });
 
