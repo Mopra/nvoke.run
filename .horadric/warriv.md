@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Hourly round: the human committed site WCAG contrast (d2fe576, bbf9a2e) past green cc48271, so filed 'Checks on main after the site WCAG contrast pass' (sonnet, with build). Also saw a sending research and plan (docs/research/sending.md, docs/sending/plan.md) that turns the 2026-10-17 never-send decision; no aim, so nothing filed for it.
 - 2026-10-20 Hourly round: unchanged (only memory commits past green cc48271, log empty, no aim). Nothing to do.
 - 2026-10-20 Round as the human left: unchanged (only memory commits past green cc48271, log empty, no aim). Nothing to do.
 - 2026-10-20 Hourly round: unchanged (only memory commits past green cc48271, log empty, no aim). Nothing to do.
@@ -175,6 +176,8 @@
 
 ## Open
 
+- Sending plan written by the human (e3af056, docs/sending/plan.md steps 1 to 4) reverses 'nvoke never sends'. Wait for an Aim before filing any sending quests.
+- Checks quest for the site WCAG contrast pass filed; check its result next round.
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20.
