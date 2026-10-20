@@ -84,7 +84,7 @@ export function PricingSlider({ initial = 'emails_2500' }: { initial?: string })
         role="radiogroup"
         aria-label="Plans"
         onKeyDown={onKeyDown}
-        className="mt-8 grid grid-cols-4 gap-x-4 gap-y-6 sm:grid-cols-7"
+        className="mt-8 grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-6"
       >
         {tiers.map((tier, i) => (
           <button
@@ -118,7 +118,7 @@ export function PricingSlider({ initial = 'emails_2500' }: { initial?: string })
 
       <div className="mt-12 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-sm text-[15px] text-pretty text-muted-foreground">
-          {pricing.vatNote} Need more than {formatCount(pricing.top.emailsPerMonth)}?{' '}
+          {pricing.vatNote} {pricing.icpNote} Need more than {formatCount(pricing.top.emailsPerMonth)}?{' '}
           <a href={`mailto:${site.email.hello}`} className="text-foreground underline underline-offset-4">
             Talk to us
           </a>

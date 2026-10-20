@@ -38,7 +38,7 @@ const LONG =
   "Hi Anna,\n\nBooking tools for clinics is what your homepage leads with, and the new text reminders post says dentists asked for them most. A product like that sells best when someone calls the clinics before a rival does. nvoke finds clinics in any city and hands back the owner's checked email address, so nothing bounces. The first 50 verified emails a month are free, and there is nothing to install.\n\nWho books the demos for you today, you or a sales hire?";
 /** Another, written for beta.io, sharing nothing with LONG. */
 const OTHER =
-  'Hi Ben,\n\nYour pricing page puts the clinic plan at one flat fee per chair, a rare choice in a market that counts seats. Hiring an account executive this month suggests the pipeline is the next thing to fill. Say one rep sends 40 emails a day: that is about 800 checked contacts a month, the 1,000 plan at $5. You can try it on 50 addresses without paying.\n\nWhere do your best clinic customers come from now?';
+  'Hi Ben,\n\nYour pricing page puts the clinic plan at one flat fee per chair, a rare choice in a market that counts seats. Hiring an account executive this month suggests the pipeline is the next thing to fill. Say one rep sends 40 emails a day: that is about 800 checked contacts a month, the 1,000 plan at $9. You can try it on 50 addresses without paying.\n\nWhere do your best clinic customers come from now?';
 
 describe('checkBody and checkSubject', () => {
   it('keeps a plain body and cuts a sign-off and a stop line', () => {
@@ -118,14 +118,14 @@ describe('firstPrompt', () => {
     expect(prompt).toContain('building an outbound team now');
     expect(prompt).toContain('<page url="https://acme.io/blog/reminders" kind="latest">');
     expect(prompt).toContain('<campaign>\nThe leads were found for: dental software companies\n</campaign>');
-    expect(prompt).toContain('1,000 verified emails a month for $5');
+    expect(prompt).toContain('1,000 verified emails a month for $9');
     // Another sender gets no prices.
     expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [])).not.toContain('<prices>');
   });
 
   it('lists the prices from plans.ts', () => {
     expect(pricesBlock()).toContain('Free: 50 verified emails a month');
-    expect(pricesBlock()).toContain('100,000 verified emails a month for $149');
+    expect(pricesBlock()).toContain('60,000 verified emails a month for $199');
   });
 });
 

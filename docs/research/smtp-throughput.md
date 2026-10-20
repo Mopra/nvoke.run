@@ -12,7 +12,7 @@ ordinary hosting MX. Those all queue behind 4 IPv4 sessions a minute.
 
 At a planning figure of 2 sessions per verified email, the IPv4 lane carries
 about 86,000 verified emails a month for all users together. Two customers on
-the 100,000 plan fill it. Fix it in this order: measure, reclaim the cheap
+the 60,000 plan fill it. Fix it in this order: measure, reclaim the cheap
 slots, stop wasting sessions, then route IPv4 port 25 through one small relay
 node at a host that allows it. Paid verification APIs lose money at the top of
 the ladder and are a last resort.
@@ -99,10 +99,12 @@ email; 2 for planning**.
 | Worker IPv6, one provider (Google) | 20 | 28,800 | 864,000 | about 430,000 |
 | Worker IPv6, all providers | 59 | 84,960 | 2.5 million | about 1.3 million |
 
-Who needs what: one customer on `emails_100000` needs about 3,300 verified
-emails a day, about 6,700 sessions. If 40% of their domains are IPv4 only
-(a guess, measure it), that is 2,700 IPv4 sessions a day, **47% of the IPv4
-lane**. Two such customers, or about ten on `emails_20000`, fill it. After
+Who needs what: one customer on `emails_60000` needs about 2,000 verified
+emails a day, about 4,000 sessions. If 40% of their domains are IPv4 only
+(a guess, measure it), that is 1,600 IPv4 sessions a day, **28% of the IPv4
+lane**. Four such customers, or about nine on `emails_25000`, fill it.
+Describe your customer emails count twice, so a customer who only runs ICP
+searches needs half the sessions. After
 that, searches still finish, just slowly: a check waits for a slot instead of
 ending `unknown`.
 
@@ -308,17 +310,18 @@ sender would send. About $5 a month per node.
 
 ## 10. Paid verification APIs as overflow
 
-Revenue per verified email ranges from $5 per 1,000 (`emails_1000`) down to
-$1.49 per 1,000 (`emails_100000`). An API bills per address checked, not per
+Revenue per verified email ranges from $9 per 1,000 (`emails_1000`) down to
+$3.32 per 1,000 (`emails_60000`), twice that for Describe your customer
+emails, which count as two. An API bills per address checked, not per
 valid result, and it cannot do our multi candidate session: a person with an
 unknown pattern is up to 5 checks. Count 2.5 to 5 API checks per verified
 email.
 
 | Service | Rough price at volume | Cost per 1,000 verified | Top plan margin |
 | --- | --- | --- | --- |
-| ZeroBounce | $3 to 8 per 1,000 | $7.50 to 40 | loss, 5x to 25x |
+| ZeroBounce | $3 to 8 per 1,000 | $7.50 to 40 | loss, 2x to 12x |
 | NeverBounce | $3 to 8 per 1,000 | $7.50 to 40 | loss |
-| MillionVerifier | $0.40 to 2 per 1,000 | $1 to 10 | break even at best |
+| MillionVerifier | $0.40 to 2 per 1,000 | $1 to 10 | thin margin at best, loss at worst |
 | Reacher, self-hosted | license plus our servers | same as ours | solves nothing: it needs port 25 too |
 
 Prices are approximate, from memory; check the price pages before deciding.

@@ -17,6 +17,6 @@ describe('vs quotes', () => {
     expect(nvokeQuote(200_000)).toBeNull();
   });
   it('quotes nvoke from the shared ladder', () => {
-    expect(nvokeQuote(2_000)).toEqual({ plan: '2,500 a month', price: 9 });
+    expect(nvokeQuote(2_000)).toEqual({ plan: '2,500 a month', price: 19 });
   });
 });

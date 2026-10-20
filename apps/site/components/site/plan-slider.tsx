@@ -74,7 +74,7 @@ export function PlanSlider({
         </div>
       </div>
 
-      <div role="group" aria-label="Plan steps" className="grid grid-cols-4 gap-2 min-[520px]:grid-cols-7">
+      <div role="group" aria-label="Plan steps" className="grid grid-cols-3 gap-2 min-[520px]:grid-cols-6">
         {tiers.map((tier, i) => (
           <button
             key={tier.plan}

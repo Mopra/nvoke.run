@@ -138,7 +138,7 @@ nvoke never sends. This is the plan for a human with their own inbox.
 2. **What we say.** One short plain text email, no images, no tracking:
    their own agency, their lead cost, one number. "You buy or build lead
    lists for clients. nvoke finds named decision makers with verified
-   emails from a plain sentence, 1,000 a month for $5. Want 50 free for
+   emails from a plain sentence, 500 a month for $9. Want to try it free on
    your next client campaign?"
 3. **Opener.** nvoke's openers feature drafts one first line per company
    from its own site (copy only), e.g. a client case or a niche they

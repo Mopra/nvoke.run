@@ -7,11 +7,13 @@ import {
   ERROR_CODES,
   MCP_INSTRUCTIONS,
   MCP_TOOLS,
+  PAID_PLANS,
   PLAN_ORDER,
   PLANS,
   UNCLAIMED_ACTIVE_DAYS,
   UNCLAIMED_DELETE_DAYS,
 } from '@nvoke/shared';
+import { ICP_WEIGHT_TIMES } from '@/lib/app/desktop';
 import { site } from '@/lib/site';
 import { urls } from '@/lib/docs';
 
@@ -98,7 +100,7 @@ ${tools}
 
 ## Quota and money
 
-Every feature is on every plan. Only addresses whose check comes back valid count. Plans a month: ${plans}. When the month is used up, searches fail with \`quota_exceeded\` and new ones answer 403. You cannot pay; give your human \`billingUrl\` from \`GET /v1/me\`.
+Every feature is on every plan. Only addresses whose check comes back valid count, and one found by an \`icp\` search counts ${ICP_WEIGHT_TIMES}. Plans a month: ${plans}. When the month is used up, searches fail with \`quota_exceeded\` and new ones answer 403. You cannot pay; give your human \`billingUrl\` from \`GET /v1/me\`.
 
 ## Errors
 
@@ -121,7 +123,7 @@ export function llmsText(): string {
 
 > nvoke finds companies, reads their websites for published email addresses and checks each address with its mail server. A web app for people at ${site.url}/app (nothing to install), nvoke Desktop for power users, and a REST API and MCP server for code and AI agents. Agents can sign up without a human.
 
-Pay only for verified emails: 50 a month free, plans from $5. Searches run on nvoke's servers and take several minutes, since every address is checked with its mail server.
+Pay only for verified emails: ${PLANS.free.emailsPerMonth} a month free, plans from $${PLANS[PAID_PLANS[0]!].priceUsd}. Emails from a Describe your customer (\`icp\`) search count ${ICP_WEIGHT_TIMES}. Searches run on nvoke's servers and take several minutes, since every address is checked with its mail server.
 
 ## Docs
 

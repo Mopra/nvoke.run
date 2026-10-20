@@ -12,12 +12,16 @@ per verified email yet. Measuring it is step one (see "Measure first").
 
 Only `valid` results are charged (`packages/shared/src/plans.ts`).
 
-| Plan | Price per 1,000 verified |
-| --- | --- |
-| `emails_1000` | $5.00 |
-| `emails_7500` | $2.53 |
-| `emails_20000` | $1.95 |
-| `emails_100000` | $1.49 |
+A valid email from a Describe your customer (`icp`) search counts as two
+(`ICP_EMAIL_WEIGHT`), so ICP earns twice the price per 1,000 below.
+
+| Plan | Price per 1,000 verified | Per 1,000 ICP valid |
+| --- | --- | --- |
+| `emails_1000` | $9.00 | $18.00 |
+| `emails_2500` | $7.60 | $15.20 |
+| `emails_10000` | $4.90 | $9.80 |
+| `emails_25000` | $3.96 | $7.92 |
+| `emails_60000` | $3.32 | $6.64 |
 
 ## Where the money goes
 
@@ -51,8 +55,10 @@ escalate round adds Brave requests and a Sonnet `replan`.
 
 ### What that means
 
-On cold caches, Brave plus Haiku costs about as much as the cheapest plan
-earns, and two to eight times what the top plan earns. The shared caches
+On cold caches, the ICP estimate ($4.30) is about half of what the top plan
+earns for an ICP email, but the measured ICP cost below ($20.72) is above
+what even the cheapest plan earns for it ($18). `local` places without a
+website cost about four times what the top plan earns. The shared caches
 (`web_search_cache` for 7 days, the domain tables for 90 days, `email_checks`
 for 7 to 30 days) are what make the margin today. How often they hit is
 unknown.

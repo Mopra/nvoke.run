@@ -1,7 +1,8 @@
 # Rethinking Describe your customer
 
 2026-10-20. Measured in production over 30 days: **$20.72 per 1,000 valid**
-emails, against prices of $1.49 to $5. ICP searches cost $19 per 1,000 in
+emails, against prices of $3.32 to $9 ($6.64 to $18 for ICP, whose emails
+count as two since 2026-10-20). ICP searches cost $19 per 1,000 in
 Brave alone. Two analyses: the funnel in production (where valid emails are
 lost) and how others find companies cheaply. Scripts and raw numbers: the
 cost session's scratchpad; method in `docs/research/cost.md`.
@@ -43,7 +44,7 @@ $10 per 1,000 valid. Every search still pays to find and score companies
 from scratch. Every competitor that is cheap does the opposite: build an
 index once, search it for free, charge on reveal (Hunter Discover, Ocean.io,
 DiscoLike, BuiltWith, Getlead's database). DiscoLike sells bare company
-records at $1.50 to $3.50 per 1,000, our whole price.
+records at $1.50 to $3.50 per 1,000, about what our top plan charges.
 
 ## The new design: our own company index
 

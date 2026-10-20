@@ -74,7 +74,7 @@ export function PlanLadder({
         <ScreenMeter lit={lit} className="mt-8" />
       </div>
 
-      <div role="radiogroup" aria-label="Plans" onKeyDown={onKeyDown} className="mt-8 grid grid-cols-4 gap-x-4 gap-y-6 sm:grid-cols-7">
+      <div role="radiogroup" aria-label="Plans" onKeyDown={onKeyDown} className="mt-8 grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-6">
         {tiers.map((tier, i) => (
           <button
             key={tier.plan}

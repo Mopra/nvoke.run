@@ -7,7 +7,7 @@ import { Pill } from '@/components/Sentence';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { countryName } from '@/lib/countries';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, ICP_WEIGHT_TIMES } from '@/lib/format';
 import { useMe, useSiteProfile } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import { ICP_LIMIT, useStartIcp } from '@/lib/start-search';
@@ -264,7 +264,7 @@ export function DescribeCustomer() {
               </span>
             ) : (
               <p className={cn('max-w-sm', NOTE)}>
-                Only verified emails count.
+                Only verified emails count, and here each counts {ICP_WEIGHT_TIMES}.
                 {remaining !== null && (
                   <>
                     {' '}

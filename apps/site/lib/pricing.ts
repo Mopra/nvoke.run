@@ -3,6 +3,7 @@
 // Clerk Billing charges in USD.
 
 import { FREE_PLAN, PAID_PLANS, PLANS, PLAN_ORDER, TOP_PLAN, planLabel, type Plan } from '@nvoke/shared';
+import { ICP_WEIGHT_NOTE, ICP_WEIGHT_TIMES } from '@/lib/app/desktop';
 
 export type Tier = {
   plan: Plan;
@@ -21,6 +22,9 @@ export const pricing = {
   currency: 'USD',
   locale: 'en-US',
   vatNote: 'Prices are monthly, in US dollars, excluding VAT.',
+  /** Describe your customer emails count more than one against the allowance (`ICP_EMAIL_WEIGHT`). */
+  icpNote: ICP_WEIGHT_NOTE,
+  icpTimes: ICP_WEIGHT_TIMES,
   tiers: PLAN_ORDER.map(tier),
   paidTiers: PAID_PLANS.map(tier),
   free: tier(FREE_PLAN),

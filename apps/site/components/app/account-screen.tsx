@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiUrl } from '@/lib/api';
-import { relativeTime } from '@/lib/app/desktop';
+import { ICP_WEIGHT_NOTE, relativeTime } from '@/lib/app/desktop';
 import { BILLING_PATH, planName } from '@/lib/app/quota';
 import { useApiKeys, useCreateApiKey, useMe, usePlanSync, useRevokeApiKey } from '@/lib/app/queries';
 import { cn } from '@/lib/utils';
@@ -107,7 +107,7 @@ function PlanSetting({ me }: { me: MeResponse }) {
   return (
     <Setting
       label={paid ? `${planName(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month` : 'Free plan'}
-      description="Only valid emails count, each address once."
+      description={`Only valid emails count, each address once. ${ICP_WEIGHT_NOTE}`}
     >
       <Button asChild variant={paid ? 'secondary' : 'dark'}>
         <Link href={BILLING_PATH}>

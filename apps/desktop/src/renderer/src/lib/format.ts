@@ -1,4 +1,11 @@
+import { ICP_EMAIL_WEIGHT } from '@nvoke/shared';
 import type { Drop, FeedSource, Search, SearchKind, SearchStatus, Verification } from './types';
+
+/** "twice", or "3 times": how often one valid email from Describe your customer counts (`ICP_EMAIL_WEIGHT`). */
+export const ICP_WEIGHT_TIMES = ICP_EMAIL_WEIGHT === 2 ? 'twice' : `${ICP_EMAIL_WEIGHT} times`;
+
+/** The ICP rule in one line, for the plan and billing hints. */
+export const ICP_WEIGHT_NOTE = `Describe your customer emails count ${ICP_WEIGHT_TIMES}.`;
 
 export const KIND_LABEL: Record<SearchKind, string> = {
   local: 'Local businesses',

@@ -62,7 +62,7 @@ const CONTENT: Record<Competitor['slug'], Content> = {
       'One charge per verified email. On Snov.io, finding and verifying are separate credits, so a verified email costs two.',
       'Failed checks are free: invalid, risky, catch-all and unknown results never use your allowance.',
       'Every feature on every plan, including API access and export, which Snov.io’s trial plan leaves out.',
-      'Plans from $5 a month, where Snov.io starts at $39.',
+      `Plans from ${formatPrice(pricing.cheapest.price)} a month, where Snov.io starts at $39.`,
     ],
     faq: [
       {

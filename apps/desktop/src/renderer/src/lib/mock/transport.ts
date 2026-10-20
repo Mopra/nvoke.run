@@ -60,7 +60,7 @@ const SITE_PROFILE_MS = 5200;
 /** The built profile survives a reload in dev, like the server keeps it. */
 const SITE_PROFILE_KEY = 'nvoke.mock.site-profile';
 const PAGE_SIZE = 100;
-/** The mock user is on Pro: see PLANS in apps/server/src/leads/plans.ts. */
+/** The mock user is on the 2,500 plan: see PLANS in @nvoke/shared. */
 const MAX_LIMIT = SEARCH_LIMIT_MAX;
 const MOCK_PLAN: Plan = 'emails_2500';
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CodeBlock } from '@/components/docs/code-block';
 import { ChannelRows, DocsSection, DocsTitle, Prose } from '@/components/docs/prose';
 import { urls } from '@/lib/docs';
+import { formatPrice, pricing } from '@/lib/pricing';
 
 export const metadata: Metadata = {
   title: 'Docs',
@@ -99,8 +100,9 @@ export default function DocsIndex() {
       <DocsSection id="billing" title="What it costs">
         <Prose>
           <p>
-            Same as the app. You pay for verified emails and nothing else: 50 a month free, then plans from $5. Invalid,
-            risky, catch-all and unknown results are free. When the month runs out, searches fail with{' '}
+            Same as the app. You pay for verified emails and nothing else: {pricing.free.emailsPerMonth} a month free, then plans from{' '}
+            {formatPrice(pricing.cheapest.price)}. Invalid, risky, catch-all and unknown results are free. Emails from an{' '}
+            <code>icp</code> search count {pricing.icpTimes}. When the month runs out, searches fail with{' '}
             <code>quota_exceeded</code> and <code>GET /v1/me</code> gives a <code>billingUrl</code> where a human
             upgrades. <Link href="/pricing">Pricing</Link>.
           </p>

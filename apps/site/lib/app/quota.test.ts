@@ -24,7 +24,7 @@ describe('quotaState', () => {
   });
 
   it('has no next plan on the top plan', () => {
-    expect(quotaState(me('emails_100000', 100_000, 100_000)).nextPlan).toBeNull();
+    expect(quotaState(me('emails_60000', 60_000, 60_000)).nextPlan).toBeNull();
   });
 });
 

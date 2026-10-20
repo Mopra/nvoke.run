@@ -11,7 +11,7 @@ import { Pill } from '@/components/app/sentence';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { countryName, formatNumber } from '@/lib/app/desktop';
+import { countryName, formatNumber, ICP_WEIGHT_TIMES } from '@/lib/app/desktop';
 import {
   addCountry,
   buildIcpInput,
@@ -254,7 +254,7 @@ export function IcpSearchScreen() {
               </Link>
             </p>
           ) : (
-            <p className="cap text-muted-foreground">Only verified emails count</p>
+            <p className="cap text-muted-foreground">Only verified emails count, each one {ICP_WEIGHT_TIMES}</p>
           )}
         </div>
 

@@ -11,7 +11,7 @@ import { useRunTo } from '@/components/site/pricing/motion';
 import { Button } from '@/components/ui/button';
 import { CLERK_APPEARANCE } from '@/components/app/clerk-appearance';
 import { Card, CardContent, CardDescription, CardHeader, CardLabel, CardTitle } from '@/components/app/plate';
-import { resetDate } from '@/lib/app/desktop';
+import { ICP_WEIGHT_NOTE, resetDate } from '@/lib/app/desktop';
 import { apiUrl } from '@/lib/api';
 import { formatCount, pricing } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
@@ -165,7 +165,7 @@ function PlanPicker({
           <span className="cap text-muted-foreground tabular-nums">
             {formatCount(emailsVerified)} of {formatCount(emailsLimit)} used · resets {resetDate(period)}
           </span>
-          <span className="text-sm text-pretty text-muted-foreground">Every feature on every plan. Changes apply at once.</span>
+          <span className="text-sm text-pretty text-muted-foreground">Every feature on every plan. {ICP_WEIGHT_NOTE} Changes apply at once.</span>
         </div>
         <PlanAction
           plan={plan}

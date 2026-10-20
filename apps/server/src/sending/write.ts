@@ -20,7 +20,7 @@
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
-import { PAID_PLANS, PLANS, type CampaignStep, type SiteProfileFields } from '@nvoke/shared';
+import { ICP_EMAIL_WEIGHT, PAID_PLANS, PLANS, type CampaignStep, type SiteProfileFields } from '@nvoke/shared';
 import { AiError, type Ai } from '../ai/client.js';
 import { loadEnv } from '../env.js';
 import type { CrawlDeps } from '../leads/crawl.js';
@@ -98,7 +98,7 @@ Each email does what the brief for step 1 asks, for this company, in this order:
 1. "Hi <first name>," when a first name is given, else "Hi,". Never guess a name.
 2. One fresh, specific detail from the company's own pages, said plainly in your words: a post title, a launch, a named product, a customer, a city, a number. The newest is best: the latest post (<page kind="latest">) first, else the opener and its quote, else another page. Copy the exact words on the page it rests on into "quote".
 3. Why you write now. Build it from the <signal> when the signal is concrete: a current job post for a sales role means they are building outbound now, a launch means they need their first customers, a new office or market means new buyers. Tie it to the sender's offer in a sentence or two. When the signal is missing, vague or only says what the company is, do not invent a reason or an event: let the detail carry the email.
-4. The offer, with low friction: what they would get and that it is free to try, when the prices say so. When it makes the offer concrete, one simple number for their situation, worked out from <prices>: only from a fact on their pages (team size, locations, open roles), or plainly framed as an example ("say two SDRs sending 50 a day, about 2,000 contacts a month, which is the $9 plan"). One number at most, rounded, the arithmetic in plain words. No number is better than a made up one.
+4. The offer, with low friction: what they would get and that it is free to try, when the prices say so. When it makes the offer concrete, one simple number for their situation, worked out from <prices>: only from a fact on their pages (team size, locations, open roles), or plainly framed as an example ("say two SDRs sending 50 a day, about 2,000 contacts a month, which is the $19 plan"). One number at most, rounded, the arithmetic in plain words. No number is better than a made up one.
 5. One closing question only they can answer, about their own situation: how they find clients today, who handles outreach, when a plan renews. Never "would you be open to a call", "interested?" or "thoughts?".
 
 - 60 to 110 words in the body.
@@ -148,6 +148,7 @@ export function pricesBlock(): string {
 One plan for everyone, priced by verified emails a month (an address whose mailbox check came back valid; invalid, risky and unknown results are free). Every feature on every plan.
 Free: ${usd.format(PLANS.free.emailsPerMonth)} verified emails a month, no card.
 Paid: ${plans.join('; ')}.
+An email found by a Describe your customer search counts as ${ICP_EMAIL_WEIGHT}; every other search counts one.
 A working month is about 21 sending days; round up to the plan that covers the need.
 </prices>`;
 }
