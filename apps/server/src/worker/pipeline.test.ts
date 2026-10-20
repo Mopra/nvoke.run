@@ -69,7 +69,8 @@ const sites = fakeFetch({
   'https://agencyonly.dk/': { body: '<p>Site by hello@webagency.dk</p>' },
   'https://people.dk/': { body: '<a href="/team">Team</a><p>info@people.dk</p>' },
   'https://staff.dk/': { body: '<a href="/team">Team</a>' },
-  'https://staff.dk/team': { body: '<div><h3>Sofie Lund</h3><p>Designer</p><a href="mailto:sofie@staff.dk">Mail</a></div>' },
+  // Sofie is read by the rules; the founder's story in prose is what Claude is asked about.
+  'https://staff.dk/team': { body: '<div><h3>Sofie Lund</h3><p>Designer</p><a href="mailto:sofie@staff.dk">Mail</a></div><p>Mette Krogh Hansen startede firmaet i 2009.</p>' },
   'https://people.dk/team': {
     body: '<div><h3>Mette Hansen</h3><p>CEO</p><a href="mailto:mette@people.dk">Mail</a></div><div><h3>Jonas Berg</h3><p>Designer</p></div>',
   },

@@ -1,6 +1,6 @@
 // How senior a person is, read from the title a company prints next to their
-// name. English, the Nordic languages, German, Dutch, French and Spanish,
-// including the compounds German and the Nordic languages build
+// name. English, the Nordic languages, German, Dutch, French, Spanish,
+// Italian, Portuguese, Polish and Finnish, including the compounds German and the Nordic languages build
 // ("Vertriebsleiter", "salgsdirektør", "Mitgründerin").
 
 import type { Seniority } from '../leads.ts';
@@ -13,6 +13,7 @@ export function foldTitle(text: string): string {
     .replace(/ø/g, 'o')
     .replace(/å/g, 'a')
     .replace(/ß/g, 'ss')
+    .replace(/ł/g, 'l')
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, ' ')
@@ -21,42 +22,43 @@ export function foldTitle(text: string): string {
 
 /** Founder, owner, CEO, managing director, partner: the person who decides. */
 const FOUNDER = [
-  /(co-?|med|mit|mede)?(founder|grundlaegger|grunder|grundare|grunnlegger|oprichter|fondateur|fondatrice|fundador|fundadora|stifter|stifterin|grundarin|grunderin)/,
+  /(co-?|med|mit|mede)?(founder|grundlaegger|grunder|grundare|grunnlegger|oprichter|fondateur|fondatrice|fondatore|fundador|fundadora|stifter|stifterin|grundarin|grunderin|zalozyciel|perustaja)/,
   /\bowner\b(?<!(product|process|data|business process|budget) owner)/,
-  /\b(ejer|indehaver|medindehaver|inhaber|inhaberin|mitinhaber|mitinhaberin|eigenaar|eigenares|agare|delagare|innehaver|eier|medeier|proprietaire|propietario|propietaria)\b/,
-  /\bceo\b|chief executive|^md$|^md ?(&|and|og|und|\/)|managing director|general manager|managing partner|\bpresident\b(?<!vice president)/,
+  /\b(ejer|indehaver|medindehaver|inhaber|inhaberin|mitinhaber|mitinhaberin|eigenaar|eigenares|agare|delagare|innehaver|eier|medeier|proprietaire|propietario|propietaria|proprietario|proprietaria|titolare|eigentumer|eigentumerin|omistaja|wlasciciel|wlascicielka)\b/,
+  /\bceo\b|chief executive|^md$|^md ?(&|and|og|und|\/)|managing director|general manager|managing partner|\bpresident\b(?<!vice president)|\bpresidente\b(?<!vice ?presidente)|\bprezes\b|\bpdg\b|amministratore (delegato|unico)|consejero delegado/,
   /gesch(a|ae)ftsf(u|ue)hr(er|erin|ung)\b|vorstandsvorsitzende|vorsitzende des vorstands/,
   /\b(adm\.?|administrerende|verkstallande|vd)\b ?(direktor)?|\badm\. ?dir\b|daglig leder|toimitusjohtaja/,
-  /directeur general|directrice generale|director general|directora general|algemeen directeur|\bgerant(e)?\b|zaakvoerder|bestuurder|directeur-eigenaar/,
+  /directeur general|directrice generale|director general|directora general|algemeen directeur|\bgerant(e)?\b|zaakvoerder|bestuurder|directeur-eigenaar|\bdirigeante?\b/,
   // A partner of the firm, not a badge: "Partner", "Founding Partner", "Partner & CEO", never "Google Premier Partner".
+  /\bsoci[oa]\b|\bvennoot\b|\bassociee?\b/,
   /\bpartner\b(?! ?(manager|success|marketing|program|relations|development|account|sales|channel|network|programme|status|level|badge|agency))(?<!(channel|account|business|premier|gold|silver|bronze|platinum|certified|official|preferred|solution|solutions|technology|tech|strategic|implementation|reseller|integration|consulting|agency|elite|select|registered|authorized|authorised|accredited|hubspot|google|microsoft|shopify|meta|aws|salesforce) partner)/,
 ];
 
 /** Other C level and vice presidents. */
 const EXECUTIVE = [
   /\bc[tofmrpids]o\b|\bchief\b|\bchair(man|woman|person)?\b|bestyrelsesformand|styreleder|styreordforande|ordforande|aufsichtsratsvorsitz/,
-  /\b(s|e)?vp\b|vice president|vicepresident|vice-president|vicedirektor|vice direktor|\bvorstand\b|prokurist/,
+  /\b(s|e)?vp\b|vice president|vicepresident|vice-president|vice ?presidente|wiceprezes|vicedirektor|vice direktor|\bvorstand\b|prokurist/,
 ];
 
 /** Head of, director, Leiter, chef in Danish and Swedish compounds. */
 const DIRECTOR = [
   /\bhead\b|\bhoofd\b|\bjefe\b|\bjefa\b/,
-  /director|direktor|directeur|directrice|directora|\bdir\.\b/,
+  /director|direktor|directeur|directrice|directora|diretor|direttore|direttrice|dyrektor|johtaja|\bdir\.\b/,
   /leiter(in)?\b|leitung\b|bereichsleit/,
   /[a-z]{3,}chef\b|\bchef (for|de|du|des)\b/,
 ];
 
 /** Managers and leads. */
-const MANAGER = [/manager|\bmgr\b|managerin|\blead\b|leder\b|ledare\b|\bgerente\b|\bresponsable\b|\bansvarlig\b|\bteamlead|\bverantwortlich/];
+const MANAGER = [/manager|\bmgr\b|managerin|\blead\b|leder\b|ledare\b|\bgerente\b|\bresponsable\b|\bresponsabile\b|kierownik|paallikko|\bansvarlig\b|\bteamlead|\bverantwortlich/];
 
 /**
  * Roles below management. Not a seniority of their own (anything that is
  * not one of the above is staff), but they tell a title from other text.
  */
 const STAFF = [
-  /consultant|konsulent|berater|adviseur|advis(e|o)r|radgiver|radgivare|radgivar|conseill|asesor/,
-  /designer|developer|udvikler|entwickler|ontwikkelaar|developpeu|desarrollador|utvecklare|utvikler|programm|engineer|ingenior|ingenieur|ingeniero/,
-  /specialist|spezialist|especialista|analy(st|ste|tiker)|analist|assist(ant|ent|ente)|coordinat|koordinator|coordinador/,
+  /consultant|konsulent|konsultant|konsultti|consulente|consultor|berater|adviseur|advis(e|o)r|radgiver|radgivare|radgivar|conseill|asesor/,
+  /designer|developer|udvikler|entwickler|ontwikkelaar|developpeu|desarrollador|utvecklare|utvikler|programm|engineer|ingenior|ingenieur|ingeniero|sviluppatore|desenvolvedor|programista/,
+  /specialist|spezialist|especialista|specjalista|analy(st|ste|tiker)|analist|assist(ant|ent|ente)|coordinat|koordinator|coordinador/,
   /accountant|bogholder|buchhalt|revisor|controller|strateg|copywriter|tekstforfatter|texter|\bwriter\b|editor|redakt|redacteu|producer|producent|produzent|realisateur/,
   /architect|arkitekt|architekt|arquitect|representative|saelger|verkauf|vendedor|saljare|selger|medewerker|mitarbeiter|medarbejder|employee|\bintern\b|praktikant|trainee|apprentice|laerling|auszubild/,
   /reception|sekretaer|sekretar|secretar|bookkeeper|recruit|scientist|research|forsker|forscher|chercheu|investigador|techni|tekniker|\bofficer\b|ambassador|associate/,
@@ -110,6 +112,20 @@ export function looksLikeTitle(text: string): boolean {
   if (t.split(/\s+/).length > 9) return false;
   if (SENTENCE_WORD.test(foldTitle(t))) return false;
   return hasTitleWord(t);
+}
+
+/**
+ * Whether text in a field the page marks as a role ("team-member__position")
+ * reads as one: short, no sentence, no link or number. The markup says it is
+ * a role, so a word outside the lexicon ("Kok", "Lagerarbejder") is enough.
+ */
+export function looksLikeRole(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 2 || t.length > 80) return false;
+  if (/[?!@]|https?:|www\.|\d{3,}/.test(t)) return false;
+  if (t.split(/\s+/).length > 7) return false;
+  if (!/\p{L}{2}/u.test(t)) return false;
+  return !SENTENCE_WORD.test(foldTitle(t));
 }
 
 /** Sales, growth, marketing, business development, partnerships, revenue: the commercial team. */

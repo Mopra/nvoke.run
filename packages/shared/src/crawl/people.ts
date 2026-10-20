@@ -9,7 +9,7 @@
 
 import { load, type CheerioAPI } from 'cheerio';
 import { isDecisionMaker, type Seniority } from '../leads.ts';
-import { foldTitle, hasTitleWord, looksLikeTitle, seniorityOf } from './seniority.ts';
+import { foldTitle, hasTitleWord, looksLikeRole, looksLikeTitle, seniorityOf } from './seniority.ts';
 
 export interface FoundPerson {
   firstName: string;
@@ -119,6 +119,8 @@ export function parseName(raw: string): { firstName: string; lastName: string } 
     words++;
   }
   if (words < 2 || words > 4) return null;
+  // A title of several words, none a title alone: "Amministratore Delegato", "Consejero Delegado".
+  if (hasTitleWord(tokens.join(' '))) return null;
   return { firstName: first, lastName: tokens.slice(1).join(' ') };
 }
 
@@ -354,6 +356,8 @@ interface Candidate {
   seniority?: Seniority | null;
   /** The line the name was read from, for checking the words around it. */
   line?: number;
+  /** Read from a card's markup: a name field and a role field in one card. */
+  card?: boolean;
 }
 
 /**
@@ -555,8 +559,16 @@ function textValue(v: unknown): string | null {
 /** Keys of an organization that lead to its own people. */
 const OWN_PEOPLE_KEYS = new Set(['founder', 'founders', 'employee', 'employees', 'member', 'members', 'contactPoint', 'ceo', 'director']);
 
-/** schema.org Person nodes with a job title, or listed as a founder or employee. */
-function jsonLdPeople(raw: string): JsonLdPerson[] {
+/** A schema.org type, however the page writes it: "Person", "schema:Person", "https://schema.org/Person". */
+function isType(types: string[], type: string): boolean {
+  return types.some((t) => t === type || t.endsWith(`/${type}`) || t.endsWith(`:${type}`) || t.endsWith(`#${type}`));
+}
+
+/**
+ * schema.org Person nodes with a job title, listed as a founder or employee,
+ * or working for the page's own company (`worksFor`).
+ */
+function jsonLdPeople(raw: string, own: OwnCompany): JsonLdPerson[] {
   const out: JsonLdPerson[] = [];
   const visit = (node: unknown, via: string | null, depth: number): void => {
     if (depth > 8 || !node || typeof node !== 'object') return;
@@ -566,10 +578,12 @@ function jsonLdPeople(raw: string): JsonLdPerson[] {
     }
     const obj = node as Record<string, unknown>;
     const types = ([] as unknown[]).concat(obj['@type'] ?? []).map(String);
-    if (types.includes('Review')) return;
-    if (types.includes('Person')) {
+    if (isType(types, 'Review')) return;
+    if (isType(types, 'Person')) {
       const name = textValue(obj.name) ?? [textValue(obj.givenName), textValue(obj.familyName)].filter(Boolean).join(' ');
       const title = textValue(obj.jobTitle) ?? textValue(obj.hasOccupation);
+      const employer = textValue(obj.worksFor);
+      if (!via && employer && isOwn(employer, own)) via = 'employee';
       if (name && (title || via)) out.push({ name, title, ...(via === 'founder' || via === 'founders' ? { founder: true } : {}) });
     }
     for (const [key, value] of Object.entries(obj)) {
@@ -585,23 +599,83 @@ function jsonLdPeople(raw: string): JsonLdPerson[] {
   return out;
 }
 
-/** JSON-LD and microdata people. Run after NOT_OWN is removed, so a review's author is never one. */
-function structured($: CheerioAPI): JsonLdPerson[] {
+/** Microdata and RDFa scopes of a Person: `itemtype="https://schema.org/Person"`, `typeof="schema:Person"`. */
+const PERSON_SCOPE = '[itemtype*="schema.org/Person" i], [typeof~="Person"], [typeof~="schema:Person"], [typeof*="schema.org/Person" i]';
+const REVIEW_SCOPE = '[itemtype*="schema.org/Review" i], [typeof~="Review"], [typeof~="schema:Review"], [typeof*="schema.org/Review" i]';
+
+/** JSON-LD, microdata and RDFa people. Run after NOT_OWN is removed, so a review's author is never one. */
+function structured($: CheerioAPI, own: OwnCompany): JsonLdPerson[] {
   const out: JsonLdPerson[] = [];
   $('script[type="application/ld+json"]').each((_i, el) => {
-    out.push(...jsonLdPeople($(el).text()));
+    out.push(...jsonLdPeople($(el).text(), own));
   });
-  $('[itemtype*="schema.org/Person" i]').each((_i, el) => {
+  $(PERSON_SCOPE).each((_i, el) => {
     const scope = $(el);
-    if (scope.closest('[itemtype*="schema.org/Review" i]').length > 0) return;
+    if (scope.closest(REVIEW_SCOPE).length > 0) return;
     const value = (prop: string) => {
-      const v = scope.find(`[itemprop="${prop}"]`).first();
+      const v = scope.find(`[itemprop="${prop}" i], [property="${prop}" i], [property="schema:${prop}" i]`).first();
       return (v.attr('content') ?? v.text()).slice(0, 200).replace(/\s+/g, ' ').trim();
     };
     const name = value('name') || [value('givenName'), value('familyName')].filter(Boolean).join(' ');
     const title = value('jobTitle');
-    if (name && title) out.push({ name, title });
+    // A Person the page's Organization lists as its founder or employee needs no title.
+    const via = `${scope.attr('itemprop') ?? ''} ${scope.attr('property') ?? ''}`.toLowerCase().replace(/schema:/g, '');
+    const founder = /\bfounders?\b/.test(via);
+    if (name && (title || founder || /\b(employees?|members?)\b/.test(via))) out.push({ name, title: title || null, ...(founder ? { founder: true } : {}) });
   });
+  return out;
+}
+
+// Cards
+
+/** Class words of a card field that holds the role: "team-member__position", "job-title", "designation". */
+const ROLE_CLASS = new Set(['position', 'role', 'job', 'jobtitle', 'designation', 'stilling', 'funktion', 'occupation', 'subtitle', 'titel', 'beruf', 'poste', 'cargo', 'ruolo', 'rolle']);
+/** Elements that hold one field of a card. */
+const CARD_FIELDS = 'h1, h2, h3, h4, h5, h6, p, span, div, strong, b, a, li, dt, dd, figcaption, small, em';
+
+function classWords(cls: string | undefined): string[] {
+  return (cls ?? '').toLowerCase().split(/[\s_-]+/).filter(Boolean);
+}
+
+/**
+ * Team cards read from their markup: a field whose class says it is the role
+ * ("position", "job-title", "stilling") and the one name in the same card.
+ * The markup vouches for the role, so a title outside the lexicon counts,
+ * and the name and the role need not sit on lines next to each other.
+ */
+function cards($: CheerioAPI, own: OwnCompany): Candidate[] {
+  const out: Candidate[] = [];
+  const roles = $('[class]')
+    .toArray()
+    .filter((el) => classWords($(el).attr('class')).some((w) => ROLE_CLASS.has(w)));
+  const isRole = new Set(roles);
+  const textOf = (el: (typeof roles)[number]) => $(el).text().replace(/[\u00a0\s]+/g, ' ').trim();
+  for (const el of roles) {
+    // The innermost role field only.
+    if ($(el).find('[class]').toArray().some((c) => isRole.has(c))) continue;
+    const raw = textOf(el);
+    if (raw.length > 120 || isCredit(raw)) continue;
+    const title = cleanTitle(raw);
+    if (!title || !looksLikeRole(title) || titleElsewhere(title, own) || GROUP_HEADING.test(foldTitle(title)) || parseName(title)) continue;
+    let card = $(el).parent();
+    for (let depth = 0; depth < 4 && card.length > 0; depth++, card = card.parent()) {
+      const tag = String(card.prop('tagName') ?? '').toLowerCase();
+      if (tag === 'body' || tag === 'html' || tag === 'main') break;
+      const names = new Map<string, { firstName: string; lastName: string }>();
+      for (const field of card.find(CARD_FIELDS).toArray()) {
+        // Not the role, nor a wrapper holding it: "Mette Hansen Kok" is no name.
+        if (field === el || $(field).closest(el).length > 0 || $(field).find(el).length > 0) continue;
+        const name = parseName(textOf(field));
+        if (name) names.set(personKey(name), name);
+      }
+      if (names.size > 1) break;
+      const [name] = names.values();
+      if (name) {
+        out.push({ name, title, card: true });
+        break;
+      }
+    }
+  }
   return out;
 }
 
@@ -626,7 +700,7 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
   const own = ownCompanyOf(sourceUrl);
   removeNotOwn($);
   const found: Candidate[] = [];
-  for (const p of structured($)) {
+  for (const p of structured($, own)) {
     const name = parseName(p.name);
     if (!name) continue;
     const checked = p.title ? checkTitle(p.title, own) : { title: null, elsewhere: false };
@@ -634,6 +708,8 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
     const title = p.title ? cleanTitle(p.title) || null : null;
     found.push({ name, title, ...(p.founder && !title ? { seniority: 'founder' as const } : {}) });
   }
+  // Before linesOf, which writes addresses and line breaks into the page.
+  found.push(...cards($, own));
 
   const lines = linesOf($);
   const used = afterQuotes(lines);
@@ -708,8 +784,11 @@ export function extractPeople(html: string, sourceUrl: string | null = null): Fo
       .split(/[\s-]+/)
       .some((t) => !PARTICLES.has(t.toLowerCase()) && !isFirstName(t) && near.has(t.toLowerCase()));
   };
+  // A card's own role beats a title read from the line next to the name, which may be the next card's.
+  const carded = new Set(found.filter((c) => c.card).map((c) => personKey(c.name)));
   return mergePeople(
     found
+      .filter((c) => c.card || c.line === undefined || !carded.has(personKey(c.name)))
       .filter((c) => !plainWords(c))
       .filter((c) => !companyAsPerson({ ...c.name, title: c.title }, own.label))
       .slice(0, PAGE_PEOPLE_MAX)

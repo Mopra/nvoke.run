@@ -26,19 +26,36 @@ describe('seniorityOf', () => {
       'Gérant',
       'Fundador y CEO',
       'Owner',
+      'Titolare',
+      'Fondatore',
+      'Amministratore Delegato',
+      'Presidente',
+      'Sócio-gerente',
+      'Proprietário',
+      'Prezes Zarządu',
+      'Właściciel',
+      'Założyciel',
+      'Perustaja',
+      'Vennoot',
+      'Associée',
+      'PDG',
+      'Eigentümer',
     ]) {
       expect(seniorityOf(title), title).toBe('founder');
     }
   });
 
   it('reads other C level and vice presidents as executives', () => {
-    for (const title of ['CTO', 'Chief Revenue Officer', 'COO', 'CFO', 'VP Sales', 'Vice President of Marketing', 'Chairman']) {
+    expect(seniorityOf('Responsabile vendite')).toBe('manager');
+    expect(seniorityOf('Kierownik projektu')).toBe('manager');
+    expect(seniorityOf('Myyntipäällikkö')).toBe('manager');
+    for (const title of ['CTO', 'Chief Revenue Officer', 'COO', 'CFO', 'VP Sales', 'Vice President of Marketing', 'Chairman', 'Vicepresidente', 'Wiceprezes']) {
       expect(seniorityOf(title), title).toBe('executive');
     }
   });
 
   it('reads heads and directors, also inside compounds', () => {
-    for (const title of ['Head of Growth', 'Sales Director', 'Salgsdirektør', 'Vertriebsleiter', 'Leiterin Marketing', 'Salgschef', 'Director of Partnerships', 'Directrice artistique']) {
+    for (const title of ['Head of Growth', 'Sales Director', 'Salgsdirektør', 'Vertriebsleiter', 'Leiterin Marketing', 'Salgschef', 'Director of Partnerships', 'Directrice artistique', 'Direttore commerciale', 'Diretora de vendas', 'Dyrektor', 'Myyntijohtaja']) {
       expect(seniorityOf(title), title).toBe('director');
     }
   });

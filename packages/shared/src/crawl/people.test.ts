@@ -301,3 +301,61 @@ describe('review: labels, surnames and sections', () => {
     expect(read(html, 'https://acme.dk/om')).toEqual(['Ole Hansen|Founder|founder']);
   });
 });
+
+describe('more people without Claude', () => {
+  const read = (html: string, url = 'https://acme.dk/team') => names(extractPeople(html, url));
+
+  it('reads card markup with a role outside the lexicon and a bio between name and role', () => {
+    const html = `<body><section class="team">
+      <div class="team-member"><h3 class="team-member__name">Mette Hansen</h3><p>Mette har været med siden 2009 og elsker god mad.</p><span class="team-member__position">Kok</span></div>
+      <div class="team-member"><h3 class="team-member__name">Jonas Berg</h3><p>Jonas passer lageret.</p><span class="team-member__position">Lagerarbejder</span></div>
+    </section></body>`;
+    expect(read(html)).toEqual(['Mette Hansen|Kok|staff', 'Jonas Berg|Lagerarbejder|staff']);
+  });
+
+  it('gives each card its own role, not the next card\'s', () => {
+    const html = `<body>
+      <div class="card"><span class="job-title">Founder</span><img alt=""><h4>Anna Svensson</h4></div>
+      <div class="card"><span class="job-title">Designer</span><img alt=""><h4>Erik Lund</h4></div>
+    </body>`;
+    expect(read(html)).toEqual(['Anna Svensson|Founder|founder', 'Erik Lund|Designer|staff']);
+  });
+
+  it('skips a role field in a card with several names, and a role that is a sentence', () => {
+    const html = `<body>
+      <div class="group"><p>Mette Hansen</p><p>Jonas Berg</p><span class="role">Kok</span></div>
+      <div class="person"><h4>Sofie Lund</h4><span class="position">We are the best team in town</span></div>
+    </body>`;
+    expect(read(html)).toEqual([]);
+  });
+
+  it('reads schema.org types written as urls, worksFor the own company, and RDFa', () => {
+    const html = `<head><script type="application/ld+json">${JSON.stringify([
+      { '@type': 'https://schema.org/Person', name: 'Karin Holm', jobTitle: 'Chief Marketing Officer' },
+      { '@type': 'schema:Person', name: 'Ole Nielsen', worksFor: { '@type': 'Organization', name: 'Acme ApS' } },
+      { '@type': 'Person', name: 'Lisa Berg', worksFor: { '@type': 'Organization', name: 'Clientco' } },
+    ])}</script></head>
+    <body><div vocab="https://schema.org/" typeof="Person"><span property="name">Eva Lind</span><span property="jobTitle">Indehaver</span></div>
+    <div itemscope itemtype="https://schema.org/Organization"><div itemprop="founder" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Peter Holm</span></div></div></body>`;
+    expect(read(html)).toEqual(['Eva Lind|Indehaver|founder', 'Peter Holm||founder', 'Karin Holm|Chief Marketing Officer|executive', 'Ole Nielsen||']);
+  });
+
+  it('reads titles in Italian, Portuguese, Polish and Finnish', () => {
+    const html = `<body>
+      <p>Marco Rossi</p><p>Titolare</p>
+      <p>Giulia Bianchi</p><p>Amministratore Delegato</p>
+      <p>Pedro Alves</p><p>Sócio Fundador</p>
+      <p>Piotr Nowak</p><p>Właściciel</p>
+      <p>Tomasz Kowalski</p><p>Dyrektor sprzedaży</p>
+      <p>Mikael Virtanen</p><p>Myyntipäällikkö</p>
+    </body>`;
+    expect(read(html, 'https://acme.eu/team')).toEqual([
+      'Marco Rossi|Titolare|founder',
+      'Giulia Bianchi|Amministratore Delegato|founder',
+      'Pedro Alves|Sócio Fundador|founder',
+      'Piotr Nowak|Właściciel|founder',
+      'Tomasz Kowalski|Dyrektor sprzedaży|director',
+      'Mikael Virtanen|Myyntipäällikkö|manager',
+    ]);
+  });
+});
