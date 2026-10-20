@@ -61,6 +61,24 @@ To price below the market (say $1 per 1,000 verified or less), the marginal
 cost has to drop below about $0.30 per 1,000. That only happens if most
 emails come from data we already hold.
 
+## Measured 2026-10-20 (production, last 30 days, before these changes)
+
+`cli stats --prod`: **$20.72 per 1,000 valid** emails (web search $2.04 plus
+pipeline Claude $0.95 for 144 valid). Brave was all of the search cost:
+
+| Kind | Searches | Paid requests | Valid | Search $ per 1,000 valid |
+| --- | --- | --- | --- | --- |
+| icp | 2 | 371 | 97 | $19.12 |
+| web | 9 | 34 | 14 | $12.14 |
+| local | 4 | 2 | 11 | $0.91 |
+| domains | 4 | 0 | 19 | $0.00 |
+
+Claude: `fit` $0.55 (417 calls), `people` $0.26 (569 calls), `plan` and
+`replan` $0.13. Brave cache hit rate 0%. A small sample, but the estimate
+above ($4.30) was 5x too kind: an ICP search needs about 4 paid requests
+per valid email (0.26 valid per request). The funnel after the search (fit,
+crawl yield, verified share) matters as much as the price per request.
+
 ## Status 2026-10-20
 
 Built: `cli stats` prints cost per 1,000 valid (`src/leads/cost-report.ts`);
