@@ -8,7 +8,8 @@ import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
 import type { Secrets } from '../crypto/secrets.js';
 import { classifyMail, type Classified } from './classify.js';
-import { checkHealth } from './health.js';
+import { authFailed, checkHealth } from './health.js';
+import { checkFailure } from './mailbox-transport.js';
 import { credentialsFor, type MailboxRow } from './mailboxes.js';
 import { delayForAutoReply, endLead, recordIncoming } from './outcomes.js';
 import type { IncomingMail, TransportFactory } from './types.js';
@@ -62,6 +63,10 @@ export async function pollTick(deps: PollDeps, now: Date = new Date()): Promise<
       await pollMailbox(deps, mailbox, now, result);
     } catch (err) {
       deps.log.warn({ err, mailboxId: mailbox.id }, 'mailbox poll failed');
+      // A refused IMAP login pauses the mailbox like a refused SMTP login:
+      // replies would go unseen and sequences would not stop.
+      const failure = checkFailure(err);
+      if (failure.kind === 'auth') await authFailed(sql, mailbox.id, failure.message);
     }
   }
   return result;

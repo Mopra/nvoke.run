@@ -44,8 +44,8 @@ describe('classifyMail: bounces', () => {
     expect(classifyMail(fixture('bounce/postfix-user-unknown.eml'))).toEqual({ kind: 'bounce', hard: true, recipient: 'p.duval@atelier-lumiere.fr', status: '5.1.1' });
   });
 
-  it('picks the failed recipient of a Postfix report with two', () => {
-    expect(classifyMail(fixture('bounce/postfix-two-recipients.eml'))).toEqual({ kind: 'bounce', hard: true, recipient: 'k.vos@vandenberg-tech.nl', status: '5.7.1' });
+  it('picks the failed recipient of a Postfix report with two, a 5.7.1 block is not hard', () => {
+    expect(classifyMail(fixture('bounce/postfix-two-recipients.eml'))).toEqual({ kind: 'bounce', hard: false, recipient: 'k.vos@vandenberg-tech.nl', status: '5.7.1' });
   });
 
   it('reads an Exim bounce with no report part', () => {

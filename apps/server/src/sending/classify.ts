@@ -118,7 +118,7 @@ function bounce(mail: IncomingMail): Classified {
 
   let hard: boolean;
   if (action && action !== 'failed') hard = false;
-  else if (status) hard = status.startsWith('5');
+  else if (status) hard = status.startsWith('5') && !isPolicyBlock(status);
   else hard = /permanent(ly)? (error|failure)|this is a permanent error|does not exist|no such user|user unknown/i.test(text);
 
   return { kind: 'bounce', hard, recipient: recipient ? address(recipient) : null, status };
@@ -184,4 +184,13 @@ export function classifyMail(mail: IncomingMail): Classified {
   if (isBounce(mail)) return bounce(mail);
   if (isAutoReply(mail)) return { kind: 'auto_reply' };
   return { kind: 'human', optOut: isOptOut(mail) };
+}
+
+/**
+ * A 5.7.x refusal is the receiving server blocking the sender (spam,
+ * reputation, policy), not a missing mailbox: the address may be fine, so
+ * it is never marked invalid.
+ */
+export function isPolicyBlock(response: string): boolean {
+  return /\b5\.7\.\d{1,3}\b/.test(response);
 }

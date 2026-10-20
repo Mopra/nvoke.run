@@ -13,6 +13,7 @@ import type { CampaignSchedule, CampaignStep } from '@nvoke/shared';
 import type { Secrets } from '../crypto/secrets.js';
 import { sendSuppressedSql, suppressedSql } from '../leads/suppression.js';
 import { withFooter } from './footer.js';
+import { isPolicyBlock } from './classify.js';
 import { isBlockedCountry } from './gate.js';
 import { authFailed, checkHealth, pauseMailbox } from './health.js';
 import { credentialsFor, type MailboxRow } from './mailboxes.js';
@@ -193,7 +194,9 @@ async function sendOne(deps: SendDeps, leadId: string, mailboxId: string, now: D
         await tx`update campaign_leads set next_send_at = ${new Date(now.getTime() + RETRY_MS)} where id = ${lead.id}`;
         return 'retried';
       }
-      // A 5xx for this recipient is a hard bounce, as if the report had come back.
+      // A 5xx for this recipient is a hard bounce, as if the report had come
+      // back. A 5.7.x is the server blocking us: the lead stops, the address stays.
+      const blocked = isPolicyBlock(sent.response);
       await recordIncoming(tx, {
         userId: lead.clerk_user_id,
         mailboxId,
@@ -206,10 +209,15 @@ async function sendOne(deps: SendDeps, leadId: string, mailboxId: string, now: D
         from: mailbox.address,
         to: lead.address,
         body: null,
-        smtpResponse: `hard ${sent.response}`.slice(0, 500),
+        smtpResponse: `${blocked ? 'soft' : 'hard'} ${sent.response}`.slice(0, 500),
         at: now,
       });
-      await endLead(tx, lead.id, 'bounced', now);
+      if (blocked) {
+        await tx`update campaign_leads set status = 'failed', skip_reason = 'blocked', next_send_at = null where id = ${lead.id}`;
+        await finishIfDone(tx, lead.campaign_id, now);
+      } else {
+        await endLead(tx, lead.id, 'bounced', now);
+      }
       await checkHealth(tx, mailboxId, now);
       return 'bounced';
     }
