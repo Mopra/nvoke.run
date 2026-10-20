@@ -1,0 +1,25 @@
+Return-path: <>
+From: Mail Delivery System <Mailer-Daemon@box.hostserv.net>
+To: anna@northwind-studio.com
+Subject: Warning: message 1t2Z0a-00Bc4D-1r delayed 24 hours
+Auto-Submitted: auto-replied
+Content-Type: text/plain; charset=us-ascii
+Date: Wed, 21 Oct 2026 09:15:00 +0100
+
+This message was created automatically by mail delivery software.
+A message that you sent has not yet been delivered to one or more of its
+recipients after more than 24 hours on the queue on box.hostserv.net.
+
+The message identifier is:     1t2Z0a-00Bc4D-1r
+The subject of the message is: Your booking page
+
+The address to which the message has not yet been delivered is:
+
+  booking@lakeside-yoga.ca
+    host mx.lakeside-yoga.ca [24.114.2.9]
+    Connection timed out: retry timeout not exceeded
+
+No action is required on your part. Delivery attempts will continue for
+some time, and this warning may be repeated at intervals if the message
+remains undelivered. Eventually the mail delivery software will give up,
+and when that happens, the message will be returned to you.

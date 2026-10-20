@@ -1,0 +1,36 @@
+Return-path: <>
+Envelope-to: anna@northwind-studio.com
+Delivery-date: Tue, 20 Oct 2026 09:12:44 +0100
+Received: from mailnull by box.hostserv.net with local (Exim 4.98)
+	id 1t2XyZ-00Ab3C-0q
+	for anna@northwind-studio.com; Tue, 20 Oct 2026 09:12:44 +0100
+X-Failed-Recipients: info@kingsroad-joinery.co.uk
+Auto-Submitted: auto-replied
+From: Mail Delivery System <Mailer-Daemon@box.hostserv.net>
+To: anna@northwind-studio.com
+Content-Type: text/plain; charset=utf-8
+Subject: Mail delivery failed: returning message to sender
+Message-Id: <E1t2XyZ-00Ab3C-0q@box.hostserv.net>
+Date: Tue, 20 Oct 2026 09:12:44 +0100
+
+This message was created automatically by mail delivery software.
+
+A message that you sent could not be delivered to one or more of its
+recipients. This is a permanent error. The following address(es) failed:
+
+  info@kingsroad-joinery.co.uk
+    host mx.kingsroad-joinery.co.uk [92.204.11.8]
+    SMTP error from remote mail server after RCPT TO:<info@kingsroad-joinery.co.uk>:
+    550 5.1.1 <info@kingsroad-joinery.co.uk>: Recipient address rejected: User unknown
+
+------ This is a copy of the message, including all the headers. ------
+
+Return-path: <anna@northwind-studio.com>
+Message-ID: <5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9@northwind-studio.com>
+From: Anna Berg <anna@northwind-studio.com>
+To: info@kingsroad-joinery.co.uk
+Subject: Your kitchen gallery
+
+Hi,
+
+Found the kitchen gallery on kingsroad-joinery.co.uk.

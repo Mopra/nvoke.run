@@ -1,0 +1,32 @@
+From: postmaster@outlook.com
+To: anna@northwind-studio.com
+Date: Tue, 20 Oct 2026 11:02:10 +0000
+Subject: Undeliverable: Quick question about your intake form
+Content-Type: multipart/report; report-type=delivery-status; boundary="8e7d6c5b-aaaa-4bbb-8ccc-0d1e2f3a4b5c"
+MIME-Version: 1.0
+Message-ID: <0f9e8d7c-1234-4a5b-9c8d-7e6f5a4b3c2d@DM6PR11MB4321.namprd11.prod.outlook.com>
+
+--8e7d6c5b-aaaa-4bbb-8ccc-0d1e2f3a4b5c
+Content-Type: text/plain; charset="us-ascii"
+
+Delivery has failed to these recipients or groups:
+
+m.ortega@clinicasol.es
+The recipient's mailbox is full and can't accept messages now. Please try resending your message later, or contact the recipient directly.
+
+Diagnostic information for administrators:
+
+Generating server: DM6PR11MB4321.namprd11.prod.outlook.com
+Remote Server returned '452 4.2.2 STOREDRV.Deliver; mailbox full'
+
+--8e7d6c5b-aaaa-4bbb-8ccc-0d1e2f3a4b5c
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns;DM6PR11MB4321.namprd11.prod.outlook.com
+
+Final-Recipient: rfc822;m.ortega@clinicasol.es
+Action: delayed
+Status: 4.2.2
+Diagnostic-Code: smtp;452 4.2.2 STOREDRV.Deliver; mailbox full
+
+--8e7d6c5b-aaaa-4bbb-8ccc-0d1e2f3a4b5c--

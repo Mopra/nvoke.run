@@ -1,0 +1,75 @@
+Delivered-To: anna@northwind-studio.com
+Received: by 2002:a05:6a10:8f0c:b0:5d1:2c4e:9a1b with SMTP id x12csp2338791pxh;
+        Tue, 20 Oct 2026 02:14:07 -0700 (PDT)
+Return-Path: <>
+From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
+To: anna@northwind-studio.com
+Auto-Submitted: auto-replied
+Subject: Delivery Status Notification (Failure)
+References: <0b6f2c1e-6a43-4c1e-9d0e-6e3f8b7a1c55@northwind-studio.com>
+In-Reply-To: <0b6f2c1e-6a43-4c1e-9d0e-6e3f8b7a1c55@northwind-studio.com>
+X-Failed-Recipients: jonas@brightsmile-dental.co.uk
+Message-ID: <6716a9ef.050a0220.3d11b0.0d3eGMR@mx.google.com>
+Date: Tue, 20 Oct 2026 02:14:07 -0700 (PDT)
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="000000000000a1b2c3d4e5f60718"; report-type=delivery-status
+
+--000000000000a1b2c3d4e5f60718
+Content-Type: multipart/related; boundary="000000000000a1b2c3d4e5f60719"
+
+--000000000000a1b2c3d4e5f60719
+Content-Type: multipart/alternative; boundary="000000000000a1b2c3d4e5f6071a"
+
+--000000000000a1b2c3d4e5f6071a
+Content-Type: text/plain; charset="UTF-8"
+
+
+** Address not found **
+
+Your message wasn't delivered to jonas@brightsmile-dental.co.uk because the address couldn't be found, or is unable to receive mail.
+
+Learn more here: https://support.google.com/mail/?p=NoSuchUser
+
+The response was:
+
+The email account that you tried to reach does not exist. Please try double-checking the recipient's email address for typos or unnecessary spaces. For more information, go to https://support.google.com/mail/?p=NoSuchUser 5b1f17b1804b1-43159ad1e2fsi4471205e9.88 - gsmtp
+
+--000000000000a1b2c3d4e5f6071a
+Content-Type: text/html; charset="UTF-8"
+
+<html><body><h2>Address not found</h2><p>Your message wasn't delivered to <a>jonas@brightsmile-dental.co.uk</a>.</p></body></html>
+
+--000000000000a1b2c3d4e5f6071a--
+--000000000000a1b2c3d4e5f60719--
+--000000000000a1b2c3d4e5f60718
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; googlemail.com
+Received-From-MTA: dns; anna@northwind-studio.com
+Arrival-Date: Tue, 20 Oct 2026 02:14:05 -0700 (PDT)
+X-Original-Message-ID: <0b6f2c1e-6a43-4c1e-9d0e-6e3f8b7a1c55@northwind-studio.com>
+
+Final-Recipient: rfc822; jonas@brightsmile-dental.co.uk
+Action: failed
+Status: 5.1.1
+Remote-MTA: dns; aspmx.l.google.com. (2a00:1450:400c:c0b::1b, the server for the domain brightsmile-dental.co.uk.)
+Diagnostic-Code: smtp; 550-5.1.1 The email account that you tried to reach does not exist. Please try
+ 550-5.1.1 double-checking the recipient's email address for typos or
+ 550-5.1.1 unnecessary spaces. For more information, go to
+ 550 5.1.1  https://support.google.com/mail/?p=NoSuchUser 5b1f17b1804b1-43159ad1e2fsi4471205e9.88 - gsmtp
+Last-Attempt-Date: Tue, 20 Oct 2026 02:14:07 -0700 (PDT)
+
+--000000000000a1b2c3d4e5f60718
+Content-Type: message/rfc822
+
+Return-Path: <anna@northwind-studio.com>
+Message-ID: <0b6f2c1e-6a43-4c1e-9d0e-6e3f8b7a1c55@northwind-studio.com>
+From: Anna Berg <anna@northwind-studio.com>
+To: jonas@brightsmile-dental.co.uk
+Subject: Your new patient page
+
+Hi Jonas,
+
+Saw the new patient page on brightsmile-dental.co.uk.
+
+--000000000000a1b2c3d4e5f60718--

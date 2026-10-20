@@ -1,0 +1,65 @@
+Return-Path: <>
+Received: by mail.northwind-studio.com (Postfix)
+	id 4XKz2b0Qm1z9sRk; Tue, 20 Oct 2026 10:05:31 +0200 (CEST)
+Date: Tue, 20 Oct 2026 10:05:31 +0200 (CEST)
+From: MAILER-DAEMON@mail.northwind-studio.com (Mail Delivery System)
+Subject: Undelivered Mail Returned to Sender
+To: anna@northwind-studio.com
+Auto-Submitted: auto-replied
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status;
+	boundary="4XKz2b0Qm1z9sRk.1729411531/mail.northwind-studio.com"
+Content-Transfer-Encoding: 8bit
+Message-Id: <20261020080531.4XKz2b0Qm1z9sRk@mail.northwind-studio.com>
+
+This is a MIME-encapsulated message.
+
+--4XKz2b0Qm1z9sRk.1729411531/mail.northwind-studio.com
+Content-Description: Notification
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+This is the mail system at host mail.northwind-studio.com.
+
+I'm sorry to have to inform you that your message could not
+be delivered to one or more recipients. It's attached below.
+
+For further assistance, please send mail to postmaster.
+
+If you do so, please include this problem report. You can
+delete your own text from the attached returned message.
+
+                   The mail system
+
+<p.duval@atelier-lumiere.fr>: host mx1.atelier-lumiere.fr[51.91.12.40] said:
+    550 5.1.1 <p.duval@atelier-lumiere.fr>: Recipient address rejected: User
+    unknown in virtual mailbox table (in reply to RCPT TO command)
+
+--4XKz2b0Qm1z9sRk.1729411531/mail.northwind-studio.com
+Content-Description: Delivery report
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mail.northwind-studio.com
+X-Postfix-Queue-ID: 4XKz2b0Qm1z9sRk
+X-Postfix-Sender: rfc822; anna@northwind-studio.com
+Arrival-Date: Tue, 20 Oct 2026 10:05:29 +0200 (CEST)
+
+Final-Recipient: rfc822; p.duval@atelier-lumiere.fr
+Original-Recipient: rfc822;p.duval@atelier-lumiere.fr
+Action: failed
+Status: 5.1.1
+Remote-MTA: dns; mx1.atelier-lumiere.fr
+Diagnostic-Code: smtp; 550 5.1.1 <p.duval@atelier-lumiere.fr>: Recipient
+    address rejected: User unknown in virtual mailbox table
+
+--4XKz2b0Qm1z9sRk.1729411531/mail.northwind-studio.com
+Content-Description: Undelivered Message Headers
+Content-Type: text/rfc822-headers
+Content-Transfer-Encoding: 8bit
+
+Message-ID: <3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f@northwind-studio.com>
+From: Anna Berg <anna@northwind-studio.com>
+To: p.duval@atelier-lumiere.fr
+Subject: Votre page tarifs
+
+--4XKz2b0Qm1z9sRk.1729411531/mail.northwind-studio.com--

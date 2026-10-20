@@ -1,0 +1,19 @@
+Return-path: <>
+From: Mail Delivery System <Mailer-Daemon@cpanel42.webhosting.example>
+To: anna@northwind-studio.com
+Subject: Mail delivery failed: returning message to sender
+Content-Type: text/plain; charset=us-ascii
+Message-Id: <E1t2Ycd-0007xQ-3v@cpanel42.webhosting.example>
+Date: Tue, 20 Oct 2026 14:30:01 +0000
+
+This message was created automatically by mail delivery software.
+
+A message that you sent could not be delivered to one or more of its
+recipients. This is a permanent error. The following address(es) failed:
+
+  hello@oldbrand-studio.com
+    Unrouteable address
+
+------ This is a copy of the message, including all the headers. ------
+
+Subject: A thought on your portfolio
