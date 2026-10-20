@@ -4,7 +4,7 @@ import { ONGOING_POLL_MS, POLL_MS } from './quota';
 
 /**
  * Openers per company: one drafted first line from the company's own site,
- * for copying into the user's own outreach, and context for a campaign's first email.
+ * for copying into the user's own outreach. nvoke never sends.
  */
 
 /** Openers are only drafted for companies with at least one valid email. */

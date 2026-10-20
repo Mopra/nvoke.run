@@ -279,8 +279,8 @@ export type Email = z.infer<typeof Email>;
 /**
  * A drafted opener: `queued` while Claude writes it, `done` with a line,
  * `none` when the company's pages hold no fact to build on (or were never
- * read), `failed` when Claude could not answer. For copy and export, and
- * as context when a campaign writes the first email.
+ * read), `failed` when Claude could not answer. Copy and export only:
+ * nvoke never sends.
  */
 export const OpenerStatus = z.enum(['queued', 'done', 'none', 'failed']);
 export type OpenerStatus = z.infer<typeof OpenerStatus>;

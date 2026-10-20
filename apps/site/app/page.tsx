@@ -19,11 +19,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'May I send marketing email to these addresses?',
-    a: 'Check the rules in the recipient’s country first. Under the EU ePrivacy rules, many countries require prior consent for marketing email, including to businesses, info@ addresses and employees. nvoke does not give you permission to email anyone. Whether you send from nvoke or your own tool, you are the sender and it is on you.',
-  },
-  {
-    q: 'Does nvoke send the emails?',
-    a: 'If you want it to. Connect your own mailbox, start a campaign once, and nvoke writes each email, sends it from your mailbox in the recipient’s working hours and stops on a reply. Plain text, no tracking, 30 a day per mailbox. Never to Denmark or Germany, where B2B email needs consent. Or export the CSV and send it yourself.',
+    a: 'Check the rules in the recipient’s country first. Under the EU ePrivacy rules, many countries require prior consent for marketing email, including to businesses, info@ addresses and employees. nvoke is a research tool. It does not give you permission to email anyone. What you do with the results is on you.',
   },
   {
     q: 'What counts toward my monthly limit?',

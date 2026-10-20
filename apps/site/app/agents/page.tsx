@@ -55,7 +55,7 @@ const DOORS: Door[] = [
 const HUMAN = [
   { title: 'Claim it', body: `One click from our email, within ${UNCLAIMED_ACTIVE_DAYS} days.` },
   { title: 'Pay for it', body: `${freeEmails} verified emails a month free. More is a checkout in your browser.` },
-  { title: 'Hit send', body: 'Your agent drafts campaigns. A person starts them in the web app. No agent sends mail on its own.' },
+  { title: 'Hit send', body: 'nvoke never sends email. Your agent should not bulk mail either.' },
 ];
 
 export default function AgentsPage() {

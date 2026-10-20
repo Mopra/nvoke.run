@@ -23,7 +23,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      updated="20 October 2026"
+      updated="16 October 2026"
     >
       <section>
         <h2>Who we are</h2>
@@ -31,10 +31,7 @@ export default function PrivacyPage() {
           nvoke is made by <CompanyLine /> (“we”), the data controller for the personal data described here.
           Questions about this policy or your data: write to {mail}.
         </p>
-        <p>
-          nvoke finds business leads and, when a customer asks, emails them from the customer’s own mailbox. It handles
-          personal data about two groups of people:
-        </p>
+        <p>nvoke is a prospecting research tool. It handles personal data about two groups of people:</p>
         <ul>
           <li>
             <strong>Customers</strong>, who use the nvoke app. See <a href="#customers">part A</a>.
@@ -143,10 +140,7 @@ export default function PrivacyPage() {
           <li>we never log in, fill in forms or get around CAPTCHAs or other access limits;</li>
           <li>an address that identifies a person is never shared between customers (see below);</li>
           <li>we delete data on a fixed schedule, and nothing is kept just because it was searched again;</li>
-          <li>
-            we never email you on our own account because we found you. A customer may email you from its own mailbox
-            through nvoke (see below), and that email says where your address came from and how to stop;
-          </li>
+          <li>we never send email to the addresses we find;</li>
           <li>you can opt out at once, without an account, and we never collect your address again.</li>
         </ul>
         <p>You can ask us for a summary of this assessment.</p>
@@ -170,23 +164,6 @@ export default function PrivacyPage() {
           behalf.
         </p>
 
-        <h3>Emails a customer sends you through nvoke</h3>
-        <p>
-          A customer can connect its own mailbox and run a campaign. nvoke then writes a short email to you with Claude
-          (an AI model by Anthropic, reached through OpenRouter), from the customer’s website and your company’s public
-          pages, and sends it from the customer’s mailbox, in the customer’s name. The customer is the sender and
-          decides who is emailed; we act on its instructions as its processor. We read the replies in that mailbox only
-          to stop the emails when you answer, bounce or opt out.
-        </p>
-        <ul>
-          <li>We never send to recipients in Denmark or Germany, and only to addresses we have checked.</li>
-          <li>Every email says where your address was found and how to stop. Plain text, no tracking pixels or links.</li>
-          <li>
-            Reply “stop” or use the unsubscribe link your mail app shows, and that sender never emails you through
-            nvoke again. The <Link href="/opt-out">opt-out page</Link> stops every sender at once.
-          </li>
-        </ul>
-
         <h3>How long we keep it</h3>
         <ul>
           <li>
@@ -206,10 +183,6 @@ export default function PrivacyPage() {
           <li>
             Opt-outs: kept for good, but only as a one-way hash of the address or domain, so we can recognise it and
             never collect it again.
-          </li>
-          <li>
-            Emails sent through nvoke: the text 30 days after the campaign ends, the record that an email was sent 24
-            months, your reply 12 months.
           </li>
         </ul>
 
@@ -236,11 +209,6 @@ export default function PrivacyPage() {
           <li>Vercel, for hosting this website.</li>
           <li>Google, for website analytics, only if you accept analytics cookies.</li>
           <li>Brave Search API, which receives the search keywords customers enter.</li>
-          <li>
-            OpenRouter and Anthropic, which receive company page text and the names and titles companies publish, to
-            write openers and campaign emails.
-          </li>
-          <li>The customer’s own mail provider, which delivers the emails a customer sends through nvoke.</li>
           <li>
             OpenStreetMap Nominatim and the public Overpass servers (overpass-api.de, with overpass.private.coffee as a
             fallback), which receive the place and type of business searched for.

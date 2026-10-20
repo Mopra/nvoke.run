@@ -13,7 +13,21 @@ Four steps, each shippable on its own:
 
 Every step lists what it builds, where the code goes and when it is done.
 
-## Owner decisions, 2026-10-20
+## Internal only (owner, 2026-10-20, final)
+
+Sending is not a customer feature. nvoke is a scraper and verifier for
+customers; the code below runs only for nvoke's own account, so nvoke can
+market itself on autopilot. `SENDING_USERS` (Clerk user ids) is the
+allowlist: every other account gets 404 on the sending routes and the
+worker never enrolls, sends or polls for them. Sending is left out of the
+catalog, OpenAPI, MCP, `/docs`, `llms.txt`, `agents.md`, marketing and the
+desktop; the web app shows its screens only to allowlisted accounts. The
+legal docs keep "nvoke never sends email for customers"; nvoke's own
+outreach is recorded as its own processing (`docs/legal/ropa.md`,
+Activity 3). Customers send through their own tool (CSV, webhooks, a later
+push to Instantly or Smartlead). Steps 2 to 4 below are shelved.
+
+## Owner decisions, 2026-10-20 (earlier the same day)
 
 - **First goal: nvoke sells nvoke.** Ongoing searches and drops find
   nvoke's customers, an autopilot campaign writes and sends to them.
