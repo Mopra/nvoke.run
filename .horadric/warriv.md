@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Round after the studio teaser checks landed: no fix commits, so main green at 579fe66. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
 - 2026-10-20 Round as the human left: the human committed the studio teaser 579fe66 (apps/video, new dep, lockfile) past green 5b93702, so filed 'Checks on main after the studio teaser cut' (sonnet, no build since video is not in it). No aim.
 - 2026-10-20 Round after the WCAG checks landed: main green at 5b93702 (the human's plan cap test fixes 3f63e7d, 5b93702 and film --dark f596d61 included). Dirty files are the human's apps/video work. Log dry, no aim; nothing to file, shipping is the human's. Compacted memory.
 - 2026-10-20 Hourly round: the human committed site WCAG contrast (d2fe576, bbf9a2e) past green cc48271, so filed 'Checks on main after the site WCAG contrast pass' (sonnet, with build). Also saw a sending research and plan (docs/research/sending.md, docs/sending/plan.md) that turns the 2026-10-17 never-send decision; no aim, so nothing filed for it.
@@ -42,8 +43,8 @@
 - Sending plan written by the human (e3af056, docs/sending/plan.md steps 1 to 4) reverses 'nvoke never sends'. Wait for an Aim before filing any sending quests.
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
-- Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 50 quests landed since the last ship; shipping is the human's.
-- Main green at 5b93702 (2026-10-20, after the site WCAG contrast pass and plan cap tests). Checks for 579fe66 (studio teaser) filed; see that they land.
+- Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 51 quests landed since the last ship; shipping is the human's.
+- Main green at 579fe66 (2026-10-20, after the studio teaser checks). File checks again when the human commits code past it.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
 - Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; live on nvoke.run since 2026-10-20.
