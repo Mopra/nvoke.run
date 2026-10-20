@@ -90,6 +90,18 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
       return { method: 'POST', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}/test` };
     case 'delete_webhook':
       return { method: 'DELETE', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}` };
+    case 'list_mailboxes':
+      return { method: 'GET', url: '/v1/mailboxes' };
+    case 'list_campaigns':
+      return { method: 'GET', url: '/v1/campaigns' };
+    case 'get_campaign':
+      return { method: 'GET', url: `/v1/campaigns/${encodeURIComponent(String(a['campaignId'] ?? ''))}` };
+    case 'create_campaign': {
+      const fields = ['name', 'source', 'searchId', 'dropId', 'emailIds', 'steps', 'mailboxIds', 'schedule', 'peopleOnly', 'allowCatchAll', 'perCompany', 'dailyNew', 'holdHours'];
+      return { method: 'POST', url: '/v1/campaigns', body: Object.fromEntries(fields.map((f) => [f, a[f]])) };
+    }
+    case 'list_replies':
+      return { method: 'GET', url: `/v1/replies${qs({ unread: a['unread'], cursor: a['cursor'], limit: a['limit'] })}` };
     default:
       throw new Error(`unknown tool ${name}`);
   }

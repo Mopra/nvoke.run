@@ -30,6 +30,11 @@ import type { Resolve } from '../webhooks/address.js';
 import { httpSender, type WebhookSender } from '../webhooks/send.js';
 import { createAiFromEnv, type Ai } from '../ai/client.js';
 import { siteProfileRoutes, siteShotRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
+import { sendingRoutes } from './routes/sending.js';
+import { unsubscribeRoutes } from './routes/unsubscribe.js';
+import { createSecrets, type Secrets } from '../crypto/secrets.js';
+import { smtpImapTransport } from '../sending/mailbox-transport.js';
+import type { TransportFactory } from '../sending/types.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
 export interface AppDeps {
@@ -55,12 +60,16 @@ export interface AppDeps {
   ai?: Ai;
   /** Reads the user's website for the site profile. Tests swap in a fake. */
   readSite?: SiteProfileRoutesOptions['read'];
+  /** Seals mailbox passwords and signs unsubscribe links. Null switches sending off. */
+  secrets?: Secrets | null;
+  /** SMTP and IMAP. Tests pass the fake transport. */
+  mailTransport?: TransportFactory;
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve' | 'tools' | 'ai' | 'readSite'> = {
+  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve' | 'tools' | 'ai' | 'readSite' | 'secrets' | 'mailTransport'> = {
     getSql,
     store: overrides.store ?? postgresStore(getSql),
     verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
@@ -167,6 +176,18 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     read: overrides.readSite,
     resolve: overrides.webhookResolve,
   });
+  const secrets = overrides.secrets !== undefined ? overrides.secrets : env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null;
+  await app.register(sendingRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    secrets,
+    enabled: env.SENDING_ENABLED,
+    transport: overrides.mailTransport ?? smtpImapTransport,
+    log: app.log as unknown as Logger,
+  });
+  // Public, no auth: the unsubscribe link in every sent email.
+  await app.register(unsubscribeRoutes, { getSql, secrets });
   // Public, no auth: the screenshot on a site profile, in an <img>.
   await app.register(siteShotRoutes, { getSql });
   // Public, no auth: the site's opt-out page calls it from the browser.

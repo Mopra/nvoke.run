@@ -317,3 +317,18 @@ export type CampaignLeadParams = z.infer<typeof CampaignLeadParams>;
 
 export const CampaignStepParams = z.object({ id: z.uuid(), leadId: z.uuid(), step: z.coerce.number().int().min(1).max(MAX_STEPS) });
 export type CampaignStepParams = z.infer<typeof CampaignStepParams>;
+
+export const CampaignLeadsQuery = z.object({
+  status: CampaignLeadStatus.optional(),
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type CampaignLeadsQuery = z.infer<typeof CampaignLeadsQuery>;
+
+export const ReplyListQuery = z.object({
+  /** `true`: only replies nobody opened yet. */
+  unread: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type ReplyListQuery = z.infer<typeof ReplyListQuery>;
