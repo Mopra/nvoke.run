@@ -24,7 +24,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.sql`truncate accounts, suppressions, email_checks cascade`;
   fake = createFakeTransport();
-  deps = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, publicApiUrl: 'https://api.nvoke.test/', enabled: true };
+  deps = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, publicApiUrl: 'https://api.nvoke.test/', enabled: true, users: ['u1'] };
 });
 
 async function lead(id: string) {
@@ -168,6 +168,18 @@ describe('sendTick', () => {
     await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
     expect((await sendTick({ ...deps, enabled: false }, NOW)).sent).toBe(0);
     expect(fake.sent).toHaveLength(0);
+  });
+
+  it('sends only for SENDING_USERS, and nothing with nobody in it', async () => {
+    const theirs = await seedMailbox(db.sql, secrets, { userId: 'u2', address: 'them@other.io' });
+    const c2 = await seedCampaign(db.sql, [theirs], { userId: 'u2' });
+    await seedLead(db.sql, c2, theirs, { address: 'jo@client.io', userId: 'u2' });
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
+    expect((await sendTick({ ...deps, users: [] }, NOW)).sent).toBe(0);
+    expect(await sendTick(deps, NOW)).toMatchObject({ sent: 1, skipped: 0 });
+    expect(fake.sent.map((m) => m.to)).toEqual(['jane@acme.co.uk']);
   });
 
   it('claims the lead and writes its messages row before SMTP runs', async () => {

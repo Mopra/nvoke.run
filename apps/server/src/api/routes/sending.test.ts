@@ -26,6 +26,8 @@ let app: FastifyInstance;
 let off: FastifyInstance;
 const fake = createFakeTransport();
 const secrets = createSecrets(randomBytes(32).toString('base64'));
+/** Alice and Bob may send; Carol is any other account. */
+const SENDING_USERS = ['alice', 'bob'];
 
 /** x-test-user is the user, x-test-via how they signed in (an API key unless told). */
 const authenticate = async (req: FastifyRequest) => {
@@ -39,10 +41,10 @@ const authenticate = async (req: FastifyRequest) => {
 beforeAll(async () => {
   db = await createTestDb();
   app = Fastify();
-  await app.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets, enabled: true, transport: fake.factory, log: silentLog });
+  await app.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets, enabled: true, transport: fake.factory, log: silentLog, users: SENDING_USERS });
   await app.ready();
   off = Fastify();
-  await off.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets: null, enabled: true, transport: fake.factory, log: silentLog });
+  await off.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets: null, enabled: true, transport: fake.factory, log: silentLog, users: SENDING_USERS });
   await off.ready();
 });
 
@@ -56,6 +58,7 @@ beforeEach(async () => {
   await db.sql`truncate accounts cascade`;
   await ensureAccount(db.sql, 'alice');
   await ensureAccount(db.sql, 'bob');
+  await ensureAccount(db.sql, 'carol');
   fake.checkResult = { ok: true };
 });
 
@@ -112,6 +115,45 @@ async function lead(campaignId: string, mailboxId: string, user = 'alice') {
 }
 
 describe('sending routes', () => {
+  it('404s every route for an account outside SENDING_USERS, as if none existed', async () => {
+    const { campaign: c, mailbox } = await campaign();
+    const leadId = await lead(c.id, mailbox.id);
+    const routes: [string, string][] = [
+      ['GET', '/v1/sending'],
+      ['GET', '/v1/mailboxes'],
+      ['POST', '/v1/mailboxes'],
+      ['PATCH', `/v1/mailboxes/${mailbox.id}`],
+      ['DELETE', `/v1/mailboxes/${mailbox.id}`],
+      ['POST', `/v1/mailboxes/${mailbox.id}/check`],
+      ['GET', '/v1/campaigns'],
+      ['POST', '/v1/campaigns'],
+      ['GET', `/v1/campaigns/${c.id}`],
+      ['PATCH', `/v1/campaigns/${c.id}`],
+      ['DELETE', `/v1/campaigns/${c.id}`],
+      ['POST', `/v1/campaigns/${c.id}/start`],
+      ['POST', `/v1/campaigns/${c.id}/pause`],
+      ['POST', `/v1/campaigns/${c.id}/resume`],
+      ['GET', `/v1/campaigns/${c.id}/leads`],
+      ['GET', `/v1/campaigns/${c.id}/leads/${leadId}`],
+      ['PATCH', `/v1/campaigns/${c.id}/leads/${leadId}/steps/1`],
+      ['POST', `/v1/campaigns/${c.id}/leads/${leadId}/stop`],
+      ['GET', '/v1/replies'],
+      ['POST', `/v1/replies/${leadId}/read`],
+    ];
+    for (const server of [app, off]) {
+      for (const [method, url] of routes) {
+        for (const via of ['api_key', 'clerk'] as const) {
+          const res = await server.inject({ method: method as 'GET', url, headers: as('carol', via), payload: method === 'GET' || method === 'DELETE' ? undefined : {} });
+          expect(res.statusCode, `${method} ${url}`).toBe(404);
+          expect(res.json()).toEqual({ error: 'not_found' });
+        }
+      }
+    }
+    // Nothing of Alice's moved.
+    expect(Campaign.parse((await app.inject({ method: 'GET', url: `/v1/campaigns/${c.id}`, headers: as('alice') })).json()).status).toBe(c.status);
+    expect(MailboxListResponse.parse((await app.inject({ method: 'GET', url: '/v1/mailboxes', headers: as('alice') })).json()).mailboxes).toHaveLength(1);
+  });
+
   it('401s without a user and 503s without SECRETS_KEY, the summary aside', async () => {
     expect((await app.inject({ method: 'GET', url: '/v1/mailboxes' })).statusCode).toBe(401);
     const res = await off.inject({ method: 'GET', url: '/v1/campaigns', headers: as('alice') });

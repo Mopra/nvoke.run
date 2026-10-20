@@ -21,6 +21,8 @@ export interface PollDeps {
   log: Logger;
   /** SENDING_ENABLED: false reads nothing. */
   enabled: boolean;
+  /** SENDING_USERS: only their mailboxes are read. Empty reads nothing. */
+  users: readonly string[];
 }
 
 export interface PollTickResult {
@@ -42,7 +44,7 @@ type Db = Sql | TransactionSql;
 
 export async function pollTick(deps: PollDeps, now: Date = new Date()): Promise<PollTickResult> {
   const result: PollTickResult = { mailboxes: 0, replies: 0, optOuts: 0, bounces: 0, autoReplies: 0, ignored: 0 };
-  if (!deps.enabled) return result;
+  if (!deps.enabled || deps.users.length === 0) return result;
   const { sql } = deps;
 
   // Claimed by moving last_poll_at, so another worker's tick skips them.
@@ -50,7 +52,7 @@ export async function pollTick(deps: PollDeps, now: Date = new Date()): Promise<
     update mailboxes set last_poll_at = ${now}
     where id in (
       select id from mailboxes
-      where status = 'active' and (last_poll_at is null or last_poll_at <= ${new Date(now.getTime() - POLL_INTERVAL_MS)})
+      where status = 'active' and clerk_user_id in ${sql(deps.users)} and (last_poll_at is null or last_poll_at <= ${new Date(now.getTime() - POLL_INTERVAL_MS)})
       order by last_poll_at nulls first
       limit ${POLL_BATCH}
       for update skip locked

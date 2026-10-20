@@ -227,15 +227,24 @@ describe('autopilot', () => {
     await email(s, b, 'bea@beta.com');
     await email(s, b, 'ben@beta.com', { verification: null });
     // Too soon after the last look.
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 2 * MIN))).toBe(0);
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 6 * MIN))).toBe(1);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 2 * MIN))).toBe(0);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(1);
     expect((await leads(campaign.id)).map((r) => r.address)).toEqual(['anna@alpha.com', 'bea@beta.com']);
 
     // Ben's check finishes; beta.com already has its one lead.
     await db.sql`update emails set verification = 'valid' where address = 'ben@beta.com'`;
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 12 * MIN))).toBe(0);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 12 * MIN))).toBe(0);
     expect((await leads(campaign.id)).find((r) => r.address === 'ben@beta.com')?.skip_reason).toBe('per_company');
     expect(await db.sql`select 1 from jobs where type = 'write'`).toHaveLength(2);
+  });
+
+  it('enrolls only for SENDING_USERS, and nothing with nobody in it', async () => {
+    const s = await search();
+    await started({ source: 'search', searchId: s });
+    await email(s, await company(s, 'alpha.com'), 'anna@alpha.com');
+    expect(await enrollTick(db.sql, silentLog, [], new Date(NOW.getTime() + 6 * MIN))).toBe(0);
+    expect(await enrollTick(db.sql, silentLog, ['u2'], new Date(NOW.getTime() + 6 * MIN))).toBe(0);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(1);
   });
 
   it('enrolls nothing while paused', async () => {
@@ -243,7 +252,7 @@ describe('autopilot', () => {
     const campaign = await started({ source: 'search', searchId: s });
     await db.sql`update campaigns set status = 'paused' where id = ${campaign.id}`;
     await email(s, await company(s, 'alpha.com'), 'anna@alpha.com');
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 10 * MIN))).toBe(0);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 10 * MIN))).toBe(0);
   });
 
   it('follows a drop: every search it makes after the campaign is created', async () => {
@@ -259,7 +268,7 @@ describe('autopilot', () => {
 
     const fresh = await search({ dropId: d!.id, createdAt: new Date(NOW.getTime() + 3 * MIN) });
     await email(fresh, await company(fresh, 'new.com'), 'nina@new.com');
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 6 * MIN))).toBe(1);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(1);
     expect((await leads(campaign.id)).map((r) => r.address)).toEqual(['nina@new.com']);
   });
 
@@ -268,11 +277,11 @@ describe('autopilot', () => {
     const campaign = await started({ source: 'search', searchId: s, dailyNew: 2 });
     for (const x of ['a', 'b', 'c']) await email(s, await company(s, `${x}.com`), `x@${x}.com`);
 
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 6 * MIN))).toBe(2);
-    expect(await enrollTick(db.sql, silentLog, new Date(NOW.getTime() + 12 * MIN))).toBe(0);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(2);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 12 * MIN))).toBe(0);
     // The one held back is not marked skipped, so the next day takes it.
     expect(await leads(campaign.id)).toHaveLength(2);
-    expect(await enrollTick(db.sql, silentLog, new Date(Date.UTC(2026, 9, 20, 0, 1)))).toBe(1);
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(Date.UTC(2026, 9, 20, 0, 1)))).toBe(1);
   });
 
   it('a new autopilot campaign with nothing yet goes straight to review', async () => {

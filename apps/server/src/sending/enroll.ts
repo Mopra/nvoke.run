@@ -229,15 +229,18 @@ export async function queueWrites(tx: Db, campaignId: string, leadIds: string[])
 }
 
 /**
- * The worker's enroll tick: every started autopilot campaign whose source
- * was last looked at ENROLL_EVERY_MS ago or longer. A paused, done or
- * canceled campaign enrolls nothing. Returns how many leads came in.
+ * The worker's enroll tick: every started autopilot campaign of the users
+ * allowed to send (SENDING_USERS) whose source was last looked at
+ * ENROLL_EVERY_MS ago or longer. A paused, done or canceled campaign enrolls
+ * nothing, and with no allowed user nothing does. Returns how many leads came in.
  */
-export async function enrollTick(sql: Sql, log: Logger, now: Date = new Date()): Promise<number> {
+export async function enrollTick(sql: Sql, log: Logger, users: readonly string[], now: Date = new Date()): Promise<number> {
+  if (users.length === 0) return 0;
   const before = new Date(now.getTime() - ENROLL_EVERY_MS);
   const due = await sql<{ id: string }[]>`
     select id from campaigns
     where autopilot and status in ('scheduled', 'sending') and (enrolled_at is null or enrolled_at <= ${before})
+      and clerk_user_id in ${sql(users)}
     order by enrolled_at nulls first
     limit 50
   `;
@@ -247,7 +250,7 @@ export async function enrollTick(sql: Sql, log: Logger, now: Date = new Date()):
       const res = await sql.begin(async (tx) => {
         const [c] = await tx<CampaignRow[]>`
           select ${tx.unsafe(CAMPAIGN_COLUMNS)} from campaigns c
-          where c.id = ${id} and c.autopilot and c.status in ('scheduled', 'sending')
+          where c.id = ${id} and c.autopilot and c.status in ('scheduled', 'sending') and c.clerk_user_id in ${tx(users)}
             and (c.enrolled_at is null or c.enrolled_at <= ${before})
           for update skip locked
         `;

@@ -15,6 +15,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 import type { CampaignStep, SiteProfileFields } from '@nvoke/shared';
 import { AiError, type Ai } from '../ai/client.js';
+import { loadEnv } from '../env.js';
 import { domainPages } from '../leads/domain-cache.js';
 import type { SitePage } from '../leads/page-text.js';
 import { getSiteProfile } from '../profile/site-profile.js';
@@ -214,6 +215,8 @@ export interface WriteDeps {
   ai: Ai;
   log: Logger;
   now?: () => Date;
+  /** SENDING_USERS: only their campaigns are written. Read from the environment when left out. */
+  users?: readonly string[];
 }
 
 /** The payload of a write job, defensively read. */
@@ -260,11 +263,16 @@ async function settleCampaign(sql: Sql, campaignId: string): Promise<void> {
   `;
 }
 
-/** The write job: two Claude calls for up to WRITE_BATCH leads of one campaign. */
+/**
+ * The write job: two Claude calls for up to WRITE_BATCH leads of one
+ * campaign. A campaign of a user outside SENDING_USERS is left as it is.
+ */
 export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promise<void> {
   const { sql } = deps;
-  if (!payload.campaignId || payload.leadIds.length === 0) return;
-  const [campaign] = await sql<CampaignRow[]>`select ${sql.unsafe(CAMPAIGN_COLUMNS)} from campaigns c where c.id = ${payload.campaignId}`;
+  const users = deps.users ?? loadEnv().SENDING_USERS;
+  if (!payload.campaignId || payload.leadIds.length === 0 || users.length === 0) return;
+  const [campaign] = await sql<CampaignRow[]>`
+    select ${sql.unsafe(CAMPAIGN_COLUMNS)} from campaigns c where c.id = ${payload.campaignId} and c.clerk_user_id in ${sql(users)}`;
   if (!campaign) return;
   const rows = await sql<LeadRow[]>`
     select l.id, l.first_name, l.last_name, l.title, l.company_name, l.domain, l.timezone,

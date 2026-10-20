@@ -24,8 +24,8 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.sql`truncate accounts, suppressions, email_checks cascade`;
   fake = createFakeTransport();
-  send = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, publicApiUrl: 'https://api.nvoke.test', enabled: true };
-  poll = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, enabled: true };
+  send = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, publicApiUrl: 'https://api.nvoke.test', enabled: true, users: ['u1'] };
+  poll = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, enabled: true, users: ['u1'] };
 });
 
 let uid = 0;
@@ -154,6 +154,13 @@ describe('pollTick', () => {
     expect(await db.sql`select 1 from messages where direction = 'in'`).toHaveLength(0);
     expect((await pollTick(poll, later(6))).mailboxes).toBe(0);
     expect((await pollTick(poll, later(9))).mailboxes).toBe(1);
+  });
+
+  it('reads only the mailboxes of SENDING_USERS', async () => {
+    await seedMailbox(db.sql, secrets, { userId: 'u2', address: 'them@other.io' });
+    expect((await pollTick({ ...poll, users: [] }, later(5))).mailboxes).toBe(0);
+    expect((await pollTick(poll, later(5))).mailboxes).toBe(0);
+    expect((await pollTick({ ...poll, users: ['u2'] }, later(5))).mailboxes).toBe(1);
   });
 
   it('reads the bare address', () => {

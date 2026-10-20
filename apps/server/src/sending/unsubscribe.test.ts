@@ -46,7 +46,7 @@ describe('unsubscribe tokens', () => {
     const mb = await seedMailbox(db.sql, secrets);
     const c = await seedCampaign(db.sql, [mb]);
     const l = await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
-    await sendTick({ sql: db.sql, secrets, transport: fake.factory, log: silentLog, publicApiUrl: 'https://api.nvoke.test', enabled: true }, new Date('2026-10-20T12:00:00Z'));
+    await sendTick({ sql: db.sql, secrets, transport: fake.factory, log: silentLog, publicApiUrl: 'https://api.nvoke.test', enabled: true, users: ['u1'] }, new Date('2026-10-20T12:00:00Z'));
     const token = /\/u\/([^>]+)>/.exec(fake.sent[0]!.headers['List-Unsubscribe']!)![1]!;
     const messageId = readUnsubscribe(secrets, token)!;
 

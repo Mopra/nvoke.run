@@ -120,9 +120,10 @@ webhookTimer.unref();
 
 // Sending: enroll new leads into autopilot campaigns, send due steps, read
 // replies. Each claims its rows with SKIP LOCKED, so several workers share
-// the work. All off without SECRETS_KEY (no mailbox password can be opened)
-// or with SENDING_ENABLED=false.
-const sendingOn = Boolean(env.SECRETS_KEY) && env.SENDING_ENABLED;
+// the work. All off without SECRETS_KEY (no mailbox password can be opened),
+// with SENDING_ENABLED=false or with nobody in SENDING_USERS. Sending is
+// internal only: each tick touches the allowed users' rows and no others.
+const sendingOn = Boolean(env.SECRETS_KEY) && env.SENDING_ENABLED && env.SENDING_USERS.length > 0;
 const sendingTimers: NodeJS.Timeout[] = [];
 // The sending ticks running now: shutdown waits for them, so a send between
 // its claim and its confirm finishes before the database closes.
@@ -135,6 +136,7 @@ if (sendingOn) {
     log: log.child({ part: 'sending' }),
     publicApiUrl: env.PUBLIC_API_URL,
     enabled: true,
+    users: env.SENDING_USERS,
     stopping: () => stopping,
   };
   const every = (name: string, ms: number, run: () => Promise<unknown>) => {
@@ -159,7 +161,7 @@ if (sendingOn) {
     timer.unref();
     sendingTimers.push(timer);
   };
-  every('enroll', ENROLL_TICK_MS, () => enrollTick(sql, sending.log));
+  every('enroll', ENROLL_TICK_MS, () => enrollTick(sql, sending.log, env.SENDING_USERS));
   every('send', SEND_TICK_MS, () => sendTick(sending));
   every('poll', POLL_TICK_MS, () => pollTick(sending));
 }

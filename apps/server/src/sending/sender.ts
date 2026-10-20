@@ -38,6 +38,8 @@ export interface SendDeps {
   publicApiUrl: string;
   /** SENDING_ENABLED: false sends nothing. */
   enabled: boolean;
+  /** SENDING_USERS: only their campaigns and mailboxes send. Empty sends nothing. */
+  users: readonly string[];
   /** True once the worker shuts down: the tick claims nothing more. */
   stopping?: () => boolean;
 }
@@ -76,16 +78,18 @@ type Outcome = keyof SendTickResult;
 
 export async function sendTick(deps: SendDeps, now: Date = new Date()): Promise<SendTickResult> {
   const result: SendTickResult = { sent: 0, bounced: 0, retried: 0, stopped: 0, skipped: 0, deferred: 0, unconfirmed: 0 };
-  if (!deps.enabled) return result;
+  if (!deps.enabled || deps.users.length === 0) return result;
   const { sql } = deps;
+  const users = sql(deps.users);
   result.unconfirmed += await expireClaims(deps, now);
 
   const isDue = sql`
     l.status in ('queued', 'active') and l.claimed_at is null and l.next_send_at <= ${now}
-    and c.status in ('scheduled', 'sending') and (c.review_until is null or c.review_until <= ${now})`;
+    and c.status in ('scheduled', 'sending') and (c.review_until is null or c.review_until <= ${now})
+    and c.clerk_user_id in ${users}`;
   const withDue = await sql<{ id: string }[]>`
     select m.id from mailboxes m
-    where m.status = 'active' and exists (
+    where m.status = 'active' and m.clerk_user_id in ${users} and exists (
       select 1 from campaign_leads l join campaigns c on c.id = l.campaign_id
       where l.mailbox_id = m.id and ${isDue})`;
   if (withDue.length === 0) return result;
@@ -139,7 +143,7 @@ async function expireClaims(deps: SendDeps, now: Date): Promise<number> {
     update campaign_leads set claimed_at = null, next_send_at = null,
       skip_reason = case when status in ('queued', 'active') then 'unconfirmed' else skip_reason end,
       status = case when status in ('queued', 'active') then 'failed' else status end
-    where claimed_at < ${new Date(now.getTime() - CLAIM_TIMEOUT_MS)}
+    where claimed_at < ${new Date(now.getTime() - CLAIM_TIMEOUT_MS)} and clerk_user_id in ${deps.sql(deps.users)}
     returning id, campaign_id, mailbox_id`;
   for (const r of rows) {
     deps.log.error({ leadId: r.id, campaignId: r.campaign_id, mailboxId: r.mailbox_id }, 'send unconfirmed: it may have gone out, so it is not sent again');
@@ -215,7 +219,7 @@ async function sendOne(deps: SendDeps, leadId: string, mailboxId: string, now: D
 async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mailboxId: string, now: Date): Promise<Claim | Outcome> {
   // The mailbox first: one claim per mailbox at a time, across workers.
   const [mailbox] = await tx<MailboxRow[]>`
-    select * from mailboxes where id = ${mailboxId} and status = 'active' for update skip locked`;
+    select * from mailboxes where id = ${mailboxId} and status = 'active' and clerk_user_id in ${tx(deps.users)} for update skip locked`;
   if (!mailbox) return 'skipped';
   if (mailbox.last_send_at && now.getTime() - mailbox.last_send_at.getTime() < MIN_GAP_MS) return 'skipped';
   const [count] = await tx<{ sent: number }[]>`
@@ -233,6 +237,7 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
     where l.id = ${leadId} and l.mailbox_id = ${mailboxId}
       and l.status in ('queued', 'active') and l.claimed_at is null and l.next_send_at <= ${now}
       and c.status in ('scheduled', 'sending') and (c.review_until is null or c.review_until <= ${now})
+      and c.clerk_user_id in ${tx(deps.users)}
     for update of l skip locked`;
   if (!lead) return 'skipped';
 

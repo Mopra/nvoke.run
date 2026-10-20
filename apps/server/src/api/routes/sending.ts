@@ -5,6 +5,9 @@
 // signed in to the web app (a Clerk session), and so does changing what a
 // started campaign sends (its steps, mailboxes or a written email). Without SECRETS_KEY nothing
 // can be sealed or opened, so every route but the summary answers 503.
+// Sending is internal only (docs/sending/plan.md, "Internal only"): an
+// account outside SENDING_USERS gets 404 on every route here, as if none
+// existed, before any other check.
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import type { Logger } from 'pino';
@@ -22,6 +25,7 @@ import {
   UpdateWrittenStepRequest,
 } from '@nvoke/shared';
 import type { Secrets } from '../../crypto/secrets.js';
+import { loadEnv } from '../../env.js';
 import {
   CampaignError,
   type CampaignErrorCode,
@@ -61,6 +65,8 @@ export interface SendingRoutesOptions {
   enabled: boolean;
   transport: TransportFactory;
   log: Logger;
+  /** SENDING_USERS: the Clerk user ids allowed to send. Read from the environment when left out. */
+  users?: readonly string[];
 }
 
 function sendError(reply: FastifyReply, status: number, error: string, details?: unknown) {
@@ -103,6 +109,10 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
 
   if (opts.authenticate) app.addHook('preHandler', opts.authenticate);
   app.addHook('preHandler', requireUser);
+  const allowed = new Set(opts.users ?? loadEnv().SENDING_USERS);
+  app.addHook('preHandler', async (req, reply) => {
+    if (!allowed.has(req.userId!)) return sendError(reply, 404, 'not_found');
+  });
 
   /** Every route but the summary needs the secrets. */
   const available: preHandlerAsyncHookHandler = async (_req, reply) => {

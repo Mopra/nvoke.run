@@ -164,7 +164,7 @@ describe('runWriteJob', () => {
 
   it('writes step 1 with the quality model and the follow ups with the bulk one, and keeps only emails that pass', async () => {
     const c = await campaign();
-    await runWriteJob({ sql: db.sql, ai, log: silentLog }, c.payload);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
 
     expect(calls.map((r) => [r.task, r.tier])).toEqual([['write', 'quality'], ['write', 'bulk']]);
     expect(calls[0]!.prompt).toMatch(/<lead key="l\d" company="acme.io" domain="acme.io" first_name="anna">/);
@@ -189,12 +189,20 @@ describe('runWriteJob', () => {
     expect(await campaignStatus(c.id)).toBe('review');
   });
 
+  it('writes nothing for a user outside SENDING_USERS', async () => {
+    const c = await campaign();
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u2'] }, c.payload);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: [] }, c.payload);
+    expect(calls).toHaveLength(0);
+    expect((await leadRows(c.id)).map((r) => r.status)).toEqual(['writing', 'writing']);
+  });
+
   it('gives a lead written after the start its send time after the hold', async () => {
     const c = await campaign();
     const reviewUntil = new Date(Date.now() - 60_000);
     await db.sql`update campaigns set status = 'sending', started_at = now(), review_until = ${reviewUntil}, schedule = ${db.sql.json({ days: [1, 2, 3, 4, 5, 6, 7], startHour: 0, endHour: 24 })} where id = ${c.id}`;
     const before = Date.now();
-    await runWriteJob({ sql: db.sql, ai, log: silentLog }, c.payload);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
     const [anna] = await leadRows(c.id);
     expect(anna!.status).toBe('queued');
     // Hold is 2 hours by default.
@@ -205,13 +213,13 @@ describe('runWriteJob', () => {
   it('fails every lead when Claude cannot answer, and a follow up that fails takes its lead down', async () => {
     const c = await campaign();
     follow = { leads: [{ lead: 'acme.io', steps: [{ step: 2, body: 'Hi Anna, see www.nvoke.run for the details of the offer.' }, { step: 3, body: 'Hi Anna, leaving it here for now, thanks.' }] }] };
-    await runWriteJob({ sql: db.sql, ai, log: silentLog }, c.payload);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
     expect((await leadRows(c.id)).map((r) => r.status)).toEqual(['failed', 'failed']);
     expect(await db.sql`select 1 from campaign_steps_written`).toHaveLength(0);
 
     const c2 = await campaign2();
     first = new AiError('budget_exceeded', 'spent');
-    await runWriteJob({ sql: db.sql, ai, log: silentLog }, c2.payload);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c2.payload);
     expect((await leadRows(c2.id)).map((r) => r.skip_reason)).toEqual(['write_failed']);
     expect(await campaignStatus(c2.id)).toBe('review');
   });
@@ -234,7 +242,7 @@ describe('runWriteJob', () => {
   it('retries on other errors, and a job that gave up fails its leads', async () => {
     const c = await campaign();
     first = new Error('network down');
-    await expect(runWriteJob({ sql: db.sql, ai, log: silentLog }, c.payload)).rejects.toThrow('network down');
+    await expect(runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload)).rejects.toThrow('network down');
     expect((await leadRows(c.id)).map((r) => r.status)).toEqual(['writing', 'writing']);
     await onWriteGaveUp({ sql: db.sql }, c.payload);
     expect((await leadRows(c.id)).map((r) => r.status)).toEqual(['failed', 'failed']);

@@ -149,6 +149,10 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+  // Clerk user ids allowed to send, comma separated: nvoke's own account
+  // only. Sending is not a customer feature; everyone else gets 404 on the
+  // sending routes and the worker never touches their campaigns. Empty means nobody.
+  SENDING_USERS: list,
 });
 
 export type Env = z.infer<typeof EnvSchema>;
