@@ -522,7 +522,7 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
     from campaign_leads l
     left join companies co on co.id = l.company_id
     where l.id in ${sql(payload.leadIds)} and l.campaign_id = ${campaign.id} and l.status = 'writing'
-    order by l.id
+    order by l.created_at, l.address
   `;
   if (rows.length === 0) return settleCampaign(sql, campaign.id);
 
