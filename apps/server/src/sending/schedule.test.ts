@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SCHEDULE, type CampaignSchedule } from '@nvoke/shared';
-import { MAX_OFFSET_MS, mailboxCapacity, nextSendAt, pickDue, stepSendAt, type DueLead, type MailboxSlot } from './schedule.js';
+import { inWindow, MAX_OFFSET_MS, mailboxCapacity, nextSendAt, pickDue, stepSendAt, type DueLead, type MailboxSlot } from './schedule.js';
 
 const DAY = 86_400_000;
 const MIN = 60_000;
@@ -161,6 +161,35 @@ describe('nextSendAt', () => {
   it('reads an unknown zone as UTC', () => {
     const got = nextSendAt({ after: at('2026-10-20T06:00:00Z'), timezone: 'Mars/Olympus', schedule: s, random: zero });
     expect(got.toISOString()).toBe('2026-10-20T09:00:00.000Z');
+  });
+});
+
+describe('inWindow', () => {
+  it('is open from the start hour up to the end hour on open days, in the zone', () => {
+    // Tuesday 2026-10-20; Copenhagen is UTC+2 until the 25th.
+    expect(inWindow(at('2026-10-20T07:00:00Z'), 'Europe/Copenhagen', DEFAULT_SCHEDULE)).toBe(true);
+    expect(inWindow(at('2026-10-20T06:59:59Z'), 'Europe/Copenhagen', DEFAULT_SCHEDULE)).toBe(false);
+    expect(inWindow(at('2026-10-20T14:59:00Z'), 'Europe/Copenhagen', DEFAULT_SCHEDULE)).toBe(true);
+    expect(inWindow(at('2026-10-20T15:00:00Z'), 'Europe/Copenhagen', DEFAULT_SCHEDULE)).toBe(false);
+    // Noon UTC is the small hours in Auckland and night on the US west coast.
+    expect(inWindow(at('2026-10-20T12:00:00Z'), 'Pacific/Auckland', DEFAULT_SCHEDULE)).toBe(false);
+    expect(inWindow(at('2026-10-20T12:00:00Z'), 'America/Los_Angeles', DEFAULT_SCHEDULE)).toBe(false);
+    expect(inWindow(at('2026-10-20T17:00:00Z'), 'America/Los_Angeles', DEFAULT_SCHEDULE)).toBe(true);
+  });
+
+  it('is closed on days off, by the local weekday', () => {
+    // Saturday noon in London; Friday 23:00 UTC is already Saturday in Tokyo.
+    expect(inWindow(at('2026-10-24T12:00:00Z'), 'Europe/London', DEFAULT_SCHEDULE)).toBe(false);
+    expect(inWindow(at('2026-10-23T23:00:00Z'), 'Asia/Tokyo', { days: [6], startHour: 0, endHour: 24 })).toBe(true);
+    expect(inWindow(at('2026-10-23T23:00:00Z'), 'UTC', { days: [6], startHour: 0, endHour: 24 })).toBe(false);
+  });
+
+  it('reads an unknown zone as UTC and agrees with nextSendAt', () => {
+    expect(inWindow(at('2026-10-20T10:00:00Z'), 'Not/AZone', DEFAULT_SCHEDULE)).toBe(true);
+    for (const iso of ['2026-10-20T02:00:00Z', '2026-10-24T12:00:00Z', '2026-10-20T16:30:00Z']) {
+      const next = nextSendAt({ after: at(iso), timezone: 'Europe/Berlin', schedule: DEFAULT_SCHEDULE, random: almostOne });
+      expect(inWindow(next, 'Europe/Berlin', DEFAULT_SCHEDULE)).toBe(true);
+    }
   });
 });
 

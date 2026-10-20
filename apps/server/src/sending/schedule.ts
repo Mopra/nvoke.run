@@ -136,6 +136,18 @@ export function nextSendAt(o: { after: Date; timezone: string; schedule: Campaig
   return new Date(after);
 }
 
+/**
+ * Whether `at` falls inside the schedule's days and hours in `timezone`:
+ * an open weekday, from `startHour` up to but not including `endHour`. An
+ * unknown zone is read as UTC.
+ */
+export function inWindow(at: Date, timezone: string, schedule: CampaignSchedule): boolean {
+  const t = localTime(at, timezone);
+  if (!schedule.days.includes(t.weekday)) return false;
+  const minutes = t.hour * 60 + t.minute;
+  return minutes >= schedule.startHour * 60 && minutes < schedule.endHour * 60;
+}
+
 /** When a follow up goes: `waitDays` after the step before it, then into the next open window. */
 export function stepSendAt(o: { prevSentAt: Date; waitDays: number; timezone: string; schedule: CampaignSchedule; random?: () => number }): Date {
   return nextSendAt({

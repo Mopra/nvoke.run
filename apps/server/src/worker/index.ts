@@ -5,6 +5,7 @@
  * (leads/ongoing.ts), sends webhooks, and runs sending (enroll, send and read
  * replies, docs/sending/plan.md), in a separate process from the API. SIGTERM
  * stops claiming, gives running jobs time to finish, and hands the rest back.
+ * It waits for running sending ticks, which stop before their next claim.
  */
 import { loadEnv } from '../env.js';
 import { closeSql, getSql } from '../db/client.js';
@@ -123,6 +124,9 @@ webhookTimer.unref();
 // or with SENDING_ENABLED=false.
 const sendingOn = Boolean(env.SECRETS_KEY) && env.SENDING_ENABLED;
 const sendingTimers: NodeJS.Timeout[] = [];
+// The sending ticks running now: shutdown waits for them, so a send between
+// its claim and its confirm finishes before the database closes.
+const sendingRuns = new Set<Promise<void>>();
 if (sendingOn) {
   const sending = {
     sql,
@@ -131,6 +135,7 @@ if (sendingOn) {
     log: log.child({ part: 'sending' }),
     publicApiUrl: env.PUBLIC_API_URL,
     enabled: true,
+    stopping: () => stopping,
   };
   const every = (name: string, ms: number, run: () => Promise<unknown>) => {
     let busy = false;
@@ -145,7 +150,12 @@ if (sendingOn) {
         busy = false;
       }
     };
-    const timer = setInterval(() => void tick(), ms);
+    const track = () => {
+      const run = tick();
+      sendingRuns.add(run);
+      void run.finally(() => sendingRuns.delete(run));
+    };
+    const timer = setInterval(track, ms);
     timer.unref();
     sendingTimers.push(timer);
   };
@@ -178,7 +188,7 @@ async function shutdown(signal: string): Promise<void> {
   for (const t of sendingTimers) clearInterval(t);
   stopOngoing();
   try {
-    await runner.stop(25_000);
+    await Promise.all([runner.stop(25_000), Promise.allSettled([...sendingRuns])]);
   } finally {
     await closeSql();
     process.exit(0);

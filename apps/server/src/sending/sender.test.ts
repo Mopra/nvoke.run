@@ -2,7 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { addressHash } from '../leads/suppression.js';
 import { createFakeTransport, type FakeTransport } from './fake-transport.js';
-import { replySubject, RETRY_MS, sendTick, type SendDeps } from './sender.js';
+import { DEFAULT_SCHEDULE } from '@nvoke/shared';
+import { inWindow } from './schedule.js';
+import { CLAIM_TIMEOUT_MS, mayHaveSent, replySubject, RETRY_MS, sendTick, type SendDeps } from './sender.js';
 import { readUnsubscribe } from './unsubscribe.js';
 import { seedCampaign, seedEmail, seedLead, seedMailbox, silentLog, testSecrets } from './test-seed.js';
 
@@ -166,6 +168,155 @@ describe('sendTick', () => {
     await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
     expect((await sendTick({ ...deps, enabled: false }, NOW)).sent).toBe(0);
     expect(fake.sent).toHaveLength(0);
+  });
+
+  it('claims the lead and writes its messages row before SMTP runs', async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    const l = await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
+    let during: { claimed: boolean; next: Date | null; rows: { message_id: string; smtp_response: string | null }[] } | undefined;
+    let sentId = '';
+    deps.transport = (creds) => {
+      const t = fake.factory(creds);
+      return {
+        ...t,
+        async send(mail) {
+          const [row] = await db.sql<{ claimed_at: Date | null; next_send_at: Date | null }[]>`
+            select claimed_at, next_send_at from campaign_leads where id = ${l}`;
+          const rows = await db.sql<{ message_id: string; smtp_response: string | null }[]>`
+            select message_id, smtp_response from messages where direction = 'out'`;
+          during = { claimed: row!.claimed_at !== null, next: row!.next_send_at, rows: [...rows] };
+          sentId = mail.messageId;
+          return t.send(mail);
+        },
+      };
+    };
+    expect(await sendTick(deps, NOW)).toMatchObject({ sent: 1 });
+    expect(during).toMatchObject({ claimed: true, next: null, rows: [{ message_id: sentId, smtp_response: null }] });
+    const [after] = await db.sql<{ claimed_at: Date | null }[]>`select claimed_at from campaign_leads where id = ${l}`;
+    expect(after!.claimed_at).toBeNull();
+    const [msg] = await db.sql<{ smtp_response: string }[]>`select smtp_response from messages where direction = 'out'`;
+    expect(msg!.smtp_response).toBe('250 2.0.0 OK queued');
+  });
+
+  it('never resends a claim left open by a crash: after 10 minutes it is failed, unconfirmed', async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb], { steps: 1 });
+    const crashed = await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk', steps: 1 });
+    const fresh = await seedLead(db.sql, c, mb, { address: 'joe@other.co.uk', steps: 1 });
+    // A worker claimed both and died before the confirm.
+    await db.sql`update campaign_leads set claimed_at = ${new Date(NOW.getTime() - CLAIM_TIMEOUT_MS - 1000)}, next_send_at = null where id = ${crashed}`;
+    await db.sql`update campaign_leads set claimed_at = ${minutes(-5)}, next_send_at = null where id = ${fresh}`;
+
+    expect(await sendTick(deps, NOW)).toMatchObject({ sent: 0, unconfirmed: 1 });
+    expect(await lead(crashed)).toMatchObject({ status: 'failed', skip_reason: 'unconfirmed', next_send_at: null });
+    expect(await lead(fresh)).toMatchObject({ status: 'queued', skip_reason: null });
+    expect(fake.sent).toHaveLength(0);
+
+    expect(await sendTick(deps, minutes(6))).toMatchObject({ sent: 0, unconfirmed: 1 });
+    expect(await lead(fresh)).toMatchObject({ status: 'failed', skip_reason: 'unconfirmed' });
+    expect(fake.sent).toHaveLength(0);
+    const [camp] = await db.sql<{ status: string }[]>`select status from campaigns where id = ${c}`;
+    expect(camp!.status).toBe('done');
+  });
+
+  it('treats a timeout after DATA as unconfirmed, not as temporary', async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    const l = await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
+    fake.nextSend.push({ ok: false, kind: 'temporary', response: 'Timeout' });
+    expect(await sendTick(deps, NOW)).toMatchObject({ unconfirmed: 1, retried: 0 });
+    expect(await lead(l)).toMatchObject({ status: 'failed', skip_reason: 'unconfirmed', next_send_at: null });
+    // The row stays, so a reply to it still finds the lead.
+    const [msg] = await db.sql<{ smtp_response: string }[]>`select smtp_response from messages where direction = 'out'`;
+    expect(msg!.smtp_response).toBe('unconfirmed Timeout');
+    expect((await sendTick(deps, minutes(30))).sent).toBe(0);
+  });
+
+  it('tells a refusal before DATA from a send that may have gone', () => {
+    expect(mayHaveSent({ ok: false, kind: 'temporary', response: 'Timeout' })).toBe(true);
+    expect(mayHaveSent({ ok: false, kind: 'temporary', response: 'Connection closed unexpectedly' })).toBe(true);
+    expect(mayHaveSent({ ok: false, kind: 'temporary', response: '451 4.7.1 try later' })).toBe(false);
+    expect(mayHaveSent({ ok: false, kind: 'temporary', response: 'connect ECONNREFUSED 1.2.3.4:465' })).toBe(false);
+    expect(mayHaveSent({ ok: false, kind: 'temporary', response: 'Greeting never received' })).toBe(false);
+    expect(mayHaveSent({ ok: false, kind: 'permanent', response: '550 5.1.1 no such user' })).toBe(false);
+    expect(mayHaveSent({ ok: true, response: '250 OK' })).toBe(false);
+  });
+
+  it('stops claiming once the worker shuts down', async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
+    expect((await sendTick({ ...deps, stopping: () => true }, NOW)).sent).toBe(0);
+    expect(fake.sent).toHaveLength(0);
+  });
+
+  it('picks candidates per mailbox, so one big backlog never starves another mailbox', async () => {
+    const a = await seedMailbox(db.sql, secrets, { address: 'a@sender.io' });
+    const b = await seedMailbox(db.sql, secrets, { address: 'b@sender.io' });
+    const idle = await seedMailbox(db.sql, secrets, { address: 'idle@sender.io', lastSendAt: minutes(-1) });
+    const c = await seedCampaign(db.sql, [a, b, idle]);
+    // 600 old leads on a and on a mailbox inside its gap; b's one lead is the newest.
+    for (const [mb, prefix] of [[a, 'p'], [idle, 'q']] as const) {
+      await db.sql`
+        insert into campaign_leads (campaign_id, clerk_user_id, address, first_name, company_name, domain, country, mailbox_id, status, next_send_at, written_at)
+        select ${c}, 'u1', ${prefix} || i || '@d' || i || '.co.uk', 'Jane', 'Acme', 'd' || i || '.co.uk', 'GB', ${mb}, 'queued',
+          ${new Date('2025-01-01T00:00:00Z')}::timestamptz + i * interval '1 minute', now()
+        from generate_series(1, 600) i`;
+    }
+    await db.sql`
+      insert into campaign_steps_written (campaign_lead_id, step, subject, body)
+      select id, 1, 'Subject 1', 'Hi Jane, body 1.' from campaign_leads where campaign_id = ${c}`;
+    await seedLead(db.sql, c, b, { address: 'late@acme.co.uk', nextSendAt: minutes(-1) });
+
+    expect(await sendTick(deps, NOW)).toMatchObject({ sent: 2 });
+    expect(fake.sent.map((m) => m.from).sort()).toEqual(['a@sender.io', 'b@sender.io']);
+    expect(fake.sent.find((m) => m.from === 'a@sender.io')!.to).toBe('p1@d1.co.uk');
+    expect(fake.sent.find((m) => m.from === 'b@sender.io')!.to).toBe('late@acme.co.uk');
+  });
+
+  it("moves a due lead outside its recipient's working hours to the next window", async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    await db.sql`update campaigns set schedule = ${db.sql.json(DEFAULT_SCHEDULE)} where id = ${c}`;
+    const night = await seedLead(db.sql, c, mb, { address: 'kiri@acme.co.nz' });
+    const day = await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
+    // Noon UTC on a Tuesday is 1 in the morning on Wednesday in Auckland.
+    await db.sql`update campaign_leads set timezone = 'Pacific/Auckland' where id = ${night}`;
+
+    expect(await sendTick(deps, NOW)).toMatchObject({ sent: 1, deferred: 1 });
+    expect(fake.sent.map((m) => m.to)).toEqual(['jane@acme.co.uk']);
+    const moved = (await lead(night)).next_send_at!;
+    expect(moved.getTime()).toBeGreaterThan(NOW.getTime());
+    expect(inWindow(moved, 'Pacific/Auckland', DEFAULT_SCHEDULE)).toBe(true);
+    expect((await lead(day)).status).toBe('active');
+
+    // Saturday: nothing goes, everything waits for Monday.
+    const saturday = new Date('2026-10-24T12:00:00Z');
+    await db.sql`update campaign_leads set next_send_at = ${minutes(-1)}`;
+    expect(await sendTick(deps, saturday)).toMatchObject({ sent: 0, deferred: 2 });
+    for (const id of [night, day]) {
+      const next = (await lead(id)).next_send_at!;
+      // Monday 9:00 in Auckland is Sunday 20:00 UTC.
+      expect(next.getTime()).toBeGreaterThanOrEqual(new Date('2026-10-25T20:00:00Z').getTime());
+    }
+    expect(fake.sent).toHaveLength(1);
+  });
+
+  it('keeps a temporary retry inside working hours', async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    await db.sql`update campaigns set schedule = ${db.sql.json(DEFAULT_SCHEDULE)} where id = ${c}`;
+    const l = await seedLead(db.sql, c, mb, { address: 'jane@acme.co.uk' });
+    fake.nextSend.push({ ok: false, kind: 'temporary', response: '451 4.7.1 try later' });
+    const late = new Date('2026-10-20T16:50:00Z');
+    expect(await sendTick(deps, late)).toMatchObject({ retried: 1 });
+    const next = (await lead(l)).next_send_at!;
+    // 17:05 is after hours: the retry waits for Wednesday morning.
+    expect(next.getTime()).toBeGreaterThanOrEqual(new Date('2026-10-21T09:00:00Z').getTime());
+    expect(inWindow(next, 'UTC', DEFAULT_SCHEDULE)).toBe(true);
+    const [count] = await db.sql<{ n: number }[]>`select count(*)::int as n from messages where direction = 'out'`;
+    expect(count!.n).toBe(0);
   });
 
   it('adds Re: once', () => {
