@@ -1,6 +1,8 @@
 // Companies from a web search, via the Brave Search API.
 // https://api-dashboard.search.brave.com/app/documentation/web-search
 // When Brave refuses us, a free provider takes over (free-search.ts).
+// WEB_SEARCH_PROVIDER=serper puts Google results from Serper in Brave's
+// place (serper.ts), behind the same cache, budget and refusal rules.
 //
 // Result domains are deduplicated and platforms (social networks,
 // marketplaces, Wikipedia, news) are dropped by the find job. Brave bills
@@ -15,7 +17,8 @@ import type { CachedWebPage, WebSearchCache } from '../web-cache.js';
 import { PermanentError, SourceUnavailableError, type FoundCompany, type SourceAdapter, type SourceContext } from './types.js';
 
 export const BRAVE_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
-const PAGE_SIZE = 20;
+/** Results per page. Every provider answers pages of this size, so cached pages line up. */
+export const PAGE_SIZE = 20;
 /** Brave accepts offsets 0 to 9. */
 const MAX_PAGES = 10;
 
@@ -143,51 +146,79 @@ export interface BraveClient {
   cached?(req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage | null>;
 }
 
-export function braveClient(opts: WebAdapterOptions): BraveClient {
+/**
+ * The paid search engine behind the client: Brave by default, or another
+ * one (WEB_SEARCH_PROVIDER, see serper.ts). It fetches one page of PAGE_SIZE
+ * results, reports each billed request through `ctx.onUsage('request')` and
+ * throws SourceUnavailableError when the engine refuses our key or credit.
+ * The client around it adds the cache, so cached pages serve every provider.
+ */
+export interface PaidSearchProvider {
+  /** For logs and the companies' `source`. */
+  readonly name: string;
+  /** False without an API key. */
+  readonly configured: boolean;
+  /** The variable that holds the key, named in the not configured error. */
+  readonly keyVar: string;
+  fetchPage(req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage>;
+}
+
+/** Brave Search as a PaidSearchProvider. */
+export function braveProvider(opts: WebAdapterOptions): PaidSearchProvider {
   // A tenth of headroom over the plan's rate, so clock jitter never trips a 429.
   const limiter = new RateLimiter(Math.ceil(1_100 / (opts.requestsPerSecond ?? 1)));
+  const apiKey = opts.apiKey;
 
-  const fetchPage = async (apiKey: string, req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage> => {
-    const url = new URL(opts.endpoint ?? BRAVE_ENDPOINT);
-    url.searchParams.set('q', req.q);
-    url.searchParams.set('count', String(PAGE_SIZE));
-    url.searchParams.set('offset', String(req.page));
-    url.searchParams.set('safesearch', 'moderate');
-    if (req.country) url.searchParams.set('country', req.country);
+  return {
+    name: 'brave',
+    configured: Boolean(apiKey),
+    keyVar: 'BRAVE_SEARCH_API_KEY',
+    async fetchPage(req, ctx) {
+      const url = new URL(opts.endpoint ?? BRAVE_ENDPOINT);
+      url.searchParams.set('q', req.q);
+      url.searchParams.set('count', String(PAGE_SIZE));
+      url.searchParams.set('offset', String(req.page));
+      url.searchParams.set('safesearch', 'moderate');
+      if (req.country) url.searchParams.set('country', req.country);
 
-    let res: BraveResponse;
-    for (let attempt = 1; ; attempt++) {
-      await limiter.wait('brave', ctx.signal);
-      try {
-        res = await fetchJson<BraveResponse>(url.toString(), {
-          fetch: opts.fetch,
-          signal: ctx.signal,
-          timeoutMs: 20_000,
-          headers: { 'x-subscription-token': apiKey },
-        });
-        // Brave bills answered requests only.
-        ctx.onUsage?.('request');
-        break;
-      } catch (err) {
-        if (!(err instanceof HttpError)) throw err;
-        const said = `${err.status} ${(err.bodySnippet ?? '').slice(0, 300)}`.trim();
-        if (err.status === 401 || err.status === 402 || err.status === 403) {
-          throw new SourceUnavailableError('brave', `the key or plan was refused (${said})`);
+      let res: BraveResponse;
+      for (let attempt = 1; ; attempt++) {
+        await limiter.wait('brave', ctx.signal);
+        try {
+          res = await fetchJson<BraveResponse>(url.toString(), {
+            fetch: opts.fetch,
+            signal: ctx.signal,
+            timeoutMs: 20_000,
+            headers: { 'x-subscription-token': apiKey ?? '' },
+          });
+          // Brave bills answered requests only.
+          ctx.onUsage?.('request');
+          break;
+        } catch (err) {
+          if (!(err instanceof HttpError)) throw err;
+          const said = `${err.status} ${(err.bodySnippet ?? '').slice(0, 300)}`.trim();
+          if (err.status === 401 || err.status === 402 || err.status === 403) {
+            throw new SourceUnavailableError('brave', `the key or plan was refused (${said})`);
+          }
+          if (err.status !== 429) throw err;
+          const wait = braveRetryAfter(err.headers);
+          if (wait === null || attempt >= 3) {
+            throw new SourceUnavailableError('brave', `the monthly quota or spend limit is reached (${said})`);
+          }
+          await sleep(wait * 1_000, ctx.signal);
         }
-        if (err.status !== 429) throw err;
-        const wait = braveRetryAfter(err.headers);
-        if (wait === null || attempt >= 3) {
-          throw new SourceUnavailableError('brave', `the monthly quota or spend limit is reached (${said})`);
-        }
-        await sleep(wait * 1_000, ctx.signal);
       }
-    }
-    const results = res.web?.results ?? [];
-    return {
-      companies: results.map(resultToCompany).filter((c): c is FoundCompany => c !== null),
-      more: results.length > 0 && res.query?.more_results_available !== false,
-    };
+      const results = res.web?.results ?? [];
+      return {
+        companies: results.map(resultToCompany).filter((c): c is FoundCompany => c !== null),
+        more: results.length > 0 && res.query?.more_results_available !== false,
+      };
+    },
   };
+}
+
+export function braveClient(opts: WebAdapterOptions & { provider?: PaidSearchProvider }): BraveClient {
+  const provider = opts.provider ?? braveProvider(opts);
 
   const fromCache = async (req: BravePageRequest, ctx: SourceContext): Promise<CachedWebPage | null> => {
     const cached = await opts.cache?.get({ q: req.q, country: req.country, page: req.page }).catch((err: unknown) => {
@@ -199,19 +230,16 @@ export function braveClient(opts: WebAdapterOptions): BraveClient {
   };
 
   return {
-    configured: Boolean(opts.apiKey),
+    configured: provider.configured,
     cached: fromCache,
     async page(req, ctx) {
-      if (!opts.apiKey) {
-        throw new PermanentError(
-          'web search is not configured on this server (BRAVE_SEARCH_API_KEY is not set)',
-          'source_not_configured',
-        );
+      if (!provider.configured) {
+        throw new PermanentError(`web search is not configured on this server (${provider.keyVar} is not set)`, 'source_not_configured');
       }
       const key = { q: req.q, country: req.country, page: req.page };
       const cached = await fromCache(req, ctx);
       if (cached) return cached;
-      const result = await fetchPage(opts.apiKey, req, ctx);
+      const result = await provider.fetchPage(req, ctx);
       await opts.cache?.put(key, result).catch((err: unknown) => ctx.log.warn({ err }, 'brave: cache write failed'));
       return result;
     },

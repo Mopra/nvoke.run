@@ -163,7 +163,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         throw new PermanentError('describe your customer is not configured on this server (OPENROUTER_API_KEY is not set)', 'source_not_configured');
       }
       if (!opts.brave.configured) {
-        throw new PermanentError('web search is not configured on this server (BRAVE_SEARCH_API_KEY is not set)', 'source_not_configured');
+        throw new PermanentError('web search is not configured on this server (neither BRAVE_SEARCH_API_KEY nor SERPER_API_KEY is set)', 'source_not_configured');
       }
       const userId = ctx.userId;
       if (!userId) throw new Error('icp searches need the account they belong to');

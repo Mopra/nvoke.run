@@ -1,0 +1,87 @@
+{
+  "searchParameters": {
+    "q": "industrial design studio copenhagen",
+    "gl": "dk",
+    "type": "search",
+    "num": 10,
+    "page": 1,
+    "engine": "google"
+  },
+  "organic": [
+    {
+      "title": "Kibisi Studio | Industrial design in Copenhagen",
+      "link": "https://www.kibisi-studio.dk/",
+      "snippet": "Kibisi is an industrial design studio in Copenhagen working with furniture, lighting and consumer products.",
+      "sitelinks": [
+        { "title": "Projects", "link": "https://www.kibisi-studio.dk/projects" },
+        { "title": "Contact", "link": "https://www.kibisi-studio.dk/contact" }
+      ],
+      "position": 1
+    },
+    {
+      "title": "Industrial design - Wikipedia",
+      "link": "https://en.wikipedia.org/wiki/Industrial_design",
+      "snippet": "Industrial design is a process of design applied to physical products that are to be manufactured by mass production.",
+      "position": 2
+    },
+    {
+      "title": "Formlab Design - Product and industrial design",
+      "link": "https://formlab.example-design.dk/about",
+      "snippet": "Formlab is a   Danish product design consultancy.\nWe design medical devices.",
+      "date": "Mar 4, 2026",
+      "position": 3
+    },
+    {
+      "title": "Nordic Shape: design studio",
+      "link": "https://nordicshape.dk/",
+      "snippet": "Strategic industrial design from Copenhagen.",
+      "position": 4
+    },
+    {
+      "title": "Industrial designer jobs in Copenhagen | LinkedIn",
+      "link": "https://dk.linkedin.com/jobs/industrial-designer-jobs-copenhagen",
+      "snippet": "Today's top industrial designer jobs in Copenhagen.",
+      "position": 5
+    },
+    {
+      "title": "Hjort Studio",
+      "link": "https://hjortstudio.dk/en",
+      "snippet": "Furniture and object design.",
+      "position": 6
+    },
+    {
+      "title": "Line Form ApS",
+      "link": "https://lineform.dk/",
+      "snippet": "Design engineering for hardware startups.",
+      "position": 7
+    },
+    {
+      "title": "Copenhagen Product Studio",
+      "link": "https://cphproduct.example.dk/",
+      "snippet": "Concept to production.",
+      "attributes": { "Founded": "2011" },
+      "position": 8
+    },
+    {
+      "title": "Untitled result",
+      "snippet": "A result without a link.",
+      "position": 9
+    },
+    {
+      "title": "Oak and Iron Design",
+      "link": "https://oakiron.dk/",
+      "snippet": "Danish design studio.",
+      "position": 10
+    }
+  ],
+  "peopleAlsoAsk": [
+    {
+      "question": "What does an industrial designer do?",
+      "snippet": "Industrial designers develop the concepts for manufactured products.",
+      "title": "Industrial Designers",
+      "link": "https://www.bls.gov/ooh/arts-and-design/industrial-designers.htm"
+    }
+  ],
+  "relatedSearches": [{ "query": "industrial design studio copenhagen jobs" }],
+  "credits": 1
+}

@@ -6,11 +6,12 @@
 import type { Sql } from 'postgres';
 import { itemDomain, type CreateSearchRequest, type SearchKind } from '@nvoke/shared';
 import { FREE_SEARCH_SOURCE, freeSearchMode, type FreeSearchMode } from './sources/free-search.js';
+import { paidSearchChain } from './sources/paid-search.js';
 
 /** How long a refusal pauses its source before the next search tries again. */
 export const SOURCE_PAUSE_MS = 10 * 60_000;
 
-/** The source behind each search kind that can be paused. */
+/** The source behind each search kind that can be paused: `brave` stands for every paid web search. */
 export const PAUSABLE_SOURCE: Partial<Record<SearchKind, string>> = { web: 'brave', domains: 'brave', icp: 'brave' };
 
 /** False for a search that never calls its kind's source: a list of only domains. */
@@ -30,8 +31,9 @@ export async function pauseSource(sql: Sql, source: string, reason: string, now:
 
 /**
  * Whether searches of this kind are paused right now. `needsSource` false
- * skips the check. A paused Brave pauses web searches only when the free
- * search (FREE_SEARCH) is off or paused too, since it answers in Brave's place.
+ * skips the check. Paid web search is paused only when every paid provider
+ * (WEB_SEARCH_PROVIDER and WEB_SEARCH_FALLBACK) is, and the free search
+ * (FREE_SEARCH) too unless it is off, since each answers in the other's place.
  */
 export async function kindPaused(
   sql: Sql,
@@ -39,12 +41,19 @@ export async function kindPaused(
   needsSource = true,
   now: Date = new Date(),
   freeSearch: FreeSearchMode = freeSearchMode(),
+  paidChain: string[] = envPaidChain(),
 ): Promise<boolean> {
   const source = PAUSABLE_SOURCE[kind];
   if (!source || !needsSource) return false;
-  const sources = source === 'brave' && freeSearch !== 'off' ? [source, FREE_SEARCH_SOURCE] : [source];
+  const paid = source === 'brave' ? paidChain : [source];
+  const sources = source === 'brave' && freeSearch !== 'off' ? [...paid, FREE_SEARCH_SOURCE] : paid;
   const rows = await sql`select 1 from source_pauses where source in ${sql(sources)} and until > ${now.toISOString()}::timestamptz`;
   return rows.length === sources.length;
+}
+
+function envPaidChain(): string[] {
+  const name = (v: string | undefined) => (v === 'brave' || v === 'serper' ? v : undefined);
+  return paidSearchChain({ WEB_SEARCH_PROVIDER: name(process.env.WEB_SEARCH_PROVIDER), WEB_SEARCH_FALLBACK: name(process.env.WEB_SEARCH_FALLBACK) });
 }
 
 /** Ends a pause early, after the operator fixed the cause. */

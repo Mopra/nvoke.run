@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fakeFetch, fixture, silentLog } from '../../testing/fakes.js';
+import type { NameQuery, NameResolver } from './resolve-name.js';
 import type { FoundCompany, SourceAdapter } from './types.js';
 import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, placesWithoutWebsiteQuery, type ResolvedArea } from './local.js';
 import { braveClient, braveQuery, braveRetryAfter, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
@@ -222,6 +223,40 @@ describe('local adapter (Nominatim + Overpass)', () => {
     // The repeat and the name already found are skipped, and the cap of 2 leaves Bright Teeth out.
     expect(asked.map((u) => u.searchParams.get('q'))).toEqual(['Tandlæge Jensen Round Rock', 'Ghost Dental Austin, Texas']);
     expect(asked[0]!.searchParams.get('country')).toBe('us');
+  });
+
+  it('tries the free routes before Brave for places without a website, and needs no Brave for them', async () => {
+    const place = (id: number, name: string, extra: Record<string, string> = {}) => ({ type: 'node', id, tags: { name, amenity: 'dentist', ...extra } });
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: austin },
+      [overpass]: (_url, init) =>
+        new URLSearchParams(String(init?.body)).get('data')?.includes('[!"website"]')
+          ? { body: JSON.stringify({ elements: [place(2, 'Jensen Dental', { 'addr:city': 'Round Rock' }), place(3, 'Bright Teeth'), place(4, 'Ghost Dental')] }) }
+          : { body: JSON.stringify({ elements: [] }) },
+      [BRAVE_ENDPOINT]: (url) => ({
+        body: JSON.stringify({ web: { results: url.searchParams.get('q') === 'Bright Teeth Austin, Texas (free)' ? [{ url: 'https://brightteeth.example/', title: 'Bright Teeth' }] : [] } }),
+      }),
+    });
+    const asked: NameQuery[] = [];
+    const resolveName: NameResolver = {
+      resolve: async (q) => (asked.push(q), q.name === 'Jensen Dental' ? { domain: 'jensendental.com', website: 'https://jensendental.com/', route: 'known' } : null),
+    };
+    const brave = braveClient({ apiKey: 'k', fetch, requestsPerSecond: 1_000 });
+    const withBrave = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, placeLookup: brave, resolveName });
+    const found = await collect(withBrave, { niche: 'dentists', location: 'Austin, Texas (free)' });
+    expect(found.map((c) => [c.name, c.website, c.source, c.sourceRef])).toEqual([
+      ['Jensen Dental', 'https://jensendental.com/', 'osm', 'node/2'],
+      ['Bright Teeth', 'https://brightteeth.example', 'osm', 'node/3'],
+    ]);
+    expect(asked[0]).toMatchObject({ name: 'Jensen Dental', country: 'us', city: 'Round Rock' });
+    expect(asked[0]!.generic).toEqual(expect.arrayContaining(['dentist', 'Round Rock']));
+    const braveAsked = fetch.calls.filter((c) => c.url.startsWith(BRAVE_ENDPOINT)).map((c) => new URL(c.url).searchParams.get('q'));
+    expect(braveAsked).toEqual(['Bright Teeth Austin, Texas (free)', 'Ghost Dental Austin, Texas (free)']);
+
+    // Without Brave, and with no Brave lookups left, the free routes still run.
+    const freeOnly = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, resolveName, maxPlaceLookups: 0 });
+    const free = await collect(freeOnly, { niche: 'dentists', location: 'Austin, Texas (free only)' });
+    expect(free.map((c) => c.website)).toEqual(['https://jensendental.com/']);
   });
 
   it('tops up from the web search only after OpenStreetMap ran out', async () => {

@@ -17,6 +17,7 @@ import { createClerkClient } from '@clerk/backend';
 import { purgeAgentSignups } from '../agents/purge.js';
 import { startOngoingLoop } from '../leads/ongoing.js';
 import { purge, RETENTION } from '../leads/retention.js';
+import { webSearchConfigured } from '../leads/sources/paid-search.js';
 import { createSecrets } from '../crypto/secrets.js';
 import { enrollTick } from '../sending/enroll.js';
 import { smtpImapTransport } from '../sending/mailbox-transport.js';
@@ -172,7 +173,7 @@ log.info(
     env: env.NODE_ENV,
     workerId: runner.workerId,
     concurrency: env.WORKER_CONCURRENCY,
-    web: Boolean(env.BRAVE_SEARCH_API_KEY),
+    web: webSearchConfigured(env),
     productHunt: Boolean(env.PRODUCT_HUNT_TOKEN),
     smtpProbe: env.SMTP_PROBE_ENABLED,
     sending: sendingOn,

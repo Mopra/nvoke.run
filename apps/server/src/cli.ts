@@ -120,6 +120,7 @@ import { collectDue } from './feed/collect.js';
 import { createCollectors, sourceAvailability } from './feed/collectors.js';
 import { feedSourceStatus } from './feed/drops.js';
 import { loadEnv } from './env.js';
+import { webSearchCostPer1000 } from './leads/sources/paid-search.js';
 import { costReport, formatCostReport } from './leads/cost-report.js';
 import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
@@ -324,7 +325,7 @@ async function stats(args: Args): Promise<void> {
   const env = loadEnv();
   const { sql, close } = await opsDatabase(args);
   try {
-    console.log(formatCostReport(await costReport(sql, days, env.BRAVE_COST_PER_1000_USD)));
+    console.log(formatCostReport(await costReport(sql, days, webSearchCostPer1000(env))));
   } finally {
     await close();
   }

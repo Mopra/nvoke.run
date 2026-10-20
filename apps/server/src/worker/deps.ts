@@ -6,6 +6,7 @@ import type { Env } from '../env.js';
 import { RateLimiter } from '../leads/limits.js';
 import { RobotsCache } from '../leads/robots.js';
 import { createAdapters } from '../leads/sources/index.js';
+import { braveAlone } from '../leads/sources/paid-search.js';
 import { dbVerifyCache } from '../leads/verify/db-cache.js';
 import { Verifier } from '../leads/verify/index.js';
 import { workerProbesPerMinute, workerSessionsPerMinute } from '../tools/deps.js';
@@ -27,9 +28,11 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
     ai,
     adapters: createAdapters(env, { sql, ai, crawl, alert }),
     alert,
-    braveBudget: env.BRAVE_MONTHLY_BUDGET_USD
-      ? { monthlyUsd: env.BRAVE_MONTHLY_BUDGET_USD, costPer1000Usd: env.BRAVE_COST_PER_1000_USD }
-      : undefined,
+    // With Serper as primary or fallback, each provider's budget is checked by paid-search.ts instead.
+    braveBudget:
+      env.BRAVE_MONTHLY_BUDGET_USD && braveAlone(env)
+        ? { monthlyUsd: env.BRAVE_MONTHLY_BUDGET_USD, costPer1000Usd: env.BRAVE_COST_PER_1000_USD }
+        : undefined,
     crawl,
     verifier: new Verifier({
       heloName: env.SMTP_HELO_NAME,
