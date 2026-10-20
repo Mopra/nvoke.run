@@ -140,6 +140,15 @@ const EnvSchema = z.object({
   // Monthly Claude budget per account: this share of the plan's price, never below the floor.
   AI_MONTHLY_BUDGET_FLOOR_USD: z.coerce.number().min(0).default(1),
   AI_MONTHLY_BUDGET_PRICE_SHARE: z.coerce.number().min(0).max(1).default(0.25),
+
+  // Sending (docs/sending/plan.md). 32 random bytes, base64: seals mailbox
+  // passwords at rest and signs unsubscribe links. Without it sending is off.
+  SECRETS_KEY: optional,
+  // false stops every send and IMAP poll at once, without touching campaigns.
+  SENDING_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

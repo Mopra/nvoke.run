@@ -13,6 +13,45 @@ Four steps, each shippable on its own:
 
 Every step lists what it builds, where the code goes and when it is done.
 
+## Owner decisions, 2026-10-20
+
+- **First goal: nvoke sells nvoke.** Ongoing searches and drops find
+  nvoke's customers, an autopilot campaign writes and sends to them.
+  Steps 0 and 1 plus "Autopilot" below come first; steps 2 to 4 later.
+- **Approve once, then automatic.** A campaign is started once by a person
+  in the web app. After that every new valid lead from its source is
+  enrolled, written and scheduled with nobody clicking (see "Autopilot").
+  This replaces "a person reviews every campaign" for autopilot campaigns.
+- **nvoke's own sends go from a mailbox the owner already has**, connected
+  over SMTP and IMAP. No provided mailboxes for now.
+- **Legal:** the owner accepts the open question whether Markedsføringsloven
+  §10 covers a Danish company's cold email to recipients abroad. Sends go
+  out once the engine works; Denmark and Germany stay blocked.
+
+## Autopilot
+
+A campaign can follow a source instead of a fixed list:
+
+- `source`: `list` (fixed leads at create, as in step 1), `search` (an
+  ongoing search: every new valid address it adds) or `drop` (every search
+  the drop makes from now on).
+- `autopilot` true for `search` and `drop`. Every 5 minutes the worker's
+  enroll tick (`sending/enroll.ts`) takes the source's valid addresses not
+  yet in the campaign, applies the rules below, enrolls them and queues
+  `write` jobs. A paused, canceled or done campaign enrolls nothing.
+- **Who gets enrolled:** `valid` only (`catch_all` when the campaign says
+  so), named people first (`people_only`, default true: `first_name` set),
+  at most `per_company` per company (default 1: the highest seniority,
+  then confidence), never an address already in another of the user's
+  campaigns in the last 90 days, never suppressed, never a blocked country.
+- **Hold:** a written lead's first send is no earlier than `hold_hours`
+  (default 2) after it was written, so the owner can read the day's emails
+  in the campaign screen and stop any of them.
+- **Daily ceiling:** `daily_new` (default 30) caps how many new leads a
+  campaign enrolls a day, so a big drop does not queue weeks of sends.
+- The first start of an autopilot campaign needs a Clerk session, like
+  `start` in step 1. Pausing stops enrolling and sending; resuming picks up.
+
 ## Principles
 
 - **Real mailboxes only.** Mail leaves through the mailbox provider's own
@@ -25,8 +64,9 @@ Every step lists what it builds, where the code goes and when it is done.
   inbox placement and the reply is the only number that counts.
 - **Slow by default.** 30 a day per warmed mailbox at most, random gaps,
   the recipient's working hours. Sending faster is not a setting.
-- **Nothing sends without a human.** A campaign starts from the web app
-  after a review. Agents (API, MCP) can draft and read, not start.
+- **Nothing sends without a human starting it.** A campaign starts from the
+  web app after a review; an autopilot campaign keeps going after that one
+  start. Agents (API, MCP) can draft and read, not start.
 - **Clearly illegal is blocked, not configurable.** No sends to recipients
   in Denmark or Germany (consent rules cover B2B). Every first email says who
   sent it and why, and every email can be stopped with one click.
