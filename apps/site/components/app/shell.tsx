@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/app/desktop';
 import { BILLING_PATH, quotaState } from '@/lib/app/quota';
-import { useMe, useSearches } from '@/lib/app/queries';
+import { useMe, useSearches, useSendingSummary } from '@/lib/app/queries';
+import { CAMPAIGNS_PATH, MAILBOXES_PATH, REPLIES_PATH } from '@/lib/app/sending';
 import { cn } from '@/lib/utils';
 
 /**
@@ -42,7 +43,19 @@ export const APP_INSET = 'sm:px-3';
 /* The header */
 
 /** A screen's link: mono capitals, an LED and an orange rule under it when it is the open one. */
-function NavLink({ href, current = false, children, label }: { href: string; current?: boolean; children: ReactNode; label?: string }) {
+function NavLink({
+  href,
+  current = false,
+  children,
+  label,
+  className,
+}: {
+  href: string;
+  current?: boolean;
+  children: ReactNode;
+  label?: string;
+  className?: string;
+}) {
   return (
     <Link
       href={href}
@@ -51,6 +64,7 @@ function NavLink({ href, current = false, children, label }: { href: string; cur
       className={cn(
         'cap relative flex h-14 shrink-0 items-center gap-2 px-1 outline-none transition-colors focus-visible:text-foreground sm:px-2',
         current ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+        className,
       )}
     >
       <span aria-hidden className={cn('led transition-colors max-sm:hidden', current ? 'led-on' : 'bg-transparent')} />
@@ -77,6 +91,8 @@ function Header() {
   const result = path.match(/^\/app\/searches\/([^/]+)/);
   const onNew = path.startsWith('/app/new') || path.startsWith('/app/website');
   const onDrops = path.startsWith('/app/drops');
+  const onCampaigns = path.startsWith(CAMPAIGNS_PATH) || path.startsWith(MAILBOXES_PATH);
+  const onReplies = path.startsWith(REPLIES_PATH);
   const onAccount = path.startsWith('/app/account') || path.startsWith(BILLING_PATH);
   return (
     <header className="sticky top-0 z-40 border-b bg-background">
@@ -98,6 +114,11 @@ function Header() {
         <NavLink href="/app/drops" current={onDrops}>
           Drops
         </NavLink>
+        <NavLink href={CAMPAIGNS_PATH} current={onCampaigns} label="Campaigns">
+          <span className="max-sm:hidden">Campaigns</span>
+          <span className="sm:hidden">Send</span>
+        </NavLink>
+        <RepliesLink current={onReplies} />
         {result && (
           <NavLink href={path} current>
             Results
@@ -112,6 +133,18 @@ function Header() {
         </div>
       </nav>
     </header>
+  );
+}
+
+/** Replies, with the unread count lit beside it. Off phones only: Campaigns has a Replies key. */
+function RepliesLink({ current }: { current: boolean }) {
+  const { data } = useSendingSummary();
+  const unread = data?.repliesUnread ?? 0;
+  return (
+    <NavLink href={REPLIES_PATH} current={current} label={unread > 0 ? `Replies, ${unread} unread` : 'Replies'} className="max-sm:hidden">
+      Replies
+      {unread > 0 && <span className="text-primary tabular-nums">{formatNumber(unread)}</span>}
+    </NavLink>
   );
 }
 

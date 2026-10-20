@@ -4,7 +4,17 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import type {
   ApiKey,
+  Campaign,
+  CampaignListResponse,
   CompaniesPage,
+  ConnectMailboxRequest,
+  CreateCampaignRequest,
+  MailboxListResponse,
+  ReplyListResponse,
+  SendingSummary,
+  UpdateCampaignRequest,
+  UpdateMailboxRequest,
+  UpdateWrittenStepRequest,
   CreateDropRequest,
   CreateSearchInput,
   DraftOpenersInput,
@@ -22,6 +32,15 @@ import { dropsPollInterval, storeDrop } from './drops';
 import { pendingInboxPages } from './inboxes';
 import { companiesPollInterval, edgePages, edgePollInterval } from './openers';
 import { listPollInterval, searchPollInterval } from './quota';
+import {
+  campaignPollInterval,
+  campaignsPollInterval,
+  mailboxesPollInterval,
+  REPLIES_POLL_MS,
+  storeCampaign,
+  storeMailbox,
+  type LeadFilter,
+} from './sending';
 
 /**
  * React Query hooks over the web API, with the same keys and polling as the
@@ -49,6 +68,13 @@ export const keys = {
   siteProfile: ['site-profile'] as const,
   siteProfileBuild: ['site-profile', 'build'] as const,
   drops: ['drops'] as const,
+  sending: ['sending'] as const,
+  mailboxes: ['mailboxes'] as const,
+  campaigns: ['campaigns'] as const,
+  campaign: (id: string) => ['campaigns', id] as const,
+  campaignLeads: (id: string, filter: LeadFilter) => ['campaigns', id, 'leads', filter] as const,
+  campaignLead: (id: string, leadId: string) => ['campaigns', id, 'lead', leadId] as const,
+  replies: ['replies'] as const,
 };
 
 export function useSearches() {
@@ -513,5 +539,234 @@ export function useDeleteDrop() {
     onSuccess: (_void, id) => {
       client.setQueryData<DropListResponse>(keys.drops, (list) => (list ? { ...list, drops: list.drops.filter((d) => d.id !== id) } : list));
     },
+  });
+}
+
+/* Sending (docs/sending/plan.md, "Web app") */
+
+/** The month's sends, today's capacity and the unread replies. Read now and then: it moves only with the worker. */
+export function useSendingSummary() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.sending,
+    queryFn: api.getSending,
+    staleTime: 30_000,
+    refetchInterval: REPLIES_POLL_MS,
+    // Switched off (503) or an older server (404): say so once, no retries on every screen.
+    retry: (count, error) => !(error instanceof ApiError && (error.status === 503 || error.status === 404)) && count < 2,
+  });
+}
+
+/** The mailboxes, polled while one is being checked. */
+export function useMailboxes() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.mailboxes,
+    queryFn: api.listMailboxes,
+    refetchInterval: (query) => mailboxesPollInterval(query.state.data),
+  });
+}
+
+export function useConnectMailbox() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ConnectMailboxRequest) => api.connectMailbox(input),
+    onSuccess: (mailbox) => {
+      client.setQueryData<MailboxListResponse>(keys.mailboxes, (list) => storeMailbox(list, mailbox));
+      void client.invalidateQueries({ queryKey: keys.mailboxes });
+      void client.invalidateQueries({ queryKey: keys.sending });
+    },
+  });
+}
+
+/** Saves settings, pauses or resumes (`status`), or reconnects with a new password. */
+export function useUpdateMailbox() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, update }: { id: string; update: UpdateMailboxRequest }) => api.updateMailbox(id, update),
+    onSuccess: (mailbox) => {
+      client.setQueryData<MailboxListResponse>(keys.mailboxes, (list) => storeMailbox(list, mailbox));
+      void client.invalidateQueries({ queryKey: keys.sending });
+    },
+  });
+}
+
+/** Runs the mailbox check again; the list polls while it is `checking`. */
+export function useCheckMailbox() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.checkMailbox(id),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.mailboxes }),
+  });
+}
+
+export function useDeleteMailbox() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteMailbox(id),
+    onSuccess: (_void, id) => {
+      client.setQueryData<MailboxListResponse>(keys.mailboxes, (list) => (list ? { mailboxes: list.mailboxes.filter((m) => m.id !== id) } : list));
+      void client.invalidateQueries({ queryKey: keys.sending });
+    },
+  });
+}
+
+/** The campaigns, polled at the pace of the busiest one (campaignsPollInterval). */
+export function useCampaigns() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.campaigns,
+    queryFn: api.listCampaigns,
+    refetchInterval: (query) => campaignsPollInterval(query.state.data),
+  });
+}
+
+export function useCampaign(id: string) {
+  const api = useApi();
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: keys.campaign(id),
+    queryFn: () => api.getCampaign(id),
+    initialData: () => client.getQueryData<CampaignListResponse>(keys.campaigns)?.campaigns.find((c) => c.id === id),
+    initialDataUpdatedAt: () => client.getQueryState(keys.campaigns)?.dataUpdatedAt,
+    refetchInterval: (query) => campaignPollInterval(query.state.data),
+    retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 400)) && count < 2,
+  });
+}
+
+/** A campaign's leads page by page, polled with the campaign while it writes or sends. */
+export function useCampaignLeads(id: string, filter: LeadFilter, interval: number | false) {
+  const api = useApi();
+  return useInfiniteQuery({
+    queryKey: keys.campaignLeads(id, filter),
+    queryFn: ({ pageParam }) => api.listCampaignLeads(id, { cursor: pageParam, status: filter === 'all' ? undefined : filter }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    refetchInterval: interval,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** One lead with its written emails and the messages of its thread, read while it is open. */
+export function useCampaignLead(id: string, leadId: string | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.campaignLead(id, leadId ?? ''),
+    queryFn: () => api.getCampaignLead(id, leadId!),
+    enabled: leadId !== null,
+  });
+}
+
+/** Stores a campaign the server answered with in both caches. */
+function useStoreCampaign(): (campaign: Campaign) => void {
+  const client = useQueryClient();
+  return useCallback(
+    (campaign: Campaign) => {
+      client.setQueryData(keys.campaign(campaign.id), campaign);
+      client.setQueryData<CampaignListResponse>(keys.campaigns, (list) => storeCampaign(list, campaign));
+    },
+    [client],
+  );
+}
+
+export function useCreateCampaign() {
+  const api = useApi();
+  const store = useStoreCampaign();
+  return useMutation({
+    mutationFn: (input: CreateCampaignRequest) => api.createCampaign(input),
+    onSuccess: store,
+  });
+}
+
+export function useUpdateCampaign() {
+  const api = useApi();
+  const store = useStoreCampaign();
+  return useMutation({
+    mutationFn: ({ id, update }: { id: string; update: UpdateCampaignRequest }) => api.updateCampaign(id, update),
+    onSuccess: store,
+  });
+}
+
+/** Start, pause or resume. The campaign and its leads are read again, since Start schedules every queued lead. */
+export function useCampaignAction() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'start' | 'pause' | 'resume' }) => api.campaignAction(id, action),
+    onSuccess: (_void, { id }) => {
+      void client.invalidateQueries({ queryKey: keys.campaign(id) });
+      void client.invalidateQueries({ queryKey: keys.campaigns, exact: true });
+    },
+  });
+}
+
+export function useDeleteCampaign() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteCampaign(id),
+    onSuccess: (_void, id) => {
+      client.setQueryData<CampaignListResponse>(keys.campaigns, (list) => (list ? { campaigns: list.campaigns.filter((c) => c.id !== id) } : list));
+      client.removeQueries({ queryKey: keys.campaign(id) });
+    },
+  });
+}
+
+/** Saves an edited email, then reads the lead again so `edited` shows. */
+export function useUpdateWrittenStep(id: string) {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ leadId, step, update }: { leadId: string; step: number; update: UpdateWrittenStepRequest }) =>
+      api.updateWrittenStep(id, leadId, step, update),
+    onSuccess: (_void, { leadId }) => void client.invalidateQueries({ queryKey: keys.campaignLead(id, leadId) }),
+  });
+}
+
+/** Stops one lead's sequence: nothing more goes to that address from this campaign. */
+export function useStopLead(id: string) {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (leadId: string) => api.stopLead(id, leadId),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.campaign(id) }),
+  });
+}
+
+/** Every reply across campaigns, newest first, page by page. */
+export function useReplies() {
+  const api = useApi();
+  return useInfiniteQuery({
+    queryKey: keys.replies,
+    queryFn: ({ pageParam }) => api.listReplies(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    refetchInterval: REPLIES_POLL_MS,
+  });
+}
+
+/** Marks a reply read at once in the inbox and the unread count, then on the server. */
+export function useMarkReplyRead() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (replyId: string) => api.markReplyRead(replyId),
+    onMutate: (replyId) => {
+      const readAt = new Date().toISOString();
+      client.setQueryData<InfiniteData<ReplyListResponse, string | undefined>>(keys.replies, (data) =>
+        data
+          ? {
+              ...data,
+              pages: data.pages.map((p) => ({ ...p, replies: p.replies.map((r) => (r.id === replyId && !r.readAt ? { ...r, readAt } : r)) })),
+            }
+          : data,
+      );
+      client.setQueryData<SendingSummary>(keys.sending, (s) => (s ? { ...s, repliesUnread: Math.max(0, s.repliesUnread - 1) } : s));
+    },
+    onSettled: () => void client.invalidateQueries({ queryKey: keys.sending }),
   });
 }

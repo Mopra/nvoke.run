@@ -1,5 +1,18 @@
 import type {
   ApiKey,
+  Campaign,
+  CampaignLeadDetail,
+  CampaignLeadListResponse,
+  CampaignListResponse,
+  ConnectMailboxRequest,
+  CreateCampaignRequest,
+  Mailbox,
+  MailboxListResponse,
+  ReplyListResponse,
+  SendingSummary,
+  UpdateCampaignRequest,
+  UpdateMailboxRequest,
+  UpdateWrittenStepRequest,
   ApiKeyListResponse,
   CompaniesPage,
   CreateApiKeyResponse,
@@ -205,6 +218,42 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     runDrop: (id: string): Promise<Drop> => call('POST', `/v1/drops/${enc(id)}/run`),
     deleteDrop: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/drops/${enc(id)}`);
+    },
+    /* Sending (docs/sending/plan.md, "API"). */
+    getSending: (): Promise<SendingSummary> => call('GET', '/v1/sending'),
+    listMailboxes: (): Promise<MailboxListResponse> => call('GET', '/v1/mailboxes'),
+    /** Answers with the mailbox as `checking`; the check runs on the server. */
+    connectMailbox: (input: ConnectMailboxRequest): Promise<Mailbox> => call('POST', '/v1/mailboxes', input),
+    updateMailbox: (id: string, update: UpdateMailboxRequest): Promise<Mailbox> => call('PATCH', `/v1/mailboxes/${enc(id)}`, update),
+    checkMailbox: async (id: string): Promise<void> => {
+      await call<unknown>('POST', `/v1/mailboxes/${enc(id)}/check`);
+    },
+    deleteMailbox: async (id: string): Promise<void> => {
+      await call<null>('DELETE', `/v1/mailboxes/${enc(id)}`);
+    },
+    listCampaigns: (): Promise<CampaignListResponse> => call('GET', '/v1/campaigns'),
+    getCampaign: (id: string): Promise<Campaign> => call('GET', `/v1/campaigns/${enc(id)}`),
+    createCampaign: (input: CreateCampaignRequest): Promise<Campaign> => call('POST', '/v1/campaigns', input),
+    updateCampaign: (id: string, update: UpdateCampaignRequest): Promise<Campaign> => call('PATCH', `/v1/campaigns/${enc(id)}`, update),
+    deleteCampaign: async (id: string): Promise<void> => {
+      await call<null>('DELETE', `/v1/campaigns/${enc(id)}`);
+    },
+    /** start needs a Clerk session, which the web app always has. */
+    campaignAction: async (id: string, action: 'start' | 'pause' | 'resume'): Promise<void> => {
+      await call<unknown>('POST', `/v1/campaigns/${enc(id)}/${action}`);
+    },
+    listCampaignLeads: (id: string, query: { cursor?: string; status?: string } = {}): Promise<CampaignLeadListResponse> =>
+      call('GET', `/v1/campaigns/${enc(id)}/leads${buildQuery(query)}`),
+    getCampaignLead: (id: string, leadId: string): Promise<CampaignLeadDetail> => call('GET', `/v1/campaigns/${enc(id)}/leads/${enc(leadId)}`),
+    updateWrittenStep: async (id: string, leadId: string, step: number, update: UpdateWrittenStepRequest): Promise<void> => {
+      await call<unknown>('PATCH', `/v1/campaigns/${enc(id)}/leads/${enc(leadId)}/steps/${step}`, update);
+    },
+    stopLead: async (id: string, leadId: string): Promise<void> => {
+      await call<unknown>('POST', `/v1/campaigns/${enc(id)}/leads/${enc(leadId)}/stop`);
+    },
+    listReplies: (cursor?: string): Promise<ReplyListResponse> => call('GET', `/v1/replies${buildQuery({ cursor })}`),
+    markReplyRead: async (id: string): Promise<void> => {
+      await call<unknown>('POST', `/v1/replies/${enc(id)}/read`);
     },
   };
 }
