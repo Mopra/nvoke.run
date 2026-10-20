@@ -252,6 +252,17 @@ describe('autopilot', () => {
     expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(1);
   });
 
+  it('fills an autopilot campaign in review whose search was still empty', async () => {
+    const s = await search();
+    const m = await mailbox(db.sql);
+    const campaign = await createCampaign(db.sql, 'u1', req([m], { source: 'search', searchId: s }), NOW);
+    expect(campaign.status).toBe('review');
+    expect(campaign.leads).toBe(0);
+    await email(s, await company(s, 'alpha.com'), 'anna@alpha.com');
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(1);
+    expect((await leads(campaign.id)).map((r) => [r.address, r.status])).toEqual([['anna@alpha.com', 'writing']]);
+  });
+
   it('enrolls nothing while paused', async () => {
     const s = await search();
     const campaign = await started({ source: 'search', searchId: s });

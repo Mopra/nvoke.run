@@ -232,12 +232,18 @@ export async function queueWrites(tx: Db, campaignId: string, leadIds: string[])
  * ENROLL_EVERY_MS ago or longer. A paused, done or canceled campaign enrolls
  * nothing, and with no allowed user nothing does. Returns how many leads came in.
  */
+/**
+ * Autopilot campaigns enroll before the start too, so one made on a search
+ * that is still filling gets a first batch to review instead of staying empty.
+ */
+const ENROLL_STATUSES = ['writing', 'review', 'scheduled', 'sending'];
+
 export async function enrollTick(sql: Sql, log: Logger, users: readonly string[], now: Date = new Date()): Promise<number> {
   if (users.length === 0) return 0;
   const before = new Date(now.getTime() - ENROLL_EVERY_MS);
   const due = await sql<{ id: string }[]>`
     select id from campaigns
-    where autopilot and status in ('scheduled', 'sending') and (enrolled_at is null or enrolled_at <= ${before})
+    where autopilot and status in ${sql(ENROLL_STATUSES)} and (enrolled_at is null or enrolled_at <= ${before})
       and clerk_user_id in ${sql(users)}
     order by enrolled_at nulls first
     limit 50
@@ -248,7 +254,7 @@ export async function enrollTick(sql: Sql, log: Logger, users: readonly string[]
       const res = await sql.begin(async (tx) => {
         const [c] = await tx<CampaignRow[]>`
           select ${tx.unsafe(CAMPAIGN_COLUMNS)} from campaigns c
-          where c.id = ${id} and c.autopilot and c.status in ('scheduled', 'sending') and c.clerk_user_id in ${tx(users)}
+          where c.id = ${id} and c.autopilot and c.status in ${tx(ENROLL_STATUSES)} and c.clerk_user_id in ${tx(users)}
             and (c.enrolled_at is null or c.enrolled_at <= ${before})
           for update skip locked
         `;
