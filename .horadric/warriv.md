@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Round as the human left: the human committed the video test reel ed03517 (apps/video) past green b4611da, so filed 'Checks on main after the video test reel' (sonnet, no build). No aim.
 - 2026-10-20 Round after the SMTP relay checks landed: no fix commits, so main green at b4611da. Log done, no aim; dirty apps/video is the human's. Nothing to file; shipping is the human's.
 - 2026-10-20 Hourly round: the human committed the SMTP relay verify change b4611da (server) past green 579fe66, so filed 'Checks on main after the SMTP relay verify change' (sonnet, with server build, leave dirty apps/video alone). No aim.
 - 2026-10-20 Round after the studio teaser checks landed: no fix commits, so main green at 579fe66. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
@@ -46,7 +47,7 @@
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 52 quests landed since the last ship; shipping is the human's.
-- Main green at b4611da. File checks again when the human commits code past it.
+- Main green at b4611da; checks for ed03517 (video reel) filed. File checks again when the human commits code past it.
 - SMTP relays (b4611da) need vps-us-1 set up and SMTP_RELAYS in the VPS .env (deploy/README.md); the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
