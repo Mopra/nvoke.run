@@ -155,8 +155,8 @@ describe('usage', () => {
 
   it('gives the free plan the floor and paid plans a share of their price', async () => {
     expect(await monthlyBudgetUsd(db.sql, 'u1', budget)).toBe(1);
-    await db.sql`update accounts set plan = 'emails_100000' where clerk_user_id = 'u1'`;
-    expect(await monthlyBudgetUsd(db.sql, 'u1', budget)).toBeCloseTo(37.25, 6);
+    await db.sql`update accounts set plan = 'emails_60000' where clerk_user_id = 'u1'`;
+    expect(await monthlyBudgetUsd(db.sql, 'u1', budget)).toBeCloseTo(49.75, 6);
   });
 
   it('prices cache reads and writes, and an unknown model as Opus', () => {

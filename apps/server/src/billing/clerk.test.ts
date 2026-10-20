@@ -12,11 +12,11 @@ describe('resolvePlan', () => {
   it('picks the most generous plan the user holds', () => {
     const items = [
       { status: 'active', slug: 'free', periodEnd: null },
-      { status: 'active', slug: 'emails_7500', periodEnd: null },
-      { status: 'upcoming', slug: 'emails_100000', periodEnd: null },
+      { status: 'active', slug: 'emails_10000', periodEnd: null },
+      { status: 'upcoming', slug: 'emails_60000', periodEnd: null },
       { status: 'past_due', slug: 'emails_2500', periodEnd: null },
     ];
-    expect(resolvePlan(items, NOW).plan).toBe('emails_7500');
+    expect(resolvePlan(items, NOW).plan).toBe('emails_10000');
   });
 
   it('keeps a canceled plan until its period ends', () => {
@@ -33,9 +33,9 @@ describe('resolvePlan', () => {
 
 describe('grantedItem', () => {
   it('reads a plan granted in public metadata', () => {
-    expect(grantedItem({ plan: 'emails_100000', role: 'admin' })).toEqual({
+    expect(grantedItem({ plan: 'emails_60000', role: 'admin' })).toEqual({
       status: 'active',
-      slug: 'emails_100000',
+      slug: 'emails_60000',
       periodEnd: null,
     });
     expect(grantedItem({})).toBeNull();
@@ -44,8 +44,8 @@ describe('grantedItem', () => {
   });
 
   it('never lowers a paid plan', () => {
-    const items = [{ status: 'active', slug: 'emails_7500', periodEnd: null }, grantedItem({ plan: 'emails_1000' })!];
-    expect(resolvePlan(items, NOW).plan).toBe('emails_7500');
+    const items = [{ status: 'active', slug: 'emails_10000', periodEnd: null }, grantedItem({ plan: 'emails_1000' })!];
+    expect(resolvePlan(items, NOW).plan).toBe('emails_10000');
   });
 });
 

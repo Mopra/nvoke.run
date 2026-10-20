@@ -97,7 +97,7 @@ describe('lead routes', () => {
   it('holds the limit to the plan', async () => {
     const big = { kind: 'web', params: { keyword: 'design studio', country: 'DK' }, limit: 25_000 } as const;
     expect(Search.parse((await createSearch('alice', big)).json()).limit).toBe(1000);
-    await db.sql`update accounts set plan = 'emails_7500' where clerk_user_id = 'alice'`;
+    await db.sql`update accounts set plan = 'emails_10000' where clerk_user_id = 'alice'`;
     expect(Search.parse((await createSearch('alice', big)).json()).limit).toBe(10_000);
   });
 

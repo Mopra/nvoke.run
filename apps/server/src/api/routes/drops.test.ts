@@ -77,7 +77,7 @@ describe('drop routes', () => {
 
   it('holds the daily limit to the plan', async () => {
     expect(Drop.parse((await create('alice', { name: 'Big', dailyLimit: 5000 })).json()).dailyLimit).toBe(200);
-    await db.sql`update accounts set plan = 'emails_100000' where clerk_user_id = 'alice'`;
+    await db.sql`update accounts set plan = 'emails_60000' where clerk_user_id = 'alice'`;
     expect(Drop.parse((await create('alice', { name: 'Bigger', dailyLimit: 5000 })).json()).dailyLimit).toBe(5000);
   });
 

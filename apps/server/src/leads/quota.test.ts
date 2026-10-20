@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
-import { DROP_DAILY_LIMIT_MAX, PLAN_ORDER, PLANS, SEARCH_LIMIT_MAX } from '@nvoke/shared';
+import { DROP_DAILY_LIMIT_MAX, PLAN_ORDER, PLANS, SEARCH_LIMIT_MAX, emailWeight } from '@nvoke/shared';
 import { emailsPerMonth, maxSearchLimit, periodOf } from './plans.js';
 import { accountSummary, chargeVerified, emailsVerified, ensureAccount, quotaExhausted } from './quota.js';
 
@@ -16,13 +16,14 @@ beforeEach(async () => {
   await db.sql`truncate accounts cascade`;
 });
 
-const charge = (user: string, address: string, at?: Date) => db.sql.begin((tx) => chargeVerified(tx, user, address, at));
+const charge = (user: string, address: string, at?: Date, weight?: number) =>
+  db.sql.begin((tx) => chargeVerified(tx, user, address, at, weight));
 
 describe('plans', () => {
-  it('match the ladder: 50 free, then 1,000 to 100,000 verified emails a month', () => {
+  it('match the ladder: 50 free, then 1,000 to 60,000 verified emails a month', () => {
     expect(PLANS.free).toMatchObject({ emailsPerMonth: 50, priceUsd: 0 });
-    expect(PLANS.emails_1000).toMatchObject({ emailsPerMonth: 1_000, priceUsd: 5 });
-    expect(PLANS.emails_100000).toMatchObject({ emailsPerMonth: 100_000, priceUsd: 149 });
+    expect(PLANS.emails_1000).toMatchObject({ emailsPerMonth: 1_000, priceUsd: 9 });
+    expect(PLANS.emails_60000).toMatchObject({ emailsPerMonth: 60_000, priceUsd: 199 });
   });
 
   it('raise the search and drop caps with the plan, never past the schema ceilings', () => {
@@ -65,6 +66,19 @@ describe('quota', () => {
     expect(await quotaExhausted(db.sql, 'u1')).toBe(true);
   });
 
+  it('counts a Describe your customer email as two, and refuses one that does not fit', async () => {
+    await ensureAccount(db.sql, 'u6');
+    const icp = emailWeight('icp');
+    expect(icp).toBe(2);
+    expect(emailWeight('domains')).toBe(1);
+    for (let i = 0; i < 24; i++) expect(await charge('u6', `i${i}@x.dk`, undefined, icp)).toBe('charged');
+    expect(await charge('u6', 'one@x.dk')).toBe('charged');
+    expect(await emailsVerified(db.sql, 'u6')).toBe(49);
+    expect(await charge('u6', 'two@x.dk', undefined, icp)).toBe('over_limit');
+    expect(await charge('u6', 'last@x.dk')).toBe('charged');
+    expect(await quotaExhausted(db.sql, 'u6')).toBe(true);
+  });
+
   it('never charges an address twice, across months', async () => {
     await ensureAccount(db.sql, 'u1');
     expect(await charge('u1', 'a@x.dk', new Date('2026-09-15T00:00:00Z'))).toBe('charged');
@@ -92,14 +106,14 @@ describe('quota', () => {
   it('summarizes plan and usage for /v1/me', async () => {
     const now = new Date('2026-10-13T00:00:00Z');
     await ensureAccount(db.sql, 'u5');
-    await db.sql`update accounts set plan = 'emails_20000' where clerk_user_id = 'u5'`;
+    await db.sql`update accounts set plan = 'emails_25000' where clerk_user_id = 'u5'`;
     for (let i = 0; i < 12; i++) await charge('u5', `s${i}@x.dk`, now);
     expect(await accountSummary(db.sql, 'u5', now)).toEqual({
       userId: 'u5',
-      plan: 'emails_20000',
-      usage: { period: '2026-10', emailsVerified: 12, emailsLimit: 20_000 },
+      plan: 'emails_25000',
+      usage: { period: '2026-10', emailsVerified: 12, emailsLimit: 25_000 },
       maxSearchLimit: 20_000,
-      maxDropDailyLimit: 2_000,
+      maxDropDailyLimit: 2_500,
       account: { createdBy: 'human', agentName: null, claimedAt: expect.any(String) },
     });
   });

@@ -19,10 +19,9 @@ export const PLAN_KEYS = [
   'free',
   'emails_1000',
   'emails_2500',
-  'emails_7500',
-  'emails_20000',
-  'emails_50000',
-  'emails_100000',
+  'emails_10000',
+  'emails_25000',
+  'emails_60000',
 ] as const;
 
 export const Plan = z.enum(PLAN_KEYS);
@@ -45,12 +44,11 @@ export interface PlanMeta {
 
 export const PLANS: Record<Plan, PlanMeta> = {
   free: { emailsPerMonth: 50, priceUsd: 0, maxSearchLimit: 1_000, maxDropDailyLimit: 200 },
-  emails_1000: { emailsPerMonth: 1_000, priceUsd: 5, maxSearchLimit: 2_500, maxDropDailyLimit: 250 },
-  emails_2500: { emailsPerMonth: 2_500, priceUsd: 9, maxSearchLimit: 5_000, maxDropDailyLimit: 500 },
-  emails_7500: { emailsPerMonth: 7_500, priceUsd: 19, maxSearchLimit: 10_000, maxDropDailyLimit: 1_000 },
-  emails_20000: { emailsPerMonth: 20_000, priceUsd: 39, maxSearchLimit: 20_000, maxDropDailyLimit: 2_000 },
-  emails_50000: { emailsPerMonth: 50_000, priceUsd: 79, maxSearchLimit: 25_000, maxDropDailyLimit: 2_500 },
-  emails_100000: { emailsPerMonth: 100_000, priceUsd: 149, maxSearchLimit: 25_000, maxDropDailyLimit: 5_000 },
+  emails_1000: { emailsPerMonth: 1_000, priceUsd: 9, maxSearchLimit: 2_500, maxDropDailyLimit: 250 },
+  emails_2500: { emailsPerMonth: 2_500, priceUsd: 19, maxSearchLimit: 5_000, maxDropDailyLimit: 500 },
+  emails_10000: { emailsPerMonth: 10_000, priceUsd: 49, maxSearchLimit: 10_000, maxDropDailyLimit: 1_000 },
+  emails_25000: { emailsPerMonth: 25_000, priceUsd: 99, maxSearchLimit: 20_000, maxDropDailyLimit: 2_500 },
+  emails_60000: { emailsPerMonth: 60_000, priceUsd: 199, maxSearchLimit: 25_000, maxDropDailyLimit: 5_000 },
 };
 
 export const FREE_PLAN: Plan = 'free';
@@ -62,7 +60,19 @@ export const PLAN_ORDER: readonly Plan[] = PLAN_KEYS;
 export const PAID_PLANS: readonly Plan[] = PLAN_KEYS.filter((p) => p !== FREE_PLAN);
 
 /** The most generous self-serve plan. Above it, people write to us. */
-export const TOP_PLAN: Plan = 'emails_100000';
+export const TOP_PLAN: Plan = 'emails_60000';
+
+/**
+ * How many verified emails one valid address counts as, by the kind of search
+ * that found it. Describe your customer (`icp`) plans the search and scores
+ * every company with Claude and pays for web search, so its emails count as
+ * two. Every other kind counts one.
+ */
+export const ICP_EMAIL_WEIGHT = 2;
+
+export function emailWeight(kind: string): number {
+  return kind === 'icp' ? ICP_EMAIL_WEIGHT : 1;
+}
 
 export function isPlan(value: unknown): value is Plan {
   return typeof value === 'string' && (PLAN_KEYS as readonly string[]).includes(value);

@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
 import {
   DomainsSearchParams,
+  emailWeight,
   IcpSearchParams,
   LaunchesSearchParams,
   LocalSearchParams,
@@ -743,7 +744,8 @@ async function recordVerification(deps: PipelineDeps, emailId: string, verificat
       return { searchId: email.search_id, overLimit: false };
     }
     if (verification === 'valid') {
-      const charge = await chargeVerified(tx, email.clerk_user_id, email.address, deps.now?.());
+      const [search] = await tx<{ kind: string }[]>`select kind from searches where id = ${email.search_id}`;
+      const charge = await chargeVerified(tx, email.clerk_user_id, email.address, deps.now?.(), emailWeight(search?.kind ?? ''));
       if (charge === 'over_limit') return { searchId: email.search_id, overLimit: true };
     }
     await tx`update emails set verification = ${verification}, checked_at = now() where id = ${emailId}`;

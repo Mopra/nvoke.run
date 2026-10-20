@@ -1,6 +1,8 @@
 // Accounts, monthly usage and the verified email quota.
 //
 // The meter counts verified emails: addresses whose check came back valid.
+// An address found by a Describe your customer search counts as two
+// (`emailWeight` in @nvoke/shared/plans), every other one as one.
 // Each address is charged once per user per 12 months (billed_emails, see retention.ts), and
 // the usage row is locked while charging, so concurrent verifications of the
 // same user never overshoot the plan's allowance.
@@ -67,10 +69,17 @@ export async function accountSummary(sql: Db, userId: string, now: Date = new Da
 export type Charge = 'charged' | 'already_billed' | 'over_limit';
 
 /**
- * Charges one verified address. Must run inside a transaction: it locks the
- * user's usage row for this period until the transaction ends.
+ * Charges one verified address, `weight` emails of the allowance. Must run
+ * inside a transaction: it locks the user's usage row for this period until
+ * the transaction ends.
  */
-export async function chargeVerified(tx: TransactionSql, userId: string, address: string, now: Date = new Date()): Promise<Charge> {
+export async function chargeVerified(
+  tx: TransactionSql,
+  userId: string,
+  address: string,
+  now: Date = new Date(),
+  weight = 1,
+): Promise<Charge> {
   const period = periodOf(now);
   await tx`
     insert into usage (clerk_user_id, period) values (${userId}, ${period})
@@ -84,10 +93,10 @@ export async function chargeVerified(tx: TransactionSql, userId: string, address
   `;
   const billed = await tx`select 1 from billed_emails where clerk_user_id = ${userId} and address = ${address}`;
   if (billed.length > 0) return 'already_billed';
-  if ((row?.emails_verified ?? 0) >= emailsPerMonth(row?.plan ?? '')) return 'over_limit';
+  if ((row?.emails_verified ?? 0) + weight > emailsPerMonth(row?.plan ?? '')) return 'over_limit';
   await tx`insert into billed_emails (clerk_user_id, address, period) values (${userId}, ${address}, ${period})`;
   await tx`
-    update usage set emails_verified = emails_verified + 1
+    update usage set emails_verified = emails_verified + ${weight}
     where clerk_user_id = ${userId} and period = ${period}
   `;
   return 'charged';

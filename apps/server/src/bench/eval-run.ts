@@ -218,7 +218,7 @@ export async function runEval(opts: EvalOptions): Promise<{ run: EvalRun; file: 
 
     for (const user of [...plan.map((p) => userOf(p.entry.id)), JUDGE_USER]) {
       await ensureAccount(sql, user);
-      await sql`update accounts set plan = 'emails_100000' where clerk_user_id = ${user}`;
+      await sql`update accounts set plan = 'emails_60000' where clerk_user_id = ${user}`;
     }
 
     const startedAt = new Date();
