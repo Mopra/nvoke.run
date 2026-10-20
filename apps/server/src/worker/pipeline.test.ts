@@ -1239,4 +1239,23 @@ describe('fit after the crawl', () => {
     ]);
     expect((await queuedChecks(db.sql, searchId)).queued).toBe(2);
   });
+
+  it('keeps a company when every fit call fails, never deleting what Claude did not score', async () => {
+    const searchId = await icpSearch(10);
+    await db.sql`delete from jobs where search_id = ${searchId}`;
+    await db.sql`update searches set status = 'running' where id = ${searchId}`;
+    const [c] = await db.sql<{ id: string }[]>`
+      insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status, fit_state, fit)
+      values (${searchId}, 'u1', 'down.dk', 'down.dk', 'https://down.dk', 'brave', 'done', 'pending', 50) returning id`;
+    await db.sql`insert into emails (company_id, search_id, clerk_user_id, address, kind) values (${c!.id}, ${searchId}, 'u1', 'info@down.dk', 'generic')`;
+    const failing: Ai = {
+      ready: async () => true,
+      structured: async () => {
+        throw new Error('openrouter 502');
+      },
+    };
+    await runFit({ ...deps(adapterOf([])), ai: failing }, { id: '5', type: 'fit', payload: { searchId, companyIds: [c!.id] }, searchId, attempts: 1, maxAttempts: 3 }, new AbortController().signal);
+    const rows = await db.sql`select domain, fit, fit_state from companies where search_id = ${searchId}`;
+    expect(rows).toEqual([{ domain: 'down.dk', fit: 50, fit_state: 'kept' }]);
+  }, 30_000);
 });

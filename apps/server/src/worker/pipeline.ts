@@ -222,6 +222,8 @@ export async function* abortable<T>(source: AsyncIterable<T>, signal: AbortSigna
  * and never short (leads/ongoing.ts) closes any gap.
  */
 export const FIND_SETTLE_MS = 2 * 60_000;
+/** All the waiting one find job may do at its limit, so it never holds a find slot for long. */
+const FIND_SETTLE_TOTAL_MS = 5 * 60_000;
 const SETTLE_POLL_MS = 2_000;
 
 /**
@@ -267,6 +269,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
   const heldBefore = found;
   let inserted = 0;
   let dropped = 0;
+  let settleLeft = FIND_SETTLE_TOTAL_MS;
 
   // Paid source calls, recorded even when the find fails, so cost per valid email can be measured.
   const usage = { request: 0, cache_hit: 0 };
@@ -322,7 +325,10 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
       if (found >= search.limit) {
         if (!icp) break;
         // Companies turned down after their crawl free their place: wait for them, then find more.
-        found = await settleFit(sql, searchId, search.limit, deps.findSettleMs ?? FIND_SETTLE_MS, signal);
+        const wait = Math.min(deps.findSettleMs ?? FIND_SETTLE_MS, Math.max(0, settleLeft));
+        const settleStart = Date.now();
+        found = await settleFit(sql, searchId, search.limit, wait, signal);
+        settleLeft -= Date.now() - settleStart;
         dropped = Math.max(0, inserted - (found - heldBefore));
         if (found >= search.limit) break;
       }
@@ -992,10 +998,10 @@ export async function runFit(deps: PipelineDeps, job: Job, _signal: AbortSignal)
   let kept = 0;
   for (const [i, r] of rows.entries()) {
     const v = verdicts[i] ?? null;
-    if (!v || v.fit >= FIT_THRESHOLD) {
-      if (await keepForChecks(sql, r.id, v)) kept++;
-    } else if ((await dropOffTarget(sql, r.id)) && !v.unscored) {
-      // A score Claude gave holds for the rest of the search; the 0 of a batch it could not score does not.
+    // The 0 of a batch Claude could not score is no verdict: the company is kept unscored, like one fit gave up on.
+    if (!v || v.unscored || v.fit >= FIT_THRESHOLD) {
+      if (await keepForChecks(sql, r.id, v?.unscored ? null : v)) kept++;
+    } else if (await dropOffTarget(sql, r.id)) {
       rejected.push(registrableDomain(r.domain));
     }
   }
@@ -1051,6 +1057,23 @@ async function dropOffTarget(sql: Sql, companyId: string): Promise<boolean> {
       for update
     `;
     if (!company) return false;
+    // Something of it was already checked or is being worked on (a local crawl can queue work early): keep it.
+    const [started] = await tx`
+      select 1 where exists (select 1 from emails where company_id = ${companyId} and verification is not null)
+        or exists (
+          select 1 from jobs where search_id = ${company.search_id} and type in ('verify', 'people')
+            and status in ('queued', 'running') and payload->>'companyId' = ${companyId}
+        )
+        or exists (
+          select 1 from jobs j join emails e on e.id::text = j.payload->>'emailId'
+          where j.search_id = ${company.search_id} and j.type = 'verify' and j.status in ('queued', 'running')
+            and e.company_id = ${companyId}
+        )
+    `;
+    if (started) {
+      await tx`update companies set fit_state = 'kept' where id = ${companyId}`;
+      return false;
+    }
     await tx`delete from companies where id = ${companyId}`;
     await tx`
       update searches set companies_found = greatest(0, companies_found - 1),

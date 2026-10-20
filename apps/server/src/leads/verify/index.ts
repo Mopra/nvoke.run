@@ -805,6 +805,8 @@ export class Verifier {
         if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) return { ok: false, host, reason: 'aborted' };
         if (err instanceof SmtpProbeError && throttledBy(host, err)) {
           lastError = 'smtp_throttled';
+          // The provider is pushing back: every check waiting for it holds off, not just this one.
+          this.pacer.cool(`provider:${mailProvider(host)}`, SLOW_DOWN_MS);
           if (err.stage === 'connect') continue;
           break;
         }
