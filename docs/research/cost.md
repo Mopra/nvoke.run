@@ -73,8 +73,9 @@ emails come from data we already hold.
 2. **Longer cache lives where the data is stable.** `web_search_cache` is 7
    days. Company websites and generic inboxes rarely change within a month,
    so 30 days cuts repeat Brave cost by up to 4x for popular queries.
-   `email_checks` holds `valid` for 7 days; 30 days for role and generic
-   addresses saves SMTP sessions, which are the throughput bottleneck.
+   `email_checks` held `valid` for 7 days; it is 30 days since 2026-10-20,
+   the whole retention, which saves SMTP sessions, the throughput
+   bottleneck.
 3. **Cheaper `people`.** It is the biggest Claude cost. Run the rule based
    people parser first and call Haiku only when it finds nothing on a page
    that looks like a team page. Trim the page text to the people section

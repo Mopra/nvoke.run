@@ -7,9 +7,8 @@
 // that wait for it share a session, sessions are paced per mail provider
 // under a global ceiling (pacing.ts), a domain's catch-all verdict is
 // remembered for an hour so the same server is not asked again, and results
-// are cached per address by the caller's cache (7 days for "valid", so a
-// charged address was confirmed within the week, 1 day for "unknown", 30 days
-// for the rest). A greylisted answer is never cached: the pipeline retries it.
+// are cached per address by the caller's cache (30 days, the whole retention,
+// except 1 day for "unknown"; docs/research/cost.md). A greylisted answer is never cached: the pipeline retries it.
 // Sessions go over IPv6 when the MX host has an AAAA record, since the VPS
 // provider throttles port 25 on IPv4 only. When port 25 turns out to be
 // unreachable the verifier stops trying for a while and answers "unknown"
@@ -107,7 +106,7 @@ interface Ipv4Lane {
 const RELAY_DOWN_MS = 60_000;
 
 export const CACHE_TTL_MS = 30 * 24 * 60 * 60_000;
-export const VALID_TTL_MS = 7 * 24 * 60 * 60_000;
+export const VALID_TTL_MS = 30 * 24 * 60 * 60_000;
 export const UNKNOWN_TTL_MS = 24 * 60 * 60_000;
 
 /**

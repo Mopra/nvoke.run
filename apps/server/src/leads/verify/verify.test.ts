@@ -490,7 +490,7 @@ describe('Verifier', () => {
 
   it('keeps valid results for a week, unknown for a day and the rest for 30 days', () => {
     expect(ttlFor('unknown')).toBe(24 * 60 * 60_000);
-    expect(ttlFor('valid')).toBe(7 * 24 * 60 * 60_000);
+    expect(ttlFor('valid')).toBe(30 * 24 * 60 * 60_000);
     expect(ttlFor('invalid')).toBe(30 * 24 * 60 * 60_000);
     expect(ttlFor('catch_all')).toBe(30 * 24 * 60 * 60_000);
   });

@@ -51,9 +51,10 @@
  *                                     came from (email, opt_out_page, bot_page, admin;
  *                                     default email)
  *
- * `stats` picks its database the same way. It prints, per search kind over
- * the last --days (default 30), paid source requests, pages served from the
- * cache and valid emails, so the cost of a valid email can be read off.
+ * `stats` picks its database the same way. It prints, over the last --days
+ * (default 30), Brave requests, cache hits, valid emails and Brave dollars per
+ * search kind, Claude dollars per task, and the cost per 1,000 valid emails.
+ * It only reads the database.
  * `sources resume <source>` ends a source pause early once its cause is
  * fixed. `alert test` emails a test alert through Day3 (needs DAY3_API_KEY,
  * ALERT_EMAIL_TO and ALERT_EMAIL_FROM). Both pick the database like stats.
@@ -119,6 +120,7 @@ import { collectDue } from './feed/collect.js';
 import { createCollectors, sourceAvailability } from './feed/collectors.js';
 import { feedSourceStatus } from './feed/drops.js';
 import { loadEnv } from './env.js';
+import { costReport, formatCostReport } from './leads/cost-report.js';
 import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
 import { startOngoingLoop } from './leads/ongoing.js';
@@ -314,27 +316,15 @@ async function privacy(args: Args): Promise<void> {
   }
 }
 
-/** `cli stats`: paid source usage against valid emails, per search kind. */
+/** `cli stats`: what a valid email cost, per search kind and Claude task (src/leads/cost-report.ts). */
 async function stats(args: Args): Promise<void> {
   const daysFlag = args.flags.get('days');
   const days = Number(typeof daysFlag === 'string' ? daysFlag : 30);
   if (!Number.isInteger(days) || days < 1) usage();
+  const env = loadEnv();
   const { sql, close } = await opsDatabase(args);
   try {
-    const rows = await sql<{ kind: string; searches: number; requests: number; cache_hits: number; valid: number }[]>`
-      select kind, count(*)::int as searches, sum(source_requests)::int as requests,
-             sum(source_cache_hits)::int as cache_hits, sum(emails_valid)::int as valid
-      from searches
-      where created_at > now() - make_interval(days => ${days})
-      group by kind order by kind
-    `;
-    console.log(`last ${days} days`);
-    for (const r of rows) {
-      const perRequest = r.requests > 0 ? (r.valid / r.requests).toFixed(2) : 'n/a';
-      console.log(
-        `${r.kind.padEnd(9)} searches ${r.searches}  paid requests ${r.requests}  cache hits ${r.cache_hits}  valid emails ${r.valid}  valid per request ${perRequest}`,
-      );
-    }
+    console.log(formatCostReport(await costReport(sql, days, env.BRAVE_COST_PER_1000_USD)));
   } finally {
     await close();
   }

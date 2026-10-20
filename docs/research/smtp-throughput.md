@@ -65,7 +65,7 @@ a row turn IPv6 off for 30 minutes. Each fallback costs an IPv4 slot.
 
 **Caching:**
 
-- Per address in `email_checks`, shared by every user: `valid` 7 days,
+- Per address in `email_checks`, shared by every user: `valid` 30 days (7 before 2026-10-20),
   `unknown` 1 day, the rest 30 days. Tempfails, `smtp_paced`, MX only and DNS
   errors are never cached.
 - Per domain, in memory only: catch-all and not catch-all verdicts for 1
@@ -217,10 +217,9 @@ that is not Google or Microsoft) seen catch-all on at least 95% of its last
 census shows such providers are a real share; a wrong guess costs a user a
 verified email.
 
-Do not raise the `valid` TTL from 7 days on its own: the spec ties it to
-"a charged address was confirmed within the week". If cross user overlap
-turns out high (drops and ICP searches in the same niches), revisit with the
-owner; 30 days would cut repeat sessions for shared addresses.
+Done 2026-10-20: the owner raised the `valid` TTL from 7 to 30 days, the
+retention of `email_checks`, to cut repeat sessions for shared addresses
+(docs/research/cost.md).
 
 ## 6. One session per company
 
