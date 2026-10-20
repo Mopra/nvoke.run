@@ -14,6 +14,9 @@ export interface EraseResult {
   companies: number;
   emailChecks: number;
   billedEmails: number;
+  /** Sending: the address in users' campaigns, and the mails to and from it. */
+  campaignLeads: number;
+  messages: number;
   searchesRecounted: number;
 }
 
@@ -32,8 +35,10 @@ function normalize(target: PrivacyTarget): PrivacyTarget {
  * Suppresses the target and deletes it everywhere: per-search emails, the
  * shared cache (domain_emails, domains), the verification cache
  * (email_checks), the billing ledger (billed_emails) and, for a domain, the
- * companies found on it in every user's searches. A domain covers its
- * subdomains and every address on them.
+ * companies found on it in every user's searches, plus every campaign lead
+ * and message to or from it (with its written steps, on delete cascade).
+ * Per sender opt-outs (send_suppressions) are hashes and stay. A domain
+ * covers its subdomains and every address on them.
  *
  * suppress() runs in its own transaction and goes first, so the hash is in
  * place before anything else and the worker stops collecting at once. The
@@ -109,6 +114,18 @@ export async function erase(sql: Sql, input: PrivacyTarget, source: SuppressionS
       ).count;
     }
 
+    // Sending: messages first, they would lose their lead link otherwise.
+    const onTarget = (column: string) => {
+      const col = tx.unsafe(column);
+      return isAddress
+        ? tx`${col} = ${target.address}`
+        : tx`(split_part(${col}, '@', 2) = ${domain} or split_part(${col}, '@', 2) like ${sub})`;
+    };
+    const messages = (await tx`delete from messages where ${onTarget('from_address')} or ${onTarget('to_address')}`).count;
+    const campaignLeads = (
+      await tx`delete from campaign_leads where ${onTarget('address')}${isAddress ? tx`` : tx` or domain = ${domain} or domain like ${sub}`}`
+    ).count;
+
     let searchesRecounted = 0;
     if (counted.searches.length > 0) {
       searchesRecounted = (
@@ -131,6 +148,8 @@ export async function erase(sql: Sql, input: PrivacyTarget, source: SuppressionS
       companies,
       emailChecks,
       billedEmails,
+      campaignLeads,
+      messages,
       searchesRecounted,
     };
   });

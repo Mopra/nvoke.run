@@ -27,6 +27,12 @@ export const RETENTION = {
   feedItemDays: 90,
   /** A webhook delivery (ids only, never addresses) is deleted this many days after it was made. */
   webhookDeliveryDays: 30,
+  /** A reply's body is cleared this long after it arrived (docs/sending/plan.md). */
+  replyBodyMonths: 12,
+  /** Sent and received messages (metadata, no outgoing bodies) are deleted after this. */
+  messageMonths: 24,
+  /** The emails Claude wrote for a campaign are deleted this many days after it ends. */
+  writtenStepDays: 30,
   /** How often the worker runs purge(). */
   purgeIntervalMs: 60 * 60_000,
 } as const;
@@ -46,6 +52,9 @@ export interface PurgeResult {
   webSearchPages: number;
   feedItems: number;
   webhookDeliveries: number;
+  replyBodies: number;
+  messages: number;
+  writtenSteps: number;
 }
 
 /**
@@ -95,6 +104,25 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     where created_at < ${at}::timestamptz - make_interval(days => ${RETENTION.webhookDeliveryDays})
     returning id
   `;
+  const replyBodies = await sql`
+    update messages set body_text = null
+    where body_text is not null
+      and at < ${at}::timestamptz - make_interval(months => ${RETENTION.replyBodyMonths})
+    returning id
+  `;
+  const messages = await sql`
+    delete from messages
+    where at < ${at}::timestamptz - make_interval(months => ${RETENTION.messageMonths})
+    returning id
+  `;
+  const writtenSteps = await sql`
+    delete from campaign_steps_written w
+    using campaign_leads l, campaigns c
+    where l.id = w.campaign_lead_id and c.id = l.campaign_id
+      and c.status in ('done', 'canceled') and c.finished_at is not null
+      and c.finished_at < ${at}::timestamptz - make_interval(days => ${RETENTION.writtenStepDays})
+    returning w.campaign_lead_id
+  `;
   return {
     searches: searches.length,
     domainEmails: domainEmails.length,
@@ -104,5 +132,8 @@ export async function purge(sql: Sql, now: Date = new Date()): Promise<PurgeResu
     webSearchPages: webSearchPages.length,
     feedItems: feedItems.length,
     webhookDeliveries: webhookDeliveries.length,
+    replyBodies: replyBodies.length,
+    messages: messages.length,
+    writtenSteps: writtenSteps.length,
   };
 }

@@ -96,6 +96,34 @@ export function suppressedSql(sql: Db, column: string) {
   )`;
 }
 
+/** Why a sender may not write to an address again (send_suppressions, docs/sending/plan.md). */
+export type SendSuppressionReason = 'unsubscribe' | 'bounce' | 'complaint' | 'manual';
+
+/**
+ * Records an objection to one sender. Unlike suppress() it erases nothing:
+ * the address stays in other users' searches, only this user stops writing.
+ */
+export async function suppressForSender(sql: Db, userId: string, address: string, reason: SendSuppressionReason): Promise<void> {
+  await sql`
+    insert into send_suppressions (clerk_user_id, hash, reason)
+    values (${userId}, ${addressHash(address)}, ${reason})
+    on conflict do nothing`;
+}
+
+/**
+ * SQL condition that is true when the user in `userColumn` may not write to
+ * the address in `addressColumn` (send_suppressions). Both must be trusted
+ * identifiers such as `l.clerk_user_id` and `l.address`.
+ */
+export function sendSuppressedSql(sql: Db, userColumn: string, addressColumn: string) {
+  const user = sql.unsafe(userColumn);
+  const col = sql.unsafe(addressColumn);
+  return sql`exists (
+    select 1 from send_suppressions ss
+    where ss.clerk_user_id = ${user} and ss.hash = encode(sha256(convert_to(${col}, 'UTF8')), 'hex')
+  )`;
+}
+
 /** Like suppressedSql, for a bare domain column such as `c.domain`. */
 export function domainSuppressedSql(sql: Db, column: string) {
   const col = sql.unsafe(column);
