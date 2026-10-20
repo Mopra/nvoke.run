@@ -81,7 +81,7 @@ export function SearchDisplay({ search }: { search: Search }) {
             Live
           </span>
         )}
-        <span className="cap ml-auto min-w-0 truncate text-screen-foreground/50" title={searchSubtitle(search)}>
+        <span className="cap ml-auto min-w-0 truncate text-screen-foreground/60" title={searchSubtitle(search)}>
           {searchSubtitle(search)}
         </span>
       </div>
@@ -93,7 +93,7 @@ export function SearchDisplay({ search }: { search: Search }) {
       >
         {searchTitle(search)}
       </h1>
-      <div className="cap mt-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-screen-foreground/50">
+      <div className="cap mt-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-screen-foreground/60">
         <span key={note} role="status" aria-live="polite" data-stage-note className="min-w-0 truncate tabular-nums motion-safe:animate-fade-in" title={note}>
           {note}
         </span>
@@ -166,7 +166,7 @@ function StatusCap({ on, tone = 'plain', children }: { on: boolean; tone?: 'plai
     <span
       className={cn(
         'cap transition-colors duration-500',
-        !on && 'text-screen-foreground/30',
+        !on && 'text-screen-foreground/60',
         on && tone === 'failed' && 'text-destructive',
         on && tone === 'live' && 'text-primary',
         on && tone === 'plain' && 'text-screen-foreground',
@@ -200,7 +200,7 @@ function Reading({
   const delta = useDelta(value, live);
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
-      <dt className="cap flex min-w-0 items-center gap-2 text-screen-foreground/50">
+      <dt className="cap flex min-w-0 items-center gap-2 text-screen-foreground/60">
         <span className="truncate">{label}</span>
         {delta && (
           <span key={delta.at} aria-hidden className="tabular-nums text-primary motion-safe:animate-pop-in">
@@ -211,9 +211,7 @@ function Reading({
       </dt>
       <dd className="flex">
         <span className="relative inline-block text-[30px] leading-none whitespace-nowrap sm:text-[52px]">
-          <span aria-hidden className="ghost">
-            {ghost}
-          </span>
+          <span aria-hidden className="ghost" data-ghost={ghost} />
           <span className="lcd absolute inset-y-0 right-0">{formatNumber(shown)}</span>
         </span>
       </dd>

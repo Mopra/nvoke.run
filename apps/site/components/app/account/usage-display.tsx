@@ -28,8 +28,8 @@ export function UsageDisplay({ me }: { me: MeResponse }) {
     <section ref={ref} data-usage aria-label="This month" className="screen screen-hero p-5 sm:p-8">
       <div className="flex items-center gap-3">
         <span className={cn('led', out ? 'bg-destructive' : 'led-on')} />
-        <span className="cap text-screen-foreground/50">Verified this month</span>
-        <span className="cap ml-auto text-screen-foreground/50">{periodLabel(period)}</span>
+        <span className="cap text-screen-foreground/60">Verified this month</span>
+        <span className="cap ml-auto text-screen-foreground/60">{periodLabel(period)}</span>
       </div>
 
       <div className="mt-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
@@ -38,7 +38,7 @@ export function UsageDisplay({ me }: { me: MeResponse }) {
           <span className="cap text-primary">Of</span>
           <span className="lcd text-[28px] leading-none sm:text-[36px]">{limit}</span>
           {days !== null && (
-            <span className="cap text-screen-foreground/50 tabular-nums">
+            <span className="cap text-screen-foreground/60 tabular-nums">
               {days === 0 ? 'Resets today' : `${days} ${days === 1 ? 'day' : 'days'} to reset`}
             </span>
           )}

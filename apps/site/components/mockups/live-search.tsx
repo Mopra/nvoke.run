@@ -67,15 +67,15 @@ export function LiveSearch({ className, large = false }: { className?: string; l
       <div aria-hidden="true">
         <div className="flex items-center gap-3">
           <span className={cn('led', done ? 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]' : 'led-on motion-safe:animate-blink')} />
-          <span className={cn('cap', done ? 'text-screen-foreground/40' : 'text-primary')}>Run</span>
-          <span className={cn('cap', done ? 'text-primary' : 'text-screen-foreground/40')}>Done</span>
-          <span className="cap ml-auto text-screen-foreground/50 tabular-nums">
+          <span className={cn('cap', done ? 'text-screen-foreground/60' : 'text-primary')}>Run</span>
+          <span className={cn('cap', done ? 'text-primary' : 'text-screen-foreground/60')}>Done</span>
+          <span className="cap ml-auto text-screen-foreground/60 tabular-nums">
             {run.kind} &#183; {String(index + 1).padStart(2, '0')} / {String(RUNS.length).padStart(2, '0')}
           </span>
         </div>
 
         <p className={cn('lcd mt-5 truncate text-[22px] leading-tight uppercase sm:text-[26px]', large && 'sm:mt-8 sm:text-[44px]')}>{run.title}</p>
-        <p className="cap mt-2 truncate text-screen-foreground/50">
+        <p className="cap mt-2 truncate text-screen-foreground/60">
           {done ? `${run.companies} companies read` : `${stageOf(p)} · ${crawled} of ${found}`}
         </p>
         <ScreenMeter lit={lit} dim={dim} className={cn('mt-4', large && 'sm:mt-6')} />

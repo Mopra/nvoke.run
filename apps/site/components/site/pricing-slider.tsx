@@ -58,8 +58,8 @@ export function PricingSlider({ initial = 'emails_2500' }: { initial?: string })
       <div className="screen screen-hero p-6 sm:p-10" aria-live={picked === null ? 'off' : 'polite'}>
         <div className="flex items-center gap-3">
           <span className="led led-on" />
-          <span className="cap text-screen-foreground/50">Verified emails a month</span>
-          <span className="cap ml-auto text-screen-foreground/50 tabular-nums">
+          <span className="cap text-screen-foreground/60">Verified emails a month</span>
+          <span className="cap ml-auto text-screen-foreground/60 tabular-nums">
             {String(at + 1).padStart(2, '0')} / {String(tiers.length).padStart(2, '0')}
           </span>
         </div>
@@ -72,7 +72,7 @@ export function PricingSlider({ initial = 'emails_2500' }: { initial?: string })
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <span className="cap text-primary">{free ? 'Always' : 'A month'}</span>
             <span className="lcd text-[32px] leading-none sm:text-[48px]">{shownPrice}</span>
-            <span className="cap text-screen-foreground/50 tabular-nums">
+            <span className="cap text-screen-foreground/60 tabular-nums">
               {free ? 'No card' : `${pricePerThousand(t)} per 1,000`}
             </span>
           </div>

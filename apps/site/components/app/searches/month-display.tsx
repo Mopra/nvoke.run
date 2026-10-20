@@ -41,10 +41,10 @@ export function MonthDisplay({ me, searches, className }: { me: MeResponse | und
     <section aria-label="This month" className={cn('screen screen-hero relative overflow-hidden p-5 sm:p-8', className)}>
       <div className="flex items-center gap-3">
         <span className={cn('led', current ? 'led-on motion-safe:animate-blink' : me ? 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]' : 'bg-screen-dim')} />
-        <span className={cn('cap', current ? 'text-primary' : 'text-screen-foreground/40')}>Run</span>
-        <span className={cn('cap', current || !me ? 'text-screen-foreground/40' : 'text-screen-foreground/80')}>Idle</span>
+        <span className={cn('cap', current ? 'text-primary' : 'text-screen-foreground/60')}>Run</span>
+        <span className={cn('cap', current || !me ? 'text-screen-foreground/60' : 'text-screen-foreground/80')}>Idle</span>
         {period && (
-          <span className="cap ml-auto truncate text-screen-foreground/50">
+          <span className="cap ml-auto truncate text-screen-foreground/60">
             {periodLabel(period)}
           </span>
         )}
@@ -65,7 +65,7 @@ export function MonthDisplay({ me, searches, className }: { me: MeResponse | und
             <div className="flex flex-col items-start gap-1.5 pb-1 sm:items-end">
               <span className="cap text-screen-foreground/80">Verified emails left</span>
               {me && (
-                <span className="cap text-screen-foreground/40">
+                <span className="cap text-screen-foreground/60">
                   of {formatNumber(limit)} &#183; resets {resetDate(me.usage.period)}
                 </span>
               )}
@@ -112,7 +112,7 @@ function Running({ search, more }: { search: Search; more: number }) {
       <span className="lcd block truncate text-[24px] leading-tight uppercase sm:text-[40px]" title={title}>
         {title}
       </span>
-      <span className="cap mt-2 block truncate text-screen-foreground/50">
+      <span className="cap mt-2 block truncate text-screen-foreground/60">
         {progressCaption(search)}
         {more > 0 && ` · ${more} more running`}
       </span>

@@ -58,7 +58,7 @@ export function DropDisplay({
         <span className={cn('cap', busy ? 'text-primary' : 'text-screen-foreground/70')}>
           {pending ? 'Saving' : drop ? DROP_STATE_LABEL[state] : 'New drop'}
         </span>
-        <span className="cap ml-auto truncate text-screen-foreground/50">{next}</span>
+        <span className="cap ml-auto truncate text-screen-foreground/60">{next}</span>
       </div>
 
       <div className="mt-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4 sm:mt-8">
@@ -66,12 +66,12 @@ export function DropDisplay({
           <p className="lcd truncate text-[24px] leading-tight uppercase sm:text-[40px]" title={title}>
             {title}
           </p>
-          <p className="cap mt-2 truncate text-screen-foreground/50" title={summary}>
+          <p className="cap mt-2 truncate text-screen-foreground/60" title={summary}>
             {summary}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-          <span className="cap text-screen-foreground/50">{drop ? 'Companies delivered' : 'Launches this week'}</span>
+          <span className="cap text-screen-foreground/60">{drop ? 'Companies delivered' : 'Launches this week'}</span>
           {/* Dot matrix glyphs paint above a tight line box: room so they clear the label. */}
           <span aria-hidden className="block pt-2 sm:pt-3">
             <Count

@@ -96,7 +96,7 @@ function CostDisplay({
           className={cn('led', settled ? 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]' : 'led-on motion-safe:animate-blink')}
         />
         <span className={cn('cap', emphasis ? 'text-primary' : 'text-screen-foreground/60')}>{name}</span>
-        <span className="cap ml-auto text-screen-foreground/50">A month</span>
+        <span className="cap ml-auto text-screen-foreground/60">A month</span>
       </div>
       {price === null ? (
         <p className="mt-auto pt-10 text-[15px] text-pretty text-screen-foreground/70">{empty}</p>
@@ -105,7 +105,7 @@ function CostDisplay({
           <div className="mt-auto pt-10">
             <Figure value={live} ghost={ghost} className="text-[52px] whitespace-pre sm:text-[80px]" />
           </div>
-          <p className="cap mt-4 truncate text-screen-foreground/50">{plan}</p>
+          <p className="cap mt-4 truncate text-screen-foreground/60">{plan}</p>
           <ScreenMeter lit={emphasis ? lit : 0} dim={emphasis ? 0 : lit} className="mt-5" />
         </>
       )}

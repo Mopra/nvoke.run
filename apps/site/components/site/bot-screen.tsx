@@ -43,12 +43,12 @@ export function BotScreen({ className }: { className?: string }) {
       <div aria-hidden="true">
         <div className="flex items-center gap-3">
           <span className={cn('led', running ? 'led-on motion-safe:animate-blink' : 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]')} />
-          <span className={cn('cap', running ? 'text-primary' : 'text-screen-foreground/40')}>Crawl</span>
-          <span className={cn('cap', running ? 'text-screen-foreground/40' : 'text-primary')}>Done</span>
-          <span className="cap ml-auto text-screen-foreground/50">1 req / s</span>
+          <span className={cn('cap', running ? 'text-primary' : 'text-screen-foreground/60')}>Crawl</span>
+          <span className={cn('cap', running ? 'text-screen-foreground/60' : 'text-primary')}>Done</span>
+          <span className="cap ml-auto text-screen-foreground/60">1 req / s</span>
         </div>
 
-        <p className="cap mt-6 truncate text-screen-foreground/50 normal-case tracking-normal">
+        <p className="cap mt-6 truncate text-screen-foreground/60 normal-case tracking-normal">
           User-Agent: {site.botUserAgent}
         </p>
 
@@ -64,12 +64,12 @@ export function BotScreen({ className }: { className?: string }) {
                   visible ? 'opacity-100' : 'opacity-0',
                 )}
               >
-                <span className={cn(l.skipped ? 'text-screen-foreground/40' : 'text-screen-foreground/60')}>GET</span>
-                <span className={cn('truncate', l.skipped ? 'text-screen-foreground/40 line-through' : 'text-screen-foreground')}>
+                <span className={cn(l.skipped ? 'text-screen-foreground/60' : 'text-screen-foreground/80')}>GET</span>
+                <span className={cn('truncate', l.skipped ? 'text-screen-foreground/60 line-through' : 'text-screen-foreground')}>
                   {l.path}
-                  {l.note ? <span className="ml-3 text-screen-foreground/50 no-underline">{l.note}</span> : null}
+                  {l.note ? <span className="ml-3 text-screen-foreground/60 no-underline">{l.note}</span> : null}
                 </span>
-                <span className={cn(current ? 'text-primary' : l.skipped ? 'text-screen-foreground/40' : 'text-chart-1')}>
+                <span className={cn(current ? 'text-primary' : l.skipped ? 'text-screen-foreground/60' : 'text-chart-1')}>
                   {l.emails ? `+${l.emails} ` : ''}
                   {l.status}
                 </span>

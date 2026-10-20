@@ -40,7 +40,7 @@ export function Readback({
         <div aria-hidden className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             <span className={cn('led', pending ? 'led-on motion-safe:animate-blink' : 'bg-screen-dim')} />
-            <span className={cn('cap', pending ? 'text-primary' : 'text-screen-foreground/50')}>{pending ? 'Starting' : kind}</span>
+            <span className={cn('cap', pending ? 'text-primary' : 'text-screen-foreground/60')}>{pending ? 'Starting' : kind}</span>
           </div>
           <p
             key={title ? 'lit' : 'empty'}
@@ -51,10 +51,10 @@ export function Readback({
           >
             {title || placeholder}
           </p>
-          <p className="cap mt-2 truncate text-screen-foreground/50">{detail}</p>
+          <p className="cap mt-2 truncate text-screen-foreground/60">{detail}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span aria-hidden className="cap text-screen-foreground/50">Left</span>
+          <span aria-hidden className="cap text-screen-foreground/60">Left</span>
           <span aria-hidden>
             <Figure
               value={shown === null ? '' : formatNumber(shown)}

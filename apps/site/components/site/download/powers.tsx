@@ -42,7 +42,7 @@ export function Powers() {
             </span>
             <h3 className="mt-8 text-title font-light">{power.cap}</h3>
             <p className="mt-3 max-w-[16rem] text-[15px] text-pretty text-muted-foreground">{power.line}</p>
-            <p className={cn('cap mt-6 transition-colors', active ? 'text-primary' : done ? 'text-foreground' : 'text-muted-foreground/50')}>
+            <p className={cn('cap mt-6 transition-colors', active ? 'text-primary' : done ? 'text-foreground' : 'text-muted-foreground')}>
               {power.tag}
             </p>
           </li>

@@ -134,7 +134,7 @@ export function CountryPicker({
           )}
         >
           <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-screen-dim px-4">
-            <SearchIcon className="size-4 shrink-0 text-screen-foreground/50" />
+            <SearchIcon className="size-4 shrink-0 text-screen-foreground/60" />
             <input
               value={query}
               onChange={(e) => {
@@ -155,7 +155,7 @@ export function CountryPicker({
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-label="Countries" className="min-h-0 overflow-y-auto p-1.5">
             {options.length === 0 && (
-              <div className="px-3 py-6 text-center text-sm text-screen-foreground/50">No country matches “{query.trim()}”</div>
+              <div className="px-3 py-6 text-center text-sm text-screen-foreground/60">No country matches “{query.trim()}”</div>
             )}
             {options.map((option, index) => {
               const selected = chosen ? option.code !== '' && chosen.includes(option.code) : option.code === value;
@@ -174,7 +174,7 @@ export function CountryPicker({
                   )}
                 >
                   <span className="truncate first-letter:uppercase">{option.name}</span>
-                  {option.code && <span className="cap text-screen-foreground/40">{option.code}</span>}
+                  {option.code && <span className="cap text-screen-foreground/60">{option.code}</span>}
                   {selected && <CheckIcon className="absolute right-3 size-4 text-primary" strokeWidth={2.5} />}
                 </div>
               );

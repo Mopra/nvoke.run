@@ -31,7 +31,7 @@ export function LeadCounter() {
       aria-hidden="true"
       className="pointer-events-none select-none text-center leading-[0.8] font-[family-name:var(--font-lcd)] font-extrabold tracking-[-0.02em] whitespace-nowrap tabular-nums [mask-image:linear-gradient(to_bottom,black_15%,transparent_95%)] text-[clamp(5rem,27vw,26rem)]"
     >
-      <span className="text-foreground/[0.05]">{ghost}</span>
+      <span data-ghost={ghost} className="text-foreground/[0.05] before:content-[attr(data-ghost)]" />
       <span className="text-foreground/[0.16]">{lit}</span>
     </div>
   );

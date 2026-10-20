@@ -61,8 +61,8 @@ export function AgentSession({ className }: { className?: string }) {
         <div className="flex min-w-0 flex-col p-5 font-mono text-[12px] leading-[1.7] sm:p-8 sm:text-[12.5px]">
           <div className="flex items-center gap-3">
             <span className={cn('led', tick < END ? 'led-on motion-safe:animate-blink' : 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]')} />
-            <span className="cap text-screen-foreground/50">Agent session</span>
-            <span className="cap ml-auto text-screen-foreground/40">MCP</span>
+            <span className="cap text-screen-foreground/60">Agent session</span>
+            <span className="cap ml-auto text-screen-foreground/60">MCP</span>
           </div>
 
           <p className="mt-6 min-h-[3.4em] text-screen-foreground">
@@ -100,9 +100,9 @@ export function AgentSession({ className }: { className?: string }) {
         {/* The display: the search running, then the leads it found. */}
         <div className="flex min-w-0 flex-col border-t border-screen-dim p-5 sm:p-8 lg:border-t-0 lg:border-l">
           <div className="flex items-center gap-3">
-            <span className={cn('cap', running ? 'text-primary' : 'text-screen-foreground/40')}>Run</span>
-            <span className={cn('cap', done ? 'text-primary' : 'text-screen-foreground/40')}>Done</span>
-            <span className="cap ml-auto text-screen-foreground/50">Local</span>
+            <span className={cn('cap', running ? 'text-primary' : 'text-screen-foreground/60')}>Run</span>
+            <span className={cn('cap', done ? 'text-primary' : 'text-screen-foreground/60')}>Done</span>
+            <span className="cap ml-auto text-screen-foreground/60">Local</span>
           </div>
           <p className="lcd mt-5 truncate text-[22px] leading-tight uppercase sm:text-[28px]">Dentists in Austin</p>
           <ScreenMeter lit={lit} dim={dim} className="mt-4" />

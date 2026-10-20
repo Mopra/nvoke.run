@@ -15,9 +15,7 @@ import { cn } from '@/lib/utils';
 export function Figure({ value, ghost, className }: { value: ReactNode; ghost: string; className?: string }) {
   return (
     <span className={cn('relative inline-block text-right leading-none whitespace-nowrap', className)}>
-      <span aria-hidden="true" className="ghost">
-        {ghost}
-      </span>
+      <span aria-hidden="true" className="ghost" data-ghost={ghost} />
       <span className="lcd absolute inset-y-0 right-0">{value}</span>
     </span>
   );
@@ -50,7 +48,7 @@ export function ScreenMeter({ lit, dim = 0, className }: { lit: number; dim?: nu
 export function Readout({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <span className="cap text-screen-foreground/50">{label}</span>
+      <span className="cap text-screen-foreground/60">{label}</span>
       {children}
     </div>
   );

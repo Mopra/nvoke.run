@@ -92,16 +92,16 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
       <div className="screen screen-hero p-6 sm:p-10" aria-live={scanning ? 'off' : 'polite'}>
         <div className="flex items-center gap-3">
           <span className={cn('led', scanning ? 'led-on motion-safe:animate-blink' : detected ? 'led-on' : '')} />
-          <span className="cap text-screen-foreground/50">
+          <span className="cap text-screen-foreground/60">
             {scanning ? 'Detecting system' : detected ? 'Your system' : 'Pick your system'}
           </span>
-          {downloads.available ? <span className="cap ml-auto text-screen-foreground/50 tabular-nums">{version}</span> : null}
+          {downloads.available ? <span className="cap ml-auto text-screen-foreground/60 tabular-nums">{version}</span> : null}
         </div>
 
         <div className="mt-8 flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
           <div className="min-w-0">
             <p className="lcd text-[40px] leading-none uppercase sm:text-[80px]">{shown ? shown.name : 'Desktop'}</p>
-            <p className="cap mt-3 text-screen-foreground/50">{shown ? shown.requirement : 'Windows, macOS and Linux'}</p>
+            <p className="cap mt-3 text-screen-foreground/60">{shown ? shown.requirement : 'Windows, macOS and Linux'}</p>
           </div>
           <Readout label="Version" className="items-start sm:items-end">
             <Figure
@@ -118,7 +118,7 @@ export function DownloadPicker({ downloads }: { downloads: Downloads }) {
             return (
               <span key={t.os} className="flex items-center gap-2">
                 <span className={cn('led', on && 'led-on')} />
-                <span className={cn('cap truncate transition-colors', on ? 'text-screen-foreground' : 'text-screen-foreground/40')}>{t.name}</span>
+                <span className={cn('cap truncate transition-colors', on ? 'text-screen-foreground' : 'text-screen-foreground/60')}>{t.name}</span>
               </span>
             );
           })}

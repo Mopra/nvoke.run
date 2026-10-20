@@ -101,7 +101,7 @@ export function OptOutForm({ defaultKind = 'email' }: { defaultKind?: Kind }) {
           <div className="flex items-center gap-3">
             <span aria-hidden="true" className="led bg-chart-1 shadow-[0_0_6px_var(--chart-1)]" />
             <span className="cap text-screen-foreground/55">Done</span>
-            <span className="cap ml-auto text-screen-foreground/50">Permanent</span>
+            <span className="cap ml-auto text-screen-foreground/60">Permanent</span>
           </div>
           <p className="lcd mt-6 text-[34px] leading-none uppercase sm:mt-8 sm:text-[56px]">{t.doneTitle}</p>
           <p className="mt-4 font-mono text-[14px] break-all text-screen-foreground/70 sm:text-[15px]">{phase.target}</p>

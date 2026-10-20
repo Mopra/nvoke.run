@@ -184,12 +184,12 @@ export function ExtractDisplay({ view, compact, hidden }: { view: ExtractView; c
                   href={e.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="min-w-0 truncate pl-4 font-mono text-[12px] text-screen-foreground/50 underline-offset-4 outline-none hover:text-screen-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:pl-0"
+                  className="min-w-0 truncate pl-4 font-mono text-[12px] text-screen-foreground/60 underline-offset-4 outline-none hover:text-screen-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:pl-0"
                 >
                   {e.sourceUrl.replace(/^https?:\/\//, '')}
                 </a>
               ) : e.sourceUrl ? (
-                <span className="min-w-0 truncate pl-4 font-mono text-[12px] text-screen-foreground/50 sm:pl-0">
+                <span className="min-w-0 truncate pl-4 font-mono text-[12px] text-screen-foreground/60 sm:pl-0">
                   {e.sourceUrl.replace(/^https?:\/\//, '')}
                 </span>
               ) : null}

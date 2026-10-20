@@ -159,11 +159,9 @@ function Readout() {
           className="screen hidden h-9 items-center gap-2.5 px-3 outline-none transition-[filter] hover:brightness-125 focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
         >
           <span className={cn('led', left > 0 ? 'led-on' : 'bg-destructive')} />
-          <span className="cap text-screen-foreground/50">Left</span>
+          <span className="cap text-screen-foreground/60">Left</span>
           <span className="relative text-[17px] leading-none">
-            <span aria-hidden className="ghost">
-              {ghost}
-            </span>
+            <span aria-hidden className="ghost" data-ghost={ghost} />
             <span className="lcd absolute inset-y-0 right-0">{lit}</span>
           </span>
         </Link>

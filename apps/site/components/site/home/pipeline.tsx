@@ -47,7 +47,7 @@ export function Pipeline() {
             </span>
             <h3 className="mt-8 text-title font-light">{step.cap}</h3>
             <p className="mt-3 max-w-[16rem] text-[15px] text-pretty text-muted-foreground">{step.line}</p>
-            <p aria-hidden="true" className={cn('cap mt-6 tabular-nums transition-colors', p > 0 ? 'text-foreground' : 'text-muted-foreground/50')}>
+            <p aria-hidden="true" className={cn('cap mt-6 tabular-nums transition-colors', p > 0 ? 'text-foreground' : 'text-muted-foreground')}>
               <span className={cn(active && 'text-primary')}>{formatCount(Math.round(step.to * p))}</span> {step.unit}
             </p>
           </li>

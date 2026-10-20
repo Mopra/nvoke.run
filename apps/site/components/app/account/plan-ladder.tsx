@@ -58,8 +58,8 @@ export function PlanLadder({
       <div ref={screenRef} className="screen screen-hero p-5 sm:p-8" aria-live={live ? 'polite' : 'off'}>
         <div className="flex items-center gap-3">
           <span className="led led-on" />
-          <span className="cap text-screen-foreground/50">Verified emails a month</span>
-          <span className={cn('cap ml-auto tabular-nums', mine ? 'text-primary' : 'text-screen-foreground/50')}>
+          <span className="cap text-screen-foreground/60">Verified emails a month</span>
+          <span className={cn('cap ml-auto tabular-nums', mine ? 'text-primary' : 'text-screen-foreground/60')}>
             {mine ? 'Your plan' : `${String(at + 1).padStart(2, '0')} / ${String(tiers.length).padStart(2, '0')}`}
           </span>
         </div>
@@ -68,7 +68,7 @@ export function PlanLadder({
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <span className="cap text-primary">{free ? 'Always' : 'A month'}</span>
             <span className="lcd text-[28px] leading-none sm:text-[40px]">{shownPrice}</span>
-            <span className="cap text-screen-foreground/50 tabular-nums">{free ? 'No card' : `${pricePerThousand(t)} per 1,000`}</span>
+            <span className="cap text-screen-foreground/60 tabular-nums">{free ? 'No card' : `${pricePerThousand(t)} per 1,000`}</span>
           </div>
         </div>
         <ScreenMeter lit={lit} className="mt-8" />

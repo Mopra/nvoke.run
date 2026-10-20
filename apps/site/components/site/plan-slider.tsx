@@ -51,11 +51,11 @@ export function PlanSlider({
         <div className="screen flex min-w-0 flex-col gap-5 p-5 sm:p-6" aria-live="polite">
           <div className="flex items-center gap-3">
             <span className="led led-on" />
-            <span className="cap text-screen-foreground/50">Plan</span>
-            <span className="cap ml-auto flex items-center gap-2 text-screen-foreground/50">{badge}</span>
+            <span className="cap text-screen-foreground/60">Plan</span>
+            <span className="cap ml-auto flex items-center gap-2 text-screen-foreground/60">{badge}</span>
           </div>
           <div className="flex flex-col gap-2">
-            <span className="cap text-screen-foreground/50">Verified emails</span>
+            <span className="cap text-screen-foreground/60">Verified emails</span>
             <Figure
               value={formatCount(t.emailsPerMonth)}
               ghost="888,888"
@@ -64,10 +64,10 @@ export function PlanSlider({
           </div>
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-t border-screen-dim pt-5">
             <div className="flex flex-col gap-2">
-              <span className="cap text-screen-foreground/50">A month</span>
+              <span className="cap text-screen-foreground/60">A month</span>
               <Figure value={price} ghost="$888" className="self-start text-[34px] sm:text-[44px]" />
             </div>
-            <span className="cap pb-1 text-screen-foreground/50">
+            <span className="cap pb-1 text-screen-foreground/60">
               {free ? 'No card' : `${pricePerThousand(t)} per 1,000`}
             </span>
           </div>

@@ -28,8 +28,8 @@ export function PriceDisplay() {
       <div className="screen screen-hero p-6 sm:p-10">
         <div className="flex items-center gap-3">
           <span className="led led-on" />
-          <span className="cap text-screen-foreground/50">Verified emails a month</span>
-          <span className="cap ml-auto text-screen-foreground/50 tabular-nums">
+          <span className="cap text-screen-foreground/60">Verified emails a month</span>
+          <span className="cap ml-auto text-screen-foreground/60 tabular-nums">
             {String(at + 1).padStart(2, '0')} / {String(tiers.length).padStart(2, '0')}
           </span>
         </div>

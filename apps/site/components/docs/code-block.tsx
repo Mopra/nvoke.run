@@ -21,7 +21,7 @@ export function CodeBlock({ code, label, className }: { code: string; label?: st
   return (
     <div className={cn('screen group relative min-w-0 overflow-hidden', className)}>
       <div className="flex h-9 items-center justify-between border-b border-screen-dim/60 pr-1.5 pl-4">
-        <span className="cap text-screen-foreground/50">{label ?? ''}</span>
+        <span className="cap text-screen-foreground/60">{label ?? ''}</span>
         <button
           type="button"
           onClick={() => void copy()}

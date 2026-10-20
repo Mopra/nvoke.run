@@ -44,14 +44,14 @@ export function ChargeDemo() {
       <div aria-hidden="true">
         <div className="flex items-center gap-3">
           <span className={cn('led', checking >= 0 ? 'led-on motion-safe:animate-blink' : 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]')} />
-          <span className="cap text-screen-foreground/50">{checking >= 0 ? 'Asking mail servers' : 'Done'}</span>
+          <span className="cap text-screen-foreground/60">{checking >= 0 ? 'Asking mail servers' : 'Done'}</span>
         </div>
         <ul className="mt-5 border-b border-screen-dim">
           {BATCH.map(([address, result], i) => {
             const done = i < answered;
             return (
               <li key={address} className="flex items-center gap-3 border-t border-screen-dim py-2 font-mono text-[12px] sm:text-[12.5px]">
-                <span className={cn('min-w-0 truncate', done || i === checking ? 'text-screen-foreground/85' : 'text-screen-foreground/30')}>
+                <span className={cn('min-w-0 truncate', done || i === checking ? 'text-screen-foreground/85' : 'text-screen-foreground/60')}>
                   {address}
                 </span>
                 <span
@@ -60,7 +60,7 @@ export function ChargeDemo() {
                     !done && i === checking && 'text-primary motion-safe:animate-blink',
                     !done && i !== checking && 'text-transparent',
                     done && result === 'valid' && 'text-chart-1',
-                    done && result !== 'valid' && 'text-screen-foreground/40',
+                    done && result !== 'valid' && 'text-screen-foreground/60',
                   )}
                 >
                   {done ? result : 'check'}

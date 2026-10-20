@@ -33,9 +33,9 @@ export function FeedDisplay({ data, searches, className }: { data: DropListRespo
     <section aria-label="The feed" className={cn('screen screen-hero relative overflow-hidden p-5 sm:p-8', className)}>
       <div className="flex items-center gap-3">
         <DropLed state={live ? 'running' : next ? 'daily' : 'paused'} screen />
-        <span className={cn('cap', live ? 'text-primary' : 'text-screen-foreground/40')}>Live</span>
-        <span className={cn('cap', live || !next ? 'text-screen-foreground/40' : 'text-screen-foreground/80')}>Idle</span>
-        <span className="cap ml-auto truncate text-screen-foreground/50">Last 7 days</span>
+        <span className={cn('cap', live ? 'text-primary' : 'text-screen-foreground/60')}>Live</span>
+        <span className={cn('cap', live || !next ? 'text-screen-foreground/60' : 'text-screen-foreground/80')}>Idle</span>
+        <span className="cap ml-auto truncate text-screen-foreground/60">Last 7 days</span>
       </div>
 
       <div className="mt-6 min-h-[88px] sm:mt-8 sm:min-h-[96px]">
@@ -52,7 +52,7 @@ export function FeedDisplay({ data, searches, className }: { data: DropListRespo
             <div className="flex flex-col items-start gap-1.5 pb-1 sm:items-end">
               <span className="cap text-screen-foreground/80">New launches this week</span>
               {data && (
-                <span className="cap text-screen-foreground/40">
+                <span className="cap text-screen-foreground/60">
                   {next ? `${next.name} · ${nextRunLabel(next)}` : drops.length > 0 ? 'Every drop is paused' : 'No drop watches them yet'}
                 </span>
               )}
@@ -91,7 +91,7 @@ function Live({ drop, caption, run }: { drop: Drop; caption: string; run?: Searc
       <span className="lcd block truncate text-[24px] leading-tight uppercase sm:text-[40px]" title={drop.name}>
         {drop.name}
       </span>
-      <span className="cap mt-2 block truncate text-screen-foreground/50">{caption}</span>
+      <span className="cap mt-2 block truncate text-screen-foreground/60">{caption}</span>
       <div className="mt-4">
         <RunMeter run={run} sweep={!run} />
       </div>

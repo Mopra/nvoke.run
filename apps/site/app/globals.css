@@ -405,12 +405,18 @@
   }
 }
 
-/* Ghost segments behind the lit figures on a screen: the 888 under the 34. */
+/* Ghost segments behind the lit figures on a screen: the 888 under the 34.
+   Drawn from data-ghost as generated content, so contrast checkers and
+   screen readers skip the unlit pattern. */
 @utility ghost {
   font-family: var(--font-lcd);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--screen-dim);
+
+  &::before {
+    content: attr(data-ghost);
+  }
 }
 
 /* A section plate: the lifted panel on the chassis, with the lip of light along its top. */

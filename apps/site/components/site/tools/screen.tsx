@@ -55,7 +55,7 @@ export function ToolScreen({
       <div className="flex items-center gap-3">
         <ScreenLed lamp={lamp} />
         <span className={cn('cap', lamp === 'busy' ? 'text-primary' : 'text-screen-foreground/55')}>{mode}</span>
-        {meta ? <span className="cap ml-auto min-w-0 truncate text-screen-foreground/50 tabular-nums">{meta}</span> : null}
+        {meta ? <span className="cap ml-auto min-w-0 truncate text-screen-foreground/60 tabular-nums">{meta}</span> : null}
       </div>
       {children}
     </div>
