@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Round as the human left: unchanged (only memory commits past green ed03517, log done, no aim; dirty apps/video is the human's). Nothing to do.
 - 2026-10-20 Round after the video reel checks landed: no fix commits, so main green at ed03517. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
 - 2026-10-20 Round as the human left: the human committed the video test reel ed03517 (apps/video) past green b4611da, so filed 'Checks on main after the video test reel' (sonnet, no build). No aim.
 - 2026-10-20 Round after the SMTP relay checks landed: no fix commits, so main green at b4611da. Log done, no aim; dirty apps/video is the human's. Nothing to file; shipping is the human's.
