@@ -86,4 +86,23 @@ create index concurrently mig_t_v_idx on mig_t (v);`,
     ]);
     expect(readMigrations().map((m) => m.id)).toContain('1721_company_index_backfill');
   });
+
+  it('skips the backfill where the first 1720 made search a generated column, as in production', async () => {
+    await db.sql.unsafe(`
+      drop trigger domain_pages_search on domain_pages;
+      drop trigger feed_items_search on feed_items;
+      alter table domain_pages drop column search;
+      alter table feed_items drop column search;
+      alter table domain_pages add column search tsvector generated always as (
+        company_index_vector(title, 'A') || company_index_vector(description, 'B') || company_index_vector(text, 'C')
+      ) stored;
+      alter table feed_items add column search tsvector generated always as (
+        company_index_vector(name, 'A') || company_index_vector(search_text, 'B')
+      ) stored;
+    `);
+    await db.sql`delete from _migrations where id = '1721_company_index_backfill'`;
+    expect(await applyMigrations(db.sql)).toEqual(['1721_company_index_backfill']);
+    const [page] = await db.sql<{ v: string | null }[]>`select search::text as v from domain_pages`;
+    expect(page?.v).toContain("'agenc'");
+  });
 });

@@ -7,6 +7,9 @@
 -- row locks for a moment only, and the indexes are built concurrently. New
 -- rows get their vector from the trigger meanwhile.
 --
+-- Production ran the first version of 1720, where `search` is a generated
+-- column that fills itself; there both backfills are skipped.
+--
 -- Safe to run again after a failure: the backfill skips rows that have a
 -- vector, and an index a failed concurrent build left invalid is dropped and
 -- built again.
@@ -18,6 +21,11 @@ declare
   last_domain text := '';
   last_url text := '';
 begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = current_schema() and table_name = 'domain_pages'
+               and column_name = 'search' and is_generated = 'ALWAYS') then
+    return;
+  end if;
   loop
     with batch as (
       select domain, url from domain_pages
@@ -41,6 +49,11 @@ declare
   last_id bigint := 0;
   next_id bigint;
 begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = current_schema() and table_name = 'feed_items'
+               and column_name = 'search' and is_generated = 'ALWAYS') then
+    return;
+  end if;
   loop
     select max(id) into next_id from (select id from feed_items where id > last_id order by id limit 500) b;
     exit when next_id is null;
