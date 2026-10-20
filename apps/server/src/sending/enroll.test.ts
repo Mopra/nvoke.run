@@ -2,7 +2,7 @@ import type { Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { CreateCampaignRequest } from '@nvoke/shared';
 import { ensureAccount } from '../leads/quota.js';
-import { addressHash } from '../leads/suppression.js';
+import { addressHash, domainHash } from '../leads/suppression.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { silentLog } from '../testing/fakes.js';
 import { CampaignError, createCampaign, getCampaign } from './campaigns.js';
@@ -125,12 +125,16 @@ describe('enrollCampaign rules', () => {
     await email(s, i, 'kai@klinik.dk');
     const j = await company(s, 'juliet.com', 'Austin, TX');
     await email(s, j, 'lea@juliet.de');
+    // The owner's other outreach already wrote to this company.
+    const k = await company(s, 'kilo.com');
+    await email(s, k, 'max@kilo.com');
+    await db.sql`insert into send_suppressions (clerk_user_id, hash, reason) values ('u1', ${domainHash('kilo.com')}, 'manual')`;
 
     const campaign = await createCampaign(db.sql, 'u1', req([m], { searchId: s }), NOW);
     expect(campaign.status).toBe('writing');
     expect(campaign.leads).toBe(2);
     expect(campaign.writing).toBe(2);
-    expect(campaign.skipped).toEqual({ per_company: 1, not_person: 1, not_valid: 2, suppressed: 2, contacted: 1, country: 3 });
+    expect(campaign.skipped).toEqual({ per_company: 1, not_person: 1, not_valid: 2, suppressed: 3, contacted: 1, country: 3 });
 
     const rows = await leads(campaign.id);
     const status = Object.fromEntries(rows.map((r) => [r.address, r.skip_reason ?? r.status]));
@@ -147,6 +151,7 @@ describe('enrollCampaign rules', () => {
       'ida@berlin-tools.com': 'country',
       'kai@klinik.dk': 'country',
       'lea@juliet.de': 'country',
+      'max@kilo.com': 'suppressed',
     });
     const anna = rows.find((r) => r.address === 'anna@alpha.com')!;
     expect(anna).toMatchObject({ mailbox_id: m, country: 'GB', timezone: 'Europe/London' });

@@ -115,12 +115,18 @@ export async function suppressForSender(sql: Db, userId: string, address: string
  * the address in `addressColumn` (send_suppressions). Both must be trusted
  * identifiers such as `l.clerk_user_id` and `l.address`.
  */
-export function sendSuppressedSql(sql: Db, userColumn: string, addressColumn: string) {
+export function sendSuppressedSql(sql: Db, userColumn: string, addressColumn: string, domainColumn?: string) {
   const user = sql.unsafe(userColumn);
   const col = sql.unsafe(addressColumn);
+  // A `domain:` hash (domainHash) blocks the whole company for this sender:
+  // the owner's other outreach already wrote to it.
+  const domain = domainColumn
+    ? sql`or ss.hash = encode(sha256(convert_to('domain:' || ${sql.unsafe(domainColumn)}, 'UTF8')), 'hex')`
+    : sql``;
   return sql`exists (
     select 1 from send_suppressions ss
-    where ss.clerk_user_id = ${user} and ss.hash = encode(sha256(convert_to(${col}, 'UTF8')), 'hex')
+    where ss.clerk_user_id = ${user}
+      and (ss.hash = encode(sha256(convert_to(${col}, 'UTF8')), 'hex') ${domain})
   )`;
 }
 

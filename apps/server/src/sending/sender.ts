@@ -232,7 +232,7 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
     select l.id, l.campaign_id, l.clerk_user_id, l.address, l.domain, l.country, l.timezone,
       l.next_step, l.next_send_at, c.steps, c.schedule,
       ${suppressedSql(tx, 'l.address')} as global_suppressed,
-      ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address')} as own_suppressed
+      ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address', 'l.domain')} as own_suppressed
     from campaign_leads l join campaigns c on c.id = l.campaign_id
     where l.id = ${leadId} and l.mailbox_id = ${mailboxId}
       and l.status in ('queued', 'active') and l.claimed_at is null and l.next_send_at <= ${now}

@@ -10,7 +10,7 @@
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
-import { domainSuppressedSql, suppressedSql } from '../leads/suppression.js';
+import { domainSuppressedSql, sendSuppressedSql, suppressedSql } from '../leads/suppression.js';
 import { enqueue } from '../worker/queue.js';
 import { CAMPAIGN_COLUMNS, type CampaignRow } from './campaigns.js';
 import { isBlockedRecipient, recipientCountry, timezoneFor } from './gate.js';
@@ -106,10 +106,8 @@ export async function enrollCampaign(
   const rows = await tx<Candidate[]>`
     select e.id as email_id, e.company_id, e.address, e.verification, e.first_name, e.last_name, e.title,
       e.seniority, e.confidence, co.name as company_name, co.domain, co.location,
-      (${suppressedSql(tx, 'e.address')} or ${domainSuppressedSql(tx, 'co.domain')} or exists (
-        select 1 from send_suppressions ss
-        where ss.clerk_user_id = ${userId} and ss.hash = encode(sha256(convert_to(e.address, 'UTF8')), 'hex')
-      )) as suppressed,
+      (${suppressedSql(tx, 'e.address')} or ${domainSuppressedSql(tx, 'co.domain')}
+        or ${sendSuppressedSql(tx, 'e.clerk_user_id', 'e.address', 'co.domain')}) as suppressed,
       exists (
         select 1 from campaign_leads o
         where o.clerk_user_id = ${userId} and o.address = e.address and o.campaign_id <> ${c.id}
