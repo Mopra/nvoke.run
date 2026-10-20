@@ -10,7 +10,7 @@ import type { DomainProbe, ProbeCandidate, Verifier } from '../leads/verify/inde
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
 import { CONFIDENCE, PEOPLE_MAX_RCPT, PEOPLE_PER_COMPANY, pickPeople, personCandidates, runPeople } from './people-job.js';
-import { runVerify, type PipelineDeps } from './pipeline.js';
+import { CAPACITY_DEADLINE_MS, GREYLIST_DELAY_MS, runVerify, type PipelineDeps } from './pipeline.js';
 import type { Job } from './queue.js';
 
 let db: TestDb;
@@ -30,7 +30,7 @@ beforeEach(async () => {
  * catch-all) and remembers what it was asked. verify() answers like the
  * cache would after a probe.
  */
-function stubVerifier(opts: { accepts?: string[]; catchAll?: boolean; paced?: boolean } = {}) {
+function stubVerifier(opts: { accepts?: string[]; catchAll?: boolean; paced?: boolean; reason?: string } = {}) {
   const asked: ProbeCandidate[][][] = [];
   const maxRcpt: Array<number | undefined> = [];
   const verifier = {
@@ -41,6 +41,7 @@ function stubVerifier(opts: { accepts?: string[]; catchAll?: boolean; paced?: bo
       maxRcpt.push(o.maxRcpt);
       const base = { domain, mxHost: 'mx.test', results: [], accepted: groups.map(() => null) };
       if (opts.paced) return { ...base, catchAll: null, reason: 'smtp_paced', retryAfterMs: 30_000 };
+      if (opts.reason) return { ...base, catchAll: null, reason: opts.reason };
       if (opts.catchAll) return { ...base, catchAll: true, reason: 'accepts_any_recipient' };
       const accepted = groups.map((g) => g.find((c) => opts.accepts?.includes(c.address))?.address ?? null);
       return { ...base, catchAll: false, accepted, reason: null };
@@ -266,6 +267,109 @@ describe('runPeople', () => {
     expect(v.asked).toHaveLength(0);
     const [search] = await db.sql<{ status: string; error: string | null }[]>`select status, error from searches where id = ${spent.searchId}`;
     expect(search).toEqual({ status: 'failed', error: 'quota_exceeded' });
+  });
+});
+
+describe('a people probe we could not make on our side', () => {
+  function recordingLog(lines: Array<Record<string, unknown>>): typeof silentLog {
+    const push = (o: Record<string, unknown>) => void lines.push(o);
+    const log = { info: push, warn: push, error: () => undefined, debug: () => undefined, child: () => log };
+    return log as unknown as typeof silentLog;
+  }
+
+  const founder = [{ first: 'Søren', last: 'Kjær', title: 'CEO', seniority: 'founder' }];
+
+  async function runningRow(payload: Record<string, unknown>, searchId: string): Promise<string> {
+    const [row] = await db.sql<{ id: string }[]>`
+      insert into jobs (type, payload, search_id, status, attempts, max_attempts, locked_at)
+      values ('people', ${db.sql.json(payload as never)}, ${searchId}, 'running', 3, 3, now())
+      returning id::text as id
+    `;
+    return row!.id;
+  }
+
+  async function peopleJobs() {
+    return db.sql<{ id: string; payload: Record<string, unknown>; run_after: Date; status: string; attempts: number }[]>`
+      select id::text as id, payload, run_after, status, attempts from jobs where type = 'people' order by id
+    `;
+  }
+
+  it('goes back in the same job row with backoff, never as a retry, until the server answers', async () => {
+    const { companyId, searchId } = await seed({ people: founder });
+    const id = await runningRow({ companyId, retry: 1 }, searchId);
+    let now = new Date('2026-10-13T12:00:00Z');
+    const logged: Array<Record<string, unknown>> = [];
+    let v = stubVerifier({ reason: 'mx_only_port25_blocked' });
+    const d = () => ({ ...deps(v), log: recordingLog(logged), now: () => now });
+
+    // Out of retries already: port 25 blocked on our side is not the server's answer.
+    await runPeople(d(), { id, type: 'people', payload: { companyId, retry: 1 }, searchId, attempts: 3, maxAttempts: 3 }, signal);
+    let [j, ...rest] = await peopleJobs();
+    expect(rest).toHaveLength(0);
+    expect(j).toMatchObject({ id, status: 'queued', attempts: 2 });
+    expect(j!.payload).toEqual({ companyId, retry: 1, capacityDefers: 1, capacitySince: now.toISOString() });
+    const wait = j!.run_after.getTime() - now.getTime();
+    expect(wait).toBeGreaterThanOrEqual(10 * 60_000);
+    expect(wait).toBeLessThanOrEqual(12 * 60_000);
+    expect(logged).toContainEqual(expect.objectContaining({ searchId, companyId, reason: 'mx_only_port25_blocked', defers: 1 }));
+
+    // Throttled next time: twice as long, still one row.
+    now = new Date(now.getTime() + wait);
+    await db.sql`update jobs set status = 'running'`;
+    v = stubVerifier({ reason: 'smtp_throttled' });
+    await runPeople(d(), { id, type: 'people', payload: j!.payload, searchId, attempts: 3, maxAttempts: 3 }, signal);
+    [j, ...rest] = await peopleJobs();
+    expect(rest).toHaveLength(0);
+    expect(j!.payload).toMatchObject({ retry: 1, capacityDefers: 2, capacitySince: '2026-10-13T12:00:00.000Z' });
+    expect(j!.run_after.getTime() - now.getTime()).toBeGreaterThanOrEqual(20 * 60_000);
+
+    // A job that ran out of time while it waited counts the same.
+    await db.sql`update jobs set status = 'running'`;
+    v = stubVerifier({ reason: 'aborted' });
+    await runPeople(d(), { id, type: 'people', payload: j!.payload, searchId, attempts: 3, maxAttempts: 3 }, signal);
+    [j] = await peopleJobs();
+    expect(j).toMatchObject({ status: 'queued' });
+    expect(j!.payload).toMatchObject({ capacityDefers: 3 });
+
+    // Then the server answers and the person gets an address.
+    await db.sql`update jobs set status = 'running'`;
+    v = stubVerifier({ accepts: ['soren@acme.dk'] });
+    await runPeople(d(), { id, type: 'people', payload: j!.payload, searchId, attempts: 3, maxAttempts: 3 }, signal);
+    expect((await emailsOf(companyId)).map((e) => e.address)).toEqual(['soren@acme.dk']);
+    expect(await db.sql`select 1 from jobs where type = 'people' and status = 'queued'`).toHaveLength(0);
+  });
+
+  it('gives up, saying why, once it has waited for capacity past the deadline', async () => {
+    const { companyId, searchId } = await seed({ people: founder });
+    const now = new Date('2026-10-15T12:00:01Z');
+    const logged: Array<Record<string, unknown>> = [];
+    const d = { ...deps(stubVerifier({ paced: true })), log: recordingLog(logged), now: () => now };
+
+    const early = new Date(now.getTime() - CAPACITY_DEADLINE_MS + 1_000).toISOString();
+    await runPeople(d, { id: 'x', type: 'people', payload: { companyId, capacityDefers: 20, capacitySince: early }, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    expect(await peopleJobs()).toHaveLength(1);
+
+    await db.sql`delete from jobs`;
+    const late = new Date(now.getTime() - CAPACITY_DEADLINE_MS).toISOString();
+    await runPeople(d, { id: 'x', type: 'people', payload: { companyId, capacityDefers: 21, capacitySince: late }, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    expect(await peopleJobs()).toHaveLength(0);
+    expect(logged).toContainEqual(expect.objectContaining({ searchId, companyId, reason: 'capacity_deadline', lastReason: 'smtp_paced' }));
+  });
+
+  it('keeps one retry for a real server answer, and the capacity wait across it', async () => {
+    const { companyId, searchId } = await seed({ people: founder });
+    const now = new Date('2026-10-13T12:00:00Z');
+    const d = { ...deps(stubVerifier({ reason: 'rcpt_tempfail_451' })), now: () => now };
+    const payload = { companyId, capacityDefers: 3, capacitySince: '2026-10-13T10:00:00.000Z' };
+    await runPeople(d, { id: 'x', type: 'people', payload, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    const [j, ...rest] = await peopleJobs();
+    expect(rest).toHaveLength(0);
+    expect(j!.payload).toEqual({ ...payload, retry: 1 });
+    expect(j!.run_after.getTime() - now.getTime()).toBe(GREYLIST_DELAY_MS);
+
+    await db.sql`delete from jobs`;
+    await runPeople(d, { id: 'x', type: 'people', payload: j!.payload, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    expect(await peopleJobs()).toHaveLength(0);
   });
 });
 

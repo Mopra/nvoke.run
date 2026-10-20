@@ -13,10 +13,18 @@ import { candidates, inferPattern, matchPerson, type Candidate, type KnownPair, 
 import { quotaExhausted } from '../leads/quota.js';
 import { PermanentError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
-import { isTempfail, type ProbeCandidate } from '../leads/verify/index.js';
+import { isCapacityDeferral, isTempfail, type DomainProbe, type ProbeCandidate } from '../leads/verify/index.js';
 import { leadSettled } from '../webhooks/events.js';
-import { failSearch, GREYLIST_DELAY_MS, QUOTA_EXCEEDED, wakeDeferredChecks, type PipelineDeps } from './pipeline.js';
-import { enqueue, type Job } from './queue.js';
+import {
+  CAPACITY_DEADLINE_MS,
+  capacityDelayMs,
+  failSearch,
+  GREYLIST_DELAY_MS,
+  QUOTA_EXCEEDED,
+  wakeDeferredChecks,
+  type PipelineDeps,
+} from './pipeline.js';
+import { enqueue, requeue, type Job, type PeoplePayload } from './queue.js';
 
 /** People asked about per company. */
 export const PEOPLE_PER_COMPANY = 5;
@@ -28,7 +36,11 @@ const CANDIDATES_UNKNOWN_PATTERN = 5;
  * session the pattern, so the people after it take one each.
  */
 export const PEOPLE_MAX_RCPT = { knownPattern: PEOPLE_PER_COMPANY + 1, unknownPattern: 8 } as const;
-/** A probe that ended on greylisting or an unreachable server is tried once more. */
+/**
+ * A probe that ended on greylisting or an unreachable server is tried once
+ * more. A probe we could not make on our side (isCapacityDeferral) is not a
+ * retry: it waits like a check does (waitForCapacity).
+ */
 const PEOPLE_RETRIES = 1;
 
 /** How sure nvoke is that a stored address reaches the person (emails.confidence). */
@@ -185,6 +197,8 @@ export async function runPeople(deps: PipelineDeps, job: Job, signal: AbortSigna
 
   const maxRcpt = pattern ? PEOPLE_MAX_RCPT.knownPattern : PEOPLE_MAX_RCPT.unknownPattern;
   const probe = await deps.verifier.probeDomain(company.domain, allowed, { signal, maxRcpt });
+  // On shutdown the runner hands the job back as it was.
+  if (signal.aborted && signal.reason instanceof Error && signal.reason.name === 'ShutdownSignal') throw signal.reason;
   const log = deps.log.child({ companyId: company.id, domain: company.domain });
   log.debug(
     { people: targets.length, pattern, catchAll: probe.catchAll, accepted: probe.accepted.filter(Boolean).length, reason: probe.reason },
@@ -209,12 +223,49 @@ export async function runPeople(deps: PipelineDeps, job: Job, signal: AbortSigna
   }
   if (found.length > 0 && (await stillRunning(deps, company.search_id))) await store(deps, company, found);
 
-  if (probe.reason === 'smtp_paced') {
-    // Over a session budget this minute: come back when a slot frees up, spread out. Not a retry.
-    await requeue(deps, company, retry, Math.max(5_000, probe.retryAfterMs ?? 60_000) + Math.floor(Math.random() * 60_000));
-  } else if (probe.reason && isTempfail({ reason: probe.reason }) && retry < PEOPLE_RETRIES && found.length < targets.length) {
-    await requeue(deps, company, retry + 1, GREYLIST_DELAY_MS);
+  if (found.length >= targets.length || !probe.reason) return;
+  if (isCapacityDeferral({ reason: probe.reason })) {
+    await waitForCapacity(deps, job, company, { ...probe, reason: probe.reason }, retry);
+  } else if (isTempfail({ reason: probe.reason }) && retry < PEOPLE_RETRIES) {
+    await requeueLater(deps, company, { companyId: company.id, retry: retry + 1, ...capacityCarry(job.payload) }, GREYLIST_DELAY_MS);
   }
+}
+
+/** The capacity wait so far, carried by a greylisting retry too, so the deadline is overall. */
+function capacityCarry(payload: Record<string, unknown>): Pick<PeoplePayload, 'capacityDefers' | 'capacitySince'> {
+  return {
+    ...(typeof payload.capacityDefers === 'number' ? { capacityDefers: payload.capacityDefers } : {}),
+    ...(typeof payload.capacitySince === 'string' ? { capacitySince: payload.capacitySince } : {}),
+  };
+}
+
+/**
+ * A probe we could not make on our side goes back in the queue, the same job
+ * row, later each time (capacityDelayMs), with its greylisting retry left as
+ * it was. Past CAPACITY_DEADLINE_MS since the first such wait the job ends
+ * and its people stay without addresses.
+ */
+async function waitForCapacity(
+  deps: PipelineDeps,
+  job: Job,
+  company: CompanyRow,
+  probe: Pick<DomainProbe, 'mxHost' | 'retryAfterMs'> & { reason: string },
+  retry: number,
+): Promise<void> {
+  const now = deps.now?.() ?? new Date();
+  const at = { searchId: company.search_id, companyId: company.id, domain: company.domain, mxHost: probe.mxHost };
+  const since = typeof job.payload.capacitySince === 'string' ? job.payload.capacitySince : now.toISOString();
+  const defers = typeof job.payload.capacityDefers === 'number' ? job.payload.capacityDefers : 0;
+  if (now.getTime() - new Date(since).getTime() >= CAPACITY_DEADLINE_MS) {
+    deps.log.warn({ ...at, reason: 'capacity_deadline', lastReason: probe.reason, defers, since }, 'people: gave up');
+    return;
+  }
+  const delayMs = capacityDelayMs(probe.reason, defers, probe.retryAfterMs);
+  const payload: PeoplePayload = { companyId: company.id, retry, capacityDefers: defers + 1, capacitySince: since };
+  if (!(await requeue(deps.sql, job.id, payload, new Date(now.getTime() + delayMs)))) {
+    await requeueLater(deps, company, payload, delayMs);
+  }
+  deps.log.info({ ...at, reason: probe.reason, defers: defers + 1, delayMs }, 'people: requeued');
 }
 
 async function stillRunning(deps: PipelineDeps, searchId: string): Promise<boolean> {
@@ -222,11 +273,11 @@ async function stillRunning(deps: PipelineDeps, searchId: string): Promise<boole
   return rows[0]?.status === 'running';
 }
 
-async function requeue(deps: PipelineDeps, company: CompanyRow, retry: number, delayMs: number): Promise<void> {
+async function requeueLater(deps: PipelineDeps, company: CompanyRow, payload: PeoplePayload, delayMs: number): Promise<void> {
   const now = deps.now?.() ?? new Date();
   await enqueue(deps.sql, {
     type: 'people',
-    payload: { companyId: company.id, retry },
+    payload,
     searchId: company.search_id,
     runAfter: new Date(now.getTime() + delayMs),
   });

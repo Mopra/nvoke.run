@@ -44,6 +44,9 @@ export interface PeoplePayload {
   companyId: string;
   /** Greylisting retries so far. */
   retry?: number;
+  /** Capacity waits so far and since when (ISO), as on VerifyPayload. Not retries. */
+  capacityDefers?: number;
+  capacitySince?: string;
 }
 export interface WritePayload {
   /** Up to WRITE_BATCH leads of one campaign, written by Claude in one job (sending/write.ts). */
