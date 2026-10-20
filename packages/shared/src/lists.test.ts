@@ -49,6 +49,6 @@ describe('domains search request', () => {
     expect(parsed).toEqual({ kind: 'domains', params: { items: ['acme.com', 'Pleo'], country: 'dk' } });
     expect(CreateSearchRequest.safeParse({ kind: 'domains', params: { items: [] } }).success).toBe(false);
     expect(CreateSearchRequest.safeParse({ kind: 'domains', params: { items: [''] } }).success).toBe(false);
-    expect(CreateSearchRequest.safeParse({ kind: 'domains', params: { items: Array(1001).fill('a.com') } }).success).toBe(false);
+    expect(CreateSearchRequest.safeParse({ kind: 'domains', params: { items: Array(25_001).fill('a.com') } }).success).toBe(false);
   });
 });
