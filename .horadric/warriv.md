@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-21 Round after the sending, cost and pricing checks landed: no fix commits, so main green at 19b9849. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
 - 2026-10-21 Hourly round: tree clean, the human's last commit 19b9849 51 minutes old, so filed 'Checks on main after the sending, cost and pricing work' (sonnet, with build). No aim.
 - 2026-10-21 Round as the human left: 45 human commits past green b599672 (sending, now internal only; cost, Serper, free lookups, ICP index, new pricing ladder, people job) and dirty server fit-after-crawl work (untracked migration 1770) still in the tree. Held checks back again. No aim, nothing filed.
 
@@ -54,11 +55,11 @@
 
 ## Open
 
-- Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checks quest filed 2026-10-21; next round, see if it landed green.
+- Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
-- Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 53 quests landed since the last ship; shipping is the human's.
-- Main green at b599672; checks on 19b9849 running.
+- Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 55 quests landed since the last ship; shipping is the human's.
+- Main green at 19b9849 (2026-10-21).
 - SMTP relays (b4611da) need vps-us-1 set up and SMTP_RELAYS in the VPS .env (deploy/README.md); the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
