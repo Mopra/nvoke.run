@@ -32,7 +32,7 @@ import { RateLimiter } from '../limits.js';
 import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead, type MineResult } from '../listicle.js';
 import { keptYields, makePlan, ranKeys, savePlan, storedPlan, type IcpPlan, type LocalPair, type PlanQuery, type QueryYield } from '../planner.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
-import { braveQuery, type BraveClient } from './web.js';
+import { braveQuery, type BraveClient, type BravePageRequest } from './web.js';
 
 /** List pages tried per run, next pages included. Each is free but takes a few seconds. */
 export const MAX_LIST_PAGES = 400;
@@ -62,7 +62,7 @@ const DEEP_FIT_RATE = 0.25;
 export const DEEP_MIN_FITS = 3;
 /** Homepages one run reads for fit scoring. Each is free but takes a second or two. */
 export const MAX_HEADS = 2_500;
-/** Paid Brave requests per search when the server sets none (ICP_BRAVE_BUDGET). */
+/** Paid pages of web results per search when the server sets none (ICP_BRAVE_BUDGET). */
 export const DEFAULT_BRAVE_BUDGET = 120;
 /** Sites turned down that a plan remembers, newest kept: about 100 KB of plan at most. */
 export const MAX_REJECTED = 5_000;
@@ -81,7 +81,7 @@ export interface IcpAdapterOptions {
   crawl?: { limiter: RateLimiter };
   /** Fetch for list pages. Default: one that connects to public addresses only, on every hop. */
   listFetch?: FetchLike;
-  /** Paid Brave requests one search may make; cache hits are free. Default DEFAULT_BRAVE_BUDGET. */
+  /** Paid pages of web results one search may read (one page however many requests it billed); cache hits are free. Default DEFAULT_BRAVE_BUDGET. */
   braveBudget?: number;
   /** Whether fit scoring reads the homepages of candidates that are not plainly out. Default true. */
   readHeads?: boolean;
@@ -192,16 +192,26 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       ctx.log.info({ plan }, 'icp: plan');
       if (ctx.signal.aborted) return;
 
-      // Paid Brave requests (cache misses) of this run, against the search's
-      // budget, or the smaller one an ongoing round reserved (leads/ongoing.ts).
+      // Paid pages of web results (cache misses) of this run, against the
+      // search's budget, or the smaller one an ongoing round reserved
+      // (leads/ongoing.ts). A page counts once however many requests its
+      // provider billed for it (Serper asks twice for a page of 20), so every
+      // budget is in pages; searches.source_requests still counts each request.
       const budget = Math.min(runBudget, plan.braveBudget ?? runBudget);
       let paid = 0;
-      const braveCtx = {
-        ...ctx,
-        onUsage: (event: 'request' | 'cache_hit') => {
-          if (event === 'request') paid++;
-          ctx.onUsage?.(event);
-        },
+      const readPage = async (req: BravePageRequest) => {
+        let billed = false;
+        try {
+          return await opts.brave.page(req, {
+            ...ctx,
+            onUsage: (event) => {
+              if (event === 'request') billed = true;
+              ctx.onUsage?.(event);
+            },
+          });
+        } finally {
+          if (billed) paid++;
+        }
       };
       const budgetSpent = () => paid >= budget;
       let budgetNoted = false;
@@ -468,7 +478,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           const out: Pending[] = [];
           let n = 0;
           try {
-            for await (const c of opts.local.find(unit.pair, { ...braveCtx, limit: LOCAL_PER_PAIR, onStage: undefined })) {
+            for await (const c of opts.local.find(unit.pair, { ...ctx, limit: LOCAL_PER_PAIR, onStage: undefined })) {
               const company = admit({ ...c, snippet: c.snippet ?? [c.category, c.location].filter(Boolean).join(', ') });
               if (company) out.push({ company });
               if (++n >= LOCAL_PER_PAIR) break;
@@ -482,7 +492,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           return out;
         }
         const { q, country } = braveQuery({ keyword: unit.query.q, country: unit.query.country });
-        const page = await opts.brave.page({ q, country, page: unit.page }, braveCtx);
+        const page = await readPage({ q, country, page: unit.page });
         const lists: string[] = [];
         const postings: HiringPosting[] = [];
         const out: Pending[] = [];

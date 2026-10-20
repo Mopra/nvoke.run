@@ -13,7 +13,7 @@ import { FREE_BLOCK_MS, freeClient, freeSearchMode, mwmblProvider, searchClient,
 import { icpAdapter } from './icp.js';
 import { launchesAdapter } from './launches.js';
 import { localAdapter } from './local.js';
-import { nameResolver } from './resolve-name.js';
+import { nameResolver, type NameResolver, type NameResolverOptions } from './resolve-name.js';
 import { paidSearchChain, paidSearchFromEnv, SEARCH_DASHBOARDS, type PaidSearchEnv } from './paid-search.js';
 import type { SourceAdapter, SourceUnavailableError } from './types.js';
 import { webAdapter } from './web.js';
@@ -32,12 +32,27 @@ export type AdapterRegistry = { [K in SearchKind]: SourceAdapter<unknown> };
  * runs out. Only when both are out does a search fail with source_unavailable.
  * WEB_SEARCH_PROVIDER and WEB_SEARCH_FALLBACK put Serper ahead of or behind
  * Brave (paid-search.ts); Mwmbl stays the last fallback behind both.
+ *
+ * Names are tried on the free routes of resolve-name.ts before a paid lookup:
+ * real DNS and Wikidata by default. Tests pass `resolveName` (a resolver,
+ * or null for none) or `nameResolver` (its DNS lookup and Wikidata switch)
+ * so they never touch the network.
  */
 export function createAdapters(
   env: Pick<Env, 'NOMINATIM_URL' | 'OVERPASS_URL' | 'BRAVE_SEARCH_API_KEY' | 'BRAVE_REQUESTS_PER_SECOND' | 'PRODUCT_HUNT_TOKEN'> &
     Partial<Pick<Env, 'ICP_BRAVE_BUDGET' | 'FREE_SEARCH' | 'FREE_SEARCH_INTERVAL_MS'>> &
     PaidSearchEnv,
-  opts: { fetch?: FetchLike; sql?: Sql; ai?: Ai; crawl?: CrawlDeps; alert?: Alerter } = {},
+  opts: {
+    fetch?: FetchLike;
+    sql?: Sql;
+    ai?: Ai;
+    crawl?: CrawlDeps;
+    alert?: Alerter;
+    /** The free name resolver to use, or null for none. Default: one built from `nameResolver`. */
+    resolveName?: NameResolver | null;
+    /** For the default resolver: a DNS lookup and the Wikidata switch to use instead of the real ones. */
+    nameResolver?: Pick<NameResolverOptions, 'lookupHost' | 'wikidata'>;
+  } = {},
 ): AdapterRegistry {
   const fetchImpl = opts.fetch;
   const sql = opts.sql;
@@ -68,7 +83,9 @@ export function createAdapters(
     sql,
     alert: opts.alert,
     paused: sql ? (name) => isPaused([name]) : undefined,
-    onUnavailable: (err) => unavailable(err, chain.filter((n) => n !== err.source).join(' or ') || FREE),
+    // Once per refusing provider, naming what answered instead: the next paid search, else the free one.
+    onUnavailable: (err, answeredBy) =>
+      unavailable(err, answeredBy ?? (mode === 'off' ? 'no other search (the free fallback is off), so they fail,' : FREE)),
     downMs: SOURCE_PAUSE_MS,
   });
   const mode: FreeSearchMode = env.FREE_SEARCH ?? freeSearchMode();
@@ -83,12 +100,14 @@ export function createAdapters(
     mode,
     // With two paid searches, the free one takes over only when both are paused.
     bravePaused: sql ? () => isPaused(chain) : undefined,
-    onUnavailable: (err: SourceUnavailableError) => unavailable(err, FREE),
+    // Brave alone only: with the paid search client in front, it already paused and alerted for each provider.
+    onUnavailable: chain.length === 1 && chain[0] === 'brave' ? (err: SourceUnavailableError) => unavailable(err, FREE) : undefined,
     braveDownMs: SOURCE_PAUSE_MS,
   });
   const web = webAdapter(brave);
   // Free routes from a company name to its website, tried before a paid lookup.
-  const resolveName = nameResolver({ sql, crawl: opts.crawl, fetch: fetchImpl });
+  const resolveName =
+    opts.resolveName === null ? undefined : (opts.resolveName ?? nameResolver({ sql, crawl: opts.crawl, fetch: fetchImpl, ...opts.nameResolver }));
   const local = localAdapter({
     nominatimUrl: env.NOMINATIM_URL,
     overpassUrls: env.OVERPASS_URL,

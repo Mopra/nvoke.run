@@ -98,6 +98,22 @@ export function hasTitleWord(text: string): boolean {
   return RANKED.some(([, patterns]) => patterns.some((re) => re.test(t))) || STAFF.some((re) => re.test(t));
 }
 
+/**
+ * The lexicon anchored to the whole text, so a stem only counts as the whole
+ * word: "Nurse" and "Head" are title words, "Doctorow" and "Notaro" are not.
+ * A stem may carry a short ending ("coordinat" in "Coordinator").
+ */
+const WHOLE_TITLE = [...RANKED.flatMap(([, patterns]) => patterns), ...STAFF].map(
+  (re) => new RegExp(`^(?:${re.source})(?:s|e|es|er|ers|or|ors|in|en|ist|ists|ian|cian|eur|euse|ice|ique|y|ie)?$`, re.flags),
+);
+
+/** Whether the whole text is a title term of the lexicon, as whole words: "Head", "Amministratore Delegato". */
+export function isTitleTerm(text: string): boolean {
+  const t = foldTitle(text);
+  if (!t) return false;
+  return WHOLE_TITLE.some((re) => re.test(t));
+}
+
 /** Words of a sentence, not of a title: "Jane is our CEO", "Wir sind ein Team". */
 const SENTENCE_WORD = /\b(is|are|was|were|our|we|i|my|you|your|has|have|will|er|var|vores|vi|ist|sind|wir|unser|ich|est|sommes|nous|notre|zijn|wij|ons|onze|ar|vara|var|vart|es|somos|nuestro|har|hat)\b/;
 

@@ -9,7 +9,7 @@
 
 import { load, type CheerioAPI } from 'cheerio';
 import { isDecisionMaker, type Seniority } from '../leads.ts';
-import { foldTitle, hasTitleWord, looksLikeRole, looksLikeTitle, seniorityOf } from './seniority.ts';
+import { foldTitle, hasTitleWord, isTitleTerm, looksLikeRole, looksLikeTitle, seniorityOf } from './seniority.ts';
 
 export interface FoundPerson {
   firstName: string;
@@ -58,7 +58,7 @@ const NOT_NAME = new Set(
   financial bank insurance real estate property media creative interactive communications consultancy academy school university
   institute foundation association club hotel restaurant cafe bar kitchen coffee press release case study white paper ebook
   webinar podcast video gallery portfolio testimonials reviews faq help docs documentation api integrations download trial
-  manager director founder partner owner chief officer head lead
+  manager director founder partner owner chief officer lead
   google maps tag gen generation demand leads qualified appointment appointments setting outbound inbound pipeline account accounts
   based start process edition newsletter education sector trusted worldwide loading excellence qualification prospecting
   why how what who where when we are
@@ -115,12 +115,19 @@ export function parseName(raw: string): { firstName: string; lastName: string } 
     const folded = foldTitle(t);
     if (i > 0 && i < tokens.length - 1 && PARTICLES.has(t)) continue;
     if (!NAME_TOKEN.test(t)) return null;
-    if (NOT_NAME.has(folded) || hasTitleWord(folded)) return null;
+    if (NOT_NAME.has(folded)) return null;
     words++;
   }
   if (words < 2 || words > 4) return null;
-  // A title of several words, none a title alone: "Amministratore Delegato", "Consejero Delegado".
-  if (hasTitleWord(tokens.join(' '))) return null;
+  // A title, not a name: every word a title term, or the whole a title of
+  // several words ("Amministratore Delegato"). Only whole words count, so
+  // "Paul Nurse" and "Cory Doctorow" stay names. Without a common first name
+  // in front, a title term first ("Directeur Commercial") or a title after
+  // it is enough.
+  const rest = tokens.slice(1);
+  const allTitle = (ts: string[]) => ts.every((t) => PARTICLES.has(t) || isTitleTerm(t)) || isTitleTerm(ts.join(' '));
+  if (allTitle(tokens)) return null;
+  if (!isFirstName(first) && (isTitleTerm(first) || allTitle(rest))) return null;
   return { firstName: first, lastName: tokens.slice(1).join(' ') };
 }
 

@@ -10,8 +10,10 @@ import {
   countryTld,
   guessDomain,
   guessHosts,
+  isMapListed,
   isParkedPage,
   knownDomain,
+  lookedUpRef,
   nameResolver,
   resetWikidataPause,
   storedNameVariants,
@@ -195,17 +197,22 @@ describe('known route and the resolver', () => {
     db = await createTestDb();
     await db.sql`insert into accounts (clerk_user_id) values ('user_1')`;
     const [search] = await db.sql<{ id: string }[]>`insert into searches (clerk_user_id, kind, "limit") values ('user_1', 'local', 10) returning id`;
-    const company = (name: string, domain: string, source: string, location: string | null = null) =>
-      db.sql`insert into companies (search_id, clerk_user_id, name, domain, website, source, location)
-             values (${search!.id}, 'user_1', ${name}, ${domain}, ${`https://${domain}/`}, ${source}, ${location})`;
+    const company = (name: string, domain: string, source: string, location: string | null = null, sourceRef: string | null = null) =>
+      db.sql`insert into companies (search_id, clerk_user_id, name, domain, website, source, source_ref, location)
+             values (${search!.id}, 'user_1', ${name}, ${domain}, ${`https://${domain}/`}, ${source}, ${sourceRef}, ${location})`;
     await company('Acme Dental ApS', 'acmedental.dk', 'brave');
     await company('Ghost Co', 'first-hit.dk', 'brave');
     await company('Tandlæge Jensen', 'jensen-tand.dk', 'osm', 'Vestergade 1, 8000 Aarhus');
     await company('Down Ltd', 'down.dk', 'list');
+    // A map place that listed no website, whose website a guess found: not the map's word.
+    await company('Tandlæge Holm', 'wrong-guess.dk', 'osm', 'Bygade 2, 8000 Aarhus', 'node/9#guess');
+    await company('Tandlæge Berg', 'klinik-nord.dk', 'osm', 'Bygade 3, 8000 Aarhus', 'node/10');
     await db.sql`insert into domains (domain, crawl_status, crawled_at, recheck_at) values
       ('acmedental.dk', 'done', now(), now() + interval '90 days'),
       ('first-hit.dk', 'done', now(), now() + interval '90 days'),
       ('jensen-tand.dk', 'js_only', now(), now() + interval '7 days'),
+      ('wrong-guess.dk', 'done', now(), now() + interval '90 days'),
+      ('klinik-nord.dk', 'done', now(), now() + interval '90 days'),
       ('down.dk', 'failed', now(), now() + interval '7 days')`;
   });
   afterAll(async () => db?.drop());
@@ -219,6 +226,16 @@ describe('known route and the resolver', () => {
     const generic = ['dentists', 'tandlæge'];
     expect(await knownDomain(db.sql, { name: 'Tandlæge Jensen', city: 'Aarhus', generic })).toBe('jensen-tand.dk');
     expect(await knownDomain(db.sql, { name: 'Tandlæge Jensen', city: 'Odense', generic })).toBeNull();
+  });
+
+  it('trusts only websites the map listed, not ones a lookup stored on a map place', async () => {
+    const generic = ['dentists', 'tandlæge'];
+    expect(await knownDomain(db.sql, { name: 'Tandlæge Holm', generic })).toBeNull();
+    expect(await knownDomain(db.sql, { name: 'Tandlæge Holm', city: 'Aarhus', generic })).toBeNull();
+    expect(await knownDomain(db.sql, { name: 'Tandlæge Berg', generic })).toBe('klinik-nord.dk');
+    expect(isMapListed('osm', 'node/10')).toBe(true);
+    expect(isMapListed('osm', lookedUpRef('node/9', 'brave'))).toBe(false);
+    expect(isMapListed('brave', null)).toBe(false);
   });
 
   it('tries known, then guess, then Wikidata, and answers null when none is sure', async () => {

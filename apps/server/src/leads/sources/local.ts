@@ -11,9 +11,10 @@
 //    query tries every instance, then again after a pause, a few rounds.
 // 3. When those fall short of the limit, places that match the niche by tag
 //    but list no website are looked up by name and city: first on the free
-//    routes of resolve-name.ts, then on Brave, one request each (cached, at
-//    most MAX_PLACE_LOOKUPS per search), and the result that is the place's
-//    own site (`pickPlaceSite`) is crawled.
+//    routes of resolve-name.ts (at most MAX_FREE_PLACE_LOOKUPS places and
+//    FREE_LOOKUP_BUDGET_MS per search), then on Brave, one request each
+//    (cached, at most MAX_PLACE_LOOKUPS per search), and the result that is
+//    the place's own site (`pickPlaceSite`) is crawled.
 // 4. When Overpass stays down, or all of that finds fewer places than the
 //    search wants, a Brave web search for "<niche> in <location>" fills in
 //    (when web search is configured), so a local search does not fail on a
@@ -23,7 +24,7 @@ import type { LocalSearchParams, WebSearchParams } from '@nvoke/shared';
 import { nameTokens, pickPlaceSite } from '../domain.js';
 import { BOT_USER_AGENT, HttpError, fetchJson, type FetchLike } from '../http.js';
 import { KeyedMutex, RateLimiter, sleep } from '../limits.js';
-import { emptyRouteCounts, type NameResolver } from './resolve-name.js';
+import { emptyRouteCounts, lookedUpRef, type NameResolver, type NameRoute } from './resolve-name.js';
 import { PermanentError, type FoundCompany, type SourceAdapter, type SourceContext } from './types.js';
 import { braveQuery, type BraveClient } from './web.js';
 
@@ -46,6 +47,10 @@ export interface LocalAdapterOptions {
   maxPlaceLookups?: number;
   /** Free routes tried for a place without a website before Brave. */
   resolveName?: NameResolver;
+  /** Places a search may try on the free routes. Default MAX_FREE_PLACE_LOOKUPS. */
+  maxFreeLookups?: number;
+  /** No free lookup starts after this long into the step. Default FREE_LOOKUP_BUDGET_MS. */
+  freeLookupBudgetMs?: number;
 }
 
 /**
@@ -54,6 +59,16 @@ export interface LocalAdapterOptions {
  * 50 USD a month. Names looked up in the last 7 days come from the cache.
  */
 export const MAX_PLACE_LOOKUPS = 50;
+
+/**
+ * Places one local search may try on the free routes. Each costs up to 6
+ * DNS lookups, 2 homepage fetches and 2 Wikidata requests behind a limit of
+ * one a second for the whole process, so free is not unlimited.
+ */
+export const MAX_FREE_PLACE_LOOKUPS = 50;
+
+/** How long one local search may spend on free lookups before it stops starting new ones. */
+export const FREE_LOOKUP_BUDGET_MS = 2 * 60_000;
 
 export interface ResolvedArea {
   displayName: string;
@@ -208,11 +223,21 @@ export function placeEmail(tags: Record<string, string>): string | undefined {
 
 const CATEGORY_KEYS = ['amenity', 'shop', 'office', 'craft', 'healthcare', 'tourism', 'leisure'];
 
-/** The company for a place: its own website, or for a place that lists none, the one a lookup found. */
-export function elementToCompany(el: OverpassElement, foundWebsite?: string): FoundCompany | null {
+/** A website a lookup found for a place that lists none, and the route that found it. */
+export interface FoundWebsite {
+  website: string;
+  via: NameRoute | 'brave';
+}
+
+/**
+ * The company for a place: its own website, or for a place that lists none,
+ * the one a lookup found. Both keep source `osm`; a looked up one carries the
+ * route in its source_ref (`lookedUpRef`), so it is never taken as the map's word.
+ */
+export function elementToCompany(el: OverpassElement, found?: FoundWebsite): FoundCompany | null {
   const tags = el.tags ?? {};
   const name = (tags.name ?? tags.brand ?? tags.operator ?? '').trim();
-  const website = foundWebsite ?? (tags.website ?? tags['contact:website'] ?? tags.url ?? '').split(';')[0]?.trim() ?? '';
+  const website = found?.website ?? (tags.website ?? tags['contact:website'] ?? tags.url ?? '').split(';')[0]?.trim() ?? '';
   if (!name || !website) return null;
   const categoryKey = CATEGORY_KEYS.find((k) => tags[k]);
   const phone = (tags.phone ?? tags['contact:phone'] ?? '').split(';')[0]?.trim();
@@ -220,7 +245,7 @@ export function elementToCompany(el: OverpassElement, foundWebsite?: string): Fo
     name,
     website,
     source: 'osm',
-    sourceRef: `${el.type}/${el.id}`,
+    sourceRef: found ? lookedUpRef(`${el.type}/${el.id}`, found.via) : `${el.type}/${el.id}`,
     location: addressOf(tags),
     phone: phone || undefined,
     category: categoryKey ? `${categoryKey}=${tags[categoryKey]}` : undefined,
@@ -334,9 +359,9 @@ export function fallbackWebParams(params: LocalSearchParams, area: ResolvedArea 
  * Places without a website, each tried on the free routes (`resolveName`)
  * and then looked up on Brave as "<name> <city>" in the area's country,
  * yielding those whose own site is among the results. Names already yielded
- * or looked up are skipped (a chain has one site), and at most
- * `maxPlaceLookups` Brave requests are spent; the free routes have no cap
- * but the places Overpass returns. Overpass failing here only ends this
+ * or looked up are skipped (a chain has one site). At most `maxPlaceLookups`
+ * Brave requests are spent, and at most `maxFreeLookups` places tried on the
+ * free routes within `freeLookupBudgetMs`. Overpass failing here only ends this
  * step, and a lookup that errors (5xx, timeout) only skips its place; a
  * Brave refusal fails the search like any web search.
  */
@@ -349,8 +374,10 @@ async function* placesLookedUp(
   ctx: SourceContext,
 ): AsyncGenerator<FoundCompany> {
   const max = opts.maxPlaceLookups ?? MAX_PLACE_LOOKUPS;
-  const query = placesWithoutWebsiteQuery(params.niche, area, max * 2 + 20);
-  if (!query || (max <= 0 && !opts.resolveName)) return;
+  const resolver = opts.resolveName;
+  const maxFree = resolver ? (opts.maxFreeLookups ?? MAX_FREE_PLACE_LOOKUPS) : 0;
+  const query = placesWithoutWebsiteQuery(params.niche, area, Math.max(max, maxFree) * 2 + 20);
+  if (!query || (max <= 0 && maxFree <= 0)) return;
   let res: OverpassResponse;
   try {
     res = await overpassLock.run('overpass', () => queryOverpass(opts, query, ctx.signal));
@@ -360,26 +387,30 @@ async function* placesLookedUp(
     return;
   }
   const generic = [...nicheWords(params.niche), params.location];
-  const resolver = opts.resolveName;
   const routes = emptyRouteCounts();
+  const freeDeadline = Date.now() + (opts.freeLookupBudgetMs ?? FREE_LOOKUP_BUDGET_MS);
   let lookups = 0;
+  let freeLookups = 0;
   let found = 0;
   for (const el of res.elements ?? []) {
-    if (!resolver && lookups >= max) break;
+    const freeOpen = resolver !== undefined && freeLookups < maxFree && Date.now() < freeDeadline;
+    const braveOpen = brave !== undefined && lookups < max;
+    if (!freeOpen && !braveOpen) break;
     const name = el.tags?.name?.trim();
     const key = name ? nameTokens(name).join(' ') : '';
     if (!name || !key || seen.has(key)) continue;
     seen.add(key);
     const city = el.tags?.['addr:city']?.trim() || params.location.trim();
-    const free = await resolver?.resolve({ name, country: area.countryCode, city, generic: [...generic, city] }, ctx);
-    const freeCompany = free ? elementToCompany(el, free.website) : null;
+    if (freeOpen) freeLookups++;
+    const free = freeOpen ? await resolver.resolve({ name, country: area.countryCode, city, generic: [...generic, city] }, ctx) : null;
+    const freeCompany = free ? elementToCompany(el, { website: free.website, via: free.route }) : null;
     if (free && freeCompany) {
       routes[free.route]++;
       found++;
       yield freeCompany;
       continue;
     }
-    if (!brave || lookups >= max) {
+    if (!braveOpen) {
       routes.none++;
       continue;
     }
@@ -396,7 +427,7 @@ async function* placesLookedUp(
       continue;
     }
     const hit = pickPlaceSite(name, page.companies, [...generic, city]);
-    const company = hit ? elementToCompany(el, hit.website) : null;
+    const company = hit ? elementToCompany(el, { website: hit.website, via: 'brave' }) : null;
     if (!company) {
       routes.none++;
       continue;
@@ -405,7 +436,7 @@ async function* placesLookedUp(
     found++;
     yield company;
   }
-  ctx.log.info({ lookups, found, routes }, 'local: looked up places without a website');
+  ctx.log.info({ lookups, freeLookups, found, routes }, 'local: looked up places without a website');
 }
 
 export function localAdapter(opts: LocalAdapterOptions): SourceAdapter<LocalSearchParams> {

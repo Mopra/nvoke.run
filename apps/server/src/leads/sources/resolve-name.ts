@@ -36,6 +36,20 @@ export function emptyRouteCounts(): NameRouteCounts {
   return { known: 0, guess: 0, wikidata: 0, brave: 0, none: 0 };
 }
 
+/**
+ * The source_ref of a map place whose website a lookup found, not the map:
+ * "node/42#guess". The place keeps source `osm`, so it reads as OpenStreetMap,
+ * but the known route must not take the website as the map's word.
+ */
+export function lookedUpRef(ref: string, via: NameRoute | 'brave'): string {
+  return `${ref}#${via}`;
+}
+
+/** Whether a company row's website is the one OpenStreetMap lists for the place. */
+export function isMapListed(source: string, sourceRef: string | null): boolean {
+  return source === 'osm' && !(sourceRef ?? '').includes('#');
+}
+
 export interface NameQuery {
   name: string;
   /** ISO 3166-1 alpha-2, lowercase. Its TLD is guessed first. */
@@ -192,14 +206,15 @@ function mentionsCity(text: string, city: string): boolean {
 
 /**
  * The domain past searches found for this name, when they agree. A row
- * counts when OpenStreetMap listed the website, or when the domain holds
- * the name; a row from a Brave fallback that does not look like the name
- * proves nothing. The crawl must have reached the domain. With a city the
+ * counts when OpenStreetMap listed the website (not a place whose website a
+ * lookup found, see `lookedUpRef`), or when the domain holds the name; a row
+ * from a Brave fallback or a lookup that does not look like the name proves
+ * nothing, or one wrong guess would vouch for itself. The crawl must have reached the domain. With a city the
  * row's address must name it: two dentists called Jensen are two companies.
  */
 export async function knownDomain(sql: Sql, query: NameQuery): Promise<string | null> {
-  const rows = await sql<{ name: string; domain: string; source: string; location: string | null }[]>`
-    select c.name, c.domain, c.source, c.location
+  const rows = await sql<{ name: string; domain: string; source: string; source_ref: string | null; location: string | null }[]>`
+    select c.name, c.domain, c.source, c.source_ref, c.location
     from companies c
     join domains d on d.domain = c.domain
     where lower(c.name) = any(${sql.array(storedNameVariants(query.name))})
@@ -213,7 +228,7 @@ export async function knownDomain(sql: Sql, query: NameQuery): Promise<string | 
     if (nameTokens(row.name).join(' ') !== key || !isOwnSiteDomain(row.domain)) continue;
     if (query.city && !(row.location && mentionsCity(row.location, query.city))) continue;
     const looksLikeName = query.generic ? placeMatch(query.name, row.domain, query.generic) >= 2 : nameMatch(query.name, row.domain) >= 2;
-    if (row.source !== 'osm' && !looksLikeName) continue;
+    if (!isMapListed(row.source, row.source_ref) && !looksLikeName) continue;
     domains.add(row.domain);
   }
   return pickOne(domains, query.country);

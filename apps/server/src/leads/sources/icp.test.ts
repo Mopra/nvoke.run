@@ -99,7 +99,7 @@ function fakeSql(rows: { plan: unknown; domains?: string[] }): Sql & { queries: 
 async function run(
   adapter: SourceAdapter<IcpSearchParams>,
   limit: number,
-  opts: { abortAfter?: number; params?: IcpSearchParams; searchId?: string } = {},
+  opts: { abortAfter?: number; params?: IcpSearchParams; searchId?: string; onUsage?: (event: 'request' | 'cache_hit') => void } = {},
 ) {
   const stages: [string, string][] = [];
   const out: FoundCompany[] = [];
@@ -110,6 +110,7 @@ async function run(
     log: silentLog,
     userId: 'user_1',
     searchId: opts.searchId,
+    onUsage: opts.onUsage,
     onStage: async (stage: string, note: string) => void stages.push([stage, note]),
   };
   for await (const c of adapter.find(opts.params ?? { description: 'Outbound agencies' }, ctx)) {
@@ -240,6 +241,26 @@ describe('icp adapter limits', () => {
     // No paid tier starts once the budget is spent.
     expect(stages.map(([s]) => s)).not.toContain('adjacent');
     expect(stages.at(-1)?.[1]).toMatch(/^This search used its 2 web searches: found 2 fitting candidates, short of 50\./);
+  });
+
+  it('counts a page against the budget once, however many requests its provider billed for it', async () => {
+    // Serper bills two requests for a page of 20 results.
+    const asked: BravePageRequest[] = [];
+    const brave: BraveClient = {
+      configured: true,
+      async page(req, ctx): Promise<CachedWebPage> {
+        asked.push(req);
+        ctx.onUsage?.('request');
+        ctx.onUsage?.('request');
+        return { companies: [], more: false };
+      },
+    };
+    const events: string[] = [];
+    const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), braveBudget: 3 }), 50, { onUsage: (e) => void events.push(e) });
+    expect(asked).toHaveLength(3);
+    // Every billed request still reaches the search's source_requests.
+    expect(events).toEqual(Array(6).fill('request'));
+    expect(stages.find(([s]) => s === 'budget')?.[1]).toContain("Used this search's 3 web searches");
   });
 
   it('holds a stored plan to the smaller Brave budget an ongoing round reserved', async () => {

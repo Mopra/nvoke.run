@@ -6,6 +6,7 @@ import { buildOverpassQuery, elementToCompany, localAdapter, nicheTags, placesWi
 import { braveClient, braveQuery, braveRetryAfter, nameFromTitle, resultToCompany, webAdapter, BRAVE_ENDPOINT } from './web.js';
 import { ALGOLIA_SEARCH, PRODUCT_HUNT_GRAPHQL, hitToCompany, launchesAdapter, parseShowHnTitle, phMatches } from './launches.js';
 import { PermanentError, SourceUnavailableError } from './types.js';
+import { createAdapters } from './index.js';
 import type { CachedWebPage, WebPageKey, WebSearchCache } from '../web-cache.js';
 import type { WebSearchParams } from '@nvoke/shared';
 
@@ -217,7 +218,7 @@ describe('local adapter (Nominatim + Overpass)', () => {
     const found = await collect(adapter, { niche: 'dentists', location: 'Austin, Texas' });
     expect(found.map((c) => [c.name, c.website, c.sourceRef])).toEqual([
       ['Smile', 'https://smile.example', 'node/1'],
-      ['Tandlæge Jensen', 'https://www.tandlaege-jensen.com', 'node/2'],
+      ['Tandlæge Jensen', 'https://www.tandlaege-jensen.com', 'node/2#brave'],
     ]);
     const asked = fetch.calls.filter((c) => c.url.startsWith(BRAVE_ENDPOINT)).map((c) => new URL(c.url));
     // The repeat and the name already found are skipped, and the cap of 2 leaves Bright Teeth out.
@@ -245,8 +246,8 @@ describe('local adapter (Nominatim + Overpass)', () => {
     const withBrave = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, placeLookup: brave, resolveName });
     const found = await collect(withBrave, { niche: 'dentists', location: 'Austin, Texas (free)' });
     expect(found.map((c) => [c.name, c.website, c.source, c.sourceRef])).toEqual([
-      ['Jensen Dental', 'https://jensendental.com/', 'osm', 'node/2'],
-      ['Bright Teeth', 'https://brightteeth.example', 'osm', 'node/3'],
+      ['Jensen Dental', 'https://jensendental.com/', 'osm', 'node/2#known'],
+      ['Bright Teeth', 'https://brightteeth.example', 'osm', 'node/3#brave'],
     ]);
     expect(asked[0]).toMatchObject({ name: 'Jensen Dental', country: 'us', city: 'Round Rock' });
     expect(asked[0]!.generic).toEqual(expect.arrayContaining(['dentist', 'Round Rock']));
@@ -257,6 +258,47 @@ describe('local adapter (Nominatim + Overpass)', () => {
     const freeOnly = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, resolveName, maxPlaceLookups: 0 });
     const free = await collect(freeOnly, { niche: 'dentists', location: 'Austin, Texas (free only)' });
     expect(free.map((c) => c.website)).toEqual(['https://jensendental.com/']);
+  });
+
+  it('caps free lookups per search by count and time, and keeps Brave capped on its own', async () => {
+    const place = (id: number, name: string) => ({ type: 'node', id, tags: { name, amenity: 'dentist' } });
+    const fetch = fakeFetch({
+      [`${nominatim}/search`]: { body: austin },
+      [overpass]: (_url, init) =>
+        new URLSearchParams(String(init?.body)).get('data')?.includes('[!"website"]')
+          ? { body: JSON.stringify({ elements: [place(1, 'Alpha Dental'), place(2, 'Beta Dental'), place(3, 'Gamma Dental'), place(4, 'Delta Dental')] }) }
+          : { body: JSON.stringify({ elements: [] }) },
+      [BRAVE_ENDPOINT]: { body: JSON.stringify({ web: { results: [] } }) },
+    });
+    const asked: string[] = [];
+    const resolveName: NameResolver = { resolve: async (q) => (asked.push(q.name), null) };
+    const brave = braveClient({ apiKey: 'k', fetch, requestsPerSecond: 1_000 });
+    const braveAsked = () => fetch.calls.filter((c) => c.url.startsWith(BRAVE_ENDPOINT)).map((c) => new URL(c.url).searchParams.get('q'));
+
+    // Two free lookups, and the step ends once Brave's one is spent too.
+    const capped = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, resolveName, maxFreeLookups: 2, placeLookup: brave, maxPlaceLookups: 1 });
+    await collect(capped, { niche: 'dentists', location: 'Austin, Texas (free cap)' });
+    expect(asked).toEqual(['Alpha Dental', 'Beta Dental']);
+    expect(braveAsked()).toEqual(['Alpha Dental Austin, Texas (free cap)']);
+
+    // Out of time: no free lookup starts, and Brave still stops at its cap.
+    asked.length = 0;
+    const late = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, resolveName, freeLookupBudgetMs: 0, placeLookup: brave, maxPlaceLookups: 2 });
+    await collect(late, { niche: 'dentists', location: 'Austin, Texas (free late)' });
+    expect(asked).toEqual([]);
+    expect(braveAsked().slice(1)).toEqual(['Alpha Dental Austin, Texas (free late)', 'Beta Dental Austin, Texas (free late)']);
+
+    // Free only: the count alone ends the step.
+    asked.length = 0;
+    const freeOnly = localAdapter({ nominatimUrl: nominatim, overpassUrls: [overpass], fetch, resolveName, maxFreeLookups: 3, maxPlaceLookups: 0 });
+    await collect(freeOnly, { niche: 'dentists', location: 'Austin, Texas (free only cap)' });
+    expect(asked).toEqual(['Alpha Dental', 'Beta Dental', 'Gamma Dental']);
+  });
+
+  it('marks a website a lookup found in the source_ref, and keeps source osm', () => {
+    const el = { type: 'node' as const, id: 7, tags: { name: 'Smile', amenity: 'dentist' } };
+    expect(elementToCompany(el, { website: 'https://smile.dk/', via: 'guess' })).toMatchObject({ source: 'osm', sourceRef: 'node/7#guess', website: 'https://smile.dk/' });
+    expect(elementToCompany({ ...el, tags: { ...el.tags, website: 'https://smile.dk' } })).toMatchObject({ source: 'osm', sourceRef: 'node/7' });
   });
 
   it('tops up from the web search only after OpenStreetMap ran out', async () => {
@@ -278,6 +320,32 @@ describe('local adapter (Nominatim + Overpass)', () => {
     let n = 0;
     for await (const _ of it) if (++n >= 3) break;
     expect(web2.asked).toEqual([]);
+  });
+});
+
+describe('createAdapters and the free name resolver', () => {
+  const env = { NOMINATIM_URL: 'https://nominatim.test', OVERPASS_URL: ['https://overpass.test'], BRAVE_SEARCH_API_KEY: undefined, BRAVE_REQUESTS_PER_SECOND: 1_000, PRODUCT_HUNT_TOKEN: undefined, FREE_SEARCH: 'off' as const };
+
+  it('uses an injected resolver for names', async () => {
+    const fetch = fakeFetch({});
+    const resolveName: NameResolver = { resolve: async () => ({ domain: 'pleo.io', website: 'https://pleo.io/', route: 'guess' }) };
+    const found = await collect(createAdapters(env, { fetch, resolveName }).domains, { items: ['Pleo'] });
+    expect(found).toEqual([{ name: 'Pleo', website: 'https://pleo.io/', source: 'guess' }]);
+    expect(fetch.calls).toEqual([]);
+  });
+
+  it('builds the default resolver on the injected DNS lookup with Wikidata off', async () => {
+    const fetch = fakeFetch({});
+    const looked: string[] = [];
+    const lookupHost = async (host: string) => (looked.push(host), false);
+    const domains = createAdapters(env, { fetch, nameResolver: { lookupHost, wikidata: false } }).domains;
+    await expect(collect(domains, { items: ['Mercury Labs'] })).rejects.toBeInstanceOf(PermanentError);
+    expect(looked).toContain('mercurylabs.com');
+    expect(fetch.calls).toEqual([]);
+  });
+
+  it('turns the free routes off with a null resolver', async () => {
+    await expect(collect(createAdapters(env, { fetch: fakeFetch({}), resolveName: null }).domains, { items: ['Pleo'] })).rejects.toThrow(/not configured/);
   });
 });
 

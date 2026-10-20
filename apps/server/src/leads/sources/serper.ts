@@ -76,6 +76,14 @@ export function serperResultToCompany(r: SerperResult): FoundCompany | null {
   };
 }
 
+/**
+ * Google reads `or` only in capitals: the planner's `(site:a or site:b)` is
+ * a literal word to it and finds nothing. Brave takes either.
+ */
+export function googleQuery(q: string): string {
+  return q.replace(/(?<=\S)\s+or\s+(?=\S)/g, ' OR ');
+}
+
 /** Serper as a paid web search. A refusal is SourceUnavailableError('serper'), paused and alerted like Brave's. */
 export function serperProvider(opts: SerperOptions): PaidSearchProvider {
   const limiter = new RateLimiter(Math.ceil(1_100 / (opts.requestsPerSecond ?? DEFAULT_REQUESTS_PER_SECOND)));
@@ -83,7 +91,7 @@ export function serperProvider(opts: SerperOptions): PaidSearchProvider {
 
   const one = async (req: BravePageRequest, page: number, ctx: SourceContext): Promise<SerperResult[]> => {
     const body = JSON.stringify({
-      q: req.q,
+      q: googleQuery(req.q),
       ...(req.country ? { gl: req.country } : {}),
       num: SERPER_PAGE_SIZE,
       page,

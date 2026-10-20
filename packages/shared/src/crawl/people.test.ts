@@ -20,6 +20,19 @@ describe('parseName', () => {
       expect(parseName(text), text).toBeNull();
     }
   });
+
+  it('keeps names that hold or resemble a title word', () => {
+    for (const text of ['Sarah Head', 'Paul Nurse', 'Brian Leiter', 'Tom Lehrer', 'Anna Arzt', 'Cory Doctorow', 'Marco Notaro', 'Kim Leder']) {
+      const [firstName, ...rest] = text.split(' ');
+      expect(parseName(text), text).toEqual({ firstName, lastName: rest.join(' ') });
+    }
+  });
+
+  it('refuses titles of several words', () => {
+    for (const text of ['Amministratore Delegato', 'Consejero Delegado', 'Directeur Commercial', 'Directeur Général', 'Geschäftsführer Vertrieb', 'Senior Consultant', 'Managing Director']) {
+      expect(parseName(text), text).toBeNull();
+    }
+  });
 });
 
 describe('extractPeople', () => {

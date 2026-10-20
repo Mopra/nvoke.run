@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fakeFetch, fixture, silentLog } from '../../testing/fakes.js';
 import type { CachedWebPage, WebPageKey, WebSearchCache } from '../web-cache.js';
-import { SERPER_ENDPOINT, serperProvider, serperResultToCompany } from './serper.js';
+import { googleQuery, SERPER_ENDPOINT, serperProvider, serperResultToCompany } from './serper.js';
 import { PermanentError, SourceUnavailableError, type FoundCompany, type SourceAdapter, type SourceContext } from './types.js';
 import { BRAVE_ENDPOINT, braveClient, webAdapter } from './web.js';
 
@@ -36,6 +36,13 @@ function paged(pages: number) {
     },
   });
 }
+
+describe('googleQuery', () => {
+  it('capitalizes or between terms so Google reads it as an operator', () => {
+    expect(googleQuery('"sdr" (site:jobs.lever.co or site:teamtailor.com) ireland')).toBe('"sdr" (site:jobs.lever.co OR site:teamtailor.com) ireland');
+    expect(googleQuery('oregon florist for orchards')).toBe('oregon florist for orchards');
+  });
+});
 
 describe('serper provider', () => {
   it('posts the query with the key in X-API-KEY and maps organic results', async () => {

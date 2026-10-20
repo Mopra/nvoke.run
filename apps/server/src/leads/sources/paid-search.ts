@@ -133,8 +133,12 @@ export interface PaidSearchOptions {
   usage?: WebSearchUsage;
   /** Whether a provider is paused in source_pauses (by any process). */
   paused?: (name: WebSearchProviderName) => Promise<boolean>;
-  /** A provider refused us: pause it and tell the operator. */
-  onUnavailable?: (err: SourceUnavailableError) => Promise<void>;
+  /**
+   * A provider refused us: pause it and tell the operator. Called once per
+   * refusing provider when the call is over, with the provider that answered
+   * the page instead, or null when none did (the free search takes over).
+   */
+  onUnavailable?: (err: SourceUnavailableError, answeredBy: WebSearchProviderName | null) => Promise<void>;
   alert?: Alerter;
   now?: () => Date;
   /** How long a refusal sends this process past a provider. Default 10 minutes. */
@@ -265,25 +269,35 @@ export function paidSearchClient(opts: PaidSearchOptions): BraveClient {
       }
       const order = [...usable, ...overBudget];
       let lastError: unknown = lastRefusal;
-      for (const [i, e] of order.entries()) {
-        try {
-          const page = await ask(e, req, ctx);
-          if (e !== configured[0]) ctx.log.info({ provider: e.name, q: req.q }, 'web search: answered by the fallback');
-          return page;
-        } catch (err) {
-          if (ctx.signal.aborted) throw err;
-          if (err instanceof SourceUnavailableError) {
-            down.set(e.name, { until: now().getTime() + downMs, reason: err.reason });
-            await opts.onUnavailable?.(err).catch((x: unknown) => ctx.log.warn({ err: x }, 'web search: could not pause the provider'));
-          } else if (err instanceof PermanentError || i === order.length - 1) {
-            throw err;
-          } else {
-            ctx.log.warn({ provider: e.name, err: err instanceof Error ? err.message : String(err) }, 'web search: provider failed, asking the next');
+      // Refusals are reported once the call is over, so each alert names what really answered.
+      const refused: SourceUnavailableError[] = [];
+      let answeredBy: WebSearchProviderName | null = null;
+      try {
+        for (const [i, e] of order.entries()) {
+          try {
+            const page = await ask(e, req, ctx);
+            if (e !== configured[0]) ctx.log.info({ provider: e.name, q: req.q }, 'web search: answered by the fallback');
+            answeredBy = e.name;
+            return page;
+          } catch (err) {
+            if (ctx.signal.aborted) throw err;
+            if (err instanceof SourceUnavailableError) {
+              down.set(e.name, { until: now().getTime() + downMs, reason: err.reason });
+              refused.push(err);
+            } else if (err instanceof PermanentError || i === order.length - 1) {
+              throw err;
+            } else {
+              ctx.log.warn({ provider: e.name, err: err instanceof Error ? err.message : String(err) }, 'web search: provider failed, asking the next');
+            }
+            lastError = err;
           }
-          lastError = err;
+        }
+        throw lastError ?? new SourceUnavailableError(configured[0]!.name, 'every paid web search is out');
+      } finally {
+        for (const err of refused) {
+          await opts.onUnavailable?.(err, answeredBy).catch((x: unknown) => ctx.log.warn({ err: x }, 'web search: could not pause the provider'));
         }
       }
-      throw lastError ?? new SourceUnavailableError(configured[0]!.name, 'every paid web search is out');
     },
   };
 }
@@ -301,7 +315,7 @@ export function paidSearchFromEnv(
     /** Paid requests per provider; defaults to web_search_usage when `sql` is given. */
     usage?: WebSearchUsage;
     alert?: Alerter;
-    onUnavailable?: (err: SourceUnavailableError) => Promise<void>;
+    onUnavailable?: PaidSearchOptions['onUnavailable'];
     paused?: (name: WebSearchProviderName) => Promise<boolean>;
     downMs?: number;
   } = {},

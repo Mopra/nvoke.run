@@ -110,6 +110,32 @@ describe('createAdapters with the paid web searches', () => {
     expect(JSON.parse(fetch.calls[0]!.body!)).toEqual({ q: 'design studio Ireland', num: 10, page: 1 });
   });
 
+  const refusalAlerts = async (routes: { brave: FakeResponse; serper: FakeResponse }, freeSearch: 'off' | 'fallback') => {
+    const alerts = memoryAlerts();
+    const fetch = fakeFetch({ [BRAVE_ENDPOINT]: routes.brave, [SERPER_ENDPOINT]: routes.serper });
+    const adapters = createAdapters({ ...base, ...BOTH, FREE_SEARCH: freeSearch }, { fetch, alert: alerts, resolveName: null });
+    await collect(adapters.web, { keyword: 'design studio' }).catch(() => undefined);
+    return alerts.sent;
+  };
+
+  it('alerts once per refusing provider, naming the one that answered instead', async () => {
+    const sent = await refusalAlerts({ brave: { status: 402, body: 'no credit' }, serper: SERPER_OK }, 'fallback');
+    expect(sent.map((a) => a.key)).toEqual(['source-unavailable:brave']);
+    expect(sent[0]!.text).toMatch(/Web searches use serper for the next/);
+  });
+
+  it('alerts once for each paid search when both refuse, naming the free fallback', async () => {
+    const sent = await refusalAlerts({ brave: { status: 402, body: 'no credit' }, serper: { status: 403, body: 'no' } }, 'fallback');
+    expect(sent.map((a) => a.key)).toEqual(['source-unavailable:brave', 'source-unavailable:serper']);
+    for (const a of sent) expect(a.text).toMatch(/Web searches use the free fallback/);
+  });
+
+  it('says searches fail when both refuse and the free fallback is off', async () => {
+    const sent = await refusalAlerts({ brave: { status: 402, body: 'no credit' }, serper: { status: 403, body: 'no' } }, 'off');
+    expect(sent.map((a) => a.key)).toEqual(['source-unavailable:brave', 'source-unavailable:serper']);
+    for (const a of sent) expect(a.text).toMatch(/the free fallback is off/);
+  });
+
   it('falls back to Serper when Brave is out of credit', async () => {
     const fetch = fakeFetch({ [BRAVE_ENDPOINT]: { status: 402, body: 'payment required' }, [SERPER_ENDPOINT]: SERPER_OK });
     const found = await collect(createAdapters({ ...base, ...BOTH }, { fetch }).web, { keyword: 'design studio' });
@@ -125,15 +151,20 @@ describe('paid search client', () => {
       ...(routes.serper ? { [SERPER_ENDPOINT]: routes.serper } : {}),
     });
     const unavailable: SourceUnavailableError[] = [];
-    const c = paidSearchFromEnv({ ...BOTH, ...env }, { fetch, onUnavailable: async (e) => void unavailable.push(e), ...extra });
-    return { c, fetch, unavailable };
+    const answeredBy: (WebSearchProviderName | null)[] = [];
+    const c = paidSearchFromEnv(
+      { ...BOTH, ...env },
+      { fetch, onUnavailable: async (e, by) => void (unavailable.push(e), answeredBy.push(by)), ...extra },
+    );
+    return { c, fetch, unavailable, answeredBy };
   };
   const req = { q: 'design studio', page: 0 };
 
   it('marks a refusing primary down and sends later pages straight to the fallback', async () => {
-    const { c, fetch, unavailable } = client({}, { brave: { status: 401, body: 'bad key' }, serper: SERPER_OK });
+    const { c, fetch, unavailable, answeredBy } = client({}, { brave: { status: 401, body: 'bad key' }, serper: SERPER_OK });
     expect((await c.page(req, ctx())).companies[0]!.source).toBe('serper');
     expect(unavailable.map((e) => e.source)).toEqual(['brave']);
+    expect(answeredBy).toEqual(['serper']);
     await c.page({ ...req, page: 1 }, ctx());
     expect(sources(fetch.calls)).toEqual(['brave', 'serper', 'serper']);
   });
@@ -156,11 +187,13 @@ describe('paid search client', () => {
   });
 
   it('throws the last refusal when both are out, so the free search takes over', async () => {
-    const { c, unavailable } = client({}, { brave: { status: 402, body: 'no credit' }, serper: { status: 403, body: 'no' } });
+    const { c, unavailable, answeredBy } = client({}, { brave: { status: 402, body: 'no credit' }, serper: { status: 403, body: 'no' } });
     const err = await c.page(req, ctx()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SourceUnavailableError);
     expect((err as SourceUnavailableError).source).toBe('serper');
     expect(unavailable.map((e) => e.source)).toEqual(['brave', 'serper']);
+    // Neither answered: no refusal says the other one did.
+    expect(answeredBy).toEqual([null, null]);
     // Both down: no request at all, the refusal straight away.
     await expect(c.page({ ...req, page: 1 }, ctx())).rejects.toBeInstanceOf(SourceUnavailableError);
   });
