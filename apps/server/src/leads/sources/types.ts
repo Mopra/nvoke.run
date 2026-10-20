@@ -33,6 +33,12 @@ export interface SourceContext {
   searchId?: string;
   /** Reports what the adapter is doing now, shown to the user as the live progress line. */
   onStage?: (stage: string, note: string) => Promise<void>;
+  /**
+   * How many of the companies handed on the caller has since turned down
+   * (fit after the crawl, worker/pipeline.ts runFit): they no longer count
+   * toward the limit, so the adapter goes on finding in their place.
+   */
+  dropped?: () => number;
 }
 
 export interface SourceAdapter<P> {

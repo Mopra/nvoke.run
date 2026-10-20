@@ -1,7 +1,9 @@
 // "Describe your customer" (docs/SPEC.md): the user says who they sell to in
 // plain words and nvoke plans the searches (planner.ts), runs them tier by
-// tier until the search holds enough companies, and keeps the ones that fit
-// (fit.ts).
+// tier until the search holds enough companies, and hands on the ones that
+// pass fit's first look (fit.ts). The second look comes after the crawl, for
+// companies whose crawl found someone to check (worker/pipeline.ts runFit):
+// one it turns down no longer counts toward the limit (ctx.dropped).
 //
 // Tier 1 runs the directory and list page queries first (they find the most
 // per paid request), the core queries and the local pairs, interleaved so the
@@ -19,19 +21,20 @@
 //
 // Before any of that, each round asks our own company index
 // (company-index.ts): companies an earlier crawl or the launch feed already
-// knows, matched on the plan's words. They are scored like Brave's results,
-// from the homepage text the crawl kept, so Brave pays only for the gap.
+// knows, matched on the plan's words. They get the same first look as Brave's
+// results, with the homepage title and description the crawl kept, so Brave
+// pays only for the gap.
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import type { IcpSearchParams, LocalSearchParams } from '@nvoke/shared';
 import { AiError, type Ai } from '../../ai/client.js';
 import { INDEX_MAX, searchCompanyIndex, type IndexAsk, type IndexCandidate } from '../company-index.js';
 import { normalizeDomain, registrableDomain } from '../domain.js';
-import { FIT_BATCH, FIT_THRESHOLD, isObviousNonCompany, scoreCandidates, type FitHead, type FitVerdict } from '../fit.js';
+import { GATE_BATCH, GATE_FLOOR, isObviousNonCompany, scoreCandidates, type FitHead, type FitVerdict } from '../fit.js';
 import { hiringSnippet, postingFromResult, resolvePosting, type HiringPosting } from '../hiring.js';
 import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
-import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead, type MineResult } from '../listicle.js';
+import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, type MineResult } from '../listicle.js';
 import { keptYields, makePlan, ranKeys, savePlan, storedPlan, wantsJobPosts, type IcpPlan, type LocalPair, type PlanQuery, type QueryYield } from '../planner.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import { braveQuery, type BraveClient, type BravePageRequest } from './web.js';
@@ -48,7 +51,7 @@ export const LIST_TIME_BUDGET_MS = 12 * 60_000;
 const MAX_LIST_FOLLOW = 3;
 /** Job boards read at once while mapping postings to companies; one host is still read one page at a time. */
 const BOARD_CONCURRENCY = 8;
-/** Fit calls in flight while the next queries run. */
+/** First look calls in flight while the next queries run. */
 const FIT_IN_FLIGHT = 3;
 /** Companies one local pair may add, so one city cannot fill the search. */
 const LOCAL_PER_PAIR = 60;
@@ -68,13 +71,11 @@ export const DEEP_MIN_FITS = 3;
  * the paid requests of a search for far fewer valid emails than first pages.
  */
 export const DEEP_ABOVE_AVERAGE = 2;
-/** Homepages one run reads for fit scoring. Each is free but takes a second or two. */
-export const MAX_HEADS = 2_500;
 /** Paid pages of web results per search when the server sets none (ICP_BRAVE_BUDGET). */
 export const DEFAULT_BRAVE_BUDGET = 120;
 /** Sites turned down that a plan remembers, newest kept: about 100 KB of plan at most. */
 export const MAX_REJECTED = 5_000;
-/** Index candidates asked per company the run still wants: a fit call scores 30 for about a tenth of a cent. */
+/** Index candidates asked per company the run still wants: a first look call scores 100 for about a tenth of a cent. */
 export const INDEX_PER_WANTED = 3;
 
 export interface IcpAdapterOptions {
@@ -91,8 +92,6 @@ export interface IcpAdapterOptions {
   listFetch?: FetchLike;
   /** Paid pages of web results one search may read (one page however many requests it billed); cache hits are free. Default DEFAULT_BRAVE_BUDGET. */
   braveBudget?: number;
-  /** Whether fit scoring reads the homepages of candidates that are not plainly out. Default true. */
-  readHeads?: boolean;
   /** Our own company index, asked before Brave each round. Default: searchCompanyIndex on `sql`; false turns it off. */
   index?: ((ask: IndexAsk) => Promise<IndexCandidate[]>) | false;
 }
@@ -105,7 +104,7 @@ interface Pending {
   company: FoundCompany;
   /** The query that found it, for tier 4's choice of queries worth more pages. */
   key?: string;
-  /** Its homepage's title and description, when the index kept them: fit scoring reads no page then. */
+  /** Its homepage's title and description, when the index kept them: the first look reads them too. */
   head?: FitHead;
 }
 
@@ -159,6 +158,20 @@ const webUnits = (queries: PlanQuery[]): Unit[] =>
 export function brandOf(site: string): string | null {
   const label = site.split('.')[0] ?? '';
   return label.length >= 4 ? label : null;
+}
+
+/**
+ * Adds sites turned down to the plan's `rejected` (newest MAX_REJECTED kept),
+ * so no later round scores them again. Merged with what is stored under the
+ * search's row lock: the find and the fit jobs of one search both add to it.
+ */
+export async function rememberRejected(tx: TransactionSql, searchId: string, sites: string[]): Promise<void> {
+  if (sites.length === 0) return;
+  const [row] = await tx<{ rejected: unknown }[]>`select plan->'rejected' as rejected from searches where id = ${searchId} and plan is not null for update`;
+  if (!row) return;
+  const stored = Array.isArray(row.rejected) ? row.rejected.filter((s): s is string => typeof s === 'string') : [];
+  const merged = [...new Set([...stored, ...sites])].slice(-MAX_REJECTED);
+  await tx`update searches set plan = jsonb_set(plan, '{rejected}', ${tx.json(merged)}) where id = ${searchId}`;
 }
 
 /** "1 country", "6 countries". */
@@ -260,7 +273,6 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         if (!y) yields.set(key, (y = { pages: 0, kept: 0 }));
         return y;
       };
-      const heads = { left: MAX_HEADS };
       const mined = new Set<string>();
       // Job boards already mapped this run ("lever:acme"): one company, however many postings.
       const boards = new Set<string>();
@@ -280,7 +292,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       let noted = 0;
       let phrase = '';
       let phraseStage = '';
-      const enough = () => yielded >= ctx.limit;
+      // Companies the find job dropped after the crawl (fit's second look) no longer count.
+      const enough = () => yielded - (ctx.dropped?.() ?? 0) >= ctx.limit;
 
       const note = (text: string) => (yielded > 0 ? `Found ${yielded} so far. ${text}` : text);
       const setPhrase = async (name: string, text: string) => {
@@ -307,7 +320,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         return APP_HOST.test(domain) ? { ...c, website: `https://${site}` } : c;
       };
 
-      // Fit scoring runs alongside the next queries, a few calls at a time, and yields in order.
+      // The first look runs alongside the next queries, a few calls at a time, and yields in order.
       const pending: Pending[] = [];
       const inflight: { done: boolean; result: Promise<Pending[]> }[] = [];
       const startScoring = (batch: Pending[]) => {
@@ -316,8 +329,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           ai,
           userId,
           brief,
-          heads,
-          readHead: opts.readHeads === false ? undefined : (website: string) => readHead(website, crawl, ctx.signal),
+          mode: 'gate' as const,
           onError: (err: unknown) => ctx.log.warn({ err }, 'icp: fit call failed'),
         };
         const candidates = batch.map((p) => (p.head ? { ...p.company, head: p.head } : p.company));
@@ -326,7 +338,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           return batch.flatMap((p, i) => {
             const v = verdicts[i];
             const stat = p.key ? stats.get(p.key) : undefined;
-            if (v && v.fit < FIT_THRESHOLD) {
+            if (v && v.fit < GATE_FLOOR) {
               // A score Claude gave, not the 0 of a batch it could not score, holds for the rest of the search.
               const domain = normalizeDomain(p.company.website);
               if (domain && !v.unscored) rejectedNow.push(registrableDomain(domain));
@@ -342,7 +354,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
               stat.fits++;
               webFits++;
             }
-            return [{ ...p, company: v ? { ...p.company, fit: v.fit, fitReason: v.reason } : p.company }];
+            // The first look's score stands until the second look, which also writes the reason.
+            return [{ ...p, company: v ? { ...p.company, fit: v.fit } : p.company }];
           });
         });
         // Rejections surface when the entry is awaited.
@@ -350,13 +363,13 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         inflight.push(entry);
       };
       const flush = (all: boolean) => {
-        while (pending.length >= FIT_BATCH || (all && pending.length > 0)) startScoring(pending.splice(0, FIT_BATCH));
+        while (pending.length >= GATE_BATCH || (all && pending.length > 0)) startScoring(pending.splice(0, GATE_BATCH));
       };
       async function* emit(kept: Pending[]): AsyncGenerator<FoundCompany> {
         for (const p of kept) {
           if (enough() || ctx.signal.aborted) return;
           // Counts what was handed on: the find job may still skip a company the search holds.
-          if (yielded + 1 >= ctx.limit) await stage('done', `Found ${ctx.limit} fitting candidates, enough for this search`);
+          if (yielded + 1 - (ctx.dropped?.() ?? 0) >= ctx.limit) await stage('done', `Found ${ctx.limit} fitting candidates, enough for this search`);
           yielded++;
           if (p.company.source === 'index') indexKept++;
           yield p.company;
@@ -605,11 +618,14 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       /** Writes what this run learned to the plan, for the next round: per query yields and the sites turned down. */
       const persist = async () => {
         if (!opts.sql || !ctx.searchId) return;
-        const rejected = [...new Set([...(plan.rejected ?? []), ...rejectedNow])].slice(-MAX_REJECTED);
-        const learned = { yields: keptYields(Object.fromEntries(yields), ranKeys(plan)), rejected };
-        await opts.sql`
-          update searches set plan = plan || ${opts.sql.json(learned as never)} where id = ${ctx.searchId} and plan->>'key' = ${plan.key}
-        `;
+        const searchId = ctx.searchId;
+        const learned = { yields: keptYields(Object.fromEntries(yields), ranKeys(plan)) };
+        await opts.sql.begin(async (tx) => {
+          const [same] = await tx`
+            update searches set plan = plan || ${tx.json(learned as never)} where id = ${searchId} and plan->>'key' = ${plan.key} returning id
+          `;
+          if (same) await rememberRejected(tx, searchId, rejectedNow);
+        });
       };
 
       /**

@@ -7,6 +7,7 @@ import { RateLimiter } from '../limits.js';
 import type { Sql } from 'postgres';
 import { toPlan, type ClaudePlan } from '../planner.js';
 import type { CachedWebPage } from '../web-cache.js';
+import { GATE_FLOOR } from '../fit.js';
 import { DEEP_ABOVE_AVERAGE, brandOf, deepWorth, icpAdapter, interleave, spreadByCountry } from './icp.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import type { BraveClient, BravePageRequest } from './web.js';
@@ -89,10 +90,12 @@ function fakeSql(rows: { plan: unknown; domains?: string[] }): Sql & { queries: 
     const text = strings.join('?');
     queries.push({ text, values });
     if (/select plan from searches/.test(text)) return [{ plan: rows.plan }];
+    if (/select plan->'rejected'/.test(text)) return [{ rejected: (rows.plan as { rejected?: string[] } | null)?.rejected ?? null }];
+    if (/update searches set plan = plan \|\|/.test(text)) return [{ id: 'search_1' }];
     if (/select domain from companies/.test(text)) return (rows.domains ?? []).map((domain) => ({ domain }));
     return [];
   }) as unknown as Sql & { queries: typeof queries };
-  Object.assign(sql, { queries, json: (v: unknown) => v });
+  Object.assign(sql, { queries, json: (v: unknown) => v, begin: (fn: (tx: unknown) => unknown) => fn(sql) });
   return sql;
 }
 
@@ -158,7 +161,9 @@ describe('icp adapter', () => {
     expect(domains).not.toContain('bad-listed.com');
     expect(domains).not.toContain('www.linkedin.com');
     expect(out.find((c) => c.website === 'https://listed-one.com')).toMatchObject({ source: 'list_page', sourceRef: 'https://blog.example.com/top-3', fit: 80 });
-    expect(out.find((c) => c.website === 'https://alpha.com')).toMatchObject({ fit: 80, fitReason: 'fits: alpha.com' });
+    // The first look's score, without a reason: the second look after the crawl writes that.
+    expect(out.find((c) => c.website === 'https://alpha.com')).toMatchObject({ fit: 80 });
+    expect(out.find((c) => c.website === 'https://alpha.com')?.fitReason).toBeUndefined();
     expect(stages[1]).toEqual(['core', 'Searching 4 queries in 2 countries']);
     expect(stages.some(([s, n]) => s === 'lists' && n.includes('Reading 1 list page'))).toBe(true);
     expect(stages.at(-1)).toEqual(['done', 'Found 4 fitting candidates, enough for this search']);
@@ -210,7 +215,7 @@ describe('icp adapter', () => {
       'even two|0': { companies: many('f', 3), more: true },
       'even three|0': { companies: many('g', 3), more: true },
     });
-    await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), listFetch: listFetch() }), 100);
+    await run(icpAdapter({ brave, ai: fakeAi(plan), listFetch: listFetch() }), 100);
     // Average 19 / 4 pages: only the query that kept 10 is twice above it.
     expect(brave.asked.filter((r) => r.page === 1).map((r) => r.q)).toEqual(['strong']);
   });
@@ -233,7 +238,7 @@ describe('icp adapter', () => {
     });
     const plan: ClaudePlan = { ...PLAN, core: [{ q: 'cold email agency', country: 'us' }], adjacent: [], wider: [] };
     const sql = fakeSql({ plan: toPlan(plan, { description: 'Outbound agencies' }) });
-    await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), sql, listFetch: fetch, crawl: { limiter: new RateLimiter(0) } }), 100, { searchId: 'search_1' });
+    await run(icpAdapter({ brave, ai: fakeAi(plan), sql, listFetch: fetch, crawl: { limiter: new RateLimiter(0) } }), 100, { searchId: 'search_1' });
     const saved = sql.queries.find((q) => /update searches set plan = plan \|\|/.test(q.text));
     const learned = saved?.values[0] as { yields: Record<string, { pages: number; kept: number }> };
     // Six kept for one paid page, against none for the core query.
@@ -246,7 +251,7 @@ describe('icp adapter', () => {
       'cold email agency|0': { companies: [result('a1.com'), result('a2.com')], more: true },
       'cold email agency|1': { companies: [result('a3.com')] },
     });
-    await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), listFetch: listFetch(), crawl: { limiter: new RateLimiter(0) } }), 50);
+    await run(icpAdapter({ brave, ai: fakeAi(), listFetch: listFetch(), crawl: { limiter: new RateLimiter(0) } }), 50);
     expect(brave.asked.some((r) => r.page === 1)).toBe(false);
   });
 
@@ -261,7 +266,7 @@ describe('icp adapter', () => {
       },
     };
     const plan: ClaudePlan = { ...PLAN, core: [], directories: [], adjacent: [], wider: [], local: [{ niche: 'tandlæge', location: 'Aarhus' }] };
-    const { out, stages } = await run(icpAdapter({ readHeads: false, brave: fakeBrave({}), ai: fakeAi(plan), local }), 10, {
+    const { out, stages } = await run(icpAdapter({ brave: fakeBrave({}), ai: fakeAi(plan), local }), 10, {
       params: { description: 'Dentists in Aarhus' },
     });
     expect(asked).toEqual([{ niche: 'tandlæge', location: 'Aarhus' }]);
@@ -276,7 +281,7 @@ describe('icp adapter', () => {
         throw new TypeError('fetch failed');
       },
     };
-    await expect(run(icpAdapter({ readHeads: false, brave, ai: fakeAi() }), 10)).rejects.toThrow('fetch failed');
+    await expect(run(icpAdapter({ brave, ai: fakeAi() }), 10)).rejects.toThrow('fetch failed');
   });
 });
 
@@ -292,7 +297,7 @@ describe('icp adapter limits', () => {
   it('stops paid searches at the budget, says so, and still runs the free local pairs', async () => {
     const brave = fakeBrave({});
     const plan: ClaudePlan = { ...PLAN, local: [{ niche: 'dentist', location: 'Aarhus' }, { niche: 'dentist', location: 'Odense' }] };
-    const { out, stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), local: local(), braveBudget: 2 }), 50);
+    const { out, stages } = await run(icpAdapter({ brave, ai: fakeAi(plan), local: local(), braveBudget: 2 }), 50);
     expect(brave.asked).toHaveLength(2);
     expect(out.map((c) => c.website)).toEqual(['https://clinic-aarhus.dk', 'https://clinic-odense.dk']);
     expect(stages.find(([s]) => s === 'budget')?.[1]).toContain("Used this search's 2 web searches");
@@ -314,7 +319,7 @@ describe('icp adapter limits', () => {
       },
     };
     const events: string[] = [];
-    const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), braveBudget: 3 }), 50, { onUsage: (e) => void events.push(e) });
+    const { stages } = await run(icpAdapter({ brave, ai: fakeAi(), braveBudget: 3 }), 50, { onUsage: (e) => void events.push(e) });
     expect(asked).toHaveLength(3);
     // Every billed request still reaches the search's source_requests.
     expect(events).toEqual(Array(6).fill('request'));
@@ -325,7 +330,7 @@ describe('icp adapter limits', () => {
     const brave = fakeBrave({});
     const stored = { ...toPlan(PLAN, { description: 'Outbound agencies' }), braveBudget: 1 };
     const sql = fakeSql({ plan: stored });
-    const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), sql, braveBudget: 120 }), 50, { searchId: 'search_1' });
+    const { stages } = await run(icpAdapter({ brave, ai: fakeAi(), sql, braveBudget: 120 }), 50, { searchId: 'search_1' });
     expect(brave.asked).toHaveLength(1);
     expect(stages.find(([s]) => s === 'budget')?.[1]).toContain("Used this search's 1 web searches");
   });
@@ -343,12 +348,14 @@ describe('icp adapter limits', () => {
       if (req.task === 'fit') scored.push(...[...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!));
       return structured(req);
     }) as Ai['structured'];
-    const { out } = await run(icpAdapter({ readHeads: false, brave, ai, sql }), 50, { searchId: 'search_1' });
+    const { out } = await run(icpAdapter({ brave, ai, sql }), 50, { searchId: 'search_1' });
     expect(scored).toEqual(['new-bad.com', 'fresh.com']);
     expect(out.map((c) => c.website)).toEqual(['https://fresh.com']);
     const saved = sql.queries.find((q) => /update searches set plan = plan \|\|/.test(q.text));
-    const learned = saved?.values[0] as { rejected: string[]; yields: Record<string, { pages: number; kept: number }> };
-    expect(learned.rejected).toEqual(['old-bad.com', 'new-bad.com']);
+    const learned = saved?.values[0] as { yields: Record<string, { pages: number; kept: number }> };
+    // Turned down sites are merged with what the plan holds now: a fit job may have added some meanwhile.
+    const rejected = sql.queries.find((q) => /jsonb_set\(plan, '\{rejected\}'/.test(q.text));
+    expect(rejected?.values[0]).toEqual(['old-bad.com', 'new-bad.com']);
     expect(learned.yields['cold email agency|us']).toEqual({ pages: 1, kept: 1 });
     expect(learned.yields['earlier query|us']).toEqual({ pages: 2, kept: 5 });
     // A query that fell out of the capped ran list leaves the record too.
@@ -357,7 +364,7 @@ describe('icp adapter limits', () => {
 
   it('skips a place the map cannot find instead of failing the search', async () => {
     const plan: ClaudePlan = { ...PLAN, core: [], directories: [], adjacent: [], wider: [], local: [{ niche: 'dentist', location: 'Nowhereville' }, { niche: 'dentist', location: 'Aarhus' }] };
-    const { out, stages } = await run(icpAdapter({ readHeads: false, brave: fakeBrave({}), ai: fakeAi(plan), local: local('Nowhereville') }), 10);
+    const { out, stages } = await run(icpAdapter({ brave: fakeBrave({}), ai: fakeAi(plan), local: local('Nowhereville') }), 10);
     expect(out.map((c) => c.website)).toEqual(['https://clinic-aarhus.dk']);
     expect(stages.some(([, n]) => n.includes('Could not find Nowhereville on the map, skipping it'))).toBe(true);
   });
@@ -367,7 +374,7 @@ describe('icp adapter limits', () => {
       'cold email agency|0': { companies: [result('a1.com'), result('a2.com')] },
       'sdr outsourcing|0': { companies: [result('b1.com')] },
     });
-    const { out, stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi() }), 50, { abortAfter: 1 });
+    const { out, stages } = await run(icpAdapter({ brave, ai: fakeAi() }), 50, { abortAfter: 1 });
     expect(out).toHaveLength(1);
     expect(stages.map(([s]) => s)).not.toContain('exhausted');
     expect(stages.map(([s]) => s)).not.toContain('adjacent');
@@ -391,7 +398,7 @@ describe('icp adapter limits', () => {
 });
 
 describe('icp adapter fit', () => {
-  it('scores from the homepage and keeps one company across country domains', async () => {
+  it('takes one first look from the search result, reads no homepage, and keeps one company across country domains', async () => {
     const prompts: string[] = [];
     const ai = fakeAi();
     const spy: Ai = {
@@ -401,15 +408,48 @@ describe('icp adapter fit', () => {
         return ai.structured(req);
       },
     };
-    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com'), result('alpha.de'), result('beta.io')] } });
-    const listFetch = fakeFetch({
-      'https://alpha.com/robots.txt': { status: 404, body: '' },
-      'https://alpha.com/': { body: '<html><head><title>Alpha | Cold email agency</title><meta name="description" content="We book meetings"></head></html>' },
-    });
+    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com', { title: 'Alpha | Cold email agency' }), result('alpha.de'), result('beta.io')] } });
+    const listFetch = fakeFetch({});
     const { out } = await run(icpAdapter({ brave, ai: spy, listFetch, crawl: { limiter: new RateLimiter(0) } }), 50);
     expect(out.map((c) => c.website)).toEqual(['https://alpha.com', 'https://beta.io']);
-    expect(prompts.some((p) => p.includes('homepage: Alpha | Cold email agency | We book meetings'))).toBe(true);
-    expect(prompts.some((p) => /\[beta\.io\][^\n]*\n(\s+.*\n)*\s+homepage: could not be read/.test(p))).toBe(true);
+    const looks = prompts.filter((p) => p.includes('<candidates>'));
+    expect(looks).toHaveLength(1);
+    expect(looks[0]).toContain('result title: Alpha | Cold email agency');
+    expect(looks[0]).not.toContain('homepage:');
+    // The crawl reads the homepage; the first look never does.
+    expect(listFetch.calls).toHaveLength(0);
+  });
+
+  it('drops only what the first look calls plainly not a fit, at GATE_FLOOR', async () => {
+    const ai: Ai = {
+      ready: async () => true,
+      async structured(req: StructuredRequest<never>) {
+        if (req.task === 'plan') return { data: PLAN as never, model: 'sonnet', usage, costUsd: 0 };
+        const domains = [...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!);
+        const scores = domains.map((domain) => ({ domain, fit: domain === 'neighbour.com' ? GATE_FLOOR : GATE_FLOOR - 1 }));
+        return { data: { scores } as never, model: 'haiku', usage, costUsd: 0 };
+      },
+    };
+    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('neighbour.com'), result('shop.com')] } });
+    const { out } = await run(icpAdapter({ brave, ai, listFetch: listFetch(), crawl: { limiter: new RateLimiter(0) } }), 50);
+    expect(out.map((c) => [c.website, c.fit])).toEqual([['https://neighbour.com', GATE_FLOOR]]);
+  });
+
+  it('goes on finding in the place of companies the caller dropped after their crawl', async () => {
+    const brave = fakeBrave({
+      'cold email agency|0': { companies: [result('a1.com'), result('a2.com')] },
+      'appointment setting agency|0': { companies: [result('a3.com')] },
+    });
+    const plan: ClaudePlan = { ...PLAN, directories: [] };
+    const out: FoundCompany[] = [];
+    let dropped = 0;
+    const ctx = { limit: 2, signal: new AbortController().signal, log: silentLog, userId: 'user_1', dropped: () => dropped };
+    for await (const c of icpAdapter({ brave, ai: fakeAi(plan) }).find({ description: 'Outbound agencies' }, ctx)) {
+      out.push(c);
+      // The first one is turned down after its crawl.
+      if (out.length === 2) dropped = 1;
+    }
+    expect(out.map((c) => c.website)).toEqual(['https://a1.com', 'https://a2.com', 'https://a3.com']);
   });
 
   it('tells brands apart only on labels long enough', () => {
@@ -430,7 +470,7 @@ describe('icp adapter: job posts and paginated lists', () => {
       'https://jobs.lever.co/robots.txt': { body: 'User-agent: *\nAllow: /' },
       'https://jobs.lever.co/belkins': { body: '<a href="https://belkins.io/">Belkins Home Page</a>' },
     });
-    const { out, stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(hiringPlan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
+    const { out, stages } = await run(icpAdapter({ brave, ai: fakeAi(hiringPlan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
       params: { description: 'Agencies' },
     });
     expect(out).toHaveLength(1);
@@ -449,7 +489,7 @@ describe('icp adapter: job posts and paginated lists', () => {
 
   it('runs the plan job post queries after the wider geography, while the search is short', async () => {
     const brave = fakeBrave({});
-    const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi({ ...PLAN, hiringRoles: ['founding account executive'] }), listFetch: listFetch() }), 10, {
+    const { stages } = await run(icpAdapter({ brave, ai: fakeAi({ ...PLAN, hiringRoles: ['founding account executive'] }), listFetch: listFetch() }), 10, {
       params: { description: 'Founders and sales teams of B2B startups' },
     });
     const asked = brave.asked.filter((r) => r.page === 0).map((r) => r.q);
@@ -465,7 +505,7 @@ describe('icp adapter: job posts and paginated lists', () => {
     expect(sales.hiring?.length).toBeGreaterThan(0);
     const stored = { ...toPlan(PLAN, params), hiringRoles: sales.hiringRoles, hiring: sales.hiring };
     const brave = fakeBrave({});
-    const { stages } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), sql: fakeSql({ plan: stored }), listFetch: listFetch() }), 10, {
+    const { stages } = await run(icpAdapter({ brave, ai: fakeAi(), sql: fakeSql({ plan: stored }), listFetch: listFetch() }), 10, {
       params,
       searchId: 'search_1',
     });
@@ -482,7 +522,7 @@ describe('icp adapter: job posts and paginated lists', () => {
       'nothing here|0': { companies: [result('acme-tool.com', { sourceRef: 'https://acme-tool.com/partners', title: 'Acme Tool partners' })] },
     });
     const plan: ClaudePlan = { ...PLAN, core: [{ q: 'nothing here', country: 'us' }], directories: [], adjacent: [], wider: [] };
-    const { out } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
+    const { out } = await run(icpAdapter({ brave, ai: fakeAi(plan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
       params: { description: 'Agencies' },
     });
     expect(out.map((c) => c.website).sort()).toEqual(['https://acme-tool.com', 'https://partner-one.com']);
@@ -501,7 +541,7 @@ describe('icp adapter: job posts and paginated lists', () => {
       'top cold email agencies|0': { companies: [result('blog.example.com', { sourceRef: 'https://blog.example.com/top-20', title: 'Top 20 cold email agencies' })] },
     });
     const plan: ClaudePlan = { ...PLAN, core: [{ q: 'nothing here', country: 'us' }], adjacent: [], wider: [] };
-    const { out } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(plan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
+    const { out } = await run(icpAdapter({ brave, ai: fakeAi(plan), listFetch, crawl: { limiter: new RateLimiter(0) } }), 10, {
       params: { description: 'Agencies' },
     });
     expect(out.map((c) => c.website)).toEqual(['https://one.com', 'https://two.com', 'https://three.com']);
@@ -519,7 +559,7 @@ describe('icp adapter company index', () => {
     from: head ? 'pages' : 'feed',
   });
 
-  it('asks the index first, scores its candidates from the kept homepage and pays Brave nothing when they fill the search', async () => {
+  it('asks the index first, looks at its candidates with the kept homepage and pays Brave nothing when they fill the search', async () => {
     const asks: IndexAsk[] = [];
     const index = async (ask: IndexAsk) => {
       asks.push(ask);
@@ -534,7 +574,7 @@ describe('icp adapter company index', () => {
     expect(out.map((c) => c.website)).toEqual(['https://kept-one.com', 'https://kept-two.io']);
     expect(out[0]).toMatchObject({ source: 'index', sourceRef: 'kept-one.com', fit: 80 });
     expect(asks[0]!.limit).toBe(6);
-    // One fit call with the homepage already in it, and no page read for it.
+    // One first look call with the homepage already in it, and no page read for it.
     expect(prompts.filter((p) => p.includes('<candidates>'))).toHaveLength(1);
     expect(prompts.some((p) => p.includes('homepage: Kept One | Cold email agency | We book meetings'))).toBe(true);
     expect(listFetch.calls).toHaveLength(0);
@@ -550,7 +590,7 @@ describe('icp adapter company index', () => {
     };
     const sql = fakeSql({ plan: { ...toPlan(PLAN, { description: 'Outbound agencies' }), rejected: ['nope.com'] }, domains: ['held.com'] });
     const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com'), result('kept-one.com')] } });
-    const { out } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), sql, index }), 2, { searchId: 'search_1' });
+    const { out } = await run(icpAdapter({ brave, ai: fakeAi(), sql, index }), 2, { searchId: 'search_1' });
     expect([...asks[0]!.exclude!]).toEqual(expect.arrayContaining(['held.com', 'nope.com']));
     expect(out.map((c) => c.website)).toEqual(['https://kept-one.com', 'https://alpha.com']);
     // The index left one short, so tier 1 ran, directories first; its gap closed there, so no wider tier did.
@@ -558,20 +598,17 @@ describe('icp adapter company index', () => {
     expect(brave.asked.some((r) => r.q === 'sdr outsourcing')).toBe(false);
   });
 
-  it('reads the homepage of a launch the crawl never kept, and goes on with web search when the index fails', async () => {
-    const listFetch = fakeFetch({
-      'https://launch.com/robots.txt': { status: 404, body: '' },
-      'https://launch.com/': { body: '<html><head><title>Launch</title></head></html>' },
-    });
+  it('looks at a launch the crawl never kept from its feed line alone, and goes on with web search when the index fails', async () => {
+    const listFetch = fakeFetch({});
     const { out } = await run(icpAdapter({ brave: fakeBrave({}), ai: fakeAi(), index: async () => [indexed('launch.com')], listFetch, crawl: { limiter: new RateLimiter(0) } }), 1);
     expect(out.map((c) => c.website)).toEqual(['https://launch.com']);
-    expect(listFetch.calls.some((c) => c.url === 'https://launch.com/')).toBe(true);
+    expect(listFetch.calls).toHaveLength(0);
 
     const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com')] } });
     const failing = async (): Promise<IndexCandidate[]> => {
       throw new Error('index down');
     };
-    const after = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), index: failing }), 1);
+    const after = await run(icpAdapter({ brave, ai: fakeAi(), index: failing }), 1);
     expect(after.out.map((c) => c.website)).toEqual(['https://alpha.com']);
   });
 });

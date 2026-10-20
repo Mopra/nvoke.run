@@ -11,8 +11,9 @@
 // what the allowance cannot take: the verified target is capped at what the
 // account's allowance still has room for (an icp email counts as
 // ICP_EMAIL_WEIGHT), and no round starts while the search still has checks
-// queued or deferred. Every step says what it does in stage_note, with counts
-// from the database.
+// queued or deferred, its companies waiting for fit after the crawl counted
+// among them. Every step says what it does in stage_note, with counts from
+// the database.
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
@@ -24,6 +25,7 @@ import { emailsPerMonth, maxSearchLimit, periodOf } from './plans.js';
 import { IcpPlan, PLAN_CAPS, freshCountries, replan, savePlan } from './planner.js';
 import { emailsVerified, planOf } from './quota.js';
 import { startAutoRun } from './repo.js';
+import { queuedChecks } from '../worker/queue.js';
 
 type Db = Sql | TransactionSql;
 
@@ -72,18 +74,6 @@ export async function allowanceRoom(db: Db, userId: string, now: Date = new Date
   return Math.max(0, Math.floor(left / ICP_EMAIL_WEIGHT));
 }
 
-/**
- * Checks of the search still queued, running or deferred (a deferred check is
- * a queued verify job that waits). No round starts while any is left: they
- * may close the gap or use up the allowance.
- */
-export async function queuedChecks(db: Db, searchId: string): Promise<number> {
-  const [row] = await db<{ n: number }[]>`
-    select count(*)::int as n from jobs where search_id = ${searchId} and type = 'verify' and status in ('queued', 'running')
-  `;
-  return row?.n ?? 0;
-}
-
 /** The limit of the latest run the user started (the first run or Search more). */
 export function userLimit(runs: RunRecord[], fallback: number): number {
   return [...runs].reverse().find((r) => !r.trigger)?.limit ?? fallback;
@@ -123,7 +113,7 @@ interface Counts {
   unchecked: number;
   /** Addresses whose check came back, valid or not. */
   settled: number;
-  /** People jobs of the search still to run: each may add a personal address. */
+  /** People jobs of the search still to run, and companies with named people waiting for fit: each may add a personal address. */
   peoplePending: number;
 }
 
@@ -148,14 +138,17 @@ export async function searchCounts(db: Db, searchId: string, since?: Date): Prom
       (select count(*)::int from companies where search_id = ${searchId}) as companies,
       count(*) filter (where verification = 'valid')::int as verified,
       count(*) filter (where verification is not null)::int as settled,
-      (select count(*)::int from jobs where search_id = ${searchId} and type = 'people' and status in ('queued', 'running')) as "peoplePending",
+      (select count(*)::int from jobs where search_id = ${searchId} and type = 'people' and status in ('queued', 'running'))
+        + (select count(*)::int from companies c where c.search_id = ${searchId} and c.fit_state = 'pending'
+            and exists (select 1 from people p where p.company_id = c.id)) as "peoplePending",
       count(*) filter (where verification = 'valid' and checked_at >= ${(since ?? new Date(0)).toISOString()}::timestamptz)::int as "verifiedSince",
       coalesce((select (to_jsonb(s) ->> 'check_inboxes')::boolean from searches s where s.id = ${searchId}), false) as "checkInboxes"
     from emails where search_id = ${searchId}
   `;
   if (!row) return { companies: 0, verified: 0, unchecked: 0, settled: 0, peoplePending: 0, verifiedSince: 0 };
   // Unchecked addresses still to be checked: not one left out on purpose, nor one the
-  // company's settled addresses already make unnecessary (check-policy.ts).
+  // company's settled addresses already make unnecessary (check-policy.ts). Those of a
+  // company waiting for fit after its crawl count too: most companies that get there are kept.
   const open = await db<(PolicyEmail & { company_id: string })[]>`
     select company_id, address, kind, first_name, last_name, seniority, title, verification, skipped from emails
     where search_id = ${searchId} and skipped is null
@@ -263,7 +256,7 @@ async function verdictFor(db: Db, s: SearchState, now: Date, early: boolean): Pr
     projected: early ? projectVerified(counts) : undefined,
     verifiedSince: counts.verifiedSince,
     room: await allowanceRoom(db, s.clerk_user_id, now),
-    checksQueued: await queuedChecks(db, s.id),
+    checksQueued: (await queuedChecks(db, s.id)).queued,
     now,
   });
 }
@@ -288,7 +281,7 @@ export async function holdForEscalation(tx: TransactionSql, searchId: string, no
 }
 
 /**
- * Holds running icp searches whose find, crawls and checks are done while
+ * Holds running icp searches whose find, crawls, fit and checks are done while
  * people jobs are still left, when what those can still bring
  * (projectVerified) would leave them short: the next round starts within a
  * tick or two, without waiting for paced people probes. A search with checks
@@ -303,7 +296,7 @@ export async function markShortSearches(sql: Sql, now: Date = new Date()): Promi
     where s.kind = 'icp' and s.status = 'running' and s.stage is distinct from ${STAGES.hold} and s.stage is distinct from ${STAGES.replan}
       and coalesce((s.plan->>'earlyCheckedAt')::timestamptz, 'epoch') < ${recheck}::timestamptz
       and not exists (
-        select 1 from jobs j where j.search_id = s.id and j.type in ('find', 'crawl') and j.status in ('queued', 'running')
+        select 1 from jobs j where j.search_id = s.id and j.type in ('find', 'crawl', 'fit') and j.status in ('queued', 'running')
       )
     order by coalesce((s.plan->>'earlyCheckedAt')::timestamptz, 'epoch'), s.created_at
     limit 50
@@ -424,7 +417,7 @@ async function startRound(deps: OngoingDeps, c: Claimed): Promise<void> {
   }
   // Checks queued since the hold (a people job's addresses): back to running, and the
   // last job's finish (holdForEscalation) judges again once they settle.
-  const checks = ongoing ? 0 : await queuedChecks(sql, c.id);
+  const checks = ongoing ? 0 : (await queuedChecks(sql, c.id)).queued;
   if (checks > 0) {
     await sql`
       update searches set stage = ${STAGES.round}, stage_note = ${`Found ${counts.verified} verified so far. Checking ${addresses(checks)} before looking further`}

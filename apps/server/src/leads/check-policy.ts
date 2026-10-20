@@ -169,3 +169,25 @@ export function checkPolicy(self: PolicySelf, others: PolicyEmail[], ctx: Policy
 export function stillToCheck(self: PolicySelf, others: PolicyEmail[], checkInboxes: boolean): boolean {
   return checkPolicy(self, others, { crawlPending: false, peoplePending: false, checkInboxes, force: true }) === 'check';
 }
+
+/**
+ * Whether an address could ever be checked: never off target, and a role
+ * inbox only when the search checks inboxes or it may be the company's
+ * fallback inbox (any but a machine mailbox).
+ */
+export function mayBeChecked(self: PolicySelf, checkInboxes: boolean): boolean {
+  const tier = checkTier(self);
+  if (tier === 'off_target') return false;
+  return tier !== 'role_inbox' || checkInboxes || inboxRank(self.address) !== null;
+}
+
+/**
+ * Whether a crawled company of a plain words search waits for fit's second
+ * look before anything of it is checked (worker/pipeline.ts runFit): it has
+ * an address that could be checked, or a named person who is not off target,
+ * for whom the people job may find one. A company with neither costs nothing
+ * and is not scored.
+ */
+export function needsFit(emails: PolicySelf[], people: { title: string | null; seniority: Seniority | null }[], checkInboxes: boolean): boolean {
+  return people.some((p) => !isOffTargetTitle(p.title, p.seniority)) || emails.some((e) => mayBeChecked(e, checkInboxes));
+}

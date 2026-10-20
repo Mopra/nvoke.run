@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { AiError, type Ai, type StructuredRequest } from '../ai/client.js';
-import { FIT_BATCH, HEAD_FLOOR, fitPrompt, isObviousNonCompany, scoreBatch, scoreCandidates, type FitCandidate } from './fit.js';
+import { FIT_BATCH, GATE_BATCH, fitPrompt, isObviousNonCompany, scoreBatch, scoreCandidates, type FitCandidate } from './fit.js';
 
 const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
 
 /** Answers with a score per domain from the prompt, through `score`. */
-function fakeAi(score: (domain: string) => number | null, fail?: () => Error | null): Ai & { prompts: string[] } {
+function fakeAi(score: (domain: string) => number | null, fail?: () => Error | null): Ai & { prompts: string[]; systems: string[] } {
   const prompts: string[] = [];
+  const systems: string[] = [];
   return {
     prompts,
+    systems,
     ready: async () => true,
     async structured<S>(req: StructuredRequest<S & never>) {
       prompts.push(req.prompt);
+      systems.push(req.system ?? '');
       const err = fail?.();
       if (err) throw err;
       const domains = [...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!);
@@ -24,7 +27,7 @@ function fakeAi(score: (domain: string) => number | null, fail?: () => Error | n
         });
       return { data: { scores } as never, model: 'm', usage, costUsd: 0.001 };
     },
-  } as Ai & { prompts: string[] };
+  } as Ai & { prompts: string[]; systems: string[] };
 }
 
 const brief = { description: 'Outbound agencies', plan: { fit: ['Runs outbound for clients'], disqualifiers: ['A job board'] } };
@@ -48,7 +51,7 @@ describe('isObviousNonCompany', () => {
 describe('scoreBatch', () => {
   it('matches verdicts by domain, whatever the order', async () => {
     const ai = fakeAi((d) => (d === 'good.com' ? 90 : 10));
-    const res = await scoreBatch({ ai, userId: 'u', brief }, [cand('good.com'), cand('www.bad.io')]);
+    const res = await scoreBatch({ ai, userId: 'u', brief, mode: 'final' }, [cand('good.com'), cand('www.bad.io')]);
     expect(res).toEqual([
       { fit: 90, reason: 'about good.com' },
       { fit: 10, reason: 'about bad.io' },
@@ -78,18 +81,20 @@ describe('scoreBatch', () => {
         costUsd: 0,
       }),
     };
-    const res = await scoreBatch({ ai, userId: 'u', brief }, [cand('a.com'), cand('b.com'), cand('c.com')]);
+    const res = await scoreBatch({ ai, userId: 'u', brief, mode: 'final' }, [cand('a.com'), cand('b.com'), cand('c.com')]);
     expect(res.map((v) => v?.reason)).toEqual(['a by domain', 'b by number', undefined]);
   });
 });
 
 describe('scoreCandidates', () => {
-  it('batches by FIT_BATCH', async () => {
-    const ai = fakeAi(() => 50);
-    const many = Array.from({ length: FIT_BATCH + 3 }, (_, i) => cand(`c${i}.com`));
-    const res = await scoreCandidates({ ai, userId: 'u', brief }, many);
-    expect(res).toHaveLength(many.length);
-    expect(ai.prompts).toHaveLength(2);
+  it('batches by GATE_BATCH in the first look and by FIT_BATCH in the second', async () => {
+    const many = Array.from({ length: GATE_BATCH + 3 }, (_, i) => cand(`c${i}.com`));
+    const gate = fakeAi(() => 50);
+    expect(await scoreCandidates({ ai: gate, userId: 'u', brief }, many)).toHaveLength(many.length);
+    expect(gate.prompts).toHaveLength(2);
+    const final = fakeAi(() => 50);
+    expect(await scoreCandidates({ ai: final, userId: 'u', brief, mode: 'final' }, many.slice(0, FIT_BATCH + 3))).toHaveLength(FIT_BATCH + 3);
+    expect(final.prompts).toHaveLength(2);
   });
 
   it('keeps candidates unscored when Claude cannot be asked', async () => {
@@ -121,28 +126,23 @@ describe('scoreCandidates', () => {
     expect(res[7]?.fit).toBe(0);
   });
 
-  it('scores again from the homepage what the first pass did not rule out, within the cap', async () => {
-    const ai = fakeAi((d) => (d === 'junk.com' ? HEAD_FLOOR - 1 : 70));
-    const read: string[] = [];
-    const heads = { left: 1 };
-    const res = await scoreCandidates(
-      {
-        ai,
-        userId: 'u',
-        brief,
-        heads,
-        readHead: async (url) => {
-          read.push(url);
-          return { title: 'Acme | Cold email agency', description: 'We book meetings' };
-        },
-      },
-      [cand('junk.com'), cand('a.com'), cand('b.com')],
+  it('asks the first look for no reasons, and the second for one from the crawled homepage', async () => {
+    const gate = fakeAi(() => 70);
+    expect(await scoreCandidates({ ai: gate, userId: 'u', brief }, [cand('a.com')])).toEqual([{ fit: 70, reason: '' }]);
+    expect(gate.systems[0]).toContain('Give no reasons');
+    const final = fakeAi(() => 70);
+    const crawled: FitCandidate = {
+      name: 'Acme',
+      website: 'https://acme.com',
+      found: 'a job post for a sales role: https://jobs.lever.co/acme/1',
+      head: { title: 'Acme | Cold email agency', description: 'We book meetings' },
+      text: 'We run outbound for B2B software companies.',
+    };
+    expect(await scoreCandidates({ ai: final, userId: 'u', brief, mode: 'final' }, [crawled])).toEqual([{ fit: 70, reason: 'about acme.com' }]);
+    expect(final.systems[0]).toContain('Leave the reason empty for a score below 60');
+    expect(final.prompts[0]).toContain(
+      '1. [acme.com] Acme\n   found: a job post for a sales role: https://jobs.lever.co/acme/1\n   homepage: Acme | Cold email agency | We book meetings\n   page text: We run outbound for B2B software companies.',
     );
-    expect(read).toEqual(['https://a.com']);
-    expect(heads.left).toBe(0);
-    expect(ai.prompts).toHaveLength(2);
-    expect(ai.prompts[1]).toContain('homepage: Acme | Cold email agency | We book meetings');
-    expect(res.map((v) => v?.fit)).toEqual([HEAD_FLOOR - 1, 70, 70]);
     expect(fitPrompt(brief, [{ ...cand('down.com'), head: null }])).toContain('homepage: could not be read');
   });
 
@@ -197,7 +197,7 @@ describe('scoreBatch against untrusted data', () => {
         costUsd: 0,
       }),
     };
-    const res = await scoreBatch({ ai, userId: 'u', brief }, [cand('a.com'), cand('b.com')]);
+    const res = await scoreBatch({ ai, userId: 'u', brief, mode: 'final' }, [cand('a.com'), cand('b.com')]);
     expect(res).toEqual([
       { fit: 90, reason: 'first' },
       { fit: 60, reason: 'b' },

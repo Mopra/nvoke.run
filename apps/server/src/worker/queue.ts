@@ -8,7 +8,7 @@
 
 import type { Sql, TransactionSql } from 'postgres';
 
-export type JobType = 'find' | 'crawl' | 'verify' | 'opener' | 'people' | 'write';
+export type JobType = 'find' | 'crawl' | 'verify' | 'opener' | 'people' | 'write' | 'fit';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled';
 
 export interface FindPayload {
@@ -53,7 +53,12 @@ export interface WritePayload {
   campaignId: string;
   leadIds: string[];
 }
-export type JobPayload = FindPayload | CrawlPayload | VerifyPayload | OpenerPayload | PeoplePayload | WritePayload;
+export interface FitPayload {
+  searchId: string;
+  /** Crawled companies of the search waiting for their fit (companies.fit_state 'pending'), scored together. */
+  companyIds: string[];
+}
+export type JobPayload = FindPayload | CrawlPayload | VerifyPayload | OpenerPayload | PeoplePayload | WritePayload | FitPayload;
 
 export interface Job {
   /** bigint, kept as a string. */
@@ -203,24 +208,66 @@ export async function requeue(sql: Db, jobId: string, payload: JobPayload, runAf
 }
 
 export interface QueuedChecks {
-  /** Verify jobs of the search still queued or running: each is an address not settled yet. */
+  /**
+   * Addresses of the search not settled yet: a verify job queued or running
+   * for each, plus the unchecked addresses of companies waiting for their
+   * fit (at least one per company, for the people job it may get).
+   */
   queued: number;
   /** Of those, the ones waiting because we could not probe (port 25, lanes full, throttled), not for the server or the check policy. */
   capacity: number;
 }
 
 /**
- * The search's checks still in the queue. A search with checks queued is
- * not finished, and the ones waiting for capacity will come back with an
- * answer: an escalation that counts them as lost would buy companies for
- * nothing.
+ * The search's checks still to come. A search with checks queued is not
+ * finished, and the ones waiting for capacity or for their company's fit
+ * will come back with an answer: an escalation that counts them as lost
+ * would buy companies for nothing.
  */
 export async function queuedChecks(sql: Db, searchId: string): Promise<QueuedChecks> {
   const [row] = await sql<QueuedChecks[]>`
-    select count(*)::int as queued, count(*) filter (where payload->>'capacity' = 'true')::int as capacity
-    from jobs where search_id = ${searchId} and type = 'verify' and status in ('queued', 'running')
+    select
+      (select count(*)::int from jobs where search_id = ${searchId} and type = 'verify' and status in ('queued', 'running'))
+      + (select coalesce(sum(greatest(1, (
+          select count(*) from emails e where e.company_id = c.id and e.verification is null and e.skipped is null
+        ))), 0)::int from companies c where c.search_id = ${searchId} and c.fit_state = 'pending') as queued,
+      (select count(*)::int from jobs
+        where search_id = ${searchId} and type = 'verify' and status in ('queued', 'running') and payload->>'capacity' = 'true') as capacity
   `;
   return row ?? { queued: 0, capacity: 0 };
+}
+
+/** How long the first crawled company of a batch waits for others before the fit job scores what it has. */
+export const FIT_WAIT_MS = 15_000;
+/** Companies a fit job waits for before it runs at once: one fit call (leads/fit.ts FIT_BATCH). */
+export const FIT_JOB_BATCH = 30;
+
+/**
+ * Hands crawled companies to the search's queued fit job, or queues one.
+ * The job runs FIT_WAIT_MS after its first company, or at once when it holds
+ * FIT_JOB_BATCH. A job already running keeps the companies it was given, so
+ * no company is scored twice. Call it after the transaction updated the
+ * search row, which serializes the crawls of one search.
+ */
+export async function queueFit(sql: Db, searchId: string, companyIds: string[], waitMs: number = FIT_WAIT_MS): Promise<void> {
+  if (companyIds.length === 0) return;
+  const [joined] = await sql`
+    update jobs set
+      payload = jsonb_set(payload, '{companyIds}', coalesce(payload->'companyIds', '[]'::jsonb) || ${sql.json(companyIds)}),
+      run_after = case
+        when jsonb_array_length(coalesce(payload->'companyIds', '[]'::jsonb)) + ${companyIds.length} >= ${FIT_JOB_BATCH} then least(run_after, now())
+        else run_after
+      end
+    where id = (
+      select id from jobs where search_id = ${searchId} and type = 'fit' and status = 'queued'
+      order by id limit 1
+      for update skip locked
+    )
+    returning id
+  `;
+  if (joined) return;
+  const runAfter = new Date(Date.now() + (companyIds.length >= FIT_JOB_BATCH ? 0 : waitMs));
+  await enqueue(sql, { type: 'fit', payload: { searchId, companyIds }, searchId, runAfter });
 }
 
 /** Hands a claimed job back without spending an attempt (used on shutdown). */

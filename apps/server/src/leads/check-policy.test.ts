@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPolicy, checkTier, fallbackInbox, inboxRank, stillToCheck, type PolicyEmail, type PolicySelf } from './check-policy.js';
+import { checkPolicy, checkTier, fallbackInbox, inboxRank, mayBeChecked, needsFit, stillToCheck, type PolicyEmail, type PolicySelf } from './check-policy.js';
 
 const e = (kind: string, verification: PolicyEmail['verification'], more: Partial<PolicyEmail> = {}): PolicyEmail => ({
   kind,
@@ -184,5 +184,23 @@ describe('inboxRank', () => {
     const all = ['info@a.com', 'support@a.com', 'hello@a.com', 'noreply@a.com'];
     const winners = all.filter((a) => fallbackInbox(inbox(a), all.filter((o) => o !== a).map((o) => otherInbox(o))));
     expect(winners).toEqual(['hello@a.com']);
+  });
+});
+
+describe('needsFit', () => {
+  it('waits for fit only when the crawl found someone who could be checked', () => {
+    // Nothing at all, off-target people and addresses, and machine mailboxes cost nothing: no fit call.
+    expect(needsFit([], [], false)).toBe(false);
+    expect(needsFit([hr, inbox('noreply@acme.dk')], [{ title: 'HR Manager', seniority: 'manager' }], false)).toBe(false);
+    // A named person the people job may find an address for, any personal address, or a fallback inbox.
+    expect(needsFit([], [{ title: 'CEO', seniority: 'founder' }], false)).toBe(true);
+    expect(needsFit([unnamed], [], false)).toBe(true);
+    expect(needsFit([inbox('info@acme.dk')], [], false)).toBe(true);
+  });
+
+  it('counts a machine mailbox only when the search checks every inbox', () => {
+    expect(mayBeChecked(inbox('noreply@acme.dk'), false)).toBe(false);
+    expect(mayBeChecked(inbox('noreply@acme.dk'), true)).toBe(true);
+    expect(mayBeChecked(hr, true)).toBe(false);
   });
 });

@@ -1,4 +1,7 @@
 // Job handlers for one search: find -> crawl (per company) -> verify (per email).
+// A plain words (icp) search scores fit after the crawl: a crawled company
+// with someone to check waits for the fit job (per batch of companies), and
+// only a company it keeps gets its checks and people job.
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
@@ -15,13 +18,17 @@ import {
 } from '@nvoke/shared';
 import { DropRunInternal } from '../feed/drops.js';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
-import { cachedCrawl, isCacheable, recentPeopleRead, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
-import { isPlatformDomain, normalizeDomain, normalizeWebsite } from '../leads/domain.js';
-import { checkPolicy, checkTier, type Decision, type PolicyContext, type PolicyEmail, type PolicySelf } from '../leads/check-policy.js';
+import { cachedCrawl, domainPages, isCacheable, recentPeopleRead, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
+import { isPlatformDomain, normalizeDomain, normalizeWebsite, registrableDomain } from '../leads/domain.js';
+import { checkPolicy, checkTier, needsFit, type Decision, type PolicyContext, type PolicyEmail, type PolicySelf } from '../leads/check-policy.js';
+import { FIT_THRESHOLD, scoreCandidates, type FitCandidate, type FitVerdict } from '../leads/fit.js';
+import { IcpPlan } from '../leads/planner.js';
+import { rememberRejected } from '../leads/sources/icp.js';
 import { classifyAddress, companyAsPerson, mergePeople, personForAddress, type FoundPerson } from '../leads/extract.js';
 import { nameFromLocal } from '../leads/patterns.js';
 import type { SitePage } from '../leads/page-text.js';
 import { needsPeopleLlm, peopleFromText } from '../leads/people-llm.js';
+import { sleep } from '../leads/limits.js';
 import { chargeVerified, quotaExhausted } from '../leads/quota.js';
 import type { AdapterRegistry } from '../leads/sources/index.js';
 import type { Ai } from '../ai/client.js';
@@ -32,7 +39,7 @@ import { PermanentError, SourceUnavailableError } from '../leads/sources/types.j
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import { isCapacityDeferral, isTempfail, type Verifier, type VerifyResult } from '../leads/verify/index.js';
 import { leadSettled, searchFinished } from '../webhooks/events.js';
-import { cancelSearchJobs, enqueue, requeue, type Job, type VerifyPayload, verifyPriority } from './queue.js';
+import { cancelSearchJobs, enqueue, FIT_WAIT_MS, queueFit, requeue, type Job, type VerifyPayload, verifyPriority } from './queue.js';
 
 export interface PipelineDeps {
   sql: Sql;
@@ -47,6 +54,10 @@ export interface PipelineDeps {
   alert?: Alerter;
   /** Monthly Brave spend that triggers alerts at 80% and 100%. */
   braveBudget?: { monthlyUsd: number; costPer1000Usd: number };
+  /** How long a crawled company waits for others before the fit job runs. Default FIT_WAIT_MS. */
+  fitWaitMs?: number;
+  /** How long a plain words find waits at its limit for crawls and fit to turn companies down. Default FIND_SETTLE_MS. */
+  findSettleMs?: number;
 }
 
 /** Where the operator fixes a paused source. */
@@ -204,6 +215,35 @@ export async function* abortable<T>(source: AsyncIterable<T>, signal: AbortSigna
   }
 }
 
+/**
+ * How long the find job of a plain words search waits at its limit for the
+ * crawls and fit of its companies, so a company fit turns down after the
+ * crawl is replaced: the limit counts companies kept. Past it the find ends,
+ * and never short (leads/ongoing.ts) closes any gap.
+ */
+export const FIND_SETTLE_MS = 2 * 60_000;
+const SETTLE_POLL_MS = 2_000;
+
+/**
+ * Waits until the search's companies cannot fall below `limit` any more (none
+ * waits for a crawl or for fit that could turn it down), until they did, or
+ * until `ms` passed. Returns the companies the search holds.
+ */
+async function settleFit(sql: Sql, searchId: string, limit: number, ms: number, signal: AbortSignal): Promise<number> {
+  const until = Date.now() + ms;
+  for (;;) {
+    const [row] = await sql<{ held: number; waiting: number; running: boolean }[]>`
+      select count(*)::int as held,
+        count(*) filter (where fit_state = 'pending' or (fit_state = 'gate' and crawl_status = 'pending'))::int as waiting,
+        coalesce((select status = 'running' from searches where id = ${searchId}), false) as running
+      from companies where search_id = ${searchId}
+    `;
+    const held = row?.held ?? 0;
+    if (held < limit || held - (row?.waiting ?? 0) >= limit || !row?.running || Date.now() >= until || signal.aborted) return held;
+    await sleep(SETTLE_POLL_MS, signal).catch(() => undefined);
+  }
+}
+
 export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const searchId = str(job.payload, 'searchId');
@@ -222,6 +262,11 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
   let found = countRows[0]?.n ?? 0;
   let seen = 0;
   if (found >= search.limit) return;
+  // A plain words company gets fit's second look after its crawl, and one turned down then is deleted.
+  const icp = search.kind === 'icp';
+  const heldBefore = found;
+  let inserted = 0;
+  let dropped = 0;
 
   // Paid source calls, recorded even when the find fails, so cost per valid email can be measured.
   const usage = { request: 0, cache_hit: 0 };
@@ -233,7 +278,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
     );
   };
   const iterator = abortable(
-    adapter.find(params, { limit: search.limit, signal, log, onUsage, userId: search.clerk_user_id, searchId, onStage }),
+    adapter.find(params, { limit: search.limit, signal, log, onUsage, userId: search.clerk_user_id, searchId, onStage, dropped: () => dropped }),
     signal,
   );
   try {
@@ -245,7 +290,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
 
       if (await isDomainSuppressed(sql, domain)) continue;
 
-      const inserted = await sql.begin(async (tx) => {
+      const stored = await sql.begin(async (tx) => {
         const rows = await tx<{ id: string }[]>`
           insert into companies ${tx({
             search_id: searchId,
@@ -260,6 +305,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
             category: company.category ?? null,
             fit: company.fit ?? null,
             fit_reason: company.fitReason ?? null,
+            fit_state: icp ? 'gate' : null,
           })}
           on conflict (search_id, domain) do nothing
           returning id
@@ -270,9 +316,16 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
         await tx`update searches set companies_found = companies_found + 1 where id = ${searchId}`;
         return true;
       });
-      if (!inserted) continue;
+      if (!stored) continue;
       found++;
-      if (found >= search.limit) break;
+      inserted++;
+      if (found >= search.limit) {
+        if (!icp) break;
+        // Companies turned down after their crawl free their place: wait for them, then find more.
+        found = await settleFit(sql, searchId, search.limit, deps.findSettleMs ?? FIND_SETTLE_MS, signal);
+        dropped = Math.max(0, inserted - (found - heldBefore));
+        if (found >= search.limit) break;
+      }
       // Stop discovering when the user canceled or the quota ran out.
       if (found % 10 === 0 && (await searchStatus(sql, searchId)) !== 'running') break;
     }
@@ -286,7 +339,7 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
       if (usage.request > 0) await checkBraveBudget(deps).catch((err: unknown) => log.warn({ err }, 'find: budget check failed'));
     }
   }
-  log.info({ found, seen, sourceRequests: usage.request, sourceCacheHits: usage.cache_hit }, 'find: done');
+  log.info({ found, seen, dropped, sourceRequests: usage.request, sourceCacheHits: usage.cache_hit }, 'find: done');
 }
 
 // crawl
@@ -299,13 +352,15 @@ interface CompanyRow {
   domain: string;
   website: string;
   crawl_status: string;
+  /** companies.fit_state: 'gate' while a plain words company waits to be crawled. */
+  fit_state: string | null;
 }
 
 export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const companyId = str(job.payload, 'companyId');
   const [company] = await sql<CompanyRow[]>`
-    select id, search_id, clerk_user_id, name, domain, website, crawl_status from companies where id = ${companyId}
+    select id, search_id, clerk_user_id, name, domain, website, crawl_status, fit_state from companies where id = ${companyId}
   `;
   if (!company || company.crawl_status !== 'pending') return;
   if ((await searchStatus(sql, company.search_id)) !== 'running') return;
@@ -389,7 +444,9 @@ interface FinishOptions {
  * Stores a crawl outcome for a company: its people, its addresses (linked to
  * the person whose name an address is made from) and a check per new
  * address, then a people job when it named anyone. `crawledAt` is set for a
- * real crawl, which also refreshes the shared cache.
+ * real crawl, which also refreshes the shared cache. A plain words company
+ * with someone to check (needsFit) gets neither yet: it waits for the fit
+ * job, which queues them when it keeps the company.
  */
 async function finishCrawl(
   deps: PipelineDeps,
@@ -409,6 +466,9 @@ async function finishCrawl(
       returning id
     `;
     if (claimed.length === 0) return 0;
+    const [search] = await tx<{ check_inboxes: boolean }[]>`
+      select coalesce((to_jsonb(s) ->> 'check_inboxes')::boolean, false) as check_inboxes from searches s where s.id = ${company.search_id}
+    `;
 
     if (crawledAt) {
       await recordCrawl(
@@ -445,34 +505,37 @@ async function finishCrawl(
       named = await tx<PersonRow[]>`
         select id, first_name, last_name, title, seniority from people where company_id = ${company.id} order by created_at, id
       `;
-      await enqueue(tx, { type: 'people', payload: { companyId: company.id }, searchId: company.search_id });
     }
+    const owners = named.map((p) => ({ firstName: p.first_name, lastName: p.last_name, row: p }));
+    const rows = emails.map((e) => {
+      const owner = e.kind === 'personal' ? personForAddress(e.address, owners)?.row : undefined;
+      // Nobody printed for it: anna.berg@ still names Anna Berg, with no title and less confidence.
+      const read = e.kind === 'personal' && !owner ? nameFromLocal(e.address.slice(0, e.address.lastIndexOf('@')), owners) : null;
+      return {
+        company_id: company.id,
+        search_id: company.search_id,
+        clerk_user_id: company.clerk_user_id,
+        address: e.address,
+        kind: e.kind,
+        source_url: e.sourceUrl,
+        person_id: owner?.id ?? null,
+        first_name: owner?.first_name ?? read?.firstName ?? null,
+        last_name: owner?.last_name ?? read?.lastName ?? null,
+        title: owner?.title ?? null,
+        seniority: owner?.seniority ?? null,
+        found_via: e.foundVia,
+        confidence: read ? PAGE_CONFIDENCE.nameFromAddress : PAGE_CONFIDENCE[e.kind],
+      };
+    });
+    // Fit's second look first: nothing of a company it may turn down is checked or probed.
+    const awaitFit = company.fit_state === 'gate' && needsFit(rows, named, search?.check_inboxes ?? false);
+    if (awaitFit) await tx`update companies set fit_state = 'pending' where id = ${company.id}`;
+    else if (named.length > 0) await enqueue(tx, { type: 'people', payload: { companyId: company.id }, searchId: company.search_id });
 
     let stored = 0;
-    if (emails.length > 0) {
+    if (rows.length > 0) {
       // Storing costs nothing: the user is charged only when a check comes
       // back valid (runVerify), and unchecked addresses are never shown.
-      const owners = named.map((p) => ({ firstName: p.first_name, lastName: p.last_name, row: p }));
-      const rows = emails.map((e) => {
-        const owner = e.kind === 'personal' ? personForAddress(e.address, owners)?.row : undefined;
-        // Nobody printed for it: anna.berg@ still names Anna Berg, with no title and less confidence.
-        const read = e.kind === 'personal' && !owner ? nameFromLocal(e.address.slice(0, e.address.lastIndexOf('@')), owners) : null;
-        return {
-          company_id: company.id,
-          search_id: company.search_id,
-          clerk_user_id: company.clerk_user_id,
-          address: e.address,
-          kind: e.kind,
-          source_url: e.sourceUrl,
-          person_id: owner?.id ?? null,
-          first_name: owner?.first_name ?? read?.firstName ?? null,
-          last_name: owner?.last_name ?? read?.lastName ?? null,
-          title: owner?.title ?? null,
-          seniority: owner?.seniority ?? null,
-          found_via: e.foundVia,
-          confidence: read ? PAGE_CONFIDENCE.nameFromAddress : PAGE_CONFIDENCE[e.kind],
-        };
-      });
       const inserted = await tx<{ id: string; kind: string; seniority: string | null; first_name: string | null }[]>`
         insert into emails ${tx(
           rows,
@@ -494,21 +557,25 @@ async function finishCrawl(
         returning id, kind, seniority, first_name
       `;
       stored = inserted.length;
-      await enqueue(
-        tx,
-        inserted.map((r) => ({
-          type: 'verify' as const,
-          payload: { emailId: r.id },
-          searchId: company.search_id,
-          priority: verifyPriority(r),
-        })),
-      );
+      if (!awaitFit) {
+        await enqueue(
+          tx,
+          inserted.map((r) => ({
+            type: 'verify' as const,
+            payload: { emailId: r.id },
+            searchId: company.search_id,
+            priority: verifyPriority(r),
+          })),
+        );
+      }
     }
     await tx`
       update searches
       set companies_crawled = companies_crawled + 1, emails_found = emails_found + ${stored}
       where id = ${company.search_id}
     `;
+    // After the search row's update, which holds the other crawls of the search back until this commits.
+    if (awaitFit) await queueFit(tx, company.search_id, [company.id], deps.fitWaitMs ?? FIT_WAIT_MS);
     return stored;
   });
   deps.log.debug({ companyId: company.id, stored }, 'crawl: stored');
@@ -627,10 +694,16 @@ async function decideCheck(
   job: { searchId: string; retry: number; priority: number; waited: Waited; carry: Pick<VerifyPayload, 'capacityDefers' | 'capacitySince'> },
 ): Promise<Decision | 'gone'> {
   return deps.sql.begin(async (tx) => {
-    const [self] = await tx<(PolicySelf & { company_id: string; search_id: string; verification: Verification | null; skipped: string | null })[]>`
-      select company_id, search_id, address, kind, first_name, last_name, seniority, title, verification, skipped from emails where id = ${emailId} for update
+    const [self] = await tx<
+      (PolicySelf & { company_id: string; search_id: string; verification: Verification | null; skipped: string | null; fit_state: string | null })[]
+    >`
+      select e.company_id, e.search_id, e.address, e.kind, e.first_name, e.last_name, e.seniority, e.title, e.verification, e.skipped,
+        (select c.fit_state from companies c where c.id = e.company_id) as fit_state
+      from emails e where e.id = ${emailId} for update
     `;
     if (!self || self.verification || self.skipped) return 'gone';
+    // Its company waits for fit's second look, which queues this check again when it keeps the company.
+    if (self.fit_state === 'pending') return 'gone';
     if (checkTier(self) === 'primary') return 'check';
     const around = await policyContext(tx, emailId, self.company_id, self.search_id);
     if (!around) return 'gone';
@@ -841,4 +914,155 @@ export async function onFindGaveUp(deps: PipelineDeps, job: Job, error: unknown)
     return;
   }
   await failSearch(deps.sql, searchId, error instanceof PermanentError && error.code ? error.code : message);
+}
+
+// fit
+
+interface FitRow {
+  id: string;
+  name: string;
+  domain: string;
+  website: string;
+  source: string;
+  source_ref: string | null;
+  category: string | null;
+  location: string | null;
+}
+
+/** How the search found a company, for fit's second look: the job post or list page says what the homepage may not. */
+function foundLine(r: FitRow): string | undefined {
+  if (r.source === 'hiring') return `a job post for a sales role${r.source_ref ? `: ${r.source_ref}` : ''}`;
+  if (r.source === 'list_page' && r.source_ref) return `listed on ${r.source_ref}`;
+  const place = [r.category, r.location].filter(Boolean).join(', ');
+  return place ? `on the map: ${place}` : undefined;
+}
+
+function fitCompanyIds(payload: Record<string, unknown>): string[] {
+  const ids = payload.companyIds;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+}
+
+/**
+ * Fit's second look for crawled plain words companies (leads/fit.ts, mode
+ * final), from the homepage title, description and text the crawl kept. A
+ * company it keeps, or that Claude could not be asked about at all, gets its
+ * checks and people job; one it turns down is deleted with its addresses
+ * and people before anything was checked, and its site joins the plan's
+ * turned down sites, so no later round finds it again.
+ */
+export async function runFit(deps: PipelineDeps, job: Job, _signal: AbortSignal): Promise<void> {
+  const { sql } = deps;
+  const searchId = str(job.payload, 'searchId');
+  const ids = fitCompanyIds(job.payload);
+  if (ids.length === 0) return;
+  const [search] = await sql<{ clerk_user_id: string; status: SearchStatus; params: unknown; plan: unknown }[]>`
+    select clerk_user_id, status, params, plan from searches where id = ${searchId}
+  `;
+  // A canceled or stopped search leaves them waiting: its next run queues them again (leads/repo.ts). A done
+  // one goes on: the desktop's local crawl hands in addresses after a search ended.
+  if (!search || search.status === 'canceled' || search.status === 'failed') return;
+  const rows = await sql<FitRow[]>`
+    select id, name, domain, website, source, source_ref, category, location from companies
+    where id in ${sql(ids)} and search_id = ${searchId} and fit_state = 'pending'
+  `;
+  if (rows.length === 0) return;
+  const pages = await domainPages(sql, rows.map((r) => r.domain));
+  const candidates: FitCandidate[] = rows.map((r) => {
+    const home = pages.get(r.domain)?.[0];
+    return { name: r.name, website: r.website, found: foundLine(r), head: home ? { title: home.title, description: home.description } : null, text: home?.text };
+  });
+  const params = IcpSearchParams.safeParse(search.params);
+  const plan = IcpPlan.safeParse(search.plan);
+  const log = deps.log.child({ searchId });
+  // Without Claude every company is kept unscored, as the find keeps web results then.
+  const verdicts: (FitVerdict | null)[] =
+    deps.ai && params.success
+      ? await scoreCandidates(
+          {
+            ai: deps.ai,
+            userId: search.clerk_user_id,
+            mode: 'final',
+            brief: { description: params.data.description, product: params.data.product, plan: plan.success ? plan.data : undefined },
+            onError: (err) => log.warn({ err }, 'fit: call failed'),
+          },
+          candidates,
+        )
+      : rows.map(() => null);
+  const rejected: string[] = [];
+  let kept = 0;
+  for (const [i, r] of rows.entries()) {
+    const v = verdicts[i] ?? null;
+    if (!v || v.fit >= FIT_THRESHOLD) {
+      if (await keepForChecks(sql, r.id, v)) kept++;
+    } else if ((await dropOffTarget(sql, r.id)) && !v.unscored) {
+      // A score Claude gave holds for the rest of the search; the 0 of a batch it could not score does not.
+      rejected.push(registrableDomain(r.domain));
+    }
+  }
+  if (rejected.length > 0) await sql.begin((tx) => rememberRejected(tx, searchId, rejected));
+  log.info({ scored: rows.length, kept, rejected: rejected.length }, 'fit: done');
+}
+
+/**
+ * Keeps a company that waited for fit: its score and reason are stored, and
+ * its people job and a check per unchecked address go in the queue (a check
+ * already queued is left to run). False when it no longer waits.
+ */
+async function keepForChecks(sql: Sql, companyId: string, v: FitVerdict | null): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const [company] = await tx<{ search_id: string }[]>`
+      update companies set fit_state = 'kept',
+        fit = coalesce(${v?.fit ?? null}::smallint, fit), fit_reason = coalesce(${v?.reason || null}::text, fit_reason)
+      where id = ${companyId} and fit_state = 'pending'
+      returning search_id
+    `;
+    if (!company) return false;
+    const searchId = company.search_id;
+    const [named] = await tx`select 1 from people where company_id = ${companyId} limit 1`;
+    if (named) await enqueue(tx, { type: 'people', payload: { companyId }, searchId });
+    // A running check may have seen the company still waiting and dropped out: only a queued one is left to run.
+    const open = await tx<{ id: string; kind: string; seniority: string | null; first_name: string | null }[]>`
+      select e.id, e.kind, e.seniority, e.first_name from emails e
+      where e.company_id = ${companyId} and e.verification is null and e.skipped is null
+        and not exists (
+          select 1 from jobs j where j.search_id = ${searchId} and j.type = 'verify' and j.status = 'queued'
+            and j.payload->>'emailId' = e.id::text
+        )
+    `;
+    await enqueue(
+      tx,
+      open.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId, priority: verifyPriority(r) })),
+    );
+    return true;
+  });
+}
+
+/**
+ * Deletes a company fit turned down after its crawl, with its addresses and
+ * people, as if it had never been found: nothing of it was checked or
+ * charged, and the search's counts drop back. False when it no longer waits.
+ */
+async function dropOffTarget(sql: Sql, companyId: string): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const [company] = await tx<{ search_id: string; crawled: boolean; emails: number }[]>`
+      select search_id, crawl_status <> 'pending' as crawled,
+        (select count(*)::int from emails where company_id = ${companyId}) as emails
+      from companies where id = ${companyId} and fit_state = 'pending'
+      for update
+    `;
+    if (!company) return false;
+    await tx`delete from companies where id = ${companyId}`;
+    await tx`
+      update searches set companies_found = greatest(0, companies_found - 1),
+        companies_crawled = greatest(0, companies_crawled - ${company.crawled ? 1 : 0}),
+        emails_found = greatest(0, emails_found - ${company.emails})
+      where id = ${company.search_id}
+    `;
+    return true;
+  });
+}
+
+/** A fit job out of attempts keeps its companies unscored, so their checks never wait for good. */
+export async function onFitGaveUp(deps: PipelineDeps, job: Job): Promise<void> {
+  for (const id of fitCompanyIds(job.payload)) await keepForChecks(deps.sql, id, null);
 }

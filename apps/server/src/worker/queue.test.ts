@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
-import { backoffMs, cancelSearchJobs, claim, complete, enqueue, fail, release, requeueStale, type Job } from './queue.js';
+import { backoffMs, cancelSearchJobs, claim, complete, enqueue, fail, FIT_JOB_BATCH, queueFit, release, requeueStale, type Job } from './queue.js';
 
 let db: TestDb;
 
@@ -134,5 +134,22 @@ describe('job queue', () => {
     expect(await cancelSearchJobs(db.sql, s1)).toBe(1);
     const left = await claim(db.sql, { workerId: 'w', limit: 10, types: ['crawl', 'verify'] });
     expect(left.map((j) => j.searchId)).toEqual([s2]);
+  });
+
+  it('gathers crawled companies in one fit job per search, which runs once full or after its wait', async () => {
+    const s1 = await search();
+    await queueFit(db.sql, s1, ['a'], 60_000);
+    await queueFit(db.sql, s1, ['b'], 60_000);
+    const fits = () => db.sql<{ payload: { companyIds: string[] }; due: boolean; status: string }[]>`
+      select payload, run_after <= now() as due, status from jobs where search_id = ${s1} and type = 'fit' order by id`;
+    expect(await fits()).toEqual([{ payload: { searchId: s1, companyIds: ['a', 'b'] }, due: false, status: 'queued' }]);
+    // Full: it runs at once.
+    await queueFit(db.sql, s1, Array.from({ length: FIT_JOB_BATCH - 2 }, (_, i) => `c${i}`), 60_000);
+    expect((await fits())[0]).toMatchObject({ due: true });
+    // A running job keeps what it was given: the next company starts a new one.
+    expect(await claim(db.sql, { workerId: 'w', limit: 1, types: ['fit'] })).toHaveLength(1);
+    await queueFit(db.sql, s1, ['d'], 60_000);
+    const [, next] = await fits();
+    expect(next).toEqual({ payload: { searchId: s1, companyIds: ['d'] }, due: false, status: 'queued' });
   });
 });

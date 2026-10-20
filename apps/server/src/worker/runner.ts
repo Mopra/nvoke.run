@@ -9,9 +9,11 @@ import {
   maybeFinishSearch,
   onCrawlGaveUp,
   onFindGaveUp,
+  onFitGaveUp,
   onVerifyGaveUp,
   runCrawl,
   runFind,
+  runFit,
   runVerify,
   type PipelineDeps,
 } from './pipeline.js';
@@ -42,6 +44,8 @@ const DEFAULT_TIMEOUTS: Record<JobType, number> = {
   people: 3 * 60_000,
   // Two Claude calls for a batch of campaign leads.
   write: 5 * 60_000,
+  // Haiku calls for the crawled companies of one search, 30 to a call.
+  fit: 5 * 60_000,
 };
 
 /**
@@ -54,6 +58,7 @@ export async function onGaveUp(deps: PipelineDeps, job: Job, error: unknown): Pr
   else if (job.type === 'opener') await onOpenerGaveUp(deps, job);
   else if (job.type === 'people') await onPeopleGaveUp(deps, job);
   else if (job.type === 'write') await onWriteGaveUp(deps, writePayload(job));
+  else if (job.type === 'fit') await onFitGaveUp(deps, job);
   else await onVerifyGaveUp(deps, job);
 }
 
@@ -110,6 +115,7 @@ export class Runner {
       opener: Math.max(1, Math.floor(n / 4)),
       people: Math.max(1, Math.floor(n / 4)),
       write: Math.max(1, Math.floor(n / 4)),
+      fit: Math.max(1, Math.floor(n / 4)),
     };
   }
 
@@ -169,11 +175,11 @@ export class Runner {
   }
 
   private async fill(): Promise<number> {
-    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0, write: 0 };
+    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0, write: 0, fit: 0 };
     for (const r of this.running.values()) counts[r.job.type]++;
     let claimed = 0;
     // Verify gets its share before crawl takes whatever is left.
-    for (const type of ['find', 'verify', 'people', 'opener', 'write', 'crawl'] as const) {
+    for (const type of ['find', 'fit', 'verify', 'people', 'opener', 'write', 'crawl'] as const) {
       const free = this.opts.concurrency - this.running.size;
       const room = Math.min(free, this.caps[type] - counts[type]);
       if (room <= 0 || this.stopping) continue;
@@ -218,6 +224,7 @@ export class Runner {
       else if (job.type === 'opener') await this.opener(job);
       else if (job.type === 'people') await runPeople(this.deps, job, signal);
       else if (job.type === 'write') await this.write(job);
+      else if (job.type === 'fit') await runFit(this.deps, job, signal);
       else await runVerify(this.deps, job, signal);
       await complete(this.deps.sql, job.id);
       // Now this people job is off the queue, a company that was waiting on it can settle.

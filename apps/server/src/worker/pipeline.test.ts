@@ -27,6 +27,8 @@ import {
   MAX_CHECK_DEFERS,
   MAX_CHECK_WAIT_MS,
   maybeFinishSearch,
+  onFitGaveUp,
+  runFit,
   runVerify,
   type PipelineDeps,
 } from './pipeline.js';
@@ -1087,5 +1089,154 @@ describe('names read from addresses', () => {
       { address: 'max@named.dk', first_name: null, last_name: null, title: null, confidence: 90 },
       { address: 'sales.team@named.dk', first_name: null, last_name: null, title: null, confidence: 60 },
     ]);
+  });
+});
+
+describe('fit after the crawl', () => {
+  const ICP: CreateSearchRequest = { kind: 'icp', params: { description: 'Agencies run by their founders' } };
+
+  /** Scores people.dk 80 and every other domain 20 in fit's second look, and finds nobody more in people pages. */
+  function fitAi(scored: string[]): Ai {
+    return {
+      ready: async () => true,
+      async structured(req) {
+        const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+        if (req.task !== 'fit') return { data: req.schema.parse({ people: [] }), model: 'fake', usage, costUsd: 0 };
+        const domains = [...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!);
+        scored.push(...domains);
+        const scores = domains.map((domain, i) => ({ n: i + 1, domain, fit: domain === 'people.dk' ? 80 : 20, reason: domain === 'people.dk' ? 'Founder led agency' : '' }));
+        return { data: req.schema.parse({ scores }), model: 'fake', usage, costUsd: 0 };
+      },
+    };
+  }
+
+  function recordingVerifier() {
+    const asked: string[] = [];
+    const verify = async (address: string) => {
+      asked.push(address);
+      return stubVerifier.verify(address);
+    };
+    return { asked, verifier: { ...stubVerifier, verify } as unknown as Verifier };
+  }
+
+  /** Runs the search's jobs until none is left queued or running. */
+  async function drain(d: PipelineDeps, searchId: string, timeoutMs = 20_000) {
+    const runner = new Runner(d, { concurrency: 4, pollMs: 20 });
+    runner.start();
+    try {
+      const start = Date.now();
+      for (;;) {
+        const [busy] = await db.sql`select 1 from jobs where search_id = ${searchId} and status in ('queued', 'running') limit 1`;
+        if (!busy) return;
+        if (Date.now() - start > timeoutMs) throw new Error('jobs still queued');
+        // Checks that wait for a colleague are woken when it settles; this only spares the test the fallback wait.
+        await db.sql`update jobs set run_after = now() where search_id = ${searchId} and status = 'queued' and type = 'verify'`;
+        await sleep(25);
+      }
+    } finally {
+      await runner.stop(5_000);
+    }
+  }
+
+  async function icpSearch(limit: number) {
+    await ensureAccount(db.sql, 'u1');
+    const search = await createSearch(db.sql, 'u1', { ...ICP, checkInboxes: false }, limit);
+    await db.sql`update searches set plan = ${db.sql.json({ rejected: ['old.dk'] })} where id = ${search.id}`;
+    return search.id;
+  }
+
+  function icpDeps(companies: FoundCompany[], verifier: Verifier, scored: string[] = []): PipelineDeps {
+    const base = deps(adapterOf([]));
+    return { ...base, adapters: { ...base.adapters, icp: adapterOf(companies) } as AdapterRegistry, verifier, ai: fitAi(scored), fitWaitMs: 0 };
+  }
+
+  it('never checks, probes or charges a company fit turns down after its crawl, and checks the one it keeps', async () => {
+    const searchId = await icpSearch(10);
+    const scored: string[] = [];
+    const { asked, verifier } = recordingVerifier();
+    const companies: FoundCompany[] = [
+      { name: 'People', website: 'https://people.dk', source: 'brave', fit: 55 },
+      { name: 'Beta', website: 'https://beta.dk', source: 'brave', fit: 70 },
+      { name: 'No mail', website: 'https://nomail.dk', source: 'brave', fit: 45 },
+    ];
+    await drain(icpDeps(companies, verifier, scored), searchId);
+
+    // nomail.dk had nobody to check: it was not scored again and keeps its first look.
+    expect(scored.sort()).toEqual(['beta.dk', 'people.dk']);
+    const rows = await db.sql`select domain, fit, fit_reason, fit_state from companies where search_id = ${searchId} order by domain`;
+    expect(rows).toEqual([
+      { domain: 'nomail.dk', fit: 45, fit_reason: null, fit_state: 'gate' },
+      { domain: 'people.dk', fit: 80, fit_reason: 'Founder led agency', fit_state: 'kept' },
+    ]);
+    // Beta is gone with its addresses, never asked about, and remembered so no later round scores it again.
+    expect(asked.some((a) => a.endsWith('@beta.dk'))).toBe(false);
+    expect(asked).toContain('mette@people.dk');
+    expect(await db.sql`select 1 from emails where address like '%@beta.dk'`).toHaveLength(0);
+    const [search] = await db.sql<{ plan: { rejected: string[] }; companies_found: number; companies_crawled: number; emails_found: number }[]>`
+      select plan, companies_found, companies_crawled, emails_found from searches where id = ${searchId}`;
+    expect(search!.plan.rejected).toEqual(['old.dk', 'beta.dk']);
+    expect(search).toMatchObject({ companies_found: 2, companies_crawled: 2, emails_found: 2 });
+    // The kept company got its people job; the one turned down never did.
+    expect(await db.sql`select 1 from jobs where search_id = ${searchId} and type = 'people'`).toHaveLength(1);
+    // Only people.dk's fallback inbox came back valid and was charged, two of the allowance as an icp email.
+    const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
+    expect(usage?.emails_verified).toBe(2);
+  });
+
+  it('finds on in the place of a company fit turned down, so the limit counts companies kept', async () => {
+    const searchId = await icpSearch(1);
+    const { verifier } = recordingVerifier();
+    const companies: FoundCompany[] = [
+      { name: 'Beta', website: 'https://beta.dk', source: 'brave' },
+      { name: 'People', website: 'https://people.dk', source: 'brave' },
+      { name: 'Alpha', website: 'https://alpha.dk', source: 'brave' },
+    ];
+    await drain(icpDeps(companies, verifier), searchId);
+    expect(await db.sql`select domain from companies where search_id = ${searchId}`).toEqual([{ domain: 'people.dk' }]);
+  });
+
+  it('drops a check of a company still waiting for fit, and queues it again when fit keeps the company', async () => {
+    const searchId = await icpSearch(10);
+    await db.sql`delete from jobs where search_id = ${searchId}`;
+    await db.sql`update searches set status = 'running' where id = ${searchId}`;
+    const [company] = await db.sql<{ id: string }[]>`
+      insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status, fit_state)
+      values (${searchId}, 'u1', 'People', 'people.dk', 'https://people.dk', 'brave', 'done', 'pending') returning id`;
+    const [email] = await db.sql<{ id: string }[]>`
+      insert into emails (company_id, search_id, clerk_user_id, address, kind, first_name, last_name, title, seniority)
+      values (${company!.id}, ${searchId}, 'u1', 'mette@people.dk', 'personal', 'Mette', 'Hansen', 'CEO', 'founder') returning id`;
+    const { asked, verifier } = recordingVerifier();
+    const d = icpDeps([], verifier);
+    const signal = new AbortController().signal;
+    await runVerify(d, { id: '1', type: 'verify', payload: { emailId: email!.id }, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    expect(asked).toEqual([]);
+    expect(await queuedChecks(db.sql, searchId)).toEqual({ queued: 1, capacity: 0 });
+    await runFit(d, { id: '2', type: 'fit', payload: { searchId, companyIds: [company!.id] }, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    const jobs = await db.sql<{ payload: { emailId: string } }[]>`select payload from jobs where search_id = ${searchId} and type = 'verify' and status = 'queued'`;
+    expect(jobs.map((j) => j.payload.emailId)).toEqual([email!.id]);
+  });
+
+  it('keeps a company unscored when Claude cannot be asked or the fit job gives up', async () => {
+    const searchId = await icpSearch(10);
+    await db.sql`delete from jobs where search_id = ${searchId}`;
+    await db.sql`update searches set status = 'running' where id = ${searchId}`;
+    const pending = async (domain: string) => {
+      const [c] = await db.sql<{ id: string }[]>`
+        insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status, fit_state, fit)
+        values (${searchId}, 'u1', ${domain}, ${domain}, ${`https://${domain}`}, 'brave', 'done', 'pending', 50) returning id`;
+      await db.sql`insert into emails (company_id, search_id, clerk_user_id, address, kind) values (${c!.id}, ${searchId}, 'u1', ${`info@${domain}`}, 'generic')`;
+      return c!.id;
+    };
+    const one = await pending('one.dk');
+    const two = await pending('two.dk');
+    const signal = new AbortController().signal;
+    await runFit(deps(adapterOf([])), { id: '3', type: 'fit', payload: { searchId, companyIds: [one] }, searchId, attempts: 1, maxAttempts: 3 }, signal);
+    await onFitGaveUp(deps(adapterOf([])), { id: '4', type: 'fit', payload: { searchId, companyIds: [two] }, searchId, attempts: 3, maxAttempts: 3 });
+    const rows = await db.sql`select domain, fit, fit_state from companies where search_id = ${searchId} order by domain`;
+    expect(rows).toEqual([
+      { domain: 'one.dk', fit: 50, fit_state: 'kept' },
+      { domain: 'two.dk', fit: 50, fit_state: 'kept' },
+    ]);
+    expect((await queuedChecks(db.sql, searchId)).queued).toBe(2);
   });
 });

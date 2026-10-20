@@ -13,7 +13,6 @@ import {
   decide,
   markShortSearches,
   projectVerified,
-  queuedChecks,
   searchCounts,
   ongoingReserved,
   runOngoing,
@@ -25,6 +24,7 @@ import {
 import { IcpPlan, planQueryCount, savePlan, toPlan, type ClaudePlan, type ClaudeReplan } from './planner.js';
 import { ensureAccount } from './quota.js';
 import { cancelSearch, createSearch } from './repo.js';
+import { queuedChecks } from '../worker/queue.js';
 
 let db: TestDb;
 
@@ -245,7 +245,7 @@ describe('never short', () => {
     await db.sql`insert into jobs (type, payload, search_id) values ('people', ${db.sql.json({ companyId: c!.id })}, ${id})`;
     // A deferred check waits: no early call while it is queued.
     await db.sql`insert into jobs (type, payload, search_id, run_after) values ('verify', ${db.sql.json({ emailId: 'x', deferred: true })}, ${id}, now() + interval '5 minutes')`;
-    expect(await queuedChecks(db.sql, id)).toBe(1);
+    expect((await queuedChecks(db.sql, id)).queued).toBe(1);
     const now = new Date();
     expect(await markShortSearches(db.sql, now)).toBe(0);
     await db.sql`update jobs set status = 'done' where search_id = ${id} and type = 'verify'`;
@@ -255,6 +255,26 @@ describe('never short', () => {
     const other = await shortSearch('dave');
     await db.sql`insert into jobs (type, payload, search_id) values ('crawl', ${db.sql.json({ companyId: 'x' })}, ${other})`;
     expect(await markShortSearches(db.sql)).toBe(0);
+  });
+
+  it('counts a company waiting for fit after its crawl as checks to come, and holds no round for it', async () => {
+    const id = await shortSearch('fay', 100, { validEmails: 2 });
+    await db.sql`update searches set stage = 'deeper' where id = ${id}`;
+    const [c] = await db.sql<{ id: string }[]>`
+      insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status, fit_state)
+      values (${id}, 'fay', 'Waiting', 'waiting.test', 'https://waiting.test/', 'brave', 'done', 'pending') returning id`;
+    await db.sql`
+      insert into emails (company_id, search_id, clerk_user_id, address, kind)
+      values (${c!.id}, ${id}, 'fay', 'info@waiting.test', 'generic'), (${c!.id}, ${id}, 'fay', 'mette@waiting.test', 'personal')`;
+    await db.sql`insert into people (company_id, search_id, first_name, last_name, title, source) values (${c!.id}, ${id}, 'Mette', 'Hansen', 'CEO', 'page')`;
+    // Its two addresses wait for fit, not for a verify job; with people it may get a people job too.
+    expect(await queuedChecks(db.sql, id)).toEqual({ queued: 2, capacity: 0 });
+    expect((await searchCounts(db.sql, id)).peoplePending).toBe(1);
+    expect(await markShortSearches(db.sql)).toBe(0);
+    expect((await row(id)).stage).toBe('deeper');
+    // A waiting company with nothing but people still counts once.
+    await db.sql`delete from emails where company_id = ${c!.id}`;
+    expect((await queuedChecks(db.sql, id)).queued).toBe(1);
   });
 
   it('judges a search early once, then waits before looking again', async () => {

@@ -20,7 +20,7 @@ import type {
   Seniority,
   Verification,
 } from '@nvoke/shared';
-import { cancelSearchJobs, enqueue } from '../worker/queue.js';
+import { cancelSearchJobs, enqueue, queueFit } from '../worker/queue.js';
 import type { CsvRow } from './csv.js';
 import { domainSuppressedSql, suppressedSql } from './suppression.js';
 
@@ -168,7 +168,7 @@ export async function searchMore(
     `;
     if (!row) throw new Error('update of searches returned nothing');
     await enqueue(tx, { type: 'find', payload: { searchId: id }, searchId: id });
-    // A cancel or a quota stop dropped the earlier runs' queued work: pick it up again.
+    // A cancel or a quota stop dropped the earlier runs' queued work (crawls, checks, fit): pick it up again.
     const crawls = await tx<{ id: string }[]>`
       select c.id from companies c
       where c.search_id = ${id} and c.crawl_status = 'pending'
@@ -177,9 +177,11 @@ export async function searchMore(
             and j.payload->>'companyId' = c.id::text
         )
     `;
+    // A company waiting for fit after its crawl gets its checks from the fit job, not here.
     const verifies = await tx<{ id: string }[]>`
       select e.id from emails e
       where e.search_id = ${id} and e.verification is null and e.skipped is null
+        and not exists (select 1 from companies c where c.id = e.company_id and c.fit_state = 'pending')
         and not exists (
           select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status in ('queued', 'running')
             and j.payload->>'emailId' = e.id::text
@@ -189,6 +191,15 @@ export async function searchMore(
       ...crawls.map((c) => ({ type: 'crawl' as const, payload: { companyId: c.id }, searchId: id })),
       ...verifies.map((e) => ({ type: 'verify' as const, payload: { emailId: e.id }, searchId: id })),
     ]);
+    const waiting = await tx<{ id: string }[]>`
+      select c.id from companies c
+      where c.search_id = ${id} and c.fit_state = 'pending'
+        and not exists (
+          select 1 from jobs j where j.search_id = ${id} and j.type = 'fit' and j.status in ('queued', 'running')
+            and j.payload->'companyIds' ? c.id::text
+        )
+    `;
+    await queueFit(tx, id, waiting.map((c) => c.id));
     return toSearch(row);
   });
 }
@@ -228,7 +239,7 @@ export async function startAutoRun(
       where id = ${id}
     `;
     await enqueue(tx, { type: 'find', payload: { searchId: id }, searchId: id });
-    // A quota stop dropped queued work: pick it up again.
+    // A quota stop dropped queued work (crawls, checks, fit): pick it up again.
     const crawls = await tx<{ id: string }[]>`
       select c.id from companies c
       where c.search_id = ${id} and c.crawl_status = 'pending'
@@ -237,9 +248,11 @@ export async function startAutoRun(
             and j.payload->>'companyId' = c.id::text
         )
     `;
+    // A company waiting for fit after its crawl gets its checks from the fit job, not here.
     const verifies = await tx<{ id: string }[]>`
       select e.id from emails e
       where e.search_id = ${id} and e.verification is null and e.skipped is null
+        and not exists (select 1 from companies c where c.id = e.company_id and c.fit_state = 'pending')
         and not exists (
           select 1 from jobs j where j.search_id = ${id} and j.type = 'verify' and j.status in ('queued', 'running')
             and j.payload->>'emailId' = e.id::text
@@ -249,6 +262,15 @@ export async function startAutoRun(
       ...crawls.map((c) => ({ type: 'crawl' as const, payload: { companyId: c.id }, searchId: id })),
       ...verifies.map((e) => ({ type: 'verify' as const, payload: { emailId: e.id }, searchId: id })),
     ]);
+    const waiting = await tx<{ id: string }[]>`
+      select c.id from companies c
+      where c.search_id = ${id} and c.fit_state = 'pending'
+        and not exists (
+          select 1 from jobs j where j.search_id = ${id} and j.type = 'fit' and j.status in ('queued', 'running')
+            and j.payload->'companyIds' ? c.id::text
+        )
+    `;
+    await queueFit(tx, id, waiting.map((c) => c.id));
     return true;
   });
 }

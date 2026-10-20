@@ -9,7 +9,7 @@
 import type { Sql } from 'postgres';
 import { LOCAL_CRAWL_LEGACY_REASONS, type LocalCrawlReason, type LocalCrawlResultRequest, type LocalCrawlTask } from '@nvoke/shared';
 import { acceptAddress, classifyAddress, isPlatformDomain, selectForCompany, type ExtractedEmail } from '@nvoke/shared/crawl';
-import { enqueue } from '../worker/queue.js';
+import { enqueue, queueFit } from '../worker/queue.js';
 import { quotaExhausted } from './quota.js';
 import { domainSuppressedSql, suppressedAddresses } from './suppression.js';
 
@@ -127,8 +127,8 @@ export async function submitLocalCrawl(
   body: LocalCrawlResultRequest,
   now: Date = new Date(),
 ): Promise<LocalResult> {
-  const [company] = await sql<{ id: string; search_id: string; domain: string; local_crawl: string | null }[]>`
-    select id, search_id, domain, local_crawl from companies
+  const [company] = await sql<{ id: string; search_id: string; domain: string; local_crawl: string | null; fit_state: string | null }[]>`
+    select id, search_id, domain, local_crawl, fit_state from companies
     where id = ${body.companyId} and clerk_user_id = ${userId}
   `;
   if (!company) return { status: 'not_found' };
@@ -162,11 +162,18 @@ export async function submitLocalCrawl(
         returning id
       `;
       stored = inserted.length;
-      await enqueue(
-        tx,
-        inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id })),
-      );
+      // A plain words company found nothing in the server crawl, so fit has not looked at it after the crawl yet:
+      // its addresses wait for the fit job, which queues their checks when it keeps the company.
+      const awaitFit = company.fit_state === 'gate' && stored > 0;
+      if (awaitFit) await tx`update companies set fit_state = 'pending' where id = ${company.id}`;
+      else {
+        await enqueue(
+          tx,
+          inserted.map((r) => ({ type: 'verify' as const, payload: { emailId: r.id }, searchId: company.search_id })),
+        );
+      }
       await tx`update searches set emails_found = emails_found + ${stored} where id = ${company.search_id}`;
+      if (awaitFit) await queueFit(tx, company.search_id, [company.id]);
     }
     return { status: 'stored' as const, stored };
   });
