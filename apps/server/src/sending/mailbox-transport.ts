@@ -1,7 +1,7 @@
 // The only file that talks SMTP and IMAP (docs/sending/plan.md, "Step 1").
 // Mail goes out through the mailbox provider's own submission server with
 // nodemailer; replies, bounces and auto replies come in over IMAP with
-// imapflow, read only, from INBOX and the spam folder (special use \Junk),
+// imapflow, read only, from every folder a reply can land in (pollFolders),
 // and mailparser turns each raw message into an IncomingMail.
 //
 // The hosts and ports come from the user and the connection goes out from
@@ -227,11 +227,21 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
 
 // Pure steps, exported for tests
 
-/** INBOX and the spam folder when the server marks one \Junk. */
-export function pollFolders(list: Pick<ListResponse, 'path' | 'specialUse'>[]): string[] {
+/**
+ * Every folder a reply can land in: INBOX first, then the rest, spam and
+ * the user's own folders included (Zoho's filters file replies under
+ * Newsletter or Notification). Sent, drafts, trash and the copies of all
+ * mail (Gmail's All Mail, Flagged, Important) are left out; a mail seen in
+ * two folders is recorded once (poller.ts checks the Message-ID).
+ */
+const SKIP_USES = new Set(['\\Sent', '\\Drafts', '\\Trash', '\\All', '\\Flagged', '\\Important']);
+export function pollFolders(list: (Pick<ListResponse, 'path' | 'specialUse'> & { flags?: Set<string> })[]): string[] {
   const folders = ['INBOX'];
-  const junk = list.find((f) => f.specialUse === '\\Junk');
-  if (junk && junk.path.toUpperCase() !== 'INBOX') folders.push(junk.path);
+  for (const f of list) {
+    if (f.path.toUpperCase() === 'INBOX' || f.flags?.has('\\Noselect')) continue;
+    if (f.specialUse && SKIP_USES.has(f.specialUse)) continue;
+    folders.push(f.path);
+  }
   return folders;
 }
 

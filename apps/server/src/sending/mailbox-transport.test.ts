@@ -326,9 +326,10 @@ describe('parse', () => {
 });
 
 describe('poll', () => {
-  it('picks INBOX and the folder marked \\Junk', () => {
+  it('picks every folder a reply can land in, not sent, drafts, trash or all mail', () => {
     expect(pollFolders([{ path: 'INBOX', specialUse: '\\Inbox' }, { path: '[Gmail]/Spam', specialUse: '\\Junk' }, { path: 'Sent', specialUse: '\\Sent' }])).toEqual(['INBOX', '[Gmail]/Spam']);
-    expect(pollFolders([{ path: 'INBOX' }, { path: 'Archive' }])).toEqual(['INBOX']);
+    expect(pollFolders([{ path: 'INBOX' }, { path: 'Archive' }, { path: 'Newsletter' }])).toEqual(['INBOX', 'Archive', 'Newsletter']);
+    expect(pollFolders([{ path: 'INBOX' }, { path: '[Gmail]/All Mail', specialUse: '\\All' }, { path: 'Drafts', specialUse: '\\Drafts' }, { path: 'Trash', specialUse: '\\Trash' }, { path: '[Gmail]', flags: new Set(['\\Noselect']) }])).toEqual(['INBOX']);
   });
 
   it('plans by date when the folder is new or its UIDVALIDITY changed, else after the last UID', () => {
