@@ -74,7 +74,7 @@ const FAQ: ToolFaq[] = [
   },
   {
     q: 'Does nvoke send email?',
-    a: 'No. nvoke finds companies and checks addresses. It never sends a message. Use this checker before you send from your own tools.',
+    a: 'Only when you ask. nvoke sends campaigns from your own mailbox, so your domain’s SPF, DKIM and DMARC decide where they land. Run this check before you connect it.',
   },
 ];
 

@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of service" updated="13 October 2026">
+    <LegalPage title="Terms of service" updated="20 October 2026">
       <section>
         <h2>1. About these terms</h2>
         <p>
@@ -34,8 +34,9 @@ export default function TermsPage() {
         <h2>2. The service</h2>
         <p>
           nvoke finds companies from public sources, reads their websites, collects the contact details they publish
-          and checks whether the email addresses can receive mail. nvoke does not send email. We work to make results accurate, but we cannot promise that every
-          company, address or verification result is complete or correct.
+          and checks whether the email addresses can receive mail. If you connect a mailbox, nvoke also writes emails
+          and sends them from that mailbox on your instructions (section 5). We work to make results accurate, but we
+          cannot promise that every company, address or verification result is complete or correct.
         </p>
         <p>
           We may change, add or remove features. If we remove something central to a paid plan, we tell you in advance
@@ -54,8 +55,7 @@ export default function TermsPage() {
       <section>
         <h2>4. How you may use the results</h2>
         <p>
-          nvoke is a prospecting research tool. It gives you companies and the contact details they publish. It does
-          not give you permission to contact anyone, and you are responsible for how you use the results. In
+          nvoke gives you companies and the contact details they publish. It does not give you permission to contact anyone, and you are responsible for how you use the results. In
           particular you agree to:
         </p>
         <ul>
@@ -99,7 +99,37 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>5. Plans, prices and payment</h2>
+        <h2>5. Sending from your mailboxes</h2>
+        <p>
+          You can connect your own mailboxes and run campaigns: nvoke writes the emails and sends them from your
+          mailbox, in your name, and reads the replies there. <strong>You are the sender.</strong> Every email nvoke
+          sends for you is your email, sent on your instructions, and section 4 applies to it as to anything you send
+          yourself. In addition you agree to:
+        </p>
+        <ul>
+          <li>follow the law of each recipient’s country on marketing email and data protection;</li>
+          <li>send only to business addresses, never to consumers or private addresses;</li>
+          <li>connect only mailboxes and domains you own or may send from, and keep their mail provider’s rules;</li>
+          <li>
+            read what nvoke writes before you start a campaign and stand behind it. You can edit or stop any email
+            before it goes out;
+          </li>
+          <li>
+            accept the limits we set: no sends to recipients in Denmark or Germany, only verified addresses, daily
+            caps per mailbox, sending in the recipient’s working hours, and the footer in every email that says where
+            the address was found and how to stop. These are not settings;
+          </li>
+          <li>not remove the unsubscribe or ask us to send faster than the caps allow.</li>
+        </ul>
+        <p>
+          A reply, an unsubscribe or a bounce stops further emails to that address. We may pause or stop any campaign
+          or mailbox at any time, for example on high bounce rates, complaints, or if we suspect a breach of these
+          terms. We do not promise that any email reaches the inbox.
+        </p>
+      </section>
+
+      <section>
+        <h2>6. Plans, prices and payment</h2>
         <p>
           Plans, monthly limits and prices are listed on the <Link href="/pricing">pricing page</Link>. Prices exclude
           VAT. Paid plans are billed in advance each month and renew automatically until cancelled.
@@ -111,7 +141,7 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>6. Cancelling</h2>
+        <h2>7. Cancelling</h2>
         <p>
           You can cancel a paid plan at any time. It stays active until the end of the period you have paid for, then
           your account moves to the Free plan. We do not refund part periods. You can close your account entirely by
@@ -120,7 +150,7 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>7. The desktop app</h2>
+        <h2>8. The desktop app</h2>
         <p>
           We give you a personal, non-exclusive right to install and use the nvoke app on your computers while you
           have an account. Updates may be required to keep using the service.
@@ -128,7 +158,7 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>8. Liability</h2>
+        <h2>9. Liability</h2>
         <p>
           The service is provided as it is. We are not liable for indirect losses, such as lost profit, lost business
           or lost data. Our total liability in any 12 month period is limited to the amount you paid us in that period.
@@ -138,7 +168,7 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>9. Personal data and roles</h2>
+        <h2>10. Personal data and roles</h2>
         <p>
           <strong>nvoke is the controller</strong> for collecting company data and contact details from public sources,
           for classifying and verifying them, for the shared cache of generic addresses, for the opt-out list, and for
@@ -146,8 +176,14 @@ export default function TermsPage() {
         </p>
         <p>
           <strong>You are an independent controller</strong> for your own use of the results: what you store, export,
-          combine with other data and do with it. We do not process the results on your behalf, so there is no data
-          processing agreement between us for them. Each of us is responsible for our own part.
+          combine with other data and do with it. Each of us is responsible for our own part.
+        </p>
+        <p>
+          <strong>When nvoke sends for you, we are your processor.</strong> You are the controller for your outreach:
+          who gets an email, what it says and why. We write, send and read replies only on your instructions and to run
+          the service, keep it confidential and secure, use the sub-processors named in our privacy policy (Claude
+          through OpenRouter writes the emails), and delete it on the schedule in our privacy policy or when you ask.
+          Data processing terms for sending will be added to these terms.
         </p>
         <p>
           If someone asks you about data you got from nvoke, you may tell them it came from nvoke and point them to our{' '}
@@ -157,7 +193,7 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>10. Changes to these terms</h2>
+        <h2>11. Changes to these terms</h2>
         <p>
           We may update these terms. We tell you about material changes by email at least 30 days before they take
           effect. If you keep using nvoke after that, the new terms apply.
@@ -165,7 +201,7 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>11. Law and disputes</h2>
+        <h2>12. Law and disputes</h2>
         <p>
           These terms are governed by Danish law. Disputes go to the Danish courts, with the Copenhagen City Court
           (Københavns Byret) as the first instance.

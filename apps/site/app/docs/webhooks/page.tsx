@@ -184,7 +184,7 @@ export default function WebhooksDocs() {
           </p>
           <p>
             What you do with the leads is on you. In the EU, marketing email to these addresses usually needs prior
-            consent. nvoke is a research tool and never sends email.
+            consent. Campaigns nvoke sends go from your mailbox, in your name: you are the sender.
           </p>
         </Prose>
       </DocsSection>

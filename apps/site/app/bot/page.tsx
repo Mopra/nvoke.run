@@ -69,8 +69,7 @@ export default function BotPage() {
 
       <Block title="Why it visited">
         <p>
-          nvoke is a prospecting research tool. It helps businesses find other companies and the contact details those
-          companies publish. A customer ran a search, and your company came up: listed on OpenStreetMap, in a web
+          nvoke helps businesses find other companies and the contact details those companies publish. A customer ran a search, and your company came up: listed on OpenStreetMap, in a web
           search, or launched on Product Hunt or Show HN. So nvokebot read your site for published contact details.
         </p>
         <p>

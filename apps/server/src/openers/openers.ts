@@ -2,8 +2,9 @@
 // company, written by Claude from the pages the crawl read on its own site
 // (domain_pages), for companies with at least one valid email. Every line
 // must rest on words the page states: Claude quotes them, and the line is
-// kept only when the quote is found on the page it names. nvoke never sends;
-// the line is for the user to copy or export.
+// kept only when the quote is found on the page it names. The line is for
+// the user to copy or export, and context for a campaign's first email
+// (src/sending/write.ts).
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
@@ -33,7 +34,7 @@ export const ClaudeOpeners = z.object({
 });
 export type ClaudeOpeners = z.infer<typeof ClaudeOpeners>;
 
-const SYSTEM = `You write the first line of a cold email from the sender to one company, for each company given. The sender copies it into their own email; nothing is sent for them.
+const SYSTEM = `You write the first line of a cold email from the sender to one company, for each company given. The sender's email goes out from their own mailbox, in their name.
 
 Each line:
 - Rests on one specific fact the company's own pages state: what they make, a service, a place, a year, a named product or customer. Copy the words it rests on exactly, as they appear on the page, into "quote" (one short passage, under 300 characters), and that page's url into "sourceUrl".

@@ -44,6 +44,20 @@ Status: draft, 13 October 2026. Update this file whenever a table, source, sub-p
 | Rights handling | `/opt-out` page and `POST /v1/privacy/opt-out` (email or domain, immediate). Access, erasure and objection by email to privacy@nvoke.run, handled with `cli privacy export`, `cli privacy erase` and `cli privacy suppress-domain` following `deploy/PRIVACY-RUNBOOK.md`. Target: answer within one month (Art 12(3)). |
 | DPIA | Yes, `dpia.md`. |
 
+## Activity 3: Sending on the customer's instructions (since 20 October 2026)
+
+| Field | Entry |
+|---|---|
+| Purpose | Write outreach emails for a customer's campaign, send them from the customer's own mailbox in the recipient's working hours, read replies in that mailbox, and stop on a reply, bounce or opt-out. Plan: `docs/sending/plan.md`. |
+| Role | The customer is the sender and the controller for its outreach. nvoke is its processor for writing and sending, and stays controller for the lead data (activity 2) and for the global suppression list. nvoke uses the same engine as a controller for its own outreach. Processor terms (Art 28) to be added to the customer terms. |
+| Legal basis | The customer's: Art 6(1)(f) for B2B outreach where the recipient's national rules allow it. nvoke's own sends: Art 6(1)(f), `lia.md` activities G and H. |
+| Data subjects | Recipients of campaigns (people at companies the customer's search found); the customer as sender. |
+| Categories of data | Campaign leads (address, first name, company, country, time zone), written steps (subject and body), outgoing message metadata (Message-ID, from, to, subject, time, SMTP response), reply and bounce text, per-sender opt-out hashes (`send_suppressions`), mailbox settings and the sealed mailbox password. |
+| Recipients | The recipient's mail server, through the customer's own mail provider (Google, Microsoft or another SMTP host). OpenRouter and Anthropic for writing. |
+| Transfers outside the EU/EEA | Text for writing goes to OpenRouter and Anthropic in the US (TODO: DPF or SCCs). The customer's mail provider is the customer's choice. |
+| Retention | Reply bodies 12 months, message metadata 24 months, written steps 30 days after the campaign ends (planned in `apps/server/src/leads/retention.ts`). `send_suppressions`: while the customer's account exists. Mailbox and its sealed password: until the customer removes it. Erasure of an address removes its campaign leads and messages. |
+| Security measures | As activity 1. Mailbox passwords sealed with AES-256-GCM, key only in `/opt/nvoke/.env`, never returned by the API. Country gate (no sends to DK or DE), verified addresses only, caps per mailbox, one-click unsubscribe, no tracking. |
+
 ## Sub-processors
 
 | Sub-processor | Used for | Data | Location | DPA and transfer basis |
@@ -53,6 +67,7 @@ Status: draft, 13 October 2026. Update this file whenever a table, source, sub-p
 | Supabase | Postgres database | Everything in activities 1 and 2 | EU (TODO confirm region) | TODO: Supabase DPA |
 | VPS host (TODO name) | API and worker | Everything in transit, logs | TODO | TODO |
 | Vercel | Website, sign-in and billing pages | Visitor requests, customer session in transit | US and EU edge | TODO: Vercel DPA, DPF or SCCs |
+| OpenRouter, Anthropic | Writing campaign emails with Claude | Recipient company page text, name, title; the customer's site profile | US | TODO: DPAs, DPF or SCCs, no training on API data |
 | Brave Search | Web search source | Customer search keywords | US | TODO: check API terms; no personal data intended |
 | OpenStreetMap Foundation (Nominatim), public Overpass servers (overpass-api.de, fallback overpass.private.coffee) | Local search source | Location names and tags from the customer's search | UK and EU | Not processors; public APIs under their usage policies |
 | Product Hunt, Algolia (HN Search API for Show HN) | Launch search source | Keyword filters | US | Not processors; public APIs under their terms |

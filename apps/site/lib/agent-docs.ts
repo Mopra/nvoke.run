@@ -112,7 +112,7 @@ Retry 5xx and \`database_unavailable\` with backoff. Do not retry 4xx unchanged.
 
 ${MCP_INSTRUCTIONS.split('\n\n').at(-1)}
 
-nvoke never sends email. Respect opt-outs: ${site.url}/opt-out.
+Agents draft campaigns; a person starts them in the web app, and they send from the user's own mailboxes. Respect opt-outs: ${site.url}/opt-out.
 `;
 }
 

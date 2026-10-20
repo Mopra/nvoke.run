@@ -1,6 +1,6 @@
 # How nvoke meets Article 14 (information where data is not obtained from the person)
 
-Status: draft, 13 October 2026. Contains an open decision for the lawyer (section 5). Sources cited as [R] refer to `docs/research/gdpr-competitors.md`.
+Status: draft, 13 October 2026, revised 20 October 2026 for sending (section 4.4). Contains an open decision for the lawyer (section 5). Sources cited as [R] refer to `docs/research/gdpr-competitors.md`.
 
 ## 1. Why Article 14 applies
 
@@ -38,22 +38,23 @@ Language: Danish and English, matching the Kaspr lesson that English-only notice
 - `nvoke.run/privacy`, Danish and English, the section above. Linked from every page footer.
 - `nvoke.run/bot`, linked from the crawler's user agent string, so any site owner who sees nvokebot in their logs lands on an explanation, the notice and the opt-out.
 - `nvoke.run/opt-out`, linked from both.
+- In every first email nvoke sends for a customer: a line saying where the address was found and how to stop (section 4.4).
 - Customer terms require customers to give their own Art 14 information at their first contact with a person and to name nvoke as the source if asked (CNIL guidance [R35], Dropcontact practice [R16]).
 
 ## 4. Decision on individual notification
 
 ### 4.1 Generic role mailboxes (info@, kontakt@, salg@): public notice only
 
-Decision: we do not email generic addresses. Reasoning:
+Decision: we do not email generic addresses to notify them. (A customer's campaign may email them; that email carries its own notice, section 4.4.) Reasoning:
 
 - Most role mailboxes are not personal data: they identify a function of a company, not a person [R46]. Article 14 does not reach them.
 - Where a role mailbox does identify a person (a one-person business), the person is the business owner who published the address so the business can be contacted. The impact of our processing is low (`lia.md`, 4.5), the address is in the shared cache for at most 12 months, and the crawler and the notice are easy to find from the website's own logs.
-- An email to info@ asking nothing and selling nothing is a legal notice, not marketing. But sending one to every generic mailbox we find would mean nvoke sending email at scale to businesses that never asked for it, which is the exact behaviour Danish §10 rules aim at, and would be read as spam by many recipients. We judge that this would harm people more than it helps them.
+- An email to info@ asking nothing and selling nothing is a legal notice, not marketing. But sending one to every generic mailbox we find, unasked by any customer, would mean nvoke mailing every business it ever finds, which is the exact behaviour Danish §10 rules aim at, and would be read as spam by many recipients. We judge that this would harm people more than it helps them.
 - Honest weakness: for the minority of generic addresses that do identify a person, we are relying on Art 14(5)(b), which Bisnode and EDPB Example 3 say is weak when the controller holds the address. We accept this as a grey zone risk, kept small by the 12 month cap and the opt-out.
 
 ### 4.2 Personal addresses (firstname@): not shared, deleted with the search, public notice only for now
 
-Current decision: personal addresses are never put in the shared cache. They exist only in the result set of the customer whose search found them and are deleted with that search (at the latest 12 months after it was created). We give the public notice and the opt-out, and we do not email the person.
+Current decision: personal addresses are never put in the shared cache. They exist only in the result set of the customer whose search found them and are deleted with that search (at the latest 12 months after it was created). We give the public notice and the opt-out, and we do not email the person unless a customer's campaign does (section 4.4).
 
 Our reasoning:
 
@@ -69,6 +70,12 @@ The honest problem: this is very close to the Bisnode facts. We hold the email a
 2. Return personal addresses only for companies that publish no generic address. Fewer people affected, so the notice volume is smaller, but the legal question is the same for those that remain.
 3. Stop returning personal addresses. Removes the problem; loses many small businesses as leads.
 4. Restructure as processor for personal addresses (customer instructs, customer gives notice). Needs a DPA with each customer and changes in how much we decide; may not be credible.
+
+### 4.4 Email sent through nvoke: the notice is in the first email
+
+Since 20 October 2026 nvoke writes and sends campaigns from the customer's own mailbox. The customer is the sender, so the first communication (Art 14(3)(b)) is the customer's email, and nvoke puts the notice in it. Every email ends with a footer the AI does not write: the sender's signature (or name), then a fixed line saying the address was found on the company's own website, and how to stop ("Reply stop and I will not write again."). Every email also carries a one-click `List-Unsubscribe` header. A stop or unsubscribe goes on that sender's list (`send_suppressions`); the global `/opt-out` still ends everything.
+
+This is the Cognism model from option 1 below, given at the first contact by the sender rather than as a separate email from nvoke. It covers the people who are emailed. It does not change the question in section 5 for people who are found and shown but never emailed.
 
 ## 5. Open question for the lawyer
 
