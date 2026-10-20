@@ -1,11 +1,12 @@
 import type React from 'react';
-import { AbsoluteFill, Easing, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from 'remotion';
+import { Sequence } from 'remotion';
 import { markTime, TakesContext } from '../takes';
 import { COUNT_RATE, Ending, files, Sfx, type TeaserProps } from '../teaser/Teaser';
 import { BAR, at } from '../teaser/timing';
 import { Hud } from '../teaser/Type';
 import { Finish } from './Finish';
 import { Lens } from './Lens';
+import { Real } from './Real';
 
 /*
  * A test reel for the real world idea: generated clips (public/real, made
@@ -17,24 +18,6 @@ import { Lens } from './Lens';
 
 export const REEL_DURATION = at(5);
 const TAKE = 'takes/journey-dark.mp4';
-
-/** A generated clip, graded into the film: cooler, a touch of contrast, a slow push. */
-const Real: React.FC<{ src: string; from?: number; rate?: number; push?: [number, number]; length: number }> = ({ src, from = 0, rate = 1, push = [1.02, 1.1], length }) => {
-  const frame = useCurrentFrame();
-  const s = interpolate(frame, [0, length], push, { extrapolateRight: 'clamp', easing: Easing.bezier(0.4, 0, 0.6, 1) });
-  const fade = interpolate(frame, [0, 4], [0.4, 1], { extrapolateRight: 'clamp' });
-  return (
-    <AbsoluteFill style={{ background: 'black', opacity: fade }}>
-      <OffthreadVideo
-        src={staticFile(src)}
-        trimBefore={Math.round(from * 60)}
-        playbackRate={rate}
-        muted
-        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${s})`, filter: 'saturate(0.8) contrast(1.1) brightness(0.92)' }}
-      />
-    </AbsoluteFill>
-  );
-};
 
 const shot = (from: number, length: number, node: React.ReactNode, name: string) => (
   <Sequence from={from} durationInFrames={length} name={name} premountFor={60}>

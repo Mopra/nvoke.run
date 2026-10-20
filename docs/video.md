@@ -78,6 +78,28 @@ Pixabay read as "tech demo".
    (shots and every sound on the grid, master level `MIX`). The `Launch` and
    `Film` compositions are the rejected cuts, kept for parts.
 
+## Real world clips
+
+The world cut (`TeaserWorld`) lays a real world clip over the studio cut on
+each line of the voice: a street with one lit shop, a city of windows, a
+finger on the nvoke device's orange key, a server rack with one orange LED,
+a fountain pen, a letter through a brass letterbox, a shop shutter at dawn,
+and an orange horseshoe magnet with a steel ball under its arch (the logo,
+for real). Each holds a beat or two and cuts back to the app on the grid
+(`WORLD_INSERTS` in `src/studio/Studio.tsx`; `Real.tsx` grades them in).
+`RealReel` is the 12 s test that came first.
+
+The clips are made locally with ComfyUI on the GPU, no paid API:
+`apps/video/scripts/real-clips.py` (run notes at its top) makes Z-Image
+Turbo stills, then Wan 2.2 TI2V 5B animates the chosen one. Clips land in
+`apps/video/public/real/` (gitignored). The nvoke device is invented: dark
+graphite, one orange keycap, a black dot matrix strip, no text, so it reads
+as the app made physical.
+
+Wan 5B gives light, texture and slow camera moves, not actions. Generate a
+few seeds, look at a contact sheet (`ffmpeg -vf fps=2.4,tile=8x1`), use the
+first second and cut before it melts. Never name a brand in a prompt.
+
 ## Commands
 
 ```bash
@@ -90,6 +112,7 @@ npx remotion render src/index.ts Teaser out/teaser-720p.mp4 --scale=0.5
 npx remotion render src/index.ts TeaserVertical out/teaser-vertical.mp4
 npx remotion render src/index.ts TeaserStudio out/teaser-studio-raw.mp4
 node scripts/master.mjs out/teaser-studio-raw.mp4 out/teaser-studio.mp4   # loudness, every final render
+npx remotion render src/index.ts TeaserWorld out/teaser-world-raw.mp4     # needs public/real/
 ```
 
 `pnpm --filter @nvoke/desktop film --dark journey` records a take in the dark

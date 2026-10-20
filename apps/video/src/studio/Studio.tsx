@@ -11,6 +11,7 @@ import { Hud } from '../teaser/Type';
 import { Finish } from './Finish';
 import { Hero } from './Hero';
 import { Lens } from './Lens';
+import { Real } from './Real';
 import { Words } from './Words';
 
 /*
@@ -23,9 +24,43 @@ import { Words } from './Words';
 
 export const STUDIO_BARS = 13;
 export const STUDIO_DURATION = at(STUDIO_BARS);
+
+/**
+ * The world cut: one real world clip on each line of the voice, each held a
+ * beat or two and cut back to the app on the grid. The clips are made
+ * locally (docs/video.md, "Real world clips").
+ */
+export const WORLD_INSERTS: Insert[] = [
+  { src: 'real/street.mp4', from: 0, length: at(0, 2), clipFrom: 0.3, push: [1.0, 1.06], out: 'teaser/sfx/thud.wav' },
+  { src: 'real/city.mp4', from: at(1), length: at(0, 1.5), clipFrom: 0.2, push: [1.0, 1.05] },
+  { src: 'real/press.mp4', from: at(4), length: at(0, 1), clipFrom: 0.2, push: [1.0, 1.04] },
+  { src: 'real/server.png', from: at(5), length: at(0, 1), push: [1.02, 1.09] },
+  { src: 'real/pen.mp4', from: at(6), length: at(0, 1), clipFrom: 0.5, push: [1.02, 1.07] },
+  { src: 'real/letterbox.mp4', from: at(9, 2.5), length: at(0, 1), clipFrom: 0.15, push: [1.0, 1.05] },
+  { src: 'real/shutter.mp4', from: at(10), length: at(0, 1.25), clipFrom: 0.6, push: [1.0, 1.05] },
+  { src: 'real/magnet.mp4', from: at(11), length: at(0, 2), clipFrom: 0.2, push: [1.04, 1.0], out: 'teaser/sfx/tick.wav' },
+];
 /** The bar the hero sits in; every bar after it is the teaser's, one later. */
 const HERO = 7;
 const TAKE = 'takes/journey-dark.mp4';
+
+/** A real world clip laid over the film for a beat or two, cutting back to the app on the grid. */
+export interface Insert {
+  /** The clip in public/, e.g. real/server.mp4. */
+  src: string;
+  /** Film frames: where it starts and how long it holds. */
+  from: number;
+  length: number;
+  /** Seconds into the clip it opens on. */
+  clipFrom?: number;
+  push?: [number, number];
+  /** A sound on the cut back to the app. */
+  out?: string;
+}
+
+export interface StudioProps extends TeaserProps {
+  inserts?: Insert[];
+}
 
 const shot = (from: number, length: number, node: React.ReactNode, name: string) => (
   <Sequence from={from} durationInFrames={length} name={name} premountFor={90}>
@@ -47,7 +82,7 @@ const Dots: React.FC = () => {
   );
 };
 
-export const Studio: React.FC<TeaserProps> = ({ takes, voice }) => {
+export const Studio: React.FC<StudioProps> = ({ takes, voice, inserts = [] }) => {
   const have = files();
   const journey = takes['journey-dark'].take;
   const counters = journey.rects['counters'];
@@ -133,7 +168,9 @@ export const Studio: React.FC<TeaserProps> = ({ takes, voice }) => {
           </CameraMotionBlur>,
           'Ending',
         )}
+        {inserts.map((x) => shot(x.from, x.length, <Real src={x.src} from={x.clipFrom} length={x.length} push={x.push} />, x.src))}
       </Finish>
+      {inserts.map((x) => (x.out ? <Sfx key={`out-${x.src}`} have={have} src={x.out} from={x.from + x.length} volume={0.7} /> : null))}
 
       {/* The beat: the teaser's twelve bars with bar 6 played twice under the hero. */}
       <Sfx have={have} src="teaser/beat.wav" from={0} volume={0.8} trimAfter={at(HERO)} />

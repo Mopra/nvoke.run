@@ -4,7 +4,7 @@ import { Film, type FilmProps } from './Film';
 import { Launch, type LaunchProps } from './launch/Launch';
 import { LAUNCH_DURATION } from './launch/timing';
 import { Reel, REEL_DURATION } from './studio/Reel';
-import { Studio, STUDIO_DURATION } from './studio/Studio';
+import { Studio, STUDIO_DURATION, WORLD_INSERTS } from './studio/Studio';
 import { Teaser, type TeaserProps } from './teaser/Teaser';
 import { TEASER_DURATION } from './teaser/timing';
 import { loadTakes, placeholderTakes } from './takes';
@@ -59,6 +59,8 @@ export const Root: React.FC = () => (
     {/* The teaser, studio finish: dark takes, a real lens, grain, the hero bar, 31 s. */}
     <Composition id="TeaserStudio" width={2560} height={1440} {...studio} />
     <Composition id="TeaserStudioVertical" width={1080} height={1920} {...studio} />
+    {/* The studio cut with a real world clip on each line of the voice. */}
+    <Composition id="TeaserWorld" width={2560} height={1440} {...studio} defaultProps={{ ...teaser.defaultProps, inserts: WORLD_INSERTS }} />
     {/* A test of generated real world clips cut against the app, 12 s. */}
     <Composition id="RealReel" width={2560} height={1440} {...studio} component={Reel} durationInFrames={REEL_DURATION} />
     {/* The teaser: Nothing style, dots and sound, 29 s. */}
