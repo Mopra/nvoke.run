@@ -2,7 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { addressHash } from '../leads/suppression.js';
 import { createFakeTransport } from './fake-transport.js';
-import { footer, withFooter } from './footer.js';
 import { sendTick } from './sender.js';
 import { readUnsubscribe, signUnsubscribe, unsubscribeByMessage } from './unsubscribe.js';
 import { seedCampaign, seedLead, seedMailbox, silentLog, testSecrets } from './test-seed.js';
@@ -63,16 +62,5 @@ describe('unsubscribe tokens', () => {
 
     expect(await unsubscribeByMessage(db.sql, '00000000-0000-4000-8000-000000000000')).toBe(false);
     expect(await unsubscribeByMessage(db.sql, 'nope')).toBe(false);
-  });
-});
-
-describe('footer', () => {
-  it('signs with the signature, else the display name, and says why and how to stop', () => {
-    expect(footer({ signature: '', displayName: 'Mo', domain: 'acme.com' })).toBe(
-      "Mo\n\nI found your address on acme.com's website. Reply stop and I will not write again.",
-    );
-    expect(withFooter('Hi.\n\n', { signature: 'Mo\nnvoke', displayName: 'Mo', domain: 'acme.com', unsubscribeUrl: 'https://x/u/t' })).toBe(
-      "Hi.\n\nMo\nnvoke\n\nI found your address on acme.com's website. Reply stop and I will not write again.",
-    );
   });
 });

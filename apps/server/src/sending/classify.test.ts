@@ -174,6 +174,18 @@ describe('classifyMail: people', () => {
     for (const text of outs) expect(human(text), text).toEqual({ kind: 'human', optOut: true });
   });
 
+  it('reads the replies the footer asks for: a bare no, no thanks, remove me', () => {
+    for (const text of ['No', 'No.', 'no thanks', 'No thank you, we are covered.', 'Nope!', 'remove', 'Please remove me', 'Remove me please.', 'not interested']) {
+      expect(human(text), text).toEqual({ kind: 'human', optOut: true });
+    }
+  });
+
+  it('does not read a no that is part of a sentence', () => {
+    for (const text of ['No problem, send it over.', 'No, tell me more about pricing.', 'Not now, but try me in March.', 'Nobody here handles that, try Ben.', 'Remove the guesswork how?']) {
+      expect(human(text), text).toEqual({ kind: 'human', optOut: false });
+    }
+  });
+
   it('reads an opt out in the subject of a fresh mail', () => {
     expect(human('', 'Unsubscribe')).toEqual({ kind: 'human', optOut: true });
     expect(human('', 'Remove me')).toEqual({ kind: 'human', optOut: true });

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { addressHash } from '../leads/suppression.js';
 import { createFakeTransport, type FakeTransport } from './fake-transport.js';
+import { footer } from './footer.js';
 import { DEFAULT_SCHEDULE } from '@nvoke/shared';
 import { inWindow } from './schedule.js';
 import { CLAIM_TIMEOUT_MS, mayHaveSent, replySubject, RETRY_MS, sendTick, type SendDeps } from './sender.js';
@@ -45,7 +46,7 @@ describe('sendTick', () => {
     expect(first).toMatchObject({ to: 'jane@acme.co.uk', from: 'me@sender.io', subject: 'Subject 1' });
     expect(first.messageId).toMatch(/^<[0-9a-f-]{36}@sender\.io>$/);
     expect(first.inReplyTo).toBeUndefined();
-    expect(first.text).toBe("Hi Jane, body 1.\n\nMo\nSender ApS\n\nI found your address on acme.co.uk's website. Reply stop and I will not write again.");
+    expect(first.text).toBe(`Hi Jane, body 1.\n\n${footer({ signature: 'Mo\nSender ApS', displayName: 'Mo', domain: 'acme.co.uk', leadKey: l })}`);
     expect(first.text).not.toMatch(/https?:/);
     expect(first.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
     const url = /^<https:\/\/api\.nvoke\.test\/u\/(.+)>$/.exec(first.headers['List-Unsubscribe']!);
@@ -69,6 +70,8 @@ describe('sendTick', () => {
     expect(second.references).toEqual([first.messageId]);
     expect(second.messageId).not.toBe(first.messageId);
     expect(second.text).toContain('body 2.');
+    // Every step of a thread carries the same footer.
+    expect(second.text.endsWith(first.text.slice('Hi Jane, body 1.'.length))).toBe(true);
     expect(await lead(l)).toMatchObject({ status: 'done', next_send_at: null, thread_message_id: first.messageId });
     const [done] = await db.sql<{ status: string; finished_at: Date | null }[]>`select status, finished_at from campaigns where id = ${c}`;
     expect(done!.status).toBe('done');

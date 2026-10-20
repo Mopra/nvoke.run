@@ -66,6 +66,43 @@ A campaign can follow a source instead of a fixed list:
 - The first start of an autopilot campaign needs a Clerk session, like
   `start` in step 1. Pausing stops enrolling and sending; resuming picks up.
 
+## Writing
+
+The benchmark is the hand-written Day3 and nvoke batches of October 2026
+(one reply: "Outstanding cold outreach!"). `write.ts` holds Claude to what
+made them work:
+
+- **Why now.** Each lead carries its fit signal: `companies.fit_reason`, the
+  source (a job post for a sales role, a launch) and the campaign's search
+  words and plan (`<campaign>`). Claude builds the reason to write from the
+  signal when it is concrete and never invents one.
+- **One fresh detail.** Besides the kept crawl pages, the write job reads
+  each company's newest post (`fresh.ts`): one blog, news, changelog or case
+  study page picked from the homepage links, fetched with the list page
+  rules (guarded fetch, robots.txt, the shared per host rate, 2 MB, 12
+  seconds) and passed as `<page kind="latest">`. A failure only means no
+  post. Claude quotes the words its detail rests on; an email whose quote is
+  not on the company's pages is not kept.
+- **Numbers for them.** When the sender is nvoke, the prompt has the real
+  prices from `plans.ts`, and Claude may work out one number, from a fact on
+  their pages or framed as an example.
+- **Shape.** Step 1 is 60 to 110 words (kept from 45 to 125), a closing
+  question only they can answer and a subject about them; follow ups are 25
+  to 60 words (kept from 12 to 75), each from a new angle and never a
+  rephrase of step 1.
+- **No template feel.** `overlap.ts` compares each new step 1 with the
+  campaign's other step 1 emails of the last 7 days and the batch so far
+  (word trigram containment above 0.2, a shared sentence of 7 words or more,
+  or a near duplicate subject). Such a lead, and one that broke a rule or
+  quoted wrongly, is asked for once more with what to avoid named; still too
+  similar, it fails with skip_reason `too_similar`.
+- **Footer** (`footer.ts`). The signature is the mailbox's, else the
+  display name's first name and the sender's site domain. The "why you" line
+  and the opt-out line are each one of 10 hand-written variants, picked by
+  the lead so a thread stays the same. Every opt-out variant asks for a
+  reply `classify.ts` reads as an opt-out ("no", "stop", "not interested",
+  "remove me").
+
 ## Principles
 
 - **Real mailboxes only.** Mail leaves through the mailbox provider's own

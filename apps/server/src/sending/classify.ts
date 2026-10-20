@@ -71,6 +71,16 @@ const OPT_OUT = new RegExp(
 /** A first line that is only "stop" ("Stop.", "STOP", "please stop", "stopp"). */
 const STOP_LINE = /^(please\s+)?(stop|stopp|stoppen|basta|arr(ê|e)tez)\b[\s.!]*(it|this|please|now|thanks?|thank you)?[\s.!]*$/i;
 
+/**
+ * A first line that says no and nothing else ("No.", "no thanks", "Nope",
+ * "No thank you, we are fine"): the footers invite a one word no. "No
+ * problem" and "No, tell me more" are not a no to the email.
+ */
+const NO_LINE = /^(no|nope|nah|nej|nein)\b[\s.!]*$|^(no|nope)[\s,.!]+(thanks?|thank you)\b/i;
+
+/** "Remove" alone, or "please remove": the footer asks for "remove me". */
+const REMOVE_LINE = /^(please\s+)?remove(\s+(me|us|this address|my address))?(\s+please)?[\s.!]*$/i;
+
 /** The line a mail client writes above the quote, once its first word is known. */
 const QUOTE_INTRO = /(wrote|schrieb|escribi(ó|o)|a (é|e)crit|skrev|schreef)(?!\p{L})[^:]{0,120}:\s*$/iu;
 
@@ -169,7 +179,7 @@ function isOptOut(mail: IncomingMail): boolean {
   const subject = mail.subject.trim();
   if (/^(unsubscribe|stop|remove me|opt[- ]?out)\b/i.test(subject)) return true;
   const first = own.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
-  if (STOP_LINE.test(first)) return true;
+  if (STOP_LINE.test(first) || NO_LINE.test(first) || REMOVE_LINE.test(first)) return true;
   return OPT_OUT.test(own.replace(/\s+/g, ' '));
 }
 
@@ -178,7 +188,7 @@ function isOptOut(mail: IncomingMail): boolean {
  * bounce subject), then an auto reply (Auto-Submitted other than `no`,
  * X-Autoreply, X-Autorespond, Precedence auto_reply, or an out of office
  * subject), else a person, who opts out with words like "unsubscribe",
- * "remove me" or a reply of just "stop".
+ * "remove me", "not interested" or a reply of just "stop" or "no".
  */
 export function classifyMail(mail: IncomingMail): Classified {
   if (isBounce(mail)) return bounce(mail);

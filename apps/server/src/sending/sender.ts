@@ -10,7 +10,7 @@
 // never sent again: after 10 minutes the lead turns 'failed' with
 // skip_reason 'unconfirmed' for the user to look at. Step 1 starts the
 // thread; later steps answer it with In-Reply-To, References and `Re:`.
-// Plain text, a fixed footer, and the one click List-Unsubscribe header on
+// Plain text, the footer (footer.ts), and the one click List-Unsubscribe header on
 // every email.
 
 import { randomUUID } from 'node:crypto';
@@ -186,6 +186,8 @@ interface LockedLead {
   schedule: CampaignSchedule;
   global_suppressed: boolean;
   own_suppressed: boolean;
+  /** The sender's site domain from the site profile, for a signature the mailbox does not set. */
+  site_domain: string | null;
 }
 
 /** A lead taken off the queue with its messages row written, ready for SMTP. */
@@ -232,7 +234,8 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
     select l.id, l.campaign_id, l.clerk_user_id, l.address, l.domain, l.country, l.timezone,
       l.next_step, l.next_send_at, c.steps, c.schedule,
       ${suppressedSql(tx, 'l.address')} as global_suppressed,
-      ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address', 'l.domain')} as own_suppressed
+      ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address', 'l.domain')} as own_suppressed,
+      (select sp.domain from site_profiles sp where sp.clerk_user_id = l.clerk_user_id) as site_domain
     from campaign_leads l join campaigns c on c.id = l.campaign_id
     where l.id = ${leadId} and l.mailbox_id = ${mailboxId}
       and l.status in ('queued', 'active') and l.claimed_at is null and l.next_send_at <= ${now}
@@ -269,7 +272,14 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
   const mail: OutgoingMail = {
     to: lead.address,
     subject: earlier[0] ? replySubject(earlier[0].subject) : written.subject,
-    text: withFooter(written.body, { signature: mailbox.signature, displayName: mailbox.display_name, domain: lead.domain, unsubscribeUrl: url }),
+    text: withFooter(written.body, {
+      signature: mailbox.signature,
+      displayName: mailbox.display_name,
+      siteDomain: lead.site_domain,
+      domain: lead.domain,
+      leadKey: lead.id,
+      unsubscribeUrl: url,
+    }),
     messageId: `<${randomUUID()}@${senderDomain}>`,
     headers: { 'List-Unsubscribe': `<${url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
   };

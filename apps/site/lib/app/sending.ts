@@ -153,6 +153,7 @@ export const SKIP_REASON_LABEL: Record<string, string> = {
   per_company: 'Another person at the company',
   daily_limit: 'Over the daily limit',
   write_failed: 'Claude could not write it',
+  too_similar: 'Too like another email in the campaign',
 };
 
 export function skipReasonLabel(reason: string): string {

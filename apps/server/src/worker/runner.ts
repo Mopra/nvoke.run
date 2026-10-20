@@ -18,6 +18,7 @@ import {
 import { onOpenerGaveUp, runOpener } from '../openers/openers.js';
 import { onPeopleGaveUp, runPeople, settleCompanyLead } from './people-job.js';
 import { onWriteGaveUp, runWriteJob, writePayload } from '../sending/write.js';
+import { listPageDeps } from '../leads/listicle.js';
 import { claim, complete, fail, release, requeueStale, type Job, type JobType } from './queue.js';
 
 export interface RunnerOptions {
@@ -204,7 +205,9 @@ export class Runner {
 
   private async write(job: Job): Promise<void> {
     if (!this.deps.ai) throw new PermanentError('Claude is not configured for the worker');
-    await runWriteJob({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log }, writePayload(job));
+    // The newest post of each company is read with the list page rules: public addresses only, robots.txt, the shared per host rate.
+    const crawl = listPageDeps(this.deps.crawl.limiter);
+    await runWriteJob({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log, crawl }, writePayload(job));
   }
 
   private async execute(job: Job, signal: AbortSignal): Promise<void> {
