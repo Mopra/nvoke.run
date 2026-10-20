@@ -5,6 +5,7 @@
 //   pnpm --filter @nvoke/desktop film            every scene
 //   pnpm --filter @nvoke/desktop film journey    one or more scenes by name
 //   pnpm --filter @nvoke/desktop film --process  only redo the cropping
+//   pnpm --filter @nvoke/desktop film --dark journey   the dark finish, as journey-dark
 //
 // Keep the screen unlocked and the top left corner uncovered while it runs:
 // a small flash there marks each scene's first frame. Needs ffmpeg on PATH.
@@ -20,10 +21,11 @@ const takesDir = join(video, 'public', 'takes');
 
 const args = process.argv.slice(2);
 const processOnly = args.includes('--process');
+const dark = args.includes('--dark');
 const names = args.filter((a) => !a.startsWith('--'));
 
 if (!processOnly) await record(names.length ? names.join(',') : 'all');
-processTakes(names);
+processTakes(dark ? names.map((n) => `${n}-dark`) : names);
 
 /** The primary display in physical pixels, as the grabber sees it. Electron misreports it at a forced scale. */
 function screenSize() {
@@ -37,7 +39,7 @@ function screenSize() {
 
 function record(scenes) {
   const size = screenSize();
-  const env = { ...process.env, VITE_MOCK: '1', VITE_FILM: '1', NVOKE_CAPTURE: rawDir, NVOKE_FILM: scenes, NVOKE_FILM_SCREEN: size };
+  const env = { ...process.env, VITE_MOCK: '1', VITE_FILM: '1', NVOKE_CAPTURE: rawDir, NVOKE_FILM: scenes, NVOKE_FILM_SCREEN: size, NVOKE_FILM_THEME: dark ? 'dark' : 'light' };
   // Electron based tools can export this, and electron.exe then starts as plain Node.
   delete env.ELECTRON_RUN_AS_NODE;
   return new Promise((done, fail) => {

@@ -26,6 +26,11 @@ export function filmScenes(): string[] | null {
   return raw === 'all' ? Object.keys(SCENES) : raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+/** The finish the takes are recorded in: `film --dark` sets NVOKE_FILM_THEME. */
+function filmTheme(): 'light' | 'dark' {
+  return process.env['NVOKE_FILM_THEME'] === 'dark' ? 'dark' : 'light';
+}
+
 export async function runFilm(win: BrowserWindow, dir: string, names: string[], extras: CaptureExtras): Promise<void> {
   let failed = false;
   mkdirSync(dir, { recursive: true });
@@ -35,8 +40,11 @@ export async function runFilm(win: BrowserWindow, dir: string, names: string[], 
   const set = new FilmSet(win, frameRect(), extras.quick);
   try {
     await waitForLoad(win);
-    nativeTheme.themeSource = 'light';
-    await win.webContents.executeJavaScript(`localStorage.setItem('nvoke.theme', 'light')`);
+    const theme = filmTheme();
+    nativeTheme.themeSource = theme;
+    await win.webContents.executeJavaScript(`localStorage.setItem('nvoke.theme', '${theme}')`);
+    // Dark takes sit beside the light ones: journey-dark.mp4 next to journey.mp4.
+    const suffix = theme === 'dark' ? '-dark' : '';
     placeAt(win, set.frame, FILM_SCALE);
     // Above other always on top windows too, so nothing covers a take mid scene.
     win.setAlwaysOnTop(true, 'screen-saver');
@@ -49,7 +57,8 @@ export async function runFilm(win: BrowserWindow, dir: string, names: string[], 
       if (!scene) throw new Error(`no film scene "${name}". Scenes: ${Object.keys(SCENES).join(', ')}`);
       const d = new Director(win, FILM_SCALE, set);
       await scene.setup(d);
-      const recorder = new Recorder(join(dir, `${name}.raw.mp4`));
+      const take = `${name}${suffix}`;
+      const recorder = new Recorder(join(dir, `${take}.raw.mp4`));
       await recorder.begin();
       await recorder.sync();
       d.start();
@@ -60,10 +69,10 @@ export async function runFilm(win: BrowserWindow, dir: string, names: string[], 
 
       const s = FILM_SCALE;
       writeFileSync(
-        join(dir, `${name}.raw.json`),
-        JSON.stringify({ take: name, durationMs, window: set.frame, flash: { x: FLASH.x * s, y: FLASH.y * s, size: FLASH.size * s }, ...d.log }, null, 1),
+        join(dir, `${take}.raw.json`),
+        JSON.stringify({ take, durationMs, window: set.frame, flash: { x: FLASH.x * s, y: FLASH.y * s, size: FLASH.size * s }, ...d.log }, null, 1),
       );
-      console.log(`[film] recorded ${name} (${(durationMs / 1000).toFixed(1)} s)`);
+      console.log(`[film] recorded ${take} (${(durationMs / 1000).toFixed(1)} s)`);
     }
   } catch (err) {
     failed = true;
