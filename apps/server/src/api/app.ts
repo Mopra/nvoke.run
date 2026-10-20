@@ -183,6 +183,7 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     authenticate: app.requireAuth,
     secrets,
     enabled: env.SENDING_ENABLED,
+    users: env.SENDING_USERS,
     transport: overrides.mailTransport ?? smtpImapTransport,
     log: app.log as unknown as Logger,
   });
