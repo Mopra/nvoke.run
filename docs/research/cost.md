@@ -61,6 +61,23 @@ To price below the market (say $1 per 1,000 verified or less), the marginal
 cost has to drop below about $0.30 per 1,000. That only happens if most
 emails come from data we already hold.
 
+## Status 2026-10-20
+
+Built: `cli stats` prints cost per 1,000 valid (`src/leads/cost-report.ts`);
+`valid` checks cached 30 days; the company index searched before Brave in
+ICP searches (lever 1, `src/leads/company-index.ts`); the free name to
+website lookup before Brave in `domains` and `local`
+(`src/leads/sources/resolve-name.ts`); a cheaper people step (lever 3);
+Serper as primary or fallback beside Brave (`WEB_SEARCH_PROVIDER`,
+`WEB_SEARCH_FALLBACK`), at $1.00 per 1,000 down to $0.30 at volume against
+Brave's $5.
+
+Not done: lever 2 for Brave pages. Brave's terms, section 3(b)(i), forbid
+storing or caching results beyond transient storage, so the 7 day
+`web_search_cache` is an open question for the lawyer
+(`docs/legal/lawyer-brief.md`, item 7) and is not extended. Lever 4 waits on
+the same review. Lever 5 costs money each month.
+
 ## Levers, biggest first
 
 1. **Our own company index before Brave.** Every domain we crawl stays in
