@@ -14,12 +14,18 @@
 // result that is a job post for a sales role on a public job board is
 // mapped to the company's own site (hiring.ts): that company is building an
 // outbound team now. Every step says what it does through ctx.onStage.
+//
+// Before any of that, each round asks our own company index
+// (company-index.ts): companies an earlier crawl or the launch feed already
+// knows, matched on the plan's words. They are scored like Brave's results,
+// from the homepage text the crawl kept, so Brave pays only for the gap.
 
 import type { Sql } from 'postgres';
 import type { IcpSearchParams, LocalSearchParams } from '@nvoke/shared';
 import { AiError, type Ai } from '../../ai/client.js';
+import { INDEX_MAX, searchCompanyIndex, type IndexAsk, type IndexCandidate } from '../company-index.js';
 import { normalizeDomain, registrableDomain } from '../domain.js';
-import { FIT_BATCH, FIT_THRESHOLD, isObviousNonCompany, scoreCandidates, type FitVerdict } from '../fit.js';
+import { FIT_BATCH, FIT_THRESHOLD, isObviousNonCompany, scoreCandidates, type FitHead, type FitVerdict } from '../fit.js';
 import { hiringSnippet, postingFromResult, resolvePosting, type HiringPosting } from '../hiring.js';
 import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
@@ -60,6 +66,8 @@ export const MAX_HEADS = 2_500;
 export const DEFAULT_BRAVE_BUDGET = 120;
 /** Sites turned down that a plan remembers, newest kept: about 100 KB of plan at most. */
 export const MAX_REJECTED = 5_000;
+/** Index candidates asked per company the run still wants: a fit call scores 30 for about a tenth of a cent. */
+export const INDEX_PER_WANTED = 3;
 
 export interface IcpAdapterOptions {
   brave: BraveClient;
@@ -77,6 +85,8 @@ export interface IcpAdapterOptions {
   braveBudget?: number;
   /** Whether fit scoring reads the homepages of candidates that are not plainly out. Default true. */
   readHeads?: boolean;
+  /** Our own company index, asked before Brave each round. Default: searchCompanyIndex on `sql`; false turns it off. */
+  index?: ((ask: IndexAsk) => Promise<IndexCandidate[]>) | false;
 }
 
 type Unit =
@@ -87,6 +97,8 @@ interface Pending {
   company: FoundCompany;
   /** The query that found it, for tier 4's choice of queries worth more pages. */
   key?: string;
+  /** Its homepage's title and description, when the index kept them: fit scoring reads no page then. */
+  head?: FitHead;
 }
 
 interface QueryStats {
@@ -140,6 +152,8 @@ function plural(n: number, one: string, many: string): string {
 export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchParams> {
   const crawl = listPageDeps(opts.crawl?.limiter ?? new RateLimiter(1_000), opts.listFetch);
   const runBudget = opts.braveBudget ?? DEFAULT_BRAVE_BUDGET;
+  const sql = opts.sql;
+  const index = opts.index === false ? null : (opts.index ?? (sql ? (ask: IndexAsk) => searchCompanyIndex(sql, ask) : null));
 
   return {
     kind: 'icp',
@@ -224,6 +238,9 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       // Job boards already mapped this run ("lever:acme"): one company, however many postings.
       const boards = new Set<string>();
       let postingsRead = 0;
+      // Candidates the company index offered this round, and how many of them were handed on.
+      let indexOffered = 0;
+      let indexKept = 0;
       const stats = new Map<string, QueryStats>();
       let yielded = 0;
       let listPagesRead = 0;
@@ -273,7 +290,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           readHead: opts.readHeads === false ? undefined : (website: string) => readHead(website, crawl, ctx.signal),
           onError: (err: unknown) => ctx.log.warn({ err }, 'icp: fit call failed'),
         };
-        entry.result = scoreCandidates(fitOpts, batch.map((p) => p.company)).then((verdicts: (FitVerdict | null)[]) => {
+        const candidates = batch.map((p) => (p.head ? { ...p.company, head: p.head } : p.company));
+        entry.result = scoreCandidates(fitOpts, candidates).then((verdicts: (FitVerdict | null)[]) => {
           entry.done = true;
           return batch.flatMap((p, i) => {
             const v = verdicts[i];
@@ -307,6 +325,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           // Counts what was handed on: the find job may still skip a company the search holds.
           if (yielded + 1 >= ctx.limit) await stage('done', `Found ${ctx.limit} fitting candidates, enough for this search`);
           yielded++;
+          if (p.company.source === 'index') indexKept++;
           yield p.company;
         }
       }
@@ -558,9 +577,40 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         `;
       };
 
+      /**
+       * Tier 0: our own company index. Free, so it goes first, and its
+       * candidates are scored before any query runs: Brave pays only for
+       * what the index left short.
+       */
+      async function* fromIndex(): AsyncGenerator<FoundCompany> {
+        if (!index || ctx.signal.aborted) return;
+        let found: IndexCandidate[];
+        try {
+          found = await index({ plan: runPlan, exclude: seen, limit: Math.min(INDEX_MAX, ctx.limit * INDEX_PER_WANTED) });
+        } catch (err) {
+          // The index is a saving, never a reason to fail the search.
+          if (ctx.signal.aborted) return;
+          ctx.log.warn({ err }, 'icp: company index failed, going on with web search');
+          return;
+        }
+        for (const c of found) {
+          const company = admit({ name: c.name, website: c.website, source: 'index', sourceRef: c.domain, snippet: c.snippet || undefined });
+          if (company) pending.push({ company, head: c.head });
+        }
+        indexOffered = pending.length;
+        ctx.log.info({ found: found.length, offered: indexOffered }, 'icp: company index');
+        if (indexOffered === 0) return;
+        await setPhrase('index', `Checking ${plural(indexOffered, 'company', 'companies')} nvoke already knows`);
+        flush(true);
+        yield* drain(true);
+        ctx.log.info({ offered: indexOffered, kept: indexKept }, 'icp: company index scored');
+      }
+
       const runPlan: IcpPlan = plan;
       async function* tiers(): AsyncGenerator<FoundCompany> {
         const plan = runPlan;
+        yield* fromIndex();
+        if (enough() || ctx.signal.aborted) return;
         // Tier 1: core queries, directories and local pairs, interleaved.
         const tier1 = interleave<Unit>([webUnits(plan.core), webUnits(plan.directories), plan.local.map((pair) => ({ type: 'local', pair }))]);
         const countries = new Set([...plan.core, ...plan.directories].map((q) => q.country).filter(Boolean));
@@ -604,7 +654,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
 
         if (ctx.signal.aborted) return;
         ctx.log.info(
-          { yielded, paid, candidates: seen.size, listPagesRead, listPagesTried, listBytes, listMs, postingsRead, boards: boards.size, deadHosts: [...deadHosts] },
+          { yielded, paid, indexOffered, indexKept, candidates: seen.size, listPagesRead, listPagesTried, listBytes, listMs, postingsRead, boards: boards.size, deadHosts: [...deadHosts] },
           'icp: finished',
         );
         if (!enough()) {

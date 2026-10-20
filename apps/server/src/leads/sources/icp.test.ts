@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { IcpSearchParams, LocalSearchParams } from '@nvoke/shared';
 import { AiError, type Ai, type StructuredRequest } from '../../ai/client.js';
 import { fakeFetch, silentLog } from '../../testing/fakes.js';
+import type { IndexAsk, IndexCandidate } from '../company-index.js';
 import { RateLimiter } from '../limits.js';
 import type { Sql } from 'postgres';
 import { toPlan, type ClaudePlan } from '../planner.js';
@@ -411,5 +412,73 @@ describe('icp adapter: job posts and paginated lists', () => {
       params: { description: 'Agencies' },
     });
     expect(out.map((c) => c.website)).toEqual(['https://one.com', 'https://two.com', 'https://three.com']);
+  });
+});
+
+describe('icp adapter company index', () => {
+  const indexed = (domain: string, head?: { title: string; description: string }): IndexCandidate => ({
+    domain,
+    name: domain,
+    website: `https://${domain}`,
+    snippet: `About ${domain}`,
+    head,
+    rank: 1,
+    from: head ? 'pages' : 'feed',
+  });
+
+  it('asks the index first, scores its candidates from the kept homepage and pays Brave nothing when they fill the search', async () => {
+    const asks: IndexAsk[] = [];
+    const index = async (ask: IndexAsk) => {
+      asks.push(ask);
+      return [indexed('kept-one.com', { title: 'Kept One | Cold email agency', description: 'We book meetings' }), indexed('bad-kept.com', { title: 'Bad', description: '' }), indexed('kept-two.io', { title: 'Kept Two', description: 'Outbound' })];
+    };
+    const prompts: string[] = [];
+    const ai = fakeAi();
+    const spy: Ai = { ready: ai.ready, structured: (req) => (prompts.push(req.prompt), ai.structured(req)) };
+    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com')] } });
+    const listFetch = fakeFetch({});
+    const { out, stages } = await run(icpAdapter({ brave, ai: spy, index, listFetch, crawl: { limiter: new RateLimiter(0) } }), 2);
+    expect(out.map((c) => c.website)).toEqual(['https://kept-one.com', 'https://kept-two.io']);
+    expect(out[0]).toMatchObject({ source: 'index', sourceRef: 'kept-one.com', fit: 80 });
+    expect(asks[0]!.limit).toBe(6);
+    // One fit call with the homepage already in it, and no page read for it.
+    expect(prompts.filter((p) => p.includes('<candidates>'))).toHaveLength(1);
+    expect(prompts.some((p) => p.includes('homepage: Kept One | Cold email agency | We book meetings'))).toBe(true);
+    expect(listFetch.calls).toHaveLength(0);
+    expect(brave.asked).toHaveLength(0);
+    expect(stages.some(([s, n]) => s === 'index' && n === 'Checking 3 companies nvoke already knows')).toBe(true);
+  });
+
+  it('leaves out what the search holds or turned down and pays Brave only for the gap', async () => {
+    const asks: IndexAsk[] = [];
+    const index = async (ask: IndexAsk) => {
+      asks.push(ask);
+      return [indexed('kept-one.com', { title: 'Kept One', description: '' }), indexed('held.com', { title: 'Held', description: '' })];
+    };
+    const sql = fakeSql({ plan: { ...toPlan(PLAN, { description: 'Outbound agencies' }), rejected: ['nope.com'] }, domains: ['held.com'] });
+    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com'), result('kept-one.com')] } });
+    const { out } = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), sql, index }), 2, { searchId: 'search_1' });
+    expect([...asks[0]!.exclude!]).toEqual(expect.arrayContaining(['held.com', 'nope.com']));
+    expect(out.map((c) => c.website)).toEqual(['https://kept-one.com', 'https://alpha.com']);
+    // The index left one short, so tier 1 ran; its gap closed there, so no wider tier did.
+    expect(brave.asked[0]!.q).toBe('cold email agency');
+    expect(brave.asked.some((r) => r.q === 'sdr outsourcing')).toBe(false);
+  });
+
+  it('reads the homepage of a launch the crawl never kept, and goes on with web search when the index fails', async () => {
+    const listFetch = fakeFetch({
+      'https://launch.com/robots.txt': { status: 404, body: '' },
+      'https://launch.com/': { body: '<html><head><title>Launch</title></head></html>' },
+    });
+    const { out } = await run(icpAdapter({ brave: fakeBrave({}), ai: fakeAi(), index: async () => [indexed('launch.com')], listFetch, crawl: { limiter: new RateLimiter(0) } }), 1);
+    expect(out.map((c) => c.website)).toEqual(['https://launch.com']);
+    expect(listFetch.calls.some((c) => c.url === 'https://launch.com/')).toBe(true);
+
+    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('alpha.com')] } });
+    const failing = async (): Promise<IndexCandidate[]> => {
+      throw new Error('index down');
+    };
+    const after = await run(icpAdapter({ readHeads: false, brave, ai: fakeAi(), index: failing }), 1);
+    expect(after.out.map((c) => c.website)).toEqual(['https://alpha.com']);
   });
 });
