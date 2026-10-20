@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBlockedCountry, recipientCountry, timezoneFor } from './gate.js';
+import { isBlockedCountry, isBlockedRecipient, recipientCountry, timezoneFor } from './gate.js';
 
 const country = (location: string | null, domain = 'example.com') => recipientCountry({ location, domain });
 
@@ -101,6 +101,28 @@ describe('isBlockedCountry', () => {
     expect(isBlockedCountry(country('Vej 2, 2100 København', 'klinik.com'))).toBe(true);
     expect(isBlockedCountry(country(null, 'firma.de'))).toBe(true);
     expect(isBlockedCountry(country('Austin, TX', 'shop.com'))).toBe(false);
+  });
+});
+
+describe('isBlockedRecipient', () => {
+  const blocked = (location: string | null, domain: string, address: string) => isBlockedRecipient({ location, domain, address });
+
+  it('blocks when any signal says a blocked country, whatever the others say', () => {
+    // The location says GB (and keeps the timezone), the domain still says DK.
+    expect(country('London, UK', 'klinik.dk')).toBe('GB');
+    expect(blocked('London, UK', 'klinik.dk', 'anna@klinik.dk')).toBe(true);
+    // The address's own domain is German on a .com company.
+    expect(blocked('Austin, TX', 'shop.com', 'ole@shop.de')).toBe(true);
+    expect(blocked(null, 'shop.com', 'ole@x.de')).toBe(true);
+    // The location alone.
+    expect(blocked('Aarhus, Denmark', 'shop.com', 'ole@shop.com')).toBe(true);
+    expect(blocked('Berlin', 'shop.co.uk', 'ole@shop.co.uk')).toBe(true);
+  });
+
+  it('lets a recipient through when no signal is blocked', () => {
+    expect(blocked('London, UK', 'shop.co.uk', 'anna@shop.co.uk')).toBe(false);
+    expect(blocked(null, 'shop.io', 'anna@gmail.com')).toBe(false);
+    expect(blocked('Austin, TX', 'shop.com', 'not-an-address')).toBe(false);
   });
 });
 

@@ -108,8 +108,18 @@ describe('job queue', () => {
     expect(await jobRow(b.id)).toMatchObject({ status: 'queued', attempts: 0 });
 
     await db.sql`update jobs set locked_at = now() - interval '1 hour' where id = ${c.id}`;
-    expect(await requeueStale(db.sql, 15 * 60_000)).toBe(1);
+    expect(await requeueStale(db.sql, 15 * 60_000)).toEqual({ requeued: 1, failed: [] });
     expect(await jobRow(c.id)).toMatchObject({ status: 'queued', attempts: 1, last_error: 'worker lost the job' });
+  });
+
+  it('fails a stale job on its last attempt and hands it back to the caller', async () => {
+    await enqueue(db.sql, { type: 'write', payload: { campaignId: 'c', leadIds: ['l1'] }, maxAttempts: 1 });
+    const [job] = (await claim(db.sql, { workerId: 'w', limit: 1, types: ['write'] })) as [Job];
+    await db.sql`update jobs set locked_at = now() - interval '1 hour' where id = ${job.id}`;
+    const swept = await requeueStale(db.sql, 15 * 60_000);
+    expect(swept.requeued).toBe(0);
+    expect(swept.failed).toEqual([{ ...job }]);
+    expect(await jobRow(job.id)).toMatchObject({ status: 'failed', last_error: 'worker lost the job' });
   });
 
   it('cancels the queued jobs of one search', async () => {

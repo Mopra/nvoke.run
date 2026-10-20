@@ -120,12 +120,17 @@ describe('enrollCampaign rules', () => {
     await email(s, g, 'ida@berlin-tools.com');
     const h = await company(s, 'hotel.com');
     await email(s, h, 'jo@hotel.com', { verification: null });
+    // A Danish domain listed in London, and a German address on a .com company.
+    const i = await company(s, 'klinik.dk', 'London, UK');
+    await email(s, i, 'kai@klinik.dk');
+    const j = await company(s, 'juliet.com', 'Austin, TX');
+    await email(s, j, 'lea@juliet.de');
 
     const campaign = await createCampaign(db.sql, 'u1', req([m], { searchId: s }), NOW);
     expect(campaign.status).toBe('writing');
     expect(campaign.leads).toBe(2);
     expect(campaign.writing).toBe(2);
-    expect(campaign.skipped).toEqual({ per_company: 1, not_person: 1, not_valid: 2, suppressed: 2, contacted: 1, country: 1 });
+    expect(campaign.skipped).toEqual({ per_company: 1, not_person: 1, not_valid: 2, suppressed: 2, contacted: 1, country: 3 });
 
     const rows = await leads(campaign.id);
     const status = Object.fromEntries(rows.map((r) => [r.address, r.skip_reason ?? r.status]));
@@ -140,6 +145,8 @@ describe('enrollCampaign rules', () => {
       'gus@echo.com': 'contacted',
       'hal@foxtrot.com': 'writing',
       'ida@berlin-tools.com': 'country',
+      'kai@klinik.dk': 'country',
+      'lea@juliet.de': 'country',
     });
     const anna = rows.find((r) => r.address === 'anna@alpha.com')!;
     expect(anna).toMatchObject({ mailbox_id: m, country: 'GB', timezone: 'Europe/London' });

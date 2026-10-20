@@ -3,7 +3,8 @@
 //
 // Lifecycle: queued -> running -> done | failed | canceled. A failed attempt
 // goes back to queued with exponential backoff until max_attempts. A job whose
-// worker died stays "running"; requeueStale puts it back after a while.
+// worker died stays "running"; requeueStale puts it back after a while, or
+// fails it when that was its last attempt.
 
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -180,18 +181,30 @@ export async function release(sql: Db, jobId: string): Promise<void> {
   `;
 }
 
-/** Requeues jobs whose worker vanished. Each one still counts the attempt it was on. */
-export async function requeueStale(sql: Db, olderThanMs: number): Promise<number> {
-  const rows = await sql`
+export interface StaleSweep {
+  /** Jobs put back in the queue for another attempt. */
+  requeued: number;
+  /** Jobs out of attempts, now failed. The caller runs their gave-up handlers. */
+  failed: Job[];
+}
+
+/**
+ * Requeues jobs whose worker vanished. Each one still counts the attempt it
+ * was on, so a job that was on its last attempt fails here and comes back in
+ * `failed`.
+ */
+export async function requeueStale(sql: Db, olderThanMs: number): Promise<StaleSweep> {
+  const rows = await sql<(JobRow & { status: JobStatus })[]>`
     update jobs
     set status = case when attempts >= max_attempts then 'failed' else 'queued' end,
         last_error = coalesce(last_error, 'worker lost the job'),
         locked_at = null, locked_by = null,
         finished_at = case when attempts >= max_attempts then now() else null end
     where status = 'running' and locked_at < now() - ${olderThanMs} * interval '1 millisecond'
-    returning id
+    returning id::text as id, type, payload, search_id, attempts, max_attempts, status
   `;
-  return rows.length;
+  const failed = rows.filter((r) => r.status === 'failed').map(toJob);
+  return { requeued: rows.length - failed.length, failed };
 }
 
 /** Cancels every queued job of a search, optionally only some types. */

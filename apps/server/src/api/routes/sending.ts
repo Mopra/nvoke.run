@@ -2,7 +2,8 @@
 // their leads and written emails, replies and the summary. Same auth as the
 // drop routes: `authenticate` sets request.userId and requireUser guards.
 // Agents and API keys can draft and read; start and resume take a person
-// signed in to the web app (a Clerk session). Without SECRETS_KEY nothing
+// signed in to the web app (a Clerk session), and so does changing what a
+// started campaign sends (its steps, mailboxes or a written email). Without SECRETS_KEY nothing
 // can be sealed or opened, so every route but the summary answers 503.
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
@@ -80,6 +81,9 @@ const CAMPAIGN_ERRORS: Record<CampaignErrorCode, number> = {
   bad_state: 409,
 };
 
+/** Campaign states past Start: their emails go out as they stand. */
+const STARTED = new Set(['scheduled', 'sending', 'paused']);
+
 export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (app, opts) => {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof MailboxError) {
@@ -107,6 +111,19 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
   /** Start and resume: a person in the web app, never a key, token or agent. */
   const person: preHandlerAsyncHookHandler = async (req, reply) => {
     if (req.auth?.via !== 'clerk') return sendError(reply, 403, 'session_required');
+  };
+  /**
+   * Once a campaign has started, what it sends goes out without another
+   * review, so only a person may change it. Someone else's campaign or a
+   * missing one passes through to the 404 below.
+   */
+  const startedNeedsPerson = async (req: FastifyRequest, reply: FastifyReply, campaignId: string): Promise<boolean> => {
+    if (req.auth?.via === 'clerk') return false;
+    const [row] = await opts.getSql()<{ status: string }[]>`
+      select status from campaigns where id = ${campaignId} and clerk_user_id = ${req.userId!}`;
+    if (!row || !STARTED.has(row.status)) return false;
+    await sendError(reply, 403, 'session_required');
+    return true;
   };
   const guarded = { preHandler: available };
   const byPerson = { preHandler: [available, person] };
@@ -171,6 +188,7 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     if (!id) return sendError(reply, 404, 'not_found');
     const body = UpdateCampaignRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
+    if (await startedNeedsPerson(req, reply, id)) return reply;
     return (await updateCampaign(opts.getSql(), req.userId!, id, body.data)) ?? sendError(reply, 404, 'not_found');
   });
 
@@ -217,6 +235,7 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     const body = UpdateWrittenStepRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
     const { id, leadId, step } = params.data;
+    if (await startedNeedsPerson(req, reply, id)) return reply;
     return (await updateWrittenStep(opts.getSql(), req.userId!, id, leadId, step, body.data)) ?? sendError(reply, 404, 'not_found');
   });
 

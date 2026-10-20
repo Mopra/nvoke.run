@@ -178,6 +178,16 @@ describe('sending routes', () => {
     expect(started.status).toBe('scheduled');
     expect(Date.parse(started.reviewUntil!)).toBeGreaterThan(Date.now());
 
+    // Started, its steps and mailboxes go out unreviewed: only the person may change them.
+    for (const via of ['api_key', 'device', 'oauth'] as const) {
+      const res = await app.inject({ method: 'PATCH', url, headers: as('alice', via), payload: { steps: [{ waitDays: 0, brief: 'Buy now.' }] } });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toEqual({ error: 'session_required' });
+    }
+    expect((await app.inject({ method: 'PATCH', url, headers: as('bob'), payload: { name: 'x' } })).statusCode).toBe(404);
+    const byPerson = await app.inject({ method: 'PATCH', url, headers: as('alice', 'clerk'), payload: { name: 'Agencies EU 2' } });
+    expect(Campaign.parse(byPerson.json())).toMatchObject({ name: 'Agencies EU 2', status: 'scheduled' });
+
     const twice = await app.inject({ method: 'POST', url: `${url}/start`, headers: as('alice', 'clerk') });
     expect(twice.statusCode).toBe(409);
     expect(twice.json()).toMatchObject({ error: 'bad_state', detail: expect.any(String) });
@@ -219,6 +229,16 @@ describe('sending routes', () => {
     expect(WrittenStep.parse(edited.json())).toMatchObject({ step: 1, body: 'Hi Jo, shorter.', edited: true });
     expect((await app.inject({ method: 'PATCH', url: `${base}/${leadId}/steps/5`, headers: as('alice'), payload: { body: 'x' } })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: `${base}/${leadId}/steps/1`, headers: as('bob'), payload: { body: 'x' } })).statusCode).toBe(404);
+
+    // Once started, an agent cannot rewrite an email; the person can.
+    await app.inject({ method: 'POST', url: `/v1/campaigns/${c.id}/start`, headers: as('alice', 'clerk') });
+    for (const via of ['api_key', 'device', 'oauth'] as const) {
+      const res = await app.inject({ method: 'PATCH', url: `${base}/${leadId}/steps/1`, headers: as('alice', via), payload: { body: 'Hi Jo, wire the money.' } });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toEqual({ error: 'session_required' });
+    }
+    const byPerson = await app.inject({ method: 'PATCH', url: `${base}/${leadId}/steps/1`, headers: as('alice', 'clerk'), payload: { body: 'Hi Jo, shortest.' } });
+    expect(WrittenStep.parse(byPerson.json())).toMatchObject({ step: 1, body: 'Hi Jo, shortest.' });
 
     const stopped = await app.inject({ method: 'POST', url: `${base}/${leadId}/stop`, headers: as('alice') });
     expect(CampaignLead.parse(stopped.json()).status).toBe('stopped');

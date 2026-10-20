@@ -43,6 +43,37 @@ const DEFAULT_TIMEOUTS: Record<JobType, number> = {
   write: 5 * 60_000,
 };
 
+/**
+ * Settles what a job leaves behind once it is out of attempts: its search,
+ * company, address or campaign leads stop waiting on it.
+ */
+export async function onGaveUp(deps: PipelineDeps, job: Job, error: unknown): Promise<void> {
+  if (job.type === 'find') await onFindGaveUp(deps, job, error);
+  else if (job.type === 'crawl') await onCrawlGaveUp(deps, job);
+  else if (job.type === 'opener') await onOpenerGaveUp(deps, job);
+  else if (job.type === 'people') await onPeopleGaveUp(deps, job);
+  else if (job.type === 'write') await onWriteGaveUp(deps, writePayload(job));
+  else await onVerifyGaveUp(deps, job);
+}
+
+/**
+ * Requeues jobs whose worker vanished and runs the gave-up handler of each
+ * one that was on its last attempt, so a lost write job does not leave its
+ * leads in 'writing' for good.
+ */
+export async function sweepStaleJobs(deps: PipelineDeps, olderThanMs: number): Promise<{ requeued: number; failed: number }> {
+  const { requeued, failed } = await requeueStale(deps.sql, olderThanMs);
+  for (const job of failed) {
+    try {
+      await onGaveUp(deps, job, new Error('worker lost the job'));
+      if (job.searchId) await maybeFinishSearch(deps.sql, job.searchId);
+    } catch (err) {
+      deps.log.error({ err, jobId: job.id, type: job.type }, 'worker: gave-up handler failed for a stale job');
+    }
+  }
+  return { requeued, failed: failed.length };
+}
+
 class ShutdownSignal extends Error {
   constructor() {
     super('worker shutting down');
@@ -132,8 +163,8 @@ export class Runner {
   private async sweepStale(): Promise<void> {
     if (Date.now() - this.lastStaleSweep < 60_000) return;
     this.lastStaleSweep = Date.now();
-    const n = await requeueStale(this.deps.sql, this.opts.staleAfterMs ?? 35 * 60_000);
-    if (n > 0) this.deps.log.warn({ jobs: n }, 'worker: requeued stale jobs');
+    const { requeued, failed } = await sweepStaleJobs(this.deps, this.opts.staleAfterMs ?? 35 * 60_000);
+    if (requeued + failed > 0) this.deps.log.warn({ requeued, failed }, 'worker: swept stale jobs');
   }
 
   private async fill(): Promise<number> {
@@ -201,14 +232,7 @@ export class Runner {
       const permanent = error instanceof PermanentError;
       const outcome = await fail(this.deps.sql, job, message, { permanent });
       log.warn({ err: message, outcome }, 'worker: job failed');
-      if (outcome === 'failed') {
-        if (job.type === 'find') await onFindGaveUp(this.deps, job, error);
-        else if (job.type === 'crawl') await onCrawlGaveUp(this.deps, job);
-        else if (job.type === 'opener') await onOpenerGaveUp(this.deps, job);
-        else if (job.type === 'people') onPeopleGaveUp(this.deps, job);
-        else if (job.type === 'write') await onWriteGaveUp(this.deps, writePayload(job));
-        else await onVerifyGaveUp(this.deps, job);
-      }
+      if (outcome === 'failed') await onGaveUp(this.deps, job, error);
     }
     if (job.searchId) await maybeFinishSearch(this.deps.sql, job.searchId);
   }

@@ -2,7 +2,9 @@
 // whether nvoke may write to them at all, and which timezone their working
 // hours are in. The country comes from the company's location (free text
 // from a source: "Austin, TX", "Vej 2, 2100 København", "Berlin, Germany"),
-// else from a country code top level domain. Pure.
+// else from a country code top level domain. A recipient is blocked when any
+// of the location, the company domain or the address's domain says a blocked
+// country. Pure.
 
 import { BLOCKED_COUNTRIES } from '@nvoke/shared';
 
@@ -270,6 +272,21 @@ export function recipientCountry(o: { location: string | null; domain: string })
 export function isBlockedCountry(country: string | null): boolean {
   if (!country) return false;
   return (BLOCKED_COUNTRIES as readonly string[]).includes(country.toUpperCase());
+}
+
+/**
+ * Whether any signal puts a recipient in a blocked country: the company's
+ * location, the company domain's country code or the country code of the
+ * address's own domain. Unlike recipientCountry no signal overrides another,
+ * so a `.dk` company listed in London or `anna@x.de` on a `.com` company is
+ * blocked.
+ */
+export function isBlockedRecipient(o: { location: string | null; domain: string; address: string }): boolean {
+  const fromDomain = cctld(o.domain);
+  const at = o.address.lastIndexOf('@');
+  const fromAddress = at >= 0 ? cctld(o.address.slice(at + 1)) : null;
+  const fromLocation = o.location ? locationCountry(o.location, fromDomain) : null;
+  return [fromLocation, fromDomain, fromAddress].some(isBlockedCountry);
 }
 
 /**

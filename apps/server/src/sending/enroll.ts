@@ -13,7 +13,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { domainSuppressedSql, suppressedSql } from '../leads/suppression.js';
 import { enqueue } from '../worker/queue.js';
 import { CAMPAIGN_COLUMNS, type CampaignRow } from './campaigns.js';
-import { isBlockedCountry, recipientCountry, timezoneFor } from './gate.js';
+import { isBlockedRecipient, recipientCountry, timezoneFor } from './gate.js';
 
 type Db = Sql | TransactionSql;
 
@@ -171,7 +171,7 @@ export async function enrollCampaign(
       else if (c.people_only && !r.first_name) reason = 'not_person';
       else if (r.suppressed) reason = 'suppressed';
       else if (r.contacted) reason = 'contacted';
-      else if (isBlockedCountry(country)) reason = 'country';
+      else if (isBlockedRecipient({ location: r.location, domain: r.domain, address: r.address })) reason = 'country';
       else if ((perCompany.get(domain) ?? 0) >= c.per_company) reason = 'per_company';
       // Over today's ceiling: left out, so it is looked at again tomorrow.
       if (!reason && room <= 0) continue;
