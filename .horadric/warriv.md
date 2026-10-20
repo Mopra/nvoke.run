@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Hourly round: the human's b4a5fc9 only swaps two clip entries in apps/video Studio.tsx (same shape, data only), so no checks quest. Log done, no aim. Nothing to do.
 - 2026-10-20 Round after the world cut checks landed: no fix commits, so main green at b599672. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
 - 2026-10-20 Round as the human left: the human committed the video world cut b599672 (apps/video, docs/video.md) past green ed03517, so filed 'Checks on main after the video world cut' (sonnet, no build). No aim.
 - 2026-10-20 Round as the human left: unchanged (only memory commits past green ed03517, log done, no aim; dirty apps/video is the human's). Nothing to do.
@@ -51,7 +52,7 @@
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 53 quests landed since the last ship; shipping is the human's.
-- Main green at b599672. File checks again when the human commits code past it.
+- Main green at b599672 (b4a5fc9 is a data only video clip swap, not checked). File checks again when the human commits code past it.
 - SMTP relays (b4611da) need vps-us-1 set up and SMTP_RELAYS in the VPS .env (deploy/README.md); the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
