@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 First round after 04:00: main at 562bcd1, code unchanged since green cc48271, log empty, no aim. Nothing to file. The day gave 5 lore notes (#40 to #44). Day was clean. Learned the human shipped site, server and desktop 0.1.3 on 2026-10-20, so Open lines updated.
 - 2026-10-20 Round after the GA4 quest landed: checks green at cc48271 (the GA4 session's two red tests, lists and drops limits, were the human's plan caps work in progress), log empty, no aim. Nothing to file; shipping is the human's.
 - 2026-10-19 Hourly round: the human committed 9 site and web app display look commits (ebb04a5 to 657bf47) past green 261ecfd, tree clean, so filed 'Checks on main after the site display look and paper web app' (sonnet, with build). No aim.
 - 2026-10-19 Hourly round: unchanged (only memory commits past green 261ecfd, tree clean, no aim). Nothing to do; shipping is the human's.
@@ -170,12 +171,12 @@
 
 ## Open
 
-- GA4 sign_up and file_download events landed (cc48271); after a site ship, sign_up must be marked a key event in GA4 Admin (the human's).
-- Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, not shipped yet.
-- Go public aim reached (2026-10-17) but not shipped. Shipping is the human's.
-- Journey check landed (2678983); sign-up form for a new account never exercised. Go public needs a ship, which is the human's.
+- GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
+- Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
+- Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20.
+- Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
-- Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; needs a ship to reach nvoke.run.
+- Start from your website landed (85efa14); its Claude calls go through OpenRouter (OPENROUTER_API_KEY, noted as set on the VPS). Its screens and a live site profile never seen; live on nvoke.run since 2026-10-20.
 
 - OCR grab landed (1dbb036); its screens never seen with capture. Osascript error quest landed (5ed455b). macOS Grab test dropped by the human (2026-10-17): fix on bug reports.
 - Main checked green at 4769fea (2026-10-18, launch cut and teaser, one unused helper dropped). Field look checks green at 4c6885b, searches table and chassis checks green at 6da9e30, site and web app device look checks green at 261ecfd; site display look checked; main green at cc48271 (2026-10-20). Desktop v0.1.3 shipped (3ed5e68). Desktop v0.1.2 shipped (aedcf2f); site and server ships are the human's.
