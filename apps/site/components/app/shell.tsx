@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatNumber, isActive, percent, searchTitle } from '@/lib/app/desktop';
 import { BILLING_PATH, quotaState } from '@/lib/app/quota';
-import { useMe, useSearches, useSendingSummary } from '@/lib/app/queries';
+import { useMe, useSearches, useSendingAccess, useSendingSummary } from '@/lib/app/queries';
 import { CAMPAIGNS_PATH, MAILBOXES_PATH, REPLIES_PATH } from '@/lib/app/sending';
 import { cn } from '@/lib/utils';
 
@@ -94,6 +94,8 @@ function Header() {
   const onCampaigns = path.startsWith(CAMPAIGNS_PATH) || path.startsWith(MAILBOXES_PATH);
   const onReplies = path.startsWith(REPLIES_PATH);
   const onAccount = path.startsWith('/app/account') || path.startsWith(BILLING_PATH);
+  // Sending is internal only: its links show once GET /v1/sending answered 200.
+  const internal = useSendingAccess() === 'internal';
   return (
     <header className="sticky top-0 z-40 border-b bg-background">
       <nav aria-label="App" className={cn(APP_FRAME, 'flex h-14 items-center gap-2 sm:gap-5')}>
@@ -114,11 +116,15 @@ function Header() {
         <NavLink href="/app/drops" current={onDrops}>
           Drops
         </NavLink>
-        <NavLink href={CAMPAIGNS_PATH} current={onCampaigns} label="Campaigns">
-          <span className="max-sm:hidden">Campaigns</span>
-          <span className="sm:hidden">Send</span>
-        </NavLink>
-        <RepliesLink current={onReplies} />
+        {internal && (
+          <>
+            <NavLink href={CAMPAIGNS_PATH} current={onCampaigns} label="Campaigns">
+              <span className="max-sm:hidden">Campaigns</span>
+              <span className="sm:hidden">Send</span>
+            </NavLink>
+            <RepliesLink current={onReplies} />
+          </>
+        )}
         {result && (
           <NavLink href={path} current>
             Results

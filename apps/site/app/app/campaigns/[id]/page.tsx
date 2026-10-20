@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SendingGate } from '@/components/app/sending/gate';
 import { CampaignScreen } from '@/components/app/sending/campaign-screen';
 
 export const metadata: Metadata = { title: 'Campaign' };
@@ -13,5 +14,9 @@ export default async function CampaignPage({
 }) {
   const { id } = await params;
   const { lead } = await searchParams;
-  return <CampaignScreen key={id} id={id} lead={typeof lead === 'string' ? lead : undefined} />;
+  return (
+    <SendingGate>
+      <CampaignScreen key={id} id={id} lead={typeof lead === 'string' ? lead : undefined} />
+    </SendingGate>
+  );
 }

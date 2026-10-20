@@ -17,6 +17,7 @@ import {
   CHECKING_POLL_MS,
   DEFAULT_STEPS,
   emptyMailboxForm,
+  isNotInternal,
   mailboxesPollInterval,
   mailboxFormProblem,
   mailboxLoad,
@@ -26,8 +27,12 @@ import {
   pickValue,
   presetForAddress,
   removeStep,
+  REPLIES_POLL_MS,
+  retrySendingSummary,
   replySnippet,
   scheduleLabel,
+  sendingAccess,
+  sendingSummaryPollInterval,
   SENDING_POLL_MS,
   sendingError,
   skippedLines,
@@ -292,5 +297,38 @@ describe('the campaign form', () => {
     expect(storeCampaign(list, campaign({ name: 'B' }))?.campaigns.map((c) => c.name)).toEqual(['B']);
     expect(storeCampaign(list, campaign({ id: 'x' }))?.campaigns).toHaveLength(2);
     expect(storeCampaign(undefined, campaign())).toBeUndefined();
+  });
+});
+
+describe('who sees sending', () => {
+  const summary = { repliesUnread: 2 };
+  const notInternal = new ApiError(404, 'not_found');
+
+  it('shows sending only once GET /v1/sending answered 200', () => {
+    expect(sendingAccess({ data: summary })).toBe('internal');
+    expect(sendingAccess({})).toBe('checking');
+  });
+
+  it('hides it on a 404, even over a cached 200', () => {
+    expect(sendingAccess({ error: notInternal })).toBe('hidden');
+    expect(sendingAccess({ data: summary, error: notInternal })).toBe('hidden');
+    expect(isNotInternal(notInternal)).toBe(true);
+    expect(isNotInternal(new ApiError(503, 'sending_unavailable'))).toBe(false);
+  });
+
+  it('keeps a cached 200 through other failures, and shows none without one', () => {
+    expect(sendingAccess({ data: summary, error: new ApiError(0, 'network') })).toBe('internal');
+    expect(sendingAccess({ error: new ApiError(500, 'internal') })).toBe('error');
+    expect(sendingAccess({ error: new ApiError(503, 'sending_unavailable') })).toBe('error');
+  });
+
+  it('never polls or retries after a 404', () => {
+    expect(sendingSummaryPollInterval(notInternal)).toBe(false);
+    expect(sendingSummaryPollInterval(null)).toBe(REPLIES_POLL_MS);
+    expect(sendingSummaryPollInterval(new ApiError(0, 'network'))).toBe(REPLIES_POLL_MS);
+    expect(retrySendingSummary(0, notInternal)).toBe(false);
+    expect(retrySendingSummary(0, new ApiError(503, 'sending_unavailable'))).toBe(false);
+    expect(retrySendingSummary(0, new ApiError(0, 'network'))).toBe(true);
+    expect(retrySendingSummary(2, new ApiError(0, 'network'))).toBe(false);
   });
 });

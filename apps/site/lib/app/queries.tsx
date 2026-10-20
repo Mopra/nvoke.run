@@ -35,11 +35,16 @@ import { listPollInterval, searchPollInterval } from './quota';
 import {
   campaignPollInterval,
   campaignsPollInterval,
+  isNotInternal,
   mailboxesPollInterval,
   REPLIES_POLL_MS,
+  retrySendingSummary,
+  sendingAccess,
+  sendingSummaryPollInterval,
   storeCampaign,
   storeMailbox,
   type LeadFilter,
+  type SendingAccess,
 } from './sending';
 
 /**
@@ -551,10 +556,18 @@ export function useSendingSummary() {
     queryKey: keys.sending,
     queryFn: api.getSending,
     staleTime: 30_000,
-    refetchInterval: REPLIES_POLL_MS,
-    // Switched off (503) or an older server (404): say so once, no retries on every screen.
-    retry: (count, error) => !(error instanceof ApiError && (error.status === 503 || error.status === 404)) && count < 2,
+    // A 404 means the account is not internal: asked once, never polled or retried after.
+    refetchInterval: (query) => sendingSummaryPollInterval(query.state.error),
+    refetchOnWindowFocus: (query) => !isNotInternal(query.state.error),
+    retryOnMount: false,
+    retry: retrySendingSummary,
   });
+}
+
+/** Whether this account sees sending at all (sendingAccess): only after GET /v1/sending answered 200. */
+export function useSendingAccess(): SendingAccess {
+  const { data, error } = useSendingSummary();
+  return sendingAccess({ data, error });
 }
 
 /** The mailboxes, polled while one is being checked. */
@@ -740,7 +753,9 @@ export function useStopLead(id: string) {
 /** Every reply across campaigns, newest first, page by page. */
 export function useReplies() {
   const api = useApi();
+  const internal = useSendingAccess() === 'internal';
   return useInfiniteQuery({
+    enabled: internal,
     queryKey: keys.replies,
     queryFn: ({ pageParam }) => api.listReplies(pageParam),
     initialPageParam: undefined as string | undefined,

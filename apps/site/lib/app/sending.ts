@@ -39,6 +39,39 @@ export const REPLIES_PATH = '/app/replies';
 export const campaignPath = (id: string, leadId?: string): string =>
   `${CAMPAIGNS_PATH}/${encodeURIComponent(id)}${leadId ? `?lead=${encodeURIComponent(leadId)}` : ''}`;
 
+/* Who sees sending */
+
+/**
+ * Sending is internal only (docs/sending/plan.md, "Internal only"): the
+ * server answers 404 on every sending route for an account off its
+ * allowlist. GET /v1/sending decides what the web app shows: `internal`
+ * once it answered 200, `hidden` on a 404 (also when an earlier 200 is
+ * still cached), `checking` before the first answer and `error` when it
+ * failed some other way. Only `internal` shows a link or a sending screen.
+ */
+export type SendingAccess = 'checking' | 'internal' | 'hidden' | 'error';
+
+export function isNotInternal(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+export function sendingAccess(query: { data?: unknown; error?: unknown }): SendingAccess {
+  if (isNotInternal(query.error)) return 'hidden';
+  if (query.data !== undefined && query.data !== null) return 'internal';
+  return query.error ? 'error' : 'checking';
+}
+
+/** The summary is read again every minute for the unread count, never once it said 404. */
+export function sendingSummaryPollInterval(error: unknown): number | false {
+  return isNotInternal(error) ? false : REPLIES_POLL_MS;
+}
+
+/** A 404 is final (not internal) and so is a 503 (switched off); anything else gets two more tries. */
+export function retrySendingSummary(count: number, error: unknown): boolean {
+  if (isNotInternal(error) || isSendingUnavailable(error)) return false;
+  return count < 2;
+}
+
 /* Polling */
 
 /** While Claude writes, the review list fills fast. */
