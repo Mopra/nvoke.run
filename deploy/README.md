@@ -68,6 +68,7 @@ units read it. The API needs the first block; the worker reads the second.
 | `SMTP_PROBES_PER_MINUTE` | worker | SMTP sessions a minute over IPv4, default 5. Hostinger cuts outbound IPv4 port 25 off for a long while after bursts above about 5 a minute; IPv6 is not throttled |
 | `SMTP_SESSIONS_PER_MINUTE`, `SMTP_SESSIONS_PER_PROVIDER_PER_MINUTE` | worker | SMTP sessions a minute in all (default 60) and to one mail provider: Google, Microsoft 365, else the MX domain (default 20). A session checks a whole domain |
 | `SMTP_PREFER_IPV6` | worker | `true` (default) probes over IPv6 when the MX host has an AAAA record, IPv4 otherwise or when IPv6 fails |
+| `SMTP_RELAYS` | worker | Other servers to probe through over IPv4, each with its own `SMTP_PROBES_PER_MINUTE`: `host:port=helo name`, comma separated. On the VPS: `127.0.0.1:1081=srv1620345.hstgr.cloud` (see "SMTP relay") |
 | `TOOLS_SMTP_PROBES_PER_MINUTE` | API | The free email verifier's share of the session budgets, default 1; the worker gets the rest |
 | `OPENROUTER_API_KEY` | API, worker | OpenRouter key (openrouter.ai, API Keys; the "nvoke server" key, $50 a month cap); without it the features that use Claude answer unavailable |
 | `AI_MONTHLY_BUDGET_FLOOR_USD`, `AI_MONTHLY_BUDGET_PRICE_SHARE` | API, worker | Claude spend cap per account a month: the share of the plan's price (default 0.25), never below the floor (default 1 USD) |
@@ -76,6 +77,27 @@ The verifier's SMTP probe needs outbound port 25. If the VPS provider blocks
 it, the worker falls back to MX checks and marks addresses `unknown`; set
 `SMTP_PROBE_ENABLED=false` to skip the attempts. `CLI_*` and
 `TEST_DATABASE_URL` are for development only and do not belong on the VPS.
+
+### SMTP relay
+
+Hostinger limits outbound port 25 to 5 connections a minute per VPS IPv4
+address, on every plan, and will not raise it (support, 2026-10-20). So the
+worker also probes through our second VPS, `vps-us-1` (177.7.34.19,
+`srv1620345.hstgr.cloud`), which has its own 5 a minute:
+
+- On vps-us-1, the user `nvoke-relay` (no shell) accepts one key, from this
+  VPS only, that may forward to port 25 and nothing else
+  (`/var/lib/nvoke-relay/.ssh/authorized_keys`:
+  `restrict,port-forwarding,permitopen="*:25",from="187.77.85.132,..."`).
+- On this VPS, `nvoke-smtp-relay.service` (in this folder, installed by
+  hand, `systemctl enable --now`) keeps `ssh -D 127.0.0.1:1081` open as
+  `nvoke` with `/opt/nvoke/.ssh/relay_ed25519`.
+- `SMTP_RELAYS=127.0.0.1:1081=srv1620345.hstgr.cloud` in `/opt/nvoke/.env`.
+  The worker uses this machine's slots first, then the relay's. When the
+  tunnel is down, the worker leaves the relay alone for a minute.
+
+A relay at a host without the limit is added the same way: a user, a key,
+a tunnel unit on another port and one more entry in `SMTP_RELAYS`.
 
 Migrations run in filename order (`0001_desktop_auth`, `0100_leads`, ...) and
 are recorded in `_migrations`. `deploy.sh` applies new ones before restarting.

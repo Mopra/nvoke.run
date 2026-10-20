@@ -132,6 +132,40 @@ function connectTo(port: number, down: string[] = []) {
   return (_p: number, host: string) => net.connect({ port: down.includes(host) ? 1 : port, host: '127.0.0.1' });
 }
 
+/** A SOCKS5 proxy that sends every CONNECT to the fake SMTP server, recording the target asked for. */
+async function fakeSocks(smtpPort: number): Promise<{ port: number; targets: string[] }> {
+  const targets: string[] = [];
+  const sockets = new Set<net.Socket>();
+  const server = net.createServer((client) => {
+    sockets.add(client);
+    client.once('data', () => {
+      client.write(Buffer.from([0x05, 0x00]));
+      client.once('data', (req: Buffer) => {
+        targets.push(`${[...req.subarray(4, 8)].join('.')}:${req.readUInt16BE(8)}`);
+        const upstream = net.connect({ port: smtpPort, host: '127.0.0.1' }, () => {
+          client.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 0]));
+          client.pipe(upstream).pipe(client);
+        });
+        sockets.add(upstream);
+        upstream.on('error', () => client.destroy());
+      });
+    });
+    client.on('error', () => undefined);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  servers.push({
+    port: 0,
+    sessions: [],
+    maxConcurrent: 0,
+    close: () =>
+      new Promise((resolve) => {
+        for (const s of sockets) s.destroy();
+        server.close(() => resolve());
+      }),
+  });
+  return { port: (server.address() as net.AddressInfo).port, targets };
+}
+
 function memoryCache(): VerifyCache & { store: Map<string, VerifyResult> } {
   const store = new Map<string, VerifyResult>();
   return {
@@ -388,6 +422,39 @@ describe('Verifier', () => {
     expect(cached).not.toContain('smtp_paced');
     t += 50_000;
     expect(await v.verify('x@c.dk')).toMatchObject({ verification: 'valid' });
+  });
+
+  it('sends IPv4 sessions through a relay once this machine has used its slots, with the relay HELO name', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const socks = await fakeSocks(smtp.port);
+    const v = new Verifier({
+      ...base,
+      probesPerMinute: 1,
+      now: () => 1_000_000,
+      relays: [{ socks: { host: '127.0.0.1', port: socks.port }, heloName: 'relay.example' }],
+      dns: fakeDns({ 'a.dk': ['127.0.0.11'], 'b.dk': ['127.0.0.12'], 'c.dk': ['127.0.0.13'] }),
+      connect: connectTo(smtp.port),
+    });
+    expect(await v.verify('x@a.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('x@b.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('x@c.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced' });
+    expect(socks.targets).toEqual(['127.0.0.12:25']);
+    expect(smtp.sessions.map((s) => s[0])).toEqual(['EHLO nvoke.run', 'EHLO relay.example']);
+  });
+
+  it('leaves a relay that is down alone and says when to come back', async () => {
+    const smtp = await fakeSmtp();
+    const v = new Verifier({
+      ...base,
+      probesPerMinute: 1,
+      now: () => 1_000_000,
+      relays: [{ socks: { host: '127.0.0.1', port: 1 }, heloName: 'relay.example' }],
+      dns: fakeDns({ 'a.dk': ['127.0.0.11'], 'b.dk': ['127.0.0.12'] }),
+      connect: connectTo(smtp.port),
+    });
+    await v.verify('x@a.dk');
+    expect(await v.verify('x@b.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced' });
+    expect(smtp.sessions).toHaveLength(1);
   });
 
   it('keeps probing when dead MX hosts pile up but port 25 itself works', async () => {

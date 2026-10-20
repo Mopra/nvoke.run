@@ -36,6 +36,8 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
       mailFrom: env.SMTP_PROBE_FROM,
       smtpEnabled: env.SMTP_PROBE_ENABLED,
       probesPerMinute: workerProbesPerMinute(env),
+      // The free tools never probe through a relay, so each relay gets the whole cap.
+      relays: env.SMTP_RELAYS.map((relay) => ({ ...relay, perMinute: env.SMTP_PROBES_PER_MINUTE })),
       sessionsPerMinute: workerSessionsPerMinute(env),
       sessionsPerProviderPerMinute: env.SMTP_SESSIONS_PER_PROVIDER_PER_MINUTE,
       preferIpv6: env.SMTP_PREFER_IPV6,

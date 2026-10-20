@@ -97,6 +97,26 @@ const EnvSchema = z.object({
   // provider (Google, Microsoft 365, else the MX domain). 0 means no limit.
   SMTP_SESSIONS_PER_MINUTE: z.coerce.number().int().min(0).default(60),
   SMTP_SESSIONS_PER_PROVIDER_PER_MINUTE: z.coerce.number().int().min(0).default(20),
+  // Other servers to probe through over IPv4, each with its own
+  // SMTP_PROBES_PER_MINUTE: SOCKS proxies (ssh -D tunnels) as
+  // "host:port=helo name", comma separated. The HELO name must match the
+  // relay's reverse DNS. Empty means this machine only.
+  SMTP_RELAYS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean))
+    .pipe(
+      z.array(
+        z
+          .string()
+          .regex(/^[^:=\s]+:\d+=\S+$/, 'expected host:port=helo name')
+          .transform((s) => {
+            const [proxy, heloName] = s.split('=') as [string, string];
+            const [host, port] = proxy.split(':') as [string, string];
+            return { socks: { host, port: Number(port) }, heloName };
+          }),
+      ),
+    ),
   // Probe over IPv6 when the MX host has an AAAA record, IPv4 otherwise or on failure.
   SMTP_PREFER_IPV6: z
     .enum(['true', 'false'])

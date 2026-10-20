@@ -1,0 +1,13 @@
+[Unit]
+Description=nvoke SMTP relay tunnel to vps-us-1 (SOCKS on 127.0.0.1:1081, port 25 only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nvoke
+ExecStart=/usr/bin/ssh -N -D 127.0.0.1:1081 -i /opt/nvoke/.ssh/relay_ed25519 -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 nvoke-relay@177.7.34.19
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

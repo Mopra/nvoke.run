@@ -3,6 +3,7 @@
 // each address, QUIT. No DATA command is ever issued.
 
 import * as net from 'node:net';
+import { RelayDownError } from './socks.js';
 
 export interface SmtpReply {
   code: number;
@@ -33,6 +34,8 @@ export interface SmtpProbeOptions {
   signal?: AbortSignal;
   /** Injectable for tests. */
   connect?: (port: number, host: string) => net.Socket;
+  /** Opens the connection another way (through a relay), resolving once it is ready. Wins over `connect`. */
+  open?: (port: number, host: string, timeoutMs: number) => Promise<net.Socket>;
 }
 
 export interface SmtpProbeResult {
@@ -67,6 +70,8 @@ class ReplyReader {
     socket.on('data', (chunk: string) => this.push(chunk));
     socket.on('error', (err) => this.fail(err));
     socket.on('close', () => this.fail(new Error('connection closed')));
+    // A socket handed over by a relay arrives paused.
+    socket.resume();
   }
 
   private push(chunk: string): void {
@@ -131,6 +136,12 @@ class ReplyReader {
 }
 
 function connectSocket(opts: SmtpProbeOptions, port: number, timeoutMs: number): Promise<net.Socket> {
+  if (opts.open) {
+    return opts.open(port, opts.host, timeoutMs).catch((err: unknown) => {
+      if (err instanceof RelayDownError) throw err;
+      throw new SmtpProbeError('connect', `connect to ${opts.host}:${port} failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
   return new Promise((resolve, reject) => {
     const socket = (opts.connect ?? ((p, h) => net.connect({ port: p, host: h, family: opts.family })))(port, opts.host);
     const timer = setTimeout(() => {

@@ -25,6 +25,7 @@ import { KeyedMutex } from '../limits.js';
 import { lookupMx, systemDns, type DnsLike, type MxLookup } from './mx.js';
 import { mailProvider, PacedError, registrableDomain, SessionPacer, type Limit } from './pacing.js';
 import { smtpProbe, SmtpProbeError, type SmtpProbeOptions, type SmtpProbeResult, type SmtpReply } from './smtp.js';
+import { RelayDownError, socksConnect, type SocksProxy } from './socks.js';
 
 export interface VerifyResult {
   address: string;
@@ -79,8 +80,31 @@ export interface VerifierOptions {
    * not be mistaken for a blocked port 25.
    */
   ipv6Available?: () => boolean;
+  /**
+   * Other servers to send IPv4 sessions out through, each with its own IPv4
+   * cap (`probesPerMinute`) and the HELO name matching its reverse DNS. Used
+   * when this machine's IPv4 slots for the minute are taken.
+   */
+  relays?: SmtpRelay[];
   now?: () => number;
 }
+
+export interface SmtpRelay {
+  socks: SocksProxy;
+  heloName: string;
+  /** IPv4 sessions per minute through this relay. Default `probesPerMinute`. */
+  perMinute?: number;
+}
+
+/** One way out over IPv4: this machine, or a relay. */
+interface Ipv4Lane {
+  limit: Limit;
+  heloName: string;
+  open?: SmtpProbeOptions['open'];
+}
+
+/** How long a relay that is down is left alone. */
+const RELAY_DOWN_MS = 60_000;
 
 export const CACHE_TTL_MS = 30 * 24 * 60 * 60_000;
 export const VALID_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -322,9 +346,41 @@ export class Verifier {
     this.ipv6Available = opts.preferIpv6 === false ? false : (opts.ipv6Available ?? hasGlobalUnicastIpv6)();
   }
 
-  /** The IPv4 session cap, counted on every IPv4 connection (fallbacks and canaries included). */
+  /** This machine's IPv4 session cap, counted on every IPv4 connection from here (fallbacks and canaries included). */
   private ipv4Limit(): Limit {
     return { key: 'ipv4', perMinute: this.opts.probesPerMinute ?? 0 };
+  }
+
+  /** The ways out over IPv4: this machine first, then each relay under its own cap. */
+  private ipv4Lanes(): Ipv4Lane[] {
+    const relays = (this.opts.relays ?? []).map(
+      (relay, i): Ipv4Lane => ({
+        limit: { key: `ipv4:relay${i}`, perMinute: relay.perMinute ?? this.opts.probesPerMinute ?? 0 },
+        heloName: relay.heloName,
+        open: async (port, host, timeoutMs) => {
+          // Resolved here, so the relay connects over IPv4 to the address we chose.
+          const ip = net.isIPv4(host) ? host : (await this.dns.resolve4(host))[0];
+          if (!ip) throw new Error(`no IPv4 address for ${host}`);
+          return socksConnect(relay.socks, ip, port, timeoutMs);
+        },
+      }),
+    );
+    return [{ limit: this.ipv4Limit(), heloName: this.opts.heloName }, ...relays];
+  }
+
+  /** Takes a slot on the first IPv4 lane with one free, or throws PacedError with the shortest wait. */
+  private takeIpv4(extra: Limit[]): Ipv4Lane {
+    let wait = Infinity;
+    for (const lane of this.ipv4Lanes()) {
+      try {
+        this.pacer.take([...extra, lane.limit]);
+        return lane;
+      } catch (err) {
+        if (!(err instanceof PacedError)) throw err;
+        wait = Math.min(wait, err.retryAfterMs);
+      }
+    }
+    throw new PacedError(wait);
   }
 
   /** True while the verifier believes outbound port 25 is blocked. */
@@ -730,18 +786,18 @@ export class Verifier {
       { key: 'all', perMinute: this.opts.sessionsPerMinute ?? 0 },
       { key: `provider:${provider}`, perMinute: this.opts.sessionsPerProviderPerMinute ?? 0 },
     ];
-    const ipv4 = this.ipv4Limit();
-    const run = (target: string, family?: 4) =>
+    const run = (target: string, lane?: Ipv4Lane) =>
       smtpProbe({
         ...makePlan(),
         host: target,
-        family,
+        family: lane ? 4 : undefined,
         port: this.opts.port,
-        heloName: this.opts.heloName,
+        heloName: lane?.heloName ?? this.opts.heloName,
         mailFrom: this.opts.mailFrom,
         connectTimeoutMs: this.opts.connectTimeoutMs,
         commandTimeoutMs: this.opts.commandTimeoutMs,
         connect: this.opts.connect,
+        open: lane?.open,
         signal,
       }).then(
         (res) => {
@@ -754,18 +810,28 @@ export class Verifier {
         },
       );
 
+    // Over IPv4 on a lane with a free slot. A relay that is down is cooled and the next lane tried.
+    const runIpv4 = async (extra: Limit[]): Promise<SmtpProbeResult> => {
+      for (;;) {
+        const lane = this.takeIpv4(extra);
+        try {
+          return await run(host, lane);
+        } catch (err) {
+          if (!(err instanceof RelayDownError)) throw err;
+          this.pacer.cool(lane.limit.key, RELAY_DOWN_MS);
+          extra = [];
+        }
+      }
+    };
+
     const v6 = await this.ipv6Of(host);
-    if (!v6) {
-      this.pacer.take([...shared, ipv4]);
-      return run(host, 4);
-    }
+    if (!v6) return runIpv4(shared);
     this.pacer.take(shared);
     // Falls back to IPv4 for this host, counting the IPv6 attempt as a failure.
     const overIpv4 = (unreachable: boolean) => {
       this.ipv6Failed.set(host, this.now());
       if (unreachable && ++this.ipv6FailStreak >= IPV6_FAIL_STREAK) this.ipv6OffUntil = this.now() + IPV6_OFF_MS;
-      this.pacer.take([ipv4]);
-      return run(host, 4);
+      return runIpv4([]);
     };
     let res: SmtpProbeResult;
     try {
