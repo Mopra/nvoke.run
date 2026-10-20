@@ -169,6 +169,62 @@ domains), warms them, sends, reads replies, books meetings.
    a mailbox operator with the most legal exposure, and Day3 would put its
    own customers at risk.
 
+## Build plan if we go the Getlead way (added 2026-10-20)
+
+The owner leans to the Getlead model plus "bring your own mailbox". Those
+are one product: one sending engine, two ways to get a mailbox into it.
+
+**The engine (build once):**
+
+- `mailboxes`: address, provider, encrypted credentials, daily cap, health,
+  warmup state, owner.
+- Sender: SMTP per mailbox (nodemailer), a pace of about 25 to 30 a day per
+  mailbox, random gaps, sends inside the recipient's working hours.
+- Sequences: 2 to 4 steps with waits, AI written per person from the site
+  profile and the opener. Stop on reply, bounce or unsubscribe.
+- Replies and bounces: poll each mailbox over IMAP every few minutes, match
+  replies by `In-Reply-To` and `References`, parse bounce reports into
+  `suppression.ts`.
+- Unsubscribe: a link and a one-click `List-Unsubscribe` header, both into
+  suppression.
+- Inbox: replies in one list, AI labels interested, not now, no.
+- Billing: prepaid send credits next to the verified email ladder in
+  `plans.ts`.
+- Review window and daily budget, like Getlead. Country gate for Denmark
+  and Germany.
+
+**Mailbox source 1, bring your own:**
+
+- Any SMTP and IMAP mailbox (address, server, password): works with every
+  host and with mailboxes bought from Zapmail, InboxKit and the like.
+- Microsoft 365 by OAuth (Graph). Needs publisher verification, no audit.
+- Gmail by OAuth. Reading mail is a restricted Google scope: app
+  verification plus a yearly security assessment (CASA), weeks of lead
+  time. Until then Gmail users connect with an app password over IMAP.
+
+**Mailbox source 2, we provide them (Getlead's model):**
+
+- A reseller API (InboxKit has one; Zapmail and Premium Inboxes to check)
+  buys lookalike domains, sets DNS and creates Google or Microsoft
+  mailboxes, about $3 a mailbox a month plus about $1 a domain.
+- They come back as SMTP and IMAP logins and go into the same pool, so no
+  Google OAuth audit is needed.
+- Register domains in the user's name, as Getlead does, so the user is the
+  sender.
+- Warmup: buy it (a warmup API, or pre-warmed mailboxes from the reseller)
+  rather than build a warmup network. 2 to 4 weeks before cold sends.
+- Health: watch bounce and reply rates per mailbox, pause and replace
+  burned ones.
+
+**Order and size:**
+
+1. Engine plus SMTP and IMAP connect: 4 to 6 weeks. Usable alone.
+2. Microsoft OAuth and start Google verification: 1 to 2 weeks, then wait.
+3. Provided mailboxes through a reseller: 3 to 4 weeks.
+4. AI replies and meeting booking: 2 to 3 weeks.
+
+Before step 1: fix port 25 so verification is clean.
+
 ## Sources
 
 - https://getle.ad/, /pricing, /pre-warmed-mailboxes, /terms, /privacy
