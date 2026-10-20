@@ -59,7 +59,7 @@ export function VerifyDisplay({ view, compact, hidden }: { view: VerifyView; com
         className={cn(
           'lcd mt-3 leading-[0.95] text-balance uppercase',
           compact ? 'min-h-[1.9em] text-[24px]' : 'min-h-[1em] text-[30px] sm:mt-4 sm:text-[60px]',
-          view.verdict === null && 'text-primary motion-safe:animate-pulse',
+          view.verdict === null && 'text-primary',
         )}
       >
         {view.verdict ?? 'Asking'}

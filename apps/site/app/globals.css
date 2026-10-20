@@ -67,6 +67,11 @@
   --input: oklch(0.17 0.005 100 / 0.18);
   --screen: oklch(0.11 0 0);
   --screen-dim: oklch(0.27 0 0);
+  /* Signal orange as text on the light plate, deepened to pass 4.5:1. */
+  --primary-ink: oklch(0.56 0.19 38);
+}
+:root:not(.dark) .text-primary:not(.screen *) {
+  color: var(--primary-ink);
 }
 :root.dark {
   --background: oklch(0.115 0.002 100);

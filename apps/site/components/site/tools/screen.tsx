@@ -84,7 +84,7 @@ export function Channel({
         className={cn(
           'lcd truncate leading-none uppercase transition-opacity duration-300',
           large ? 'text-[20px] sm:text-[26px]' : 'text-[16px] sm:text-[18px]',
-          lamp === 'off' && 'opacity-30',
+          lamp === 'off' && 'opacity-60',
         )}
       >
         {value}
