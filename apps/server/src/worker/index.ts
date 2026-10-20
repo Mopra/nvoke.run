@@ -2,7 +2,8 @@
  * Worker entry point. Runs the lead pipeline jobs (find, crawl, verify) from
  * the Postgres queue, the feed collectors and daily drops (every minute) and
  * the hourly retention purge, pushes short and ongoing plain words searches on
- * (leads/ongoing.ts), and sends webhooks, in a separate process from the API. SIGTERM
+ * (leads/ongoing.ts), sends webhooks, and runs sending (enroll, send and read
+ * replies, docs/sending/plan.md), in a separate process from the API. SIGTERM
  * stops claiming, gives running jobs time to finish, and hands the rest back.
  */
 import { loadEnv } from '../env.js';
@@ -15,6 +16,11 @@ import { createClerkClient } from '@clerk/backend';
 import { purgeAgentSignups } from '../agents/purge.js';
 import { startOngoingLoop } from '../leads/ongoing.js';
 import { purge, RETENTION } from '../leads/retention.js';
+import { createSecrets } from '../crypto/secrets.js';
+import { enrollTick } from '../sending/enroll.js';
+import { smtpImapTransport } from '../sending/mailbox-transport.js';
+import { pollTick } from '../sending/poller.js';
+import { sendTick } from '../sending/sender.js';
 import { VERSION } from '../version.js';
 import { DELIVERY_BATCH, deliverDue } from '../webhooks/deliver.js';
 import { httpSender } from '../webhooks/send.js';
@@ -23,6 +29,9 @@ import { Runner } from './runner.js';
 
 const FEED_TICK_MS = 60_000;
 const WEBHOOK_TICK_MS = 2_000;
+const SEND_TICK_MS = 30_000;
+const POLL_TICK_MS = 60_000;
+const ENROLL_TICK_MS = 60_000;
 
 const env = loadEnv();
 const log = logger('worker');
@@ -108,6 +117,43 @@ async function runWebhooks(): Promise<void> {
 const webhookTimer = setInterval(() => void runWebhooks(), WEBHOOK_TICK_MS);
 webhookTimer.unref();
 
+// Sending: enroll new leads into autopilot campaigns, send due steps, read
+// replies. Each claims its rows with SKIP LOCKED, so several workers share
+// the work. All off without SECRETS_KEY (no mailbox password can be opened)
+// or with SENDING_ENABLED=false.
+const sendingOn = Boolean(env.SECRETS_KEY) && env.SENDING_ENABLED;
+const sendingTimers: NodeJS.Timeout[] = [];
+if (sendingOn) {
+  const sending = {
+    sql,
+    secrets: createSecrets(env.SECRETS_KEY!),
+    transport: smtpImapTransport,
+    log: log.child({ part: 'sending' }),
+    publicApiUrl: env.PUBLIC_API_URL,
+    enabled: true,
+  };
+  const every = (name: string, ms: number, run: () => Promise<unknown>) => {
+    let busy = false;
+    const tick = async () => {
+      if (busy || stopping) return;
+      busy = true;
+      try {
+        await run();
+      } catch (err) {
+        log.error({ err }, `${name} tick failed`);
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = setInterval(() => void tick(), ms);
+    timer.unref();
+    sendingTimers.push(timer);
+  };
+  every('enroll', ENROLL_TICK_MS, () => enrollTick(sql, sending.log));
+  every('send', SEND_TICK_MS, () => sendTick(sending));
+  every('poll', POLL_TICK_MS, () => pollTick(sending));
+}
+
 log.info(
   {
     version: VERSION,
@@ -117,6 +163,7 @@ log.info(
     web: Boolean(env.BRAVE_SEARCH_API_KEY),
     productHunt: Boolean(env.PRODUCT_HUNT_TOKEN),
     smtpProbe: env.SMTP_PROBE_ENABLED,
+    sending: sendingOn,
   },
   'worker started',
 );
@@ -128,6 +175,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(purgeTimer);
   clearInterval(feedTimer);
   clearInterval(webhookTimer);
+  for (const t of sendingTimers) clearInterval(t);
   stopOngoing();
   try {
     await runner.stop(25_000);
