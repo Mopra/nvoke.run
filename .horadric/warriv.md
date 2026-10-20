@@ -10,6 +10,8 @@
 
 ## Lately
 
+- 2026-10-21 Round as the human left: 45 human commits past green b599672 (sending, now internal only; cost, Serper, free lookups, ICP index, new pricing ladder, people job) and dirty server fit-after-crawl work (untracked migration 1770) still in the tree. Held checks back again. No aim, nothing filed.
+
 - 2026-10-20 Hourly round: the human committed 16 sending commits (8ce3cc9 to 251ec21, last 83s before) past green b599672 and has more sending, legal and site work dirty (plus untracked migration 1710). Held checks back while that is in flight. No aim, nothing filed.
 - 2026-10-20 Hourly round: unchanged (only memory commits past b4a5fc9, log done, no aim). Nothing to do.
 - 2026-10-20 Hourly round: unchanged (only memory commits past b4a5fc9, log done, no aim). Nothing to do.
@@ -51,7 +53,7 @@
 
 ## Open
 
-- Sending is being built by the human directly (8ce3cc9 to 251ec21 and dirty work, 2026-10-20). File no sending quests without an Aim. Once the tree is clean, file 'Checks on main after the sending work' (sonnet, with server and site build).
+- Sending (internal only since b7cecd4), cost, pricing ladder and people job work by the human directly, 8ce3cc9 to ead1be9 (2026-10-21), plus dirty fit-after-crawl server work. File no sending quests without an Aim. Once the tree is clean, file 'Checks on main after the sending, cost and pricing work' (sonnet, with server and site build).
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 53 quests landed since the last ship; shipping is the human's.
