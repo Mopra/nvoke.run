@@ -34,9 +34,9 @@ export const WORLD_INSERTS: Insert[] = [
   { src: 'real/street.mp4', from: 0, length: at(0, 2), clipFrom: 0.3, push: [1.0, 1.06], out: 'teaser/sfx/thud.wav' },
   { src: 'real/city.mp4', from: at(1), length: at(0, 1.5), clipFrom: 0.2, push: [1.0, 1.05] },
   { src: 'real/press.mp4', from: at(4), length: at(0, 1), clipFrom: 0.2, push: [1.0, 1.04] },
-  { src: 'real/server.png', from: at(5), length: at(0, 1), push: [1.02, 1.09] },
+  { src: 'real/server.mp4', from: at(5), length: at(0, 1), clipFrom: 0.4, push: [1.02, 1.08] },
   { src: 'real/pen.mp4', from: at(6), length: at(0, 1), clipFrom: 0.5, push: [1.02, 1.07] },
-  { src: 'real/letterbox.mp4', from: at(9, 2.5), length: at(0, 1), clipFrom: 0.15, push: [1.0, 1.05] },
+  { src: 'real/letterbox.mp4', from: at(9, 2.5), length: at(0, 1), clipFrom: 0.3, push: [1.0, 1.05] },
   { src: 'real/shutter.mp4', from: at(10), length: at(0, 1.25), clipFrom: 0.6, push: [1.0, 1.05] },
   { src: 'real/magnet.mp4', from: at(11), length: at(0, 2), clipFrom: 0.2, push: [1.04, 1.0], out: 'teaser/sfx/tick.wav' },
 ];
