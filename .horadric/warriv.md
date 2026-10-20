@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-20 Hourly round: the human committed 16 sending commits (8ce3cc9 to 251ec21, last 83s before) past green b599672 and has more sending, legal and site work dirty (plus untracked migration 1710). Held checks back while that is in flight. No aim, nothing filed.
 - 2026-10-20 Hourly round: unchanged (only memory commits past b4a5fc9, log done, no aim). Nothing to do.
 - 2026-10-20 Hourly round: unchanged (only memory commits past b4a5fc9, log done, no aim). Nothing to do.
 - 2026-10-20 Hourly round: the human's b4a5fc9 only swaps two clip entries in apps/video Studio.tsx (same shape, data only), so no checks quest. Log done, no aim. Nothing to do.
@@ -50,11 +51,11 @@
 
 ## Open
 
-- Sending plan written by the human (e3af056, docs/sending/plan.md steps 1 to 4) reverses 'nvoke never sends'. Wait for an Aim before filing any sending quests.
+- Sending is being built by the human directly (8ce3cc9 to 251ec21 and dirty work, 2026-10-20). File no sending quests without an Aim. Once the tree is clean, file 'Checks on main after the sending work' (sonnet, with server and site build).
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 53 quests landed since the last ship; shipping is the human's.
-- Main green at b599672 (b4a5fc9 is a data only video clip swap, not checked). File checks again when the human commits code past it.
+- Main green at b599672; sending commits past it unchecked, waiting for the human's dirty tree to settle.
 - SMTP relays (b4611da) need vps-us-1 set up and SMTP_RELAYS in the VPS .env (deploy/README.md); the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
