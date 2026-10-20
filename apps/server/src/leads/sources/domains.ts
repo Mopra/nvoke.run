@@ -1,13 +1,17 @@
 // Companies from a list the user already has: domains, URLs, email
 // addresses or company names (docs/SPEC.md, "Search kinds").
 //
-// Domains cost nothing and go straight to the crawl. A name is looked up
-// with one Brave request (the first result page, shared with web searches
-// through the cache), and the result whose domain looks most like the name
-// wins. Platforms and webmail are never a company's website.
+// Domains cost nothing and go straight to the crawl. A name is first tried
+// on the free routes of resolve-name.ts (names past searches found, a guessed
+// domain whose homepage carries the name, Wikidata). Only when they find
+// nothing is it looked up with one Brave request (the first result page,
+// shared with web searches through the cache), and the result whose domain
+// looks most like the name wins. Platforms and webmail are never a company's
+// website.
 
 import { itemDomain, type DomainsSearchParams } from '@nvoke/shared';
 import { isOwnSiteDomain, isWebmailDomain, nameMatch, normalizeDomain, registrableDomain } from '../domain.js';
+import { emptyRouteCounts, type NameResolver } from './resolve-name.js';
 import { braveQuery, type BraveClient } from './web.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 
@@ -49,7 +53,12 @@ export function nameFromDomain(domain: string): string {
     .join(' ');
 }
 
-export function domainsAdapter(brave: BraveClient): SourceAdapter<DomainsSearchParams> {
+export interface DomainsAdapterOptions {
+  /** Free routes tried for a name before Brave. */
+  resolveName?: NameResolver;
+}
+
+export function domainsAdapter(brave: BraveClient, opts: DomainsAdapterOptions = {}): SourceAdapter<DomainsSearchParams> {
   return {
     kind: 'domains',
     async *find(params, ctx) {
@@ -68,23 +77,46 @@ export function domainsAdapter(brave: BraveClient): SourceAdapter<DomainsSearchP
         yield { name: nameFromDomain(domain), website: `https://${domain}/`, source: 'list', sourceRef: item };
       }
       if (names.length === 0) return;
-      if (!brave.configured) {
+      const resolver = opts.resolveName;
+      if (!brave.configured && !resolver) {
         ctx.log.warn({ names: names.length }, 'domains: names skipped, web search is not configured');
-        if (yielded === 0) {
-          throw new PermanentError('looking up company names needs web search, which is not configured on this server', 'source_not_configured');
-        }
+        if (yielded === 0) throw notConfigured();
         return;
       }
-      for (const name of names) {
-        const { q, country } = braveQuery({ keyword: name, country: params.country });
-        const page = await brave.page({ q, country, page: 0 }, ctx);
-        const hit = pickWebsite(name, page.companies);
-        if (!hit) {
-          ctx.log.debug({ name }, 'domains: no website found');
-          continue;
+      const routes = emptyRouteCounts();
+      try {
+        for (const name of names) {
+          const free = await resolver?.resolve({ name, country: params.country }, ctx);
+          if (free) {
+            routes[free.route]++;
+            yielded++;
+            yield { name, website: free.website, source: free.route };
+            continue;
+          }
+          if (!brave.configured) {
+            routes.none++;
+            continue;
+          }
+          const { q, country } = braveQuery({ keyword: name, country: params.country });
+          const page = await brave.page({ q, country, page: 0 }, ctx);
+          const hit = pickWebsite(name, page.companies);
+          if (!hit) {
+            routes.none++;
+            ctx.log.debug({ name }, 'domains: no website found');
+            continue;
+          }
+          routes.brave++;
+          yielded++;
+          yield { name, website: hit.website, source: 'brave', sourceRef: hit.sourceRef };
         }
-        yield { name, website: hit.website, source: 'brave', sourceRef: hit.sourceRef };
+      } finally {
+        ctx.log.info({ names: names.length, routes }, 'domains: names looked up');
       }
+      if (!brave.configured && yielded === 0) throw notConfigured();
     },
   };
+}
+
+function notConfigured(): PermanentError {
+  return new PermanentError('looking up company names needs web search, which is not configured on this server', 'source_not_configured');
 }

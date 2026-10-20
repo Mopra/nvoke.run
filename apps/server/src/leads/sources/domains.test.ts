@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fakeFetch, silentLog } from '../../testing/fakes.js';
 import type { CachedWebPage, WebSearchCache } from '../web-cache.js';
 import { domainsAdapter, nameFromDomain, nameMatch, nameTokens, pickWebsite } from './domains.js';
+import type { NameResolver } from './resolve-name.js';
 import { PermanentError, SourceUnavailableError, type FoundCompany } from './types.js';
 import { BRAVE_ENDPOINT, braveClient } from './web.js';
 
@@ -63,6 +64,40 @@ describe('domains adapter', () => {
     const { out } = await run({ items: ['acme.com', 'Pleo'] }, { apiKey: undefined });
     expect(out.map((c) => c.website)).toEqual(['https://acme.com/']);
     await expect(run({ items: ['Pleo'] }, { apiKey: undefined })).rejects.toBeInstanceOf(PermanentError);
+  });
+
+  it('pays Brave only for names the free routes could not resolve', async () => {
+    const fetch = brave({ Obscure: ['https://obscure.dk/'] });
+    const client = braveClient({ apiKey: 'k', fetch, requestsPerSecond: 1_000 });
+    const asked: Array<{ name: string; country?: string }> = [];
+    const resolveName: NameResolver = {
+      resolve: async (q) => (asked.push(q), q.name === 'Pleo' ? { domain: 'pleo.io', website: 'https://pleo.io/', route: 'guess' } : null),
+    };
+    const out: FoundCompany[] = [];
+    const ctx = { limit: 10, signal: new AbortController().signal, log: silentLog };
+    for await (const c of domainsAdapter(client, { resolveName }).find({ items: ['Pleo', 'Obscure', 'acme.dk'], country: 'dk' }, ctx)) out.push(c);
+    expect(out.map((c) => [c.name, c.website, c.source])).toEqual([
+      ['Acme', 'https://acme.dk/', 'list'],
+      ['Pleo', 'https://pleo.io/', 'guess'],
+      ['Obscure', 'https://obscure.dk', 'brave'],
+    ]);
+    expect(asked).toEqual([{ name: 'Pleo', country: 'dk' }, { name: 'Obscure', country: 'dk' }]);
+    expect(fetch.calls.map((c) => new URL(c.url).searchParams.get('q'))).toEqual(['Obscure']);
+  });
+
+  it('resolves names for free without web search, and fails only when nothing came of the list', async () => {
+    const client = braveClient({ apiKey: undefined, fetch: brave({}), requestsPerSecond: 1_000 });
+    const resolveName: NameResolver = {
+      resolve: async (q) => (q.name === 'Pleo' ? { domain: 'pleo.io', website: 'https://pleo.io/', route: 'known' } : null),
+    };
+    const ctx = { limit: 10, signal: new AbortController().signal, log: silentLog };
+    const out: string[] = [];
+    for await (const c of domainsAdapter(client, { resolveName }).find({ items: ['Pleo', 'Nobody'] }, ctx)) out.push(c.website);
+    expect(out).toEqual(['https://pleo.io/']);
+    const none = (async () => {
+      for await (const _ of domainsAdapter(client, { resolveName }).find({ items: ['Nobody'] }, ctx)) void _;
+    })();
+    await expect(none).rejects.toBeInstanceOf(PermanentError);
   });
 
   it('passes a Brave refusal on after the domains', async () => {

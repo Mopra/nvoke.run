@@ -10,9 +10,10 @@
 //    The public instances are often busy or down (502, 504, timeouts), so a
 //    query tries every instance, then again after a pause, a few rounds.
 // 3. When those fall short of the limit, places that match the niche by tag
-//    but list no website are looked up on Brave by name and city, one
-//    request each (cached, at most MAX_PLACE_LOOKUPS per search), and the
-//    result that is the place's own site (`pickPlaceSite`) is crawled.
+//    but list no website are looked up by name and city: first on the free
+//    routes of resolve-name.ts, then on Brave, one request each (cached, at
+//    most MAX_PLACE_LOOKUPS per search), and the result that is the place's
+//    own site (`pickPlaceSite`) is crawled.
 // 4. When Overpass stays down, or all of that finds fewer places than the
 //    search wants, a Brave web search for "<niche> in <location>" fills in
 //    (when web search is configured), so a local search does not fail on a
@@ -22,6 +23,7 @@ import type { LocalSearchParams, WebSearchParams } from '@nvoke/shared';
 import { nameTokens, pickPlaceSite } from '../domain.js';
 import { BOT_USER_AGENT, HttpError, fetchJson, type FetchLike } from '../http.js';
 import { KeyedMutex, RateLimiter, sleep } from '../limits.js';
+import { emptyRouteCounts, type NameResolver } from './resolve-name.js';
 import { PermanentError, type FoundCompany, type SourceAdapter, type SourceContext } from './types.js';
 import { braveQuery, type BraveClient } from './web.js';
 
@@ -42,6 +44,8 @@ export interface LocalAdapterOptions {
   placeLookup?: BraveClient;
   /** Brave requests a search may spend on places without a website. Default MAX_PLACE_LOOKUPS. */
   maxPlaceLookups?: number;
+  /** Free routes tried for a place without a website before Brave. */
+  resolveName?: NameResolver;
 }
 
 /**
@@ -327,24 +331,26 @@ export function fallbackWebParams(params: LocalSearchParams, area: ResolvedArea 
 }
 
 /**
- * Places without a website, each looked up on Brave as "<name> <city>" in
- * the area's country, yielding those whose own site is among the results.
- * Names already yielded or looked up are skipped (a chain has one site), and
- * at most `maxPlaceLookups` requests are spent. Overpass failing here only
- * ends this step, and a lookup that errors (5xx, timeout) only skips its
- * place; a Brave refusal fails the search like any web search.
+ * Places without a website, each tried on the free routes (`resolveName`)
+ * and then looked up on Brave as "<name> <city>" in the area's country,
+ * yielding those whose own site is among the results. Names already yielded
+ * or looked up are skipped (a chain has one site), and at most
+ * `maxPlaceLookups` Brave requests are spent; the free routes have no cap
+ * but the places Overpass returns. Overpass failing here only ends this
+ * step, and a lookup that errors (5xx, timeout) only skips its place; a
+ * Brave refusal fails the search like any web search.
  */
 async function* placesLookedUp(
   params: LocalSearchParams,
   area: ResolvedArea,
-  brave: BraveClient,
+  brave: BraveClient | undefined,
   opts: LocalAdapterOptions,
   seen: Set<string>,
   ctx: SourceContext,
 ): AsyncGenerator<FoundCompany> {
   const max = opts.maxPlaceLookups ?? MAX_PLACE_LOOKUPS;
   const query = placesWithoutWebsiteQuery(params.niche, area, max * 2 + 20);
-  if (!query || max <= 0) return;
+  if (!query || (max <= 0 && !opts.resolveName)) return;
   let res: OverpassResponse;
   try {
     res = await overpassLock.run('overpass', () => queryOverpass(opts, query, ctx.signal));
@@ -354,15 +360,29 @@ async function* placesLookedUp(
     return;
   }
   const generic = [...nicheWords(params.niche), params.location];
+  const resolver = opts.resolveName;
+  const routes = emptyRouteCounts();
   let lookups = 0;
   let found = 0;
   for (const el of res.elements ?? []) {
-    if (lookups >= max) break;
+    if (!resolver && lookups >= max) break;
     const name = el.tags?.name?.trim();
     const key = name ? nameTokens(name).join(' ') : '';
     if (!name || !key || seen.has(key)) continue;
     seen.add(key);
     const city = el.tags?.['addr:city']?.trim() || params.location.trim();
+    const free = await resolver?.resolve({ name, country: area.countryCode, city, generic: [...generic, city] }, ctx);
+    const freeCompany = free ? elementToCompany(el, free.website) : null;
+    if (free && freeCompany) {
+      routes[free.route]++;
+      found++;
+      yield freeCompany;
+      continue;
+    }
+    if (!brave || lookups >= max) {
+      routes.none++;
+      continue;
+    }
     const { q, country } = braveQuery({ keyword: `${name} ${city}`, country: area.countryCode });
     lookups++;
     let page: Awaited<ReturnType<BraveClient['page']>>;
@@ -372,15 +392,20 @@ async function* placesLookedUp(
       // A refusal pauses Brave and fails the search; a 5xx or a timeout only skips this place.
       if (ctx.signal.aborted || err instanceof PermanentError) throw err;
       ctx.log.warn({ err: err instanceof Error ? err.message : String(err), name }, 'local: place lookup failed');
+      routes.none++;
       continue;
     }
     const hit = pickPlaceSite(name, page.companies, [...generic, city]);
     const company = hit ? elementToCompany(el, hit.website) : null;
-    if (!company) continue;
+    if (!company) {
+      routes.none++;
+      continue;
+    }
+    routes.brave++;
     found++;
     yield company;
   }
-  ctx.log.info({ lookups, found }, 'local: looked up places without a website');
+  ctx.log.info({ lookups, found, routes }, 'local: looked up places without a website');
 }
 
 export function localAdapter(opts: LocalAdapterOptions): SourceAdapter<LocalSearchParams> {
@@ -414,7 +439,7 @@ export function localAdapter(opts: LocalAdapterOptions): SourceAdapter<LocalSear
         ctx.log.warn({ err: err instanceof Error ? err.message : String(err) }, 'local: OpenStreetMap failed, using web search');
       }
       // The find job stops reading at the limit, so this only runs when OpenStreetMap fell short.
-      if (!failed && area && opts.placeLookup) yield* placesLookedUp(params, area, opts.placeLookup, opts, seen, ctx);
+      if (!failed && area && (opts.placeLookup || opts.resolveName)) yield* placesLookedUp(params, area, opts.placeLookup, opts, seen, ctx);
       if (!opts.webFallback) return;
       if (!failed) ctx.log.info({ osmFound }, 'local: topping up from web search');
       yield* opts.webFallback.find(fallbackWebParams(params, area), ctx);
