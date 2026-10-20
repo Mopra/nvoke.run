@@ -91,6 +91,7 @@ const r = (x: number, y: number, w: number, h: number): Rect => ({ x: x * 2, y: 
  */
 export const PLACEHOLDER_RECTS: Record<TakeName, Record<string, Rect>> = {
   journey: { siteField: r(330, 300, 540, 52), suggestion: r(250, 390, 700, 52), counters: r(72, 96, 560, 92) },
+  'journey-dark': { siteField: r(330, 300, 540, 52), suggestion: r(250, 390, 700, 52), counters: r(72, 96, 560, 92) },
   command: { commandBar: r(300, 0, 600, 140) },
   quick: { quickWindow: r(260, 108, 680, 180) },
   grab: { grabBox: r(230, 320, 740, 420) },
@@ -103,6 +104,7 @@ export const PLACEHOLDER_RECTS: Record<TakeName, Record<string, Rect>> = {
 /** Which placeholder rect the synthesized cursor travels to and clicks. */
 const CLICK_TARGET: Record<TakeName, string> = {
   journey: 'siteField',
+  'journey-dark': 'siteField',
   command: 'commandBar',
   quick: 'quickWindow',
   grab: 'grabBox',

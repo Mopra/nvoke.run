@@ -23,15 +23,15 @@ export interface TeaserProps extends Record<string, unknown> {
 }
 
 /** Master level: the parts stack (beat, sub, voice, pings), so the whole mix sits below full scale. */
-const MIX = 0.62;
+export const MIX = 0.62;
 
-const files = () => new Set(getStaticFiles().map((f) => f.name.replace(/\\/g, '/').replace(/^\/+/, '')));
+export const files = () => new Set(getStaticFiles().map((f) => f.name.replace(/\\/g, '/').replace(/^\/+/, '')));
 
 /** A sound at a frame, skipped quietly while the kit is not generated yet. */
-const Sfx: React.FC<{ src: string; from: number; volume?: number; have: Set<string> }> = ({ src, from, volume = 1, have }) =>
+export const Sfx: React.FC<{ src: string; from: number; volume?: number; have: Set<string>; trimBefore?: number; trimAfter?: number }> = ({ src, from, volume = 1, have, trimBefore, trimAfter }) =>
   have.has(src) ? (
     <Sequence from={from} layout="none" name={src}>
-      <Audio src={staticFile(src)} volume={volume * MIX} />
+      <Audio src={staticFile(src)} volume={volume * MIX} trimBefore={trimBefore} trimAfter={trimAfter} />
     </Sequence>
   ) : null;
 
@@ -42,7 +42,7 @@ const shot = (from: number, length: number, node: React.ReactNode, name: string)
 );
 
 /** Bars 0 to 3: the counter in the corner follows the dots. */
-const DotsHud: React.FC = () => {
+export const DotsHud: React.FC<{ total?: number }> = ({ total = 12 }) => {
   const frame = useCurrentFrame();
   const survivors = SURVIVORS.length;
   let count = '001';
@@ -61,12 +61,12 @@ const DotsHud: React.FC = () => {
     label = 'answering';
     count = String(survivors).padStart(3, '0');
   }
-  const index = `0${Math.min(4, Math.floor(frame / BAR) + 1)} / 12`;
+  const index = `0${Math.min(4, Math.floor(frame / BAR) + 1)} / ${total}`;
   return <Hud index={index} label={label} count={count} />;
 };
 
 /** Bar 9: a week of drops, each day a column of dots stacking up. */
-const Week: React.FC = () => {
+export const Week: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const u = width / 2560;
@@ -95,7 +95,7 @@ const Week: React.FC = () => {
 };
 
 /** Bars 10 and 11: the dot comes back alone, the magnet pulls it in, the name. */
-const Ending: React.FC = () => {
+export const Ending: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const u = width / 2560;
@@ -155,7 +155,7 @@ const Ending: React.FC = () => {
 };
 
 /** The verify shot runs the take this much faster, so the Valid screen counts up within the bar. */
-const COUNT_RATE = 3;
+export const COUNT_RATE = 3;
 
 export const Teaser: React.FC<TeaserProps> = ({ takes, voice }) => {
   const have = files();

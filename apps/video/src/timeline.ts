@@ -43,9 +43,9 @@ export function beats(bpm: number, { beatsPerBar = 4, offset = 0, fps = FPS } = 
 /** Placeholder tempo until the track is chosen: 120 BPM makes a bar exactly 2 s. */
 export const music = beats(120);
 
-export type TakeName = 'journey' | 'command' | 'quick' | 'grab' | 'people' | 'drop' | 'agents' | 'ongoing';
+export type TakeName = 'journey' | 'journey-dark' | 'command' | 'quick' | 'grab' | 'people' | 'drop' | 'agents' | 'ongoing';
 
-export const TAKE_NAMES: TakeName[] = ['journey', 'command', 'quick', 'grab', 'people', 'drop', 'agents', 'ongoing'];
+export const TAKE_NAMES: TakeName[] = ['journey', 'journey-dark', 'command', 'quick', 'grab', 'people', 'drop', 'agents', 'ongoing'];
 
 export interface Scene {
   from: number;

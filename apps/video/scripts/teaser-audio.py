@@ -192,6 +192,27 @@ def make_scan(dur: float = 1.2) -> np.ndarray:
     return fades(band * swell / np.max(np.abs(band)) + whistle * swell, 0.01, 0.05)
 
 
+def make_air(dur: float = 1.6) -> np.ndarray:
+    """The hero's turn: air moving past, a wide noise band that swells and
+    falls from 400 Hz to 3 kHz and back, slightly different in each ear."""
+    t = t_axis(dur)
+    swell = np.sin(np.pi * np.clip(t / dur, 0, 1)) ** 2.2
+    ears = []
+    for seed in (41, 42):
+        rng = np.random.default_rng(seed)
+        band = shaped_noise(dur, lambda tt: 400 * (3000 / 400) ** np.sin(np.pi * tt / dur), 1.4, rng)
+        ears.append(band * swell / np.max(np.abs(band)))
+    return np.stack([fades(e, 0.05, 0.2) for e in ears], axis=1)
+
+
+def make_drop(dur: float = 1.4) -> np.ndarray:
+    """A sub drop under the hero's first frame: 70 Hz falling to 32 Hz, a soft knock on top."""
+    t = t_axis(dur)
+    body = sweep(70, 32, dur, tau=0.35) * env_exp(dur, 0.5, attack=0.004)
+    knock = np.sin(2 * np.pi * 180 * t) * np.exp(-t / 0.012) * 0.3
+    return fades(np.tanh(1.4 * (body + knock)), 0.0, 0.15)
+
+
 def make_roll(dur: float = 1.5) -> np.ndarray:
     """Counters spinning: ticks whose spacing shrinks from 110 ms to 16 ms."""
     out = np.zeros(secs(dur))
@@ -283,6 +304,8 @@ def build_sfx(out: Path) -> None:
         "glitch": (make_glitch(), -9),
         "magnet": (make_magnet(), -1),
         "hum": (make_hum(), -20),
+        "air": (make_air(), -8),
+        "drop": (make_drop(), -2),
     }
     for name, (x, peak) in kit.items():
         write(sfx / f"{name}.wav", norm(x, peak))

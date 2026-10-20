@@ -253,6 +253,9 @@ importers:
       '@remotion/google-fonts':
         specifier: 4.0.536
         version: 4.0.536(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@remotion/motion-blur':
+        specifier: 4.0.536
+        version: 4.0.536(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
@@ -2211,6 +2214,12 @@ packages:
 
   '@remotion/media@4.0.536':
     resolution: {integrity: sha512-ElkEcBRW5Q5rarsr1YLZb76xkJ9kDEtI6bufSd1CtvlaLdRsdDrtdylz4Tcw0feTAVpgPU2PZLIc7RRrDNTd2Q==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
+  '@remotion/motion-blur@4.0.536':
+    resolution: {integrity: sha512-xJms58jKHL8lzncJ3dEyy8tAa9N4NE1a4/AmeeOt1k2pgmaPczeINNTRZC8ArPFBIU5GkIhHlgzbg9Cm29OIzQ==}
     peerDependencies:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
@@ -7273,6 +7282,12 @@ snapshots:
       remotion: 4.0.536(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       zod: 4.5.4
 
+  '@remotion/motion-blur@4.0.536(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+      remotion: 4.0.536(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+
   '@remotion/openai-whisper@4.0.536':
     dependencies:
       '@remotion/captions': 4.0.536
@@ -10432,7 +10447,7 @@ snapshots:
       mkdirp: 0.5.6
       rimraf: 2.6.3
 
-  terser-webpack-plugin@5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.30)(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.30)):
+  terser-webpack-plugin@5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.30)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.30)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
@@ -10655,7 +10670,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.6.0
       tapable: 2.3.3
-      terser-webpack-plugin: 5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.30)(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.30))
+      terser-webpack-plugin: 5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.30)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.30))
       watchpack: 2.6.2
       webpack-sources: 3.6.0
     transitivePeerDependencies:

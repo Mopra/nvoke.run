@@ -3,6 +3,7 @@ import { Composition, type CalculateMetadataFunction } from 'remotion';
 import { Film, type FilmProps } from './Film';
 import { Launch, type LaunchProps } from './launch/Launch';
 import { LAUNCH_DURATION } from './launch/timing';
+import { Studio, STUDIO_DURATION } from './studio/Studio';
 import { Teaser, type TeaserProps } from './teaser/Teaser';
 import { TEASER_DURATION } from './teaser/timing';
 import { loadTakes, placeholderTakes } from './takes';
@@ -38,6 +39,12 @@ const teaser = {
   calculateMetadata: withTeaserTakes,
 } as const;
 
+const studio = {
+  ...teaser,
+  component: Studio,
+  durationInFrames: STUDIO_DURATION,
+} as const;
+
 const shared = {
   component: Film,
   durationInFrames: DURATION,
@@ -48,6 +55,9 @@ const shared = {
 
 export const Root: React.FC = () => (
   <>
+    {/* The teaser, studio finish: dark takes, a real lens, grain, the hero bar, 31 s. */}
+    <Composition id="TeaserStudio" width={2560} height={1440} {...studio} />
+    <Composition id="TeaserStudioVertical" width={1080} height={1920} {...studio} />
     {/* The teaser: Nothing style, dots and sound, 29 s. */}
     <Composition id="Teaser" width={2560} height={1440} {...teaser} />
     <Composition id="TeaserVertical" width={1080} height={1920} {...teaser} />

@@ -22,6 +22,18 @@ off on 2026-10-18 as "almost perfect". Keep to it:
 - **The real app in macro.** Extreme close-ups of the recorded UI, tilted,
   with a shallow focus band. Never the whole window explained.
 
+**The studio cut** (`TeaserStudio`, `src/studio/`, 2026-10-20) is the same
+teaser finished like a studio would, waiting on the owner's verdict: takes in
+the app's dark finish (`journey-dark`, so the macro shots no longer flash
+grey against the black), a real lens (`Lens.tsx`: the take on a 3D plane the
+camera yaws across, three layer depth of field, a focus pull at each cut,
+bloom on bright pixels), grain and glitch tears over everything
+(`Finish.tsx`), glyphs that strike hot and settle (`Words.tsx`), motion blur
+on the ending, and one new bar, the hero (`Hero.tsx`): the whole panel as a
+slab turning in the dark with a rim light, on bar 6 of the beat played twice,
+a sub drop and air. Thirteen bars, about 31 s. The sound is mastered after
+the render (`scripts/master.mjs`, -14 LUFS, -1 dBTP).
+
 What was rejected, so it is not tried again: a 70 s keynote walkthrough
 ("bland and boring"), and a 29 s "presentation" cut with captions, slide
 transitions and stock music ("I'm not doing a keynote"). Stock music from
@@ -76,10 +88,16 @@ pnpm studio                                       # preview and scrub
 npx remotion render src/index.ts Teaser out/teaser.mp4               # 1440p master
 npx remotion render src/index.ts Teaser out/teaser-720p.mp4 --scale=0.5
 npx remotion render src/index.ts TeaserVertical out/teaser-vertical.mp4
+npx remotion render src/index.ts TeaserStudio out/teaser-studio-raw.mp4
+node scripts/master.mjs out/teaser-studio-raw.mp4 out/teaser-studio.mp4   # loudness, every final render
 ```
 
+`pnpm --filter @nvoke/desktop film --dark journey` records a take in the dark
+finish as `journey-dark`, beside the light one.
+
 Run renders through `horadric heavy`. Check the mix after a change with
-`ffmpeg -i out.mp4 -af volumedetect -vn -f null -` (peaks below -3 dB).
+`ffmpeg -i out.mp4 -af volumedetect -vn -f null -` (peaks below -3 dB), and
+master every final render with `scripts/master.mjs`.
 
 ## Making the next one
 
