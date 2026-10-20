@@ -1171,8 +1171,8 @@ export function SearchResultsScreen({ id, initialFilter = '' }: { id: string; in
                   </TooltipTrigger>
                   <TooltipContent className="max-w-72 px-3 py-2 leading-relaxed">
                     Decision makers first. Names and titles come from each company’s own site. An address is printed there, or
-                    built from the domain’s pattern and checked with its mail server. Shared inboxes (info@) are skipped unless
-                    you ask for them. Many EU countries require prior consent for marketing email, even to businesses. Results are deleted
+                    built from the domain’s pattern and checked with its mail server. A shared inbox (sales@, info@) is checked
+                    only where no person is reachable. Many EU countries require prior consent for marketing email, even to businesses. Results are deleted
                     12 months after the search.
                   </TooltipContent>
                 </Tooltip>

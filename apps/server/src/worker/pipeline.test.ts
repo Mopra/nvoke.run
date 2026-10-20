@@ -18,6 +18,9 @@ import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
 import { settleCompanyLead } from './people-job.js';
 import {
+  CAPACITY_DEADLINE_MS,
+  CAPACITY_MAX_DELAY_MS,
+  capacityDelayMs,
   CHECK_DEFER_MS,
   GREYLIST_DELAY_MS,
   GREYLIST_RETRIES,
@@ -27,7 +30,7 @@ import {
   runVerify,
   type PipelineDeps,
 } from './pipeline.js';
-import type { Job } from './queue.js';
+import { queuedChecks, type Job } from './queue.js';
 import { Runner } from './runner.js';
 
 let db: TestDb;
@@ -746,6 +749,106 @@ describe('greylisting', () => {
     expect(again!.run_after.getTime() - now.getTime()).toBeLessThan(90_000);
     expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBeNull();
   });
+
+  /** A logger that keeps the fields of every info and warn line. */
+  function recordingLog(lines: Array<Record<string, unknown>>): typeof silentLog {
+    const push = (o: Record<string, unknown>) => void lines.push(o);
+    const log = { info: push, warn: push, error: () => undefined, debug: () => undefined, child: () => log };
+    return log as unknown as typeof silentLog;
+  }
+
+  const blockedVerifier = (reason = 'mx_only_port25_blocked') =>
+    ({ verify: async (address: string) => ({ address, verification: 'unknown' as const, mxHost: 'aspmx.l.google.com', reason }) }) as unknown as Verifier;
+
+  it('waits 10, 20, 40 minutes and up to 2 hours when we could not probe, never as a retry', () => {
+    const none = () => 0;
+    const waits = [0, 1, 2, 3, 4, 5].map((n) => capacityDelayMs('mx_only_port25_blocked', n, 0, none) / 60_000);
+    expect(waits).toEqual([10, 20, 40, 80, 120, 120]);
+    expect(capacityDelayMs('smtp_paced', 0, 30_000, none)).toBe(60_000);
+    expect(capacityDelayMs('smtp_paced', 0, 5 * 60_000, none)).toBe(5 * 60_000);
+    expect(capacityDelayMs('smtp_throttled', 30, 0, () => 1)).toBe(CAPACITY_MAX_DELAY_MS);
+  });
+
+  it('puts a check we could not probe back in the queue, in the same job row, until a real answer comes', async () => {
+    const { searchId, emailId } = await seedEmail();
+    await db.sql`delete from jobs`;
+    const [row] = await db.sql<{ id: string }[]>`
+      insert into jobs (type, payload, search_id, status, attempts, max_attempts, locked_at)
+      values ('verify', ${db.sql.json({ emailId, retry: GREYLIST_RETRIES })}, ${searchId}, 'running', 3, 3, now())
+      returning id::text as id
+    `;
+    let now = new Date('2026-10-13T12:00:00Z');
+    const logged: Array<Record<string, unknown>> = [];
+    const log = recordingLog(logged);
+    let verifier = blockedVerifier();
+    const d = () => ({ ...deps(adapterOf([])), log, verifier, now: () => now });
+    const job = async () => {
+      const [j] = await db.sql<{ payload: Record<string, unknown>; run_after: Date; status: string; attempts: number }[]>`
+        select payload, run_after, status, attempts from jobs where type = 'verify'`;
+      return j!;
+    };
+
+    // Out of greylisting retries already, and still not settled: our side is not the server's answer.
+    await runVerify(d(), { id: row!.id, type: 'verify', payload: { emailId, retry: GREYLIST_RETRIES }, searchId, attempts: 3, maxAttempts: 3 }, new AbortController().signal);
+    let j = await job();
+    expect(j).toMatchObject({ status: 'queued', attempts: 2 });
+    expect(j.payload).toMatchObject({ retry: GREYLIST_RETRIES, capacity: true, capacityDefers: 1, capacitySince: now.toISOString() });
+    const wait = j.run_after.getTime() - now.getTime();
+    expect(wait).toBeGreaterThanOrEqual(10 * 60_000);
+    expect(wait).toBeLessThanOrEqual(12 * 60_000);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBeNull();
+    expect(logged).toContainEqual(expect.objectContaining({ searchId, emailId, reason: 'mx_only_port25_blocked', defers: 1 }));
+    // The search waits for it, and the escalation logic can see it.
+    expect(await maybeFinishSearch(db.sql, searchId)).toBe(false);
+    expect(await queuedChecks(db.sql, searchId)).toEqual({ queued: 1, capacity: 1 });
+
+    // Throttled again later: twice as long. Then a real answer settles it.
+    now = new Date(now.getTime() + wait);
+    await db.sql`update jobs set status = 'running'`;
+    verifier = blockedVerifier('smtp_throttled');
+    await runVerify(d(), { id: row!.id, type: 'verify', payload: j.payload, searchId, attempts: 3, maxAttempts: 3 }, new AbortController().signal);
+    j = await job();
+    expect(j.payload).toMatchObject({ capacityDefers: 2, capacitySince: '2026-10-13T12:00:00.000Z' });
+    expect(j.run_after.getTime() - now.getTime()).toBeGreaterThanOrEqual(20 * 60_000);
+    expect(await db.sql`select 1 from jobs`).toHaveLength(1);
+
+    await db.sql`update jobs set status = 'running'`;
+    verifier = stubVerifier;
+    await runVerify(d(), { id: row!.id, type: 'verify', payload: j.payload, searchId, attempts: 3, maxAttempts: 3 }, new AbortController().signal);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBe('valid');
+  });
+
+  it('settles unknown, saying why, once a check has waited for capacity past the deadline', async () => {
+    const { searchId, emailId } = await seedEmail();
+    await db.sql`delete from jobs`;
+    const now = new Date('2026-10-15T12:00:01Z');
+    const logged: Array<Record<string, unknown>> = [];
+    const log = recordingLog(logged);
+    const d = { ...deps(adapterOf([])), log, verifier: blockedVerifier('smtp_paced'), now: () => now };
+    const since = new Date(now.getTime() - CAPACITY_DEADLINE_MS + 1_000).toISOString();
+    await runVerify(d, verifyJob({ emailId, capacityDefers: 20, capacitySince: since }, searchId), new AbortController().signal);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBeNull();
+    expect(await queuedChecks(db.sql, searchId)).toEqual({ queued: 1, capacity: 1 });
+
+    await db.sql`delete from jobs`;
+    const late = new Date(now.getTime() - CAPACITY_DEADLINE_MS).toISOString();
+    await runVerify(d, verifyJob({ emailId, capacityDefers: 21, capacitySince: late }, searchId), new AbortController().signal);
+    expect((await db.sql`select verification from emails where id = ${emailId}`)[0]?.verification).toBe('unknown');
+    expect(await db.sql`select 1 from jobs where type = 'verify'`).toHaveLength(0);
+    expect(logged).toContainEqual(expect.objectContaining({ searchId, emailId, reason: 'capacity_deadline', lastReason: 'smtp_paced' }));
+  });
+
+  it('keeps the capacity wait across a greylisting retry, so the deadline is overall', async () => {
+    const { searchId, emailId } = await seedEmail();
+    await db.sql`delete from jobs`;
+    const now = new Date('2026-10-13T12:00:00Z');
+    const d = { ...deps(adapterOf([])), verifier: greyVerifier, now: () => now };
+    await runVerify(d, verifyJob({ emailId, capacity: true, capacityDefers: 3, capacitySince: '2026-10-13T10:00:00.000Z' }, searchId), new AbortController().signal);
+    const [again] = await db.sql<{ payload: Record<string, unknown> }[]>`select payload from jobs where type = 'verify'`;
+    expect(again?.payload).toEqual({ emailId, retry: 1, capacityDefers: 3, capacitySince: '2026-10-13T10:00:00.000Z' });
+    // Waiting for the server now, not for us.
+    expect(await queuedChecks(db.sql, searchId)).toEqual({ queued: 1, capacity: 0 });
+  });
 });
 
 describe('check policy', () => {
@@ -801,13 +904,17 @@ describe('check policy', () => {
     db.sql<{ due: boolean; payload: Record<string, unknown> }[]>`select run_after <= now() as due, payload from jobs where type = 'verify' and status = 'queued'`;
   const mette: Seed = { address: 'mette.hansen@acme.dk', kind: 'personal', first: 'Mette', last: 'Hansen', title: 'CEO', seniority: 'founder' };
 
-  it('leaves role inboxes unchecked and free unless the search asks, and still settles the lead and finishes', async () => {
+  it('leaves role inboxes unchecked and free once a named person is valid, and still settles the lead and finishes', async () => {
     const { searchId, companyId, ids, hookId } = await seedCompany([{ address: 'info@acme.dk', kind: 'generic' }, mette]);
     const v = countingVerifier(['mette.hansen@acme.dk', 'info@acme.dk']);
     const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    // The fallback inbox waits for Mette.
     await runVerify(d, job(ids['info@acme.dk']!, searchId), signal);
-    expect(await row(ids['info@acme.dk']!)).toEqual({ verification: null, skipped: 'role_inbox' });
+    expect(await row(ids['info@acme.dk']!)).toEqual({ verification: null, skipped: null });
     await runVerify(d, job(ids['mette.hansen@acme.dk']!, searchId), signal);
+    await db.sql`update jobs set status = 'done' where type = 'verify'`;
+    await runVerify(d, job(ids['info@acme.dk']!, searchId, { deferred: true, defers: 1 }), signal);
+    expect(await row(ids['info@acme.dk']!)).toEqual({ verification: null, skipped: 'role_inbox' });
     expect(v.asked).toEqual(['mette.hansen@acme.dk']);
     const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
     expect(usage?.emails_verified).toBe(1);
@@ -815,6 +922,35 @@ describe('check policy', () => {
     expect(await maybeFinishSearch(db.sql, searchId)).toBe(true);
     const page = await listCompanies(db.sql, 'u1', searchId, { limit: 10 });
     expect(page?.companies[0]?.emails.map((x) => x.address)).toEqual(['mette.hansen@acme.dk']);
+  });
+
+  it('without check_inboxes, checks and charges one fallback inbox when no named person is valid', async () => {
+    const bounced: Seed = { ...mette, address: 'mette@acme.dk' };
+    const { searchId, ids } = await seedCompany([
+      { address: 'jobs@acme.dk', kind: 'generic' },
+      { address: 'info@acme.dk', kind: 'generic' },
+      { address: 'sales@acme.dk', kind: 'generic' },
+      bounced,
+    ]);
+    const v = countingVerifier(['info@acme.dk', 'sales@acme.dk', 'jobs@acme.dk']);
+    const d = { ...deps(adapterOf([])), verifier: v as unknown as Verifier };
+    // Only sales@ is the fallback: the others are left out at once, sales@ waits for Mette.
+    await runVerify(d, job(ids['jobs@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['info@acme.dk']!, searchId), signal);
+    await runVerify(d, job(ids['sales@acme.dk']!, searchId), signal);
+    expect(await row(ids['jobs@acme.dk']!)).toEqual({ verification: null, skipped: 'role_inbox' });
+    expect(await row(ids['info@acme.dk']!)).toEqual({ verification: null, skipped: 'role_inbox' });
+    expect(await row(ids['sales@acme.dk']!)).toEqual({ verification: null, skipped: null });
+    await runVerify(d, job(ids['mette@acme.dk']!, searchId), signal);
+    expect(await row(ids['mette@acme.dk']!)).toEqual({ verification: 'invalid', skipped: null });
+    await db.sql`update jobs set status = 'done' where type = 'verify'`;
+    await runVerify(d, job(ids['sales@acme.dk']!, searchId, { deferred: true, defers: 1 }), signal);
+    expect(v.asked).toEqual(['mette@acme.dk', 'sales@acme.dk']);
+    expect(await row(ids['sales@acme.dk']!)).toEqual({ verification: 'valid', skipped: null });
+    const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
+    expect(usage?.emails_verified).toBe(1);
+    const page = await listCompanies(db.sql, 'u1', searchId, { limit: 10 });
+    expect(page?.companies[0]?.emails.map((x) => x.address).sort()).toEqual(['mette@acme.dk', 'sales@acme.dk']);
   });
 
   it('with check_inboxes, waits for the named people and checks the inbox only when none is valid', async () => {

@@ -45,13 +45,13 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
       sessionsPerProviderPerMinute: env.SMTP_SESSIONS_PER_PROVIDER_PER_MINUTE,
       preferIpv6: env.SMTP_PREFER_IPV6,
       cache: dbVerifyCache(sql),
-      // Without port 25 every check ends unknown and nobody is charged: the operator must know.
-      onPort25Blocked: () => {
-        log.error('verify: outbound port 25 looks blocked, SMTP probing paused');
+      // A lane without port 25 shrinks the check budget and checks queue up for hours: the operator must know.
+      onPort25Blocked: (lane) => {
+        log.error({ lane }, 'verify: outbound port 25 looks blocked on a lane, its probing paused');
         void alert.send({
           key: 'smtp-port25-blocked',
           subject: 'nvoke: outbound port 25 is blocked on the worker',
-          text: 'The verifier could not reach port 25 of Gmail, iCloud or Yahoo from the VPS, so mailbox checks end as unknown and no verified emails are delivered. Check the VPS provider (outbound SMTP limits) and journalctl -u nvoke-worker.',
+          text: `The verifier could not reach port 25 of Gmail, iCloud or Yahoo over lane ${lane} (ipv4 is this VPS, ipv4:relayN the Nth entry of SMTP_RELAYS), so that lane is paused for 10 minutes at a time. Checks wait in the queue for the other lanes; they settle unknown only after 48 hours. Check the VPS provider (outbound SMTP limits), the relay tunnel and journalctl -u nvoke-worker.`,
           everyMs: 6 * 60 * 60_000,
         });
       },

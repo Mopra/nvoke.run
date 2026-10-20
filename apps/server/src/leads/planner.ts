@@ -4,8 +4,9 @@
 // sites, directory and list page queries, local trade and city pairs when the
 // customer is a local business, and the fit criteria the candidates are
 // scored against. The icp adapter (sources/icp.ts) runs it tier by tier:
-// core queries and job posts for sales roles (hiring.ts), adjacent niches,
-// wider geography, then deeper pages. When a
+// directory and core queries, adjacent niches, wider geography, job posts for
+// sales roles (hiring.ts, only for customers that are sales or growth teams),
+// then deeper pages of the queries that paid off well above the rest. When a
 // search comes up short, replan asks for a fresh round that repeats nothing
 // (ongoing.ts runs it).
 
@@ -13,7 +14,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 import type { IcpSearchParams } from '@nvoke/shared';
 import type { Ai } from '../ai/client.js';
-import { DEFAULT_HIRING_ROLES, atsFor, hiringQuery, impliesSalesTeams } from './hiring.js';
+import { DEFAULT_HIRING_ROLES, atsFor, hiringQuery } from './hiring.js';
 
 export const PLAN_VERSION = 1;
 
@@ -209,11 +210,30 @@ export function hiringQueries(roles: string[], countries: string[], max: number,
   return out;
 }
 
-/** The roles a plan searches job posts for: Sonnet's, else the defaults when the words name sales teams or outbound. */
+/**
+ * Words that say the user sells to sales or growth teams. Job post queries
+ * pay off only then: measured, they bought one valid email per 8 paid
+ * requests, against about 2 for list page queries. Founders and B2B companies
+ * alone are not enough.
+ */
+const SALES_TEAM_WORDS =
+  /\b(sales (teams?|reps?|leaders?|leadership|managers?|orgs?|organi[sz]ations?|departments?)|salespeople|in-house sales|sales development reps?|sdrs?|bdrs?|account executives?|heads? of (sales|growth)|vps? of sales|revops|revenue (teams?|operations|leaders?)|growth (teams?|marketers?|leads?)|outbound teams?|business development teams?)\b/i;
+
+/** Whether these words are about selling to sales or growth teams. */
+export function sellsToSalesTeams(text: string): boolean {
+  return SALES_TEAM_WORDS.test(text);
+}
+
+/** Whether a plan searches job posts: only when the description or the plan's segments name sales or growth teams. */
+export function wantsJobPosts(plan: Pick<IcpPlan, 'segments'>, params: Pick<IcpSearchParams, 'description'>): boolean {
+  return sellsToSalesTeams([params.description, ...(plan.segments ?? [])].join(' | '));
+}
+
+/** The roles a plan searches job posts for, when it wants them (wantsJobPosts): Sonnet's, else the usual sales roles. */
 export function planRoles(raw: Pick<ClaudePlan, 'hiringRoles' | 'segments'>, params: IcpSearchParams): string[] {
+  if (!wantsJobPosts(raw, params)) return [];
   const roles = cleanRoles(raw.hiringRoles ?? []);
-  if (roles.length) return roles;
-  return impliesSalesTeams([params.description, ...(raw.segments ?? [])].join(' ')) ? [...DEFAULT_HIRING_ROLES] : [];
+  return roles.length ? roles : [...DEFAULT_HIRING_ROLES];
 }
 
 /** Sonnet's answer cut to the stored plan: trimmed, deduplicated, capped, outside countries dropped. */
@@ -392,6 +412,9 @@ export function yieldNotes(previous: IcpPlan): string[] {
 
 type ReplanTier = 'directories' | 'adjacent' | 'hiring' | 'wider';
 
+/** Queries a tier takes at each turn of a fresh round: list page and directory queries found about 2 valid emails a request, direct results 0.36. */
+export const REPLAN_SHARE: Record<ReplanTier, number> = { directories: 2, adjacent: 1, hiring: 1, wider: 1 };
+
 /** Result pages a tier must have read with nothing kept before a replan stops adding to it. */
 const BARREN_PAGES = 3;
 
@@ -418,8 +441,9 @@ export function barrenTiers(previous: IcpPlan): Set<ReplanTier> {
 /**
  * Sonnet's fresh round cut to a plan: nothing an earlier plan ran, inside the
  * user's countries, at most `maxQueries` web queries taken in turn from the
- * directories, the adjacent niches, the wider geography and job posts for
- * the plan's sales roles in countries no earlier plan searched. The round
+ * directories (REPLAN_SHARE: two at a turn), the adjacent niches, the wider
+ * geography and job posts for the plan's sales roles in countries no earlier
+ * plan searched (only when the plan wants them, wantsJobPosts). The round
  * runs them as tier 1 (directories, job posts and local pairs), tier 2 and
  * tier 3. Null when nothing new is left.
  */
@@ -432,8 +456,10 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
   const wider = cleanQueries(raw.wider, PLAN_CAPS.wider, allowed, seen);
   const used = usedCountries(previous);
   const fresh = [...new Set(wider.map((q) => q.country).filter((c): c is string => !!c && !used.has(c)))];
-  const hiring = previous.hiringRoles?.length && fresh.length ? hiringQueries(previous.hiringRoles, fresh, PLAN_CAPS.hiring, seen) : [];
-  // Taken in turn, so a small budget still gets some of each.
+  const roles = previous.hiringRoles?.length && wantsJobPosts(previous, params) ? previous.hiringRoles : [];
+  const hiring = roles.length && fresh.length ? hiringQueries(roles, fresh, PLAN_CAPS.hiring, seen) : [];
+  // Taken in turn, so a small budget still gets some of each, list page and
+  // directory queries REPLAN_SHARE.directories at a turn: they find the most per request.
   // A tier whose queries read pages last round and kept nothing gets none this round.
   const barren = barrenTiers(previous);
   const take = { directories: 0, adjacent: 0, hiring: 0, wider: 0 };
@@ -441,7 +467,7 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
     let took = false;
     for (const tier of ['directories', 'adjacent', 'hiring', 'wider'] as const) {
       const pool = barren.has(tier) ? [] : { directories, hiring, adjacent, wider }[tier];
-      if (left > 0 && take[tier] < pool.length) {
+      for (let n = 0; n < REPLAN_SHARE[tier] && left > 0 && take[tier] < pool.length; n++) {
         take[tier]++;
         left--;
         took = true;
@@ -463,7 +489,7 @@ export function toReplan(raw: ClaudeReplan, params: IcpSearchParams, previous: I
     adjacent: adjacent.slice(0, take.adjacent),
     wider: wider.slice(0, take.wider),
     local,
-    ...(previous.hiringRoles?.length ? { hiringRoles: previous.hiringRoles, hiring: hiring.slice(0, take.hiring) } : {}),
+    ...(roles.length ? { hiringRoles: roles, hiring: hiring.slice(0, take.hiring) } : {}),
     round: (previous.round ?? 0) + 1,
     ran,
     ...(previous.yields ? { yields: keptYields(previous.yields, ran) } : {}),

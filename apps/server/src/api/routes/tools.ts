@@ -77,7 +77,7 @@ export interface ToolsRoutesOptions {
 }
 
 /** Reasons that mean the mailbox was not asked: no probe budget, probing off or port 25 blocked. */
-const DOMAIN_ONLY = new Set(['mx_only', 'mx_only_port25_blocked', 'smtp_paced']);
+const DOMAIN_ONLY = new Set(['mx_only', 'mx_only_port25_blocked', 'smtp_paced', 'smtp_throttled']);
 
 export const toolsRoutes: FastifyPluginAsync<ToolsRoutesOptions> = async (app, opts) => {
   const limits = { ...DEFAULT_TOOL_LIMITS, ...opts.limits };

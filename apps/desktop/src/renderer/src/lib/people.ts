@@ -103,12 +103,17 @@ export interface ShownEmails {
   hidden: number;
 }
 
-/** The emails a company row shows: its people, or its role inboxes when it has none, or everything with `showInboxes`. */
+/**
+ * The emails a company row shows: its people, or its role inboxes when it has
+ * none, or everything with `showInboxes`. Role inboxes stay in view next to
+ * people none of whom is valid: the server checks one for such a company.
+ */
 export function shownEmails(company: Company, showInboxes: boolean): ShownEmails {
   const ordered = orderEmails(company.emails);
   if (showInboxes) return { emails: ordered, fallback: false, hidden: 0 };
   const people = ordered.filter(isPersonEmail);
   if (people.length === 0) return { emails: ordered, fallback: ordered.length > 0, hidden: 0 };
+  if (!people.some((e) => e.verification === 'valid')) return { emails: ordered, fallback: false, hidden: 0 };
   return { emails: people, fallback: false, hidden: ordered.length - people.length };
 }
 

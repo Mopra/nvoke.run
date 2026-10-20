@@ -1232,7 +1232,7 @@ function AboutLeads() {
       </TooltipTrigger>
       <TooltipContent className="max-w-72 px-3 py-2 leading-relaxed normal-case tracking-normal">
         Decision makers first. People and addresses come from each company’s own website, or are built from the domain’s
-        address pattern and accepted by its mail server. Shared inboxes (info@, hello@) are skipped unless you ask for them.
+        address pattern and accepted by its mail server. A shared inbox (sales@, info@) is checked only where no person is reachable.
         Many EU countries require prior consent for marketing email, even to businesses. Results are deleted 12 months after
         the search.
       </TooltipContent>

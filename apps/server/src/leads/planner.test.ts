@@ -3,6 +3,7 @@ import type { Ai } from '../ai/client.js';
 import { DEFAULT_HIRING_ROLES } from './hiring.js';
 import {
   PLAN_CAPS,
+  REPLAN_SHARE,
   barrenTiers,
   keptYields,
   freshCountries,
@@ -14,8 +15,10 @@ import {
   ranKeys,
   replan,
   replanPrompt,
+  sellsToSalesTeams,
   toPlan,
   toReplan,
+  wantsJobPosts,
   type ClaudePlan,
   type ClaudeReplan,
 } from './planner.js';
@@ -79,7 +82,7 @@ describe('toPlan', () => {
 
 describe('job post queries', () => {
   it('adds job posts for the roles Sonnet names, every country for one role before the next', () => {
-    const plan = toPlan(raw({ hiringRoles: [' Founding Account Executive ', 'founding account executive', 'SDR'] }), { description: 'Founders of B2B companies' });
+    const plan = toPlan(raw({ hiringRoles: [' Founding Account Executive ', 'founding account executive', 'SDR'] }), { description: 'Founders and small sales teams of B2B companies' });
     expect(plan.hiringRoles).toEqual(['Founding Account Executive', 'SDR']);
     expect(plan.hiring?.map((q) => [q.q.split(' (')[0], q.country])).toEqual([
       ['"Founding Account Executive"', 'us'],
@@ -96,23 +99,49 @@ describe('job post queries', () => {
     expect(toPlan(raw(), { description: 'Small sales teams doing outbound' }).hiringRoles).toEqual(DEFAULT_HIRING_ROLES);
     const local = toPlan(raw(), { description: 'Dentists in Aarhus' });
     expect(local.hiring).toBeUndefined();
+    // Roles Sonnet names do not count when the customer is not a sales or growth team.
+    for (const description of ['Outbound agencies', 'Founders of B2B companies', 'B2B SaaS startups in Berlin']) {
+      const plan = toPlan(raw({ hiringRoles: ['account executive'] }), { description });
+      expect(plan.hiringRoles).toBeUndefined();
+      expect(plan.hiring).toBeUndefined();
+    }
     expect(hiringQueries(['account executive'], ['de'], 5, new Set())).toEqual([
       { q: '"account executive" (site:jobs.personio.de OR site:jobs.personio.com OR site:jobs.ashbyhq.com OR site:job-boards.greenhouse.io OR site:boards.greenhouse.io OR site:recruitee.com OR site:jobs.lever.co)', country: 'de' },
     ]);
   });
 
   it('caps the job post queries', () => {
-    const plan = toPlan(raw({ countries: ['us', 'gb', 'de', 'nl', 'fr', 'es', 'se', 'dk'], hiringRoles: ['a role one', 'a role two', 'a role three'] }), { description: 'Founders' });
+    const plan = toPlan(raw({ countries: ['us', 'gb', 'de', 'nl', 'fr', 'es', 'se', 'dk'], hiringRoles: ['a role one', 'a role two', 'a role three'] }), { description: 'Sales teams' });
     expect(plan.hiring).toHaveLength(PLAN_CAPS.hiring);
   });
 
   it('searches job posts in the new countries of a fresh round only', () => {
-    const params = { description: 'Founders of B2B companies' };
+    const params = { description: 'SDRs at B2B companies' };
     const first = toPlan(raw({ hiringRoles: ['account executive'] }), params);
     const next = toReplan({ directories: [], adjacent: [], wider: [{ q: 'b2b startup', country: 'nl' }, { q: 'b2b startup', country: 'us' }], local: [] }, params, first, 30)!;
     expect(next.hiring?.map((q) => q.country)).toEqual(['nl']);
     expect(next.hiringRoles).toEqual(['account executive']);
     expect(freshCountries(first, next)).toEqual(['nl']);
+  });
+
+  it('wants job posts only when the words or the segments name sales or growth teams', () => {
+    expect(sellsToSalesTeams('Small sales teams doing outbound')).toBe(true);
+    expect(sellsToSalesTeams('Heads of growth at SaaS companies')).toBe(true);
+    expect(sellsToSalesTeams('SDRs and account executives')).toBe(true);
+    expect(sellsToSalesTeams('RevOps leaders')).toBe(true);
+    expect(sellsToSalesTeams('Founders of B2B companies')).toBe(false);
+    expect(sellsToSalesTeams('Sales development agencies')).toBe(false);
+    expect(sellsToSalesTeams('Wholesale distributors')).toBe(false);
+    expect(wantsJobPosts({ segments: ['in-house sales teams at B2B software companies'] }, { description: 'Founders of B2B companies' })).toBe(true);
+    expect(wantsJobPosts({ segments: ['outbound agencies'] }, { description: 'Agencies' })).toBe(false);
+  });
+
+  it('drops the job posts of a stored plan from a fresh round when the customer is not a sales team', () => {
+    const sales = toPlan(raw({ hiringRoles: ['account executive'] }), { description: 'Sales teams' });
+    const params = { description: 'Outbound agencies' };
+    const next = toReplan({ directories: [], adjacent: [], wider: [{ q: 'b2b startup', country: 'nl' }], local: [] }, params, { ...sales, key: 'old' }, 30)!;
+    expect(next.hiring).toBeUndefined();
+    expect(next.hiringRoles).toBeUndefined();
   });
 });
 
@@ -180,6 +209,17 @@ describe('replan', () => {
     expect(plan.directories).toHaveLength(1);
     expect(plan.adjacent).toHaveLength(1);
     expect(plan.wider).toHaveLength(0);
+  });
+
+  it('gives list page and directory queries two places at every turn', () => {
+    expect(REPLAN_SHARE.directories).toBe(2);
+    const many = round({
+      directories: Array.from({ length: 6 }, (_, i) => ({ q: `top agencies list ${i}`, country: 'us' })),
+      adjacent: Array.from({ length: 6 }, (_, i) => ({ q: `niche ${i}`, country: 'us' })),
+      wider: Array.from({ length: 6 }, (_, i) => ({ q: `wider ${i}`, country: 'nl' })),
+    });
+    const plan = toReplan(many, params, first, 8)!;
+    expect([plan.directories.length, plan.adjacent.length, plan.wider.length]).toEqual([4, 2, 2]);
   });
 
   it('stays inside the countries the user named', () => {

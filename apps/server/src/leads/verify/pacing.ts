@@ -6,7 +6,11 @@
 
 /** A window is full; a slot frees up after retryAfterMs. */
 export class PacedError extends Error {
-  constructor(readonly retryAfterMs: number) {
+  constructor(
+    readonly retryAfterMs: number,
+    /** True when every IPv4 lane is paused because its port 25 looks blocked, not merely full. */
+    readonly port25Blocked = false,
+  ) {
     super('smtp sessions paced');
   }
 }

@@ -1,7 +1,7 @@
 import * as net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mailProvider, registrableDomain } from './pacing.js';
-import { classifyRcpt, isDisposableDomain, isParkedMx, isTempfail, isTypoDomain, mxProvider, Verifier, ttlFor, type VerifyCache, type VerifyResult } from './index.js';
+import { classifyRcpt, isCapacityDeferral, isDisposableDomain, isParkedMx, isTempfail, isTypoDomain, mxProvider, Verifier, ttlFor, type VerifyCache, type VerifyResult } from './index.js';
 import { lookupMx, type DnsLike } from './mx.js';
 import { smtpProbe } from './smtp.js';
 
@@ -455,6 +455,76 @@ describe('Verifier', () => {
     await v.verify('x@a.dk');
     expect(await v.verify('x@b.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced' });
     expect(smtp.sessions).toHaveLength(1);
+  });
+
+  it('pauses only the lane whose port 25 is blocked and goes on through the relay', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const socks = await fakeSocks(smtp.port);
+    // Five MX hosts at five providers (IP literals, so the relay needs no DNS); this machine's IPv4 reaches none.
+    const ips = [1, 2, 3, 4, 5, 6].map((i) => `127.0.${i}.1${i}`);
+    const dns = fakeDns(Object.fromEntries(ips.map((ip, i) => [`d${i + 1}.dk`, [ip]])));
+    const asked: string[] = [];
+    const alerts: string[] = [];
+    const v = new Verifier({
+      ...base,
+      dns,
+      connect: connectTo(smtp.port, ips),
+      relays: [{ socks: { host: '127.0.0.1', port: socks.port }, heloName: 'relay.example' }],
+      port25Works: async (lane) => {
+        asked.push(lane);
+        return lane !== 'ipv4';
+      },
+      onPort25Blocked: (lane) => void alerts.push(lane),
+    });
+    for (let i = 1; i <= 5; i++) expect(await v.verify(`a@d${i}.dk`)).toMatchObject({ reason: 'smtp_unreachable' });
+    expect(asked).toEqual(['ipv4']);
+    expect(alerts).toEqual(['ipv4']);
+    // Some lane still works, so probing goes on: through the relay, with its HELO name.
+    expect(v.smtpBlocked).toBe(false);
+    expect(await v.verify('a@d6.dk')).toMatchObject({ verification: 'valid' });
+    expect(socks.targets).toEqual(['127.0.6.16:25']);
+    expect(smtp.sessions.map((s) => s[0])).toEqual(['EHLO relay.example']);
+  });
+
+  it('prefers IPv6, then this machine over IPv4, then the relay', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const socks = await fakeSocks(smtp.port);
+    const tried: string[] = [];
+    const connect = (port: number, host: string) => {
+      tried.push(host);
+      return connectTo(smtp.port)(port, host);
+    };
+    const dns = fakeDns(
+      { 'six.dk': ['aspmx.l.google.com'], 'a.dk': ['127.0.0.11'], 'b.dk': ['127.0.0.12'], 'c.dk': ['127.0.0.13'] },
+      { 'aspmx.l.google.com': '2001:db8::1' },
+    );
+    const v = new Verifier({
+      ...base,
+      dns,
+      connect,
+      probesPerMinute: 1,
+      now: () => 1_000_000,
+      ipv6Available: () => true,
+      relays: [{ socks: { host: '127.0.0.1', port: socks.port }, heloName: 'relay.example' }],
+    });
+    // IPv6 takes no IPv4 slot.
+    expect(await v.verify('x@six.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('x@a.dk')).toMatchObject({ verification: 'valid' });
+    expect(await v.verify('x@b.dk')).toMatchObject({ verification: 'valid' });
+    // Every lane at its budget: queued again, not an answer.
+    expect(await v.verify('x@c.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced' });
+    expect(tried).toEqual(['2001:db8::1', '127.0.0.11']);
+    expect(socks.targets).toEqual(['127.0.0.12:25']);
+  });
+
+  it('reads a refused connection at Google or Microsoft as throttling, and every IPv4 lane blocked as a wait', async () => {
+    const dns = fakeDns({ 'g.dk': ['aspmx.l.google.com'], 'o.dk': ['o-dk.mail.protection.outlook.com'], 'x.dk': ['mx.x.test'] });
+    const v = new Verifier({ ...base, dns, connect: connectTo(1, ['aspmx.l.google.com', 'o-dk.mail.protection.outlook.com', 'mx.x.test']) });
+    expect(await v.verify('a@g.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_throttled' });
+    expect(await v.verify('a@o.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_throttled' });
+    expect(await v.verify('a@x.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_unreachable' });
+    for (const reason of ['smtp_paced', 'mx_only_port25_blocked', 'smtp_throttled', 'aborted']) expect(isCapacityDeferral({ reason })).toBe(true);
+    for (const reason of ['smtp_unreachable', 'rcpt_tempfail_451', 'no_rcpt_reply', 'mx_only']) expect(isCapacityDeferral({ reason })).toBe(false);
   });
 
   it('keeps probing when dead MX hosts pile up but port 25 itself works', async () => {

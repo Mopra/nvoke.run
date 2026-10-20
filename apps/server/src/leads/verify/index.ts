@@ -10,9 +10,12 @@
 // are cached per address by the caller's cache (30 days, the whole retention,
 // except 1 day for "unknown"; docs/research/cost.md). A greylisted answer is never cached: the pipeline retries it.
 // Sessions go over IPv6 when the MX host has an AAAA record, since the VPS
-// provider throttles port 25 on IPv4 only. When port 25 turns out to be
-// unreachable the verifier stops trying for a while and answers "unknown"
-// from MX data alone.
+// provider throttles port 25 on IPv4 only, then over this machine's IPv4,
+// then through each relay's. Each way out (lane) has its own budget and its
+// own port 25 check: when one lane's port 25 turns out to be unreachable,
+// only that lane pauses. A check no lane can take now says so (smtp_paced,
+// mx_only_port25_blocked, smtp_throttled; isCapacityDeferral) and the
+// pipeline asks again later instead of settling it as unknown.
 
 import * as net from 'node:net';
 import { networkInterfaces } from 'node:os';
@@ -53,13 +56,14 @@ export interface VerifierOptions {
   /** Injectable for tests, see SmtpProbeOptions.connect. */
   connect?: SmtpProbeOptions['connect'];
   /**
-   * Resolves true when outbound port 25 works: asked before concluding it is
-   * blocked, since dead or slow MX hosts also fail to connect. Defaults to a
-   * TCP connect to Gmail's MX.
+   * Resolves true when outbound port 25 works on a lane (`ipv4` for this
+   * machine, `ipv4:relay0` and so on for the relays): asked before concluding
+   * it is blocked, since dead or slow MX hosts also fail to connect. Defaults
+   * to TCP connects to the canaries over that lane.
    */
-  port25Works?: () => Promise<boolean>;
-  /** Called each time probing stops because port 25 looks blocked, to tell the operator. */
-  onPort25Blocked?: () => void;
+  port25Works?: (lane: string) => Promise<boolean>;
+  /** Called each time a lane stops probing because its port 25 looks blocked, to tell the operator. */
+  onPort25Blocked?: (lane: string) => void;
   /**
    * SMTP sessions opened per minute over IPv4, across all hosts. The VPS
    * provider cuts IPv4 port 25 off for a long while when a burst goes past
@@ -123,11 +127,26 @@ export function isTempfail(result: Pick<VerifyResult, 'reason'>): boolean {
     // The server dropped before replying to this address (often a 421 to the recipient before it).
     r === 'no_rcpt_reply' ||
     r === 'smtp_unreachable' ||
+    r === 'smtp_throttled' ||
     r === 'mx_only_port25_blocked' ||
     /^smtp_[a-z]+_error$/.test(r) ||
     // A 4xx at the banner, HELO or MAIL FROM: the server is busy or throttling us.
     /^smtp_(banner|helo|mail)_4\d\d$/.test(r)
   );
+}
+
+/**
+ * Reasons that say we could not ask, on our side: every lane at its budget
+ * (smtp_paced), every IPv4 lane paused with port 25 blocked, Google or
+ * Microsoft refusing or stalling our connection (throttling us), the job
+ * running out of time while it waited for the MX host. Nothing about the
+ * mailbox and no answer from its server, so the pipeline queues the check
+ * again with backoff instead of counting a retry or settling it unknown.
+ */
+const CAPACITY_REASONS = new Set(['smtp_paced', 'mx_only_port25_blocked', 'smtp_throttled', 'aborted']);
+
+export function isCapacityDeferral(result: Pick<VerifyResult, 'reason'>): boolean {
+  return CAPACITY_REASONS.has(result.reason);
 }
 
 /** Common misspellings of freemail domains. Nobody owns a mailbox there. */
@@ -151,12 +170,12 @@ export function isParkedMx(host: string): boolean {
 }
 
 /** Results that say nothing about the mailbox: probing off or blocked, a resolver hiccup. */
-const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_error', 'smtp_paced', 'aborted']);
+const UNCACHED_REASONS = new Set(['mx_only', 'mx_only_port25_blocked', 'dns_error', 'smtp_paced', 'smtp_throttled', 'aborted']);
 
 const DOMAIN_TTL_MS = 60 * 60_000;
-/** How long probing pauses once port 25 looks blocked. The next failure asks the canaries again. */
+/** How long a lane pauses once its port 25 looks blocked. The next failure asks the canaries again. */
 const PORT25_BLOCK_MS = 10 * 60_000;
-/** Connection failures at this many distinct MX providers, with no success in between, make us ask whether port 25 is blocked. */
+/** Connection failures on one lane at this many distinct MX providers, with no success in between, make us ask whether its port 25 is blocked. */
 const PORT25_FAILURE_HOSTS = 5;
 /** Mail exchangers of three providers that take connections on port 25 whenever the network lets us. */
 const PORT25_CANARIES = ['gmail-smtp-in.l.google.com', 'mx01.mail.icloud.com', 'mta5.am0.yahoodns.net'];
@@ -176,12 +195,25 @@ export function mxProvider(host: string): string {
  * seconds, over IPv4 (the family the VPS provider blocks). `pace` is asked
  * before each connection and skips a canary when it returns false; with
  * every canary skipped the answer is true, since nothing proves a block.
+ * `open` connects another way (through a relay) instead of from here.
  */
-export async function port25Works(connect?: SmtpProbeOptions['connect'], pace: () => boolean = () => true): Promise<boolean> {
+export async function port25Works(
+  connect?: SmtpProbeOptions['connect'],
+  pace: () => boolean = () => true,
+  open?: (host: string) => Promise<boolean>,
+): Promise<boolean> {
   const hosts = PORT25_CANARIES.filter(() => pace());
   if (hosts.length === 0) return true;
-  const results = await Promise.all(hosts.map((host) => port25Open(connect, host)));
+  const results = await Promise.all(hosts.map((host) => (open ? open(host) : port25Open(connect, host))));
   return results.some(Boolean);
+}
+
+/** Google and Microsoft refuse or stall connections from an IP that probes many of their domains: that is us being throttled. */
+function throttledBy(host: string, err: SmtpProbeError): boolean {
+  const provider = mailProvider(host);
+  if (provider !== 'google' && provider !== 'outlook') return false;
+  if (err.stage === 'connect') return true;
+  return err.stage === 'banner' && (!err.reply || (err.reply.code >= 400 && err.reply.code < 500));
 }
 
 /** True when a TCP connection to port 25 of `host` opens within 10 seconds, over IPv4. */
@@ -325,7 +357,11 @@ export class Verifier {
   /** Per domain, when a random address was last accepted (catch-all) or refused. */
   private readonly catchAll = new Map<string, number>();
   private readonly notCatchAll = new Map<string, number>();
-  private readonly connectFailures = new Set<string>();
+  /** Per IPv4 lane, the MX providers that would not take a connection since its last success. */
+  private readonly connectFailures = new Map<string, Set<string>>();
+  /** Per IPv4 lane, until when it is paused because its port 25 looks blocked. */
+  private readonly laneBlockedUntil = new Map<string, number>();
+  private readonly port25Checks = new Map<string, Promise<void>>();
   private readonly pacer: SessionPacer;
   private readonly batches = new Map<string, Batch>();
   private readonly ipv6Cache = new Map<string, { at: number; value: Promise<string | null> }>();
@@ -333,7 +369,6 @@ export class Verifier {
   private readonly ipv6Failed = new Map<string, number>();
   private ipv6FailStreak = 0;
   private ipv6OffUntil = 0;
-  private port25BlockedUntil = 0;
   private readonly now: () => number;
   /** Whether this machine can reach the IPv6 internet, decided once at start. */
   private readonly ipv6Available: boolean;
@@ -367,10 +402,22 @@ export class Verifier {
     return [{ limit: this.ipv4Limit(), heloName: this.opts.heloName }, ...relays];
   }
 
-  /** Takes a slot on the first IPv4 lane with one free, or throws PacedError with the shortest wait. */
+  /**
+   * Takes a slot on the first IPv4 lane with one free, skipping lanes paused
+   * with port 25 blocked, or throws PacedError with the shortest wait
+   * (marked port25Blocked when every lane is paused).
+   */
   private takeIpv4(extra: Limit[]): Ipv4Lane {
     let wait = Infinity;
-    for (const lane of this.ipv4Lanes()) {
+    const lanes = this.ipv4Lanes();
+    let blocked = 0;
+    for (const lane of lanes) {
+      const until = this.laneBlockedUntil.get(lane.limit.key) ?? 0;
+      if (until > this.now()) {
+        blocked++;
+        wait = Math.min(wait, until - this.now());
+        continue;
+      }
       try {
         this.pacer.take([...extra, lane.limit]);
         return lane;
@@ -379,12 +426,12 @@ export class Verifier {
         wait = Math.min(wait, err.retryAfterMs);
       }
     }
-    throw new PacedError(wait);
+    throw new PacedError(wait, blocked === lanes.length);
   }
 
-  /** True while the verifier believes outbound port 25 is blocked. */
+  /** True while every IPv4 lane is paused because its port 25 looks blocked. IPv6 may still work. */
   get smtpBlocked(): boolean {
-    return this.now() < this.port25BlockedUntil;
+    return this.ipv4Lanes().every((lane) => (this.laneBlockedUntil.get(lane.limit.key) ?? 0) > this.now());
   }
 
   /** True when the domain accepted a random address within the hour. */
@@ -589,7 +636,7 @@ export class Verifier {
     const primary = mx.hosts[0] ?? null;
     if (mx.hosts.some(isParkedMx)) return { ok: false, result: { verification: 'invalid', mxHost: primary, reason: 'parked_domain' } };
     if (!this.opts.smtpEnabled) return { ok: false, result: { verification: 'unknown', mxHost: primary, reason: 'mx_only' } };
-    if (this.smtpBlocked) return { ok: false, result: { verification: 'unknown', mxHost: primary, reason: 'mx_only_port25_blocked' } };
+    // A blocked port 25 is decided per lane in smtp(): IPv6 and the relays may still work.
     return { ok: true, hosts: mx.hosts, primary: primary! };
   }
 
@@ -749,14 +796,19 @@ export class Verifier {
       lastHost = host;
       try {
         const value = await this.mxLocks.run(host, () => fn(host), signal);
-        this.connectFailures.clear();
         return { ok: true, host, value };
       } catch (err) {
-        if (err instanceof PacedError) return { ok: false, host, reason: 'smtp_paced', retryAfterMs: err.retryAfterMs };
+        if (err instanceof PacedError) {
+          return { ok: false, host, reason: err.port25Blocked ? 'mx_only_port25_blocked' : 'smtp_paced', retryAfterMs: err.retryAfterMs };
+        }
         // A job that timed out or was canceled opened no real connection: not evidence about port 25.
         if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) return { ok: false, host, reason: 'aborted' };
+        if (err instanceof SmtpProbeError && throttledBy(host, err)) {
+          lastError = 'smtp_throttled';
+          if (err.stage === 'connect') continue;
+          break;
+        }
         if (err instanceof SmtpProbeError && err.stage === 'connect') {
-          await this.noteConnectFailure(host);
           lastError = 'smtp_unreachable';
           continue;
         }
@@ -810,15 +862,22 @@ export class Verifier {
       );
 
     // Over IPv4 on a lane with a free slot. A relay that is down is cooled and the next lane tried.
+    // A connect failure counts against the lane it happened on, so a blocked lane pauses alone.
     const runIpv4 = async (extra: Limit[]): Promise<SmtpProbeResult> => {
       for (;;) {
         const lane = this.takeIpv4(extra);
         try {
-          return await run(host, lane);
+          const res = await run(host, lane);
+          this.connectFailures.delete(lane.limit.key);
+          return res;
         } catch (err) {
-          if (!(err instanceof RelayDownError)) throw err;
-          this.pacer.cool(lane.limit.key, RELAY_DOWN_MS);
-          extra = [];
+          if (err instanceof RelayDownError) {
+            this.pacer.cool(lane.limit.key, RELAY_DOWN_MS);
+            extra = [];
+            continue;
+          }
+          if (err instanceof SmtpProbeError && err.stage === 'connect' && !signal?.aborted) await this.noteConnectFailure(host, lane);
+          throw err;
         }
       }
     };
@@ -869,37 +928,61 @@ export class Verifier {
     return value;
   }
 
-  private port25Check: Promise<void> | null = null;
-
   /**
    * Many MX hosts are dead or drop connections, so failures alone do not
-   * prove the VPS's port 25 is blocked. Past the threshold, the canaries
-   * decide; only when none of them connects does probing pause, for 10 minutes.
+   * prove a lane's port 25 is blocked. Past the threshold, the canaries
+   * decide over that lane; only when none of them connects does the lane
+   * pause, for 10 minutes. The other lanes go on.
    */
-  private async noteConnectFailure(host: string): Promise<void> {
+  private async noteConnectFailure(host: string, lane: Ipv4Lane): Promise<void> {
+    const key = lane.limit.key;
+    const failed = this.connectFailures.get(key) ?? new Set<string>();
+    this.connectFailures.set(key, failed);
     // One provider throttling us (all of Google's aspmx hosts at once) is not a blocked port.
-    this.connectFailures.add(mxProvider(host));
-    if (this.connectFailures.size < PORT25_FAILURE_HOSTS) return;
-    this.port25Check ??= (async () => {
-      // The canaries are IPv4 connections like any other, so they count against the IPv4 cap.
-      const pace = () => {
-        try {
-          this.pacer.take([this.ipv4Limit()]);
-          return true;
-        } catch {
-          return false;
+    failed.add(mxProvider(host));
+    if (failed.size < PORT25_FAILURE_HOSTS) return;
+    let check = this.port25Checks.get(key);
+    if (!check) {
+      check = (async () => {
+        const works = await this.laneWorks(lane).catch(() => false);
+        if (!works) {
+          this.laneBlockedUntil.set(key, this.now() + PORT25_BLOCK_MS);
+          this.opts.onPort25Blocked?.(key);
         }
-      };
-      const works = await (this.opts.port25Works ?? (() => port25Works(this.opts.connect, pace)))().catch(() => false);
-      if (!works) {
-        this.port25BlockedUntil = this.now() + PORT25_BLOCK_MS;
-        this.opts.onPort25Blocked?.();
+        this.connectFailures.delete(key);
+      })().finally(() => this.port25Checks.delete(key));
+      this.port25Checks.set(key, check);
+    }
+    await check;
+  }
+
+  /** Asks the canaries over one lane. They are IPv4 connections like any other, so they count against its cap. */
+  private laneWorks(lane: Ipv4Lane): Promise<boolean> {
+    if (this.opts.port25Works) return this.opts.port25Works(lane.limit.key);
+    const pace = () => {
+      try {
+        this.pacer.take([lane.limit]);
+        return true;
+      } catch {
+        return false;
       }
-      this.connectFailures.clear();
-    })().finally(() => {
-      this.port25Check = null;
-    });
-    await this.port25Check;
+    };
+    const open = lane.open;
+    if (!open) return port25Works(this.opts.connect, pace);
+    return port25Works(undefined, pace, (canary) =>
+      open(25, canary, 10_000).then(
+        (socket) => {
+          socket.destroy();
+          return true;
+        },
+        (err: unknown) => {
+          // A relay that is down proves nothing about its port 25: it is left alone for a minute instead.
+          if (!(err instanceof RelayDownError)) return false;
+          this.pacer.cool(lane.limit.key, RELAY_DOWN_MS);
+          return true;
+        },
+      ),
+    );
   }
 
   private mx(domain: string): Promise<MxLookup> {

@@ -47,6 +47,11 @@ describe('people', () => {
     expect(shownEmails(company([info, ceo]), true).emails).toHaveLength(2);
   });
 
+  it('keeps role inboxes in view when no person is valid', () => {
+    const bounced = { ...ceo, verification: 'invalid' as const };
+    expect(shownEmails(company([info, bounced]), false)).toEqual({ emails: [bounced, info], fallback: false, hidden: 0 });
+  });
+
   it('falls back to role inboxes when there is no person', () => {
     expect(shownEmails(company([info]), false)).toEqual({ emails: [info], fallback: true, hidden: 0 });
     expect(shownEmails(company([]), false).fallback).toBe(false);

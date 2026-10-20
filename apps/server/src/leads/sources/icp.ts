@@ -3,11 +3,13 @@
 // tier until the search holds enough companies, and keeps the ones that fit
 // (fit.ts).
 //
-// Tier 1 runs the core queries, the directory and list page queries and the
-// local pairs, interleaved so the first companies arrive within seconds.
-// Tier 2 widens to synonyms and adjacent niches, tier 3 to more countries or
-// cities, then job posts for sales roles (when the plan has them), and tier 4
-// reads further result pages of the queries that paid off.
+// Tier 1 runs the directory and list page queries first (they find the most
+// per paid request), the core queries and the local pairs, interleaved so the
+// first companies arrive within seconds. Tier 2 widens to synonyms and
+// adjacent niches, tier 3 to more countries or cities, then job posts for
+// sales roles (only when the customer is sales or growth teams), and tier 4
+// reads further result pages of the queries whose first page kept well above
+// the run's average.
 // A result that is a list page ("Top 25 ... agencies", a directory category)
 // is read for the companies it links to, and its next pages when it is
 // paginated (listicle.ts): free pages instead of many paid requests. A
@@ -30,7 +32,7 @@ import { hiringSnippet, postingFromResult, resolvePosting, type HiringPosting } 
 import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
 import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, readHead, type MineResult } from '../listicle.js';
-import { keptYields, makePlan, ranKeys, savePlan, storedPlan, type IcpPlan, type LocalPair, type PlanQuery, type QueryYield } from '../planner.js';
+import { keptYields, makePlan, ranKeys, savePlan, storedPlan, wantsJobPosts, type IcpPlan, type LocalPair, type PlanQuery, type QueryYield } from '../planner.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import { braveQuery, type BraveClient, type BravePageRequest } from './web.js';
 
@@ -56,10 +58,16 @@ const APP_HOST = /^(app|apps|account|accounts|login|signin|signup|auth|my|portal
 const MAX_FAILED_IN_A_ROW = 4;
 /** Deepest result page tier 4 reads (Brave pages are 0 based). */
 const MAX_DEEP_PAGE = 3;
-/** Share of a query's results that must fit for tier 4 to read its next page. */
-const DEEP_FIT_RATE = 0.25;
+/** Share of a query's candidates that must fit for tier 4 to read its next page. */
+export const DEEP_FIT_RATE = 0.4;
 /** Candidates kept from a query's last page before tier 4 pays for its next one, so a page that kept one or two buys no more. */
 export const DEEP_MIN_FITS = 3;
+/**
+ * How far above the run's average of fits per page a query's last page must
+ * be for tier 4 to pay for its next one. Measured: pages 2 to 4 took over half
+ * the paid requests of a search for far fewer valid emails than first pages.
+ */
+export const DEEP_ABOVE_AVERAGE = 2;
 /** Homepages one run reads for fit scoring. Each is free but takes a second or two. */
 export const MAX_HEADS = 2_500;
 /** Paid pages of web results per search when the server sets none (ICP_BRAVE_BUDGET). */
@@ -109,6 +117,15 @@ interface QueryStats {
   /** Candidates and fits from the last page read. */
   candidates: number;
   fits: number;
+}
+
+/**
+ * Whether tier 4 pays for the next page of a query: its last page kept at
+ * least DEEP_MIN_FITS, DEEP_FIT_RATE of its candidates, and
+ * DEEP_ABOVE_AVERAGE times the run's average of fits per page.
+ */
+export function deepWorth(s: { candidates: number; fits: number }, average: number): boolean {
+  return s.fits >= DEEP_MIN_FITS && s.fits >= s.candidates * DEEP_FIT_RATE && s.fits >= average * DEEP_ABOVE_AVERAGE;
 }
 
 /** Round robin over lists: [[a1, a2], [b1]] gives [a1, b1, a2]. */
@@ -252,6 +269,9 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       let indexOffered = 0;
       let indexKept = 0;
       const stats = new Map<string, QueryStats>();
+      // Web result pages read this run and the candidates they gave that fit, for tier 4's average.
+      let webPages = 0;
+      let webFits = 0;
       let yielded = 0;
       let listPagesRead = 0;
       let listPagesTried = 0;
@@ -318,7 +338,10 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
               unscored = true;
               if (p.company.source === 'list_page') return [];
             }
-            if (stat) stat.fits++;
+            if (stat) {
+              stat.fits++;
+              webFits++;
+            }
             return [{ ...p, company: v ? { ...p.company, fit: v.fit, fitReason: v.reason } : p.company }];
           });
         });
@@ -361,7 +384,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
        * that named companies join the queue. Stops starting pages once the
        * run's list page bytes or time are spent.
        */
-      const readLists = async (urls: string[]): Promise<Pending[]> => {
+      const readLists = async (urls: string[], key?: string): Promise<Pending[]> => {
         const out: Pending[] = [];
         const started = Date.now();
         const spent = () => listBytes >= LIST_BYTES_BUDGET || listMs + (Date.now() - started) >= LIST_TIME_BUDGET_MS;
@@ -396,7 +419,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
               title: r.title ? `Listed on: ${r.title}` : undefined,
               snippet: c.context || undefined,
             });
-            if (company) out.push({ company });
+            // Credited to the query that found the list, so its yield counts what the list gave.
+            if (company) out.push({ company, key });
           }
         };
         const start = (url: string) => {
@@ -524,8 +548,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           out.push(...(await readPostings(postings, unit.key)));
           if (phrase) await stage(phraseStage, note(phrase));
         }
-        stats.set(unit.key, { query: unit.query, page: unit.page, more: page.more, candidates: out.length, fits: 0 });
         yieldOf(unit.key).pages++;
+        webPages++;
         if (lists.length > 0) {
           const directories = lists.filter((u) => isDirectoryDomain(hostOf(u))).length;
           const reading = [
@@ -533,9 +557,10 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
             directories ? plural(directories, 'agency directory', 'agency directories') : '',
           ].filter(Boolean);
           await stage('lists', note(`Reading ${reading.join(' and ')}`));
-          out.push(...(await readLists(lists)));
+          out.push(...(await readLists(lists, unit.key)));
           if (phrase) await stage(phraseStage, note(phrase));
         }
+        stats.set(unit.key, { query: unit.query, page: unit.page, more: page.more, candidates: out.length, fits: 0 });
         return out;
       };
 
@@ -621,8 +646,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         const plan = runPlan;
         yield* fromIndex();
         if (enough() || ctx.signal.aborted) return;
-        // Tier 1: core queries, directories and local pairs, interleaved.
-        const tier1 = interleave<Unit>([webUnits(plan.core), webUnits(plan.directories), plan.local.map((pair) => ({ type: 'local', pair }))]);
+        // Tier 1: directories first, core queries and local pairs, interleaved.
+        const tier1 = interleave<Unit>([webUnits(plan.directories), webUnits(plan.core), plan.local.map((pair) => ({ type: 'local', pair }))]);
         const countries = new Set([...plan.core, ...plan.directories].map((q) => q.country).filter(Boolean));
         const webCount = plan.core.length + plan.directories.length;
         const searching = [
@@ -647,15 +672,16 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
 
         // Tier 3b: job posts for sales roles. Many companies a request, but most are larger or out of reach of a
         // homepage check, so they come after the queries that land on fitting companies' own words.
-        if (more() && plan.hiring?.length) {
+        if (more() && plan.hiring?.length && wantsJobPosts(plan, params)) {
           await setPhrase('hiring', 'Looking for companies hiring salespeople');
           yield* run(webUnits(plan.hiring));
         }
 
-        // Tier 4: further pages of the queries whose results fit.
+        // Tier 4: further pages of the queries whose last page kept well above the run's average.
         for (let page = 1; page <= MAX_DEEP_PAGE && more(); page++) {
+          const average = webPages > 0 ? webFits / webPages : 0;
           const worth = [...stats.entries()]
-            .filter(([, s]) => s.page === page - 1 && s.more && s.fits >= DEEP_MIN_FITS && s.fits / s.candidates >= DEEP_FIT_RATE)
+            .filter(([, s]) => s.page === page - 1 && s.more && deepWorth(s, average))
             .sort(([, a], [, b]) => b.fits - a.fits);
           if (worth.length === 0) break;
           await setPhrase('deeper', `Reading further results of the ${plural(worth.length, 'search', 'searches')} that paid off`);

@@ -26,6 +26,15 @@ export interface VerifyPayload {
   /** How often and since when (ISO) it waited, so it stops at MAX_CHECK_DEFERS or MAX_CHECK_WAIT_MS. */
   defers?: number;
   deferredSince?: string;
+  /**
+   * How often and since when (ISO) it went back in the queue because we
+   * could not probe (isCapacityDeferral), for the backoff and
+   * CAPACITY_DEADLINE_MS. Not retries: those count server answers only.
+   */
+  capacityDefers?: number;
+  capacitySince?: string;
+  /** Set while it waits for capacity now, not for the server (greylisting) or the check policy. */
+  capacity?: boolean;
 }
 export interface OpenerPayload {
   /** Up to OPENER_BATCH companies of one user, drafted in one Claude call. */
@@ -170,6 +179,45 @@ export async function fail(
     where id = ${job.id}
   `;
   return 'retry';
+}
+
+/**
+ * Puts a running job back in the queue for later, with a new payload and
+ * without spending an attempt: the same row, so a check that waits many
+ * times leaves one job behind, not one per wait. False when the job is not
+ * running here (the caller then enqueues a fresh one).
+ */
+export async function requeue(sql: Db, jobId: string, payload: JobPayload, runAfter: Date): Promise<boolean> {
+  if (!/^\d+$/.test(jobId)) return false;
+  const rows = await sql`
+    update jobs
+    set status = 'queued', payload = ${sql.json(payload as unknown as Parameters<typeof sql.json>[0])}, run_after = ${runAfter},
+        attempts = greatest(0, attempts - 1), locked_at = null, locked_by = null
+    where id = ${jobId} and status = 'running'
+    returning id
+  `;
+  return rows.length > 0;
+}
+
+export interface QueuedChecks {
+  /** Verify jobs of the search still queued or running: each is an address not settled yet. */
+  queued: number;
+  /** Of those, the ones waiting because we could not probe (port 25, lanes full, throttled), not for the server or the check policy. */
+  capacity: number;
+}
+
+/**
+ * The search's checks still in the queue. A search with checks queued is
+ * not finished, and the ones waiting for capacity will come back with an
+ * answer: an escalation that counts them as lost would buy companies for
+ * nothing.
+ */
+export async function queuedChecks(sql: Db, searchId: string): Promise<QueuedChecks> {
+  const [row] = await sql<QueuedChecks[]>`
+    select count(*)::int as queued, count(*) filter (where payload->>'capacity' = 'true')::int as capacity
+    from jobs where search_id = ${searchId} and type = 'verify' and status in ('queued', 'running')
+  `;
+  return row ?? { queued: 0, capacity: 0 };
 }
 
 /** Hands a claimed job back without spending an attempt (used on shutdown). */

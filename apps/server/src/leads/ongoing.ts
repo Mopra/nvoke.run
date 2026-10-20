@@ -7,18 +7,22 @@
 // at most MAX_ESCALATIONS_PER_DAY in 24 hours. An ongoing search gets one
 // round a day at its own time of day, within a daily Brave budget per search
 // and one for all ongoing searches together (reserved in `ongoing_budget`),
-// and pauses while the account's allowance is used up. Every step says what it
-// does in stage_note, with counts from the database.
+// and pauses while the account's allowance is used up. A round never buys
+// what the allowance cannot take: the verified target is capped at what the
+// account's allowance still has room for (an icp email counts as
+// ICP_EMAIL_WEIGHT), and no round starts while the search still has checks
+// queued or deferred. Every step says what it does in stage_note, with counts
+// from the database.
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
-import { IcpSearchParams } from '@nvoke/shared';
+import { ICP_EMAIL_WEIGHT, IcpSearchParams } from '@nvoke/shared';
 import type { Ai } from '../ai/client.js';
 import { searchFinished } from '../webhooks/events.js';
 import { stillToCheck, type PolicyEmail } from './check-policy.js';
-import { maxSearchLimit } from './plans.js';
+import { emailsPerMonth, maxSearchLimit, periodOf } from './plans.js';
 import { IcpPlan, PLAN_CAPS, freshCountries, replan, savePlan } from './planner.js';
-import { planOf, quotaExhausted } from './quota.js';
+import { emailsVerified, planOf } from './quota.js';
 import { startAutoRun } from './repo.js';
 
 type Db = Sql | TransactionSql;
@@ -58,6 +62,28 @@ export function verifiedTarget(userLimit: number): number {
   return Math.max(VERIFIED_TARGET.min, Math.ceil(VERIFIED_TARGET.share * userLimit));
 }
 
+/**
+ * Verified emails of an icp search the account's allowance can still take
+ * this month: what is left of it, each email counting ICP_EMAIL_WEIGHT. Zero
+ * means no round may start: whatever it found could not be handed over.
+ */
+export async function allowanceRoom(db: Db, userId: string, now: Date = new Date()): Promise<number> {
+  const left = emailsPerMonth(await planOf(db, userId)) - (await emailsVerified(db, userId, periodOf(now)));
+  return Math.max(0, Math.floor(left / ICP_EMAIL_WEIGHT));
+}
+
+/**
+ * Checks of the search still queued, running or deferred (a deferred check is
+ * a queued verify job that waits). No round starts while any is left: they
+ * may close the gap or use up the allowance.
+ */
+export async function queuedChecks(db: Db, searchId: string): Promise<number> {
+  const [row] = await db<{ n: number }[]>`
+    select count(*)::int as n from jobs where search_id = ${searchId} and type = 'verify' and status in ('queued', 'running')
+  `;
+  return row?.n ?? 0;
+}
+
 /** The limit of the latest run the user started (the first run or Search more). */
 export function userLimit(runs: RunRecord[], fallback: number): number {
   return [...runs].reverse().find((r) => !r.trigger)?.limit ?? fallback;
@@ -74,6 +100,7 @@ function plural(n: number, one: string, many: string): string {
 }
 
 const verifiedEmails = (n: number) => plural(n, 'verified email', 'verified emails');
+const addresses = (n: number) => plural(n, 'address', 'addresses');
 
 /** What a fresh round does, for the stage note: "Looking in 9 more countries and 6 new niches". */
 export function roundNote(previous: IcpPlan, plan: IcpPlan): string {
@@ -130,7 +157,7 @@ export async function searchCounts(db: Db, searchId: string, since?: Date): Prom
   // Unchecked addresses still to be checked: not one left out on purpose, nor one the
   // company's settled addresses already make unnecessary (check-policy.ts).
   const open = await db<(PolicyEmail & { company_id: string })[]>`
-    select company_id, kind, first_name, last_name, seniority, title, verification, skipped from emails
+    select company_id, address, kind, first_name, last_name, seniority, title, verification, skipped from emails
     where search_id = ${searchId} and skipped is null
       and company_id in (select company_id from emails where search_id = ${searchId} and verification is null and skipped is null)
   `;
@@ -162,7 +189,10 @@ export type Verdict = { escalate: true; note: string } | { escalate: false; stag
 /**
  * Whether a search that ran out of work pushes on. `projected` is the
  * verified count to judge by: the real one at the end, or that plus the
- * addresses still being checked when judging early.
+ * addresses still being checked when judging early. `room` is how many more
+ * verified emails the allowance can take (allowanceRoom): the target never
+ * asks for more than that, and with none left nothing pushes on. While
+ * `checksQueued` is above zero it never pushes on either.
  */
 export function decide(input: {
   runs: RunRecord[];
@@ -171,13 +201,15 @@ export function decide(input: {
   verified: number;
   projected?: number;
   verifiedSince: number;
-  quotaExhausted: boolean;
+  room: number;
+  checksQueued?: number;
   now: Date;
 }): Verdict {
   const { runs, verified, ongoing } = input;
-  const target = verifiedTarget(userLimit(runs, input.limit));
+  const wanted = verifiedTarget(userLimit(runs, input.limit));
+  const target = Math.min(wanted, verified + input.room);
   const last = runs.at(-1);
-  if (input.quotaExhausted) {
+  if (input.room <= 0) {
     return {
       escalate: false,
       stage: STAGES.paused,
@@ -192,7 +224,12 @@ export function decide(input: {
     };
   }
   if ((input.projected ?? verified) >= target) {
-    return { escalate: false, stage: STAGES.done, note: `Found ${verifiedEmails(verified)}, enough for this search.${ongoing ? ' Looking for new ones every day' : ''}` };
+    const enough = target < wanted ? 'as many as this month’s allowance can take' : 'enough for this search';
+    return { escalate: false, stage: STAGES.done, note: `Found ${verifiedEmails(verified)}, ${enough}.${ongoing ? ' Looking for new ones every day' : ''}` };
+  }
+  const checks = input.checksQueued ?? 0;
+  if (checks > 0) {
+    return { escalate: false, stage: STAGES.round, note: `Found ${verified} verified so far. Checking ${addresses(checks)} before looking further` };
   }
   const recent = escalationsSince(runs, new Date(input.now.getTime() - 24 * 3_600_000));
   if (recent >= MAX_ESCALATIONS_PER_DAY) {
@@ -225,7 +262,8 @@ async function verdictFor(db: Db, s: SearchState, now: Date, early: boolean): Pr
     verified: counts.verified,
     projected: early ? projectVerified(counts) : undefined,
     verifiedSince: counts.verifiedSince,
-    quotaExhausted: await quotaExhausted(db, s.clerk_user_id, now),
+    room: await allowanceRoom(db, s.clerk_user_id, now),
+    checksQueued: await queuedChecks(db, s.id),
     now,
   });
 }
@@ -250,11 +288,11 @@ export async function holdForEscalation(tx: TransactionSql, searchId: string, no
 }
 
 /**
- * Holds running icp searches whose find and crawls are done while checks
- * and people jobs are still left, when what those can still bring
+ * Holds running icp searches whose find, crawls and checks are done while
+ * people jobs are still left, when what those can still bring
  * (projectVerified) would leave them short: the next round starts within a
- * tick or two, without waiting for greylisted checks, paced people probes or
- * addresses that will come back catch-all. The longest unjudged go first;
+ * tick or two, without waiting for paced people probes. A search with checks
+ * queued or deferred is never held (decide). The longest unjudged go first;
  * one judged and left alone waits EARLY_RECHECK_MS before the next look, as
  * only settling checks change the answer.
  */
@@ -379,8 +417,19 @@ async function startRound(deps: OngoingDeps, c: Claimed): Promise<void> {
     await finishHeld(sql, c, STAGES.exhausted, `Found ${verified}. Could not plan more searches for this one`);
     return;
   }
-  if (await quotaExhausted(sql, c.clerk_user_id, now)) {
+  const room = await allowanceRoom(sql, c.clerk_user_id, now);
+  if (room <= 0) {
     await finishHeld(sql, c, STAGES.paused, `Found ${verified}. ${c.ongoing ? 'Paused until your allowance renews' : 'This month’s allowance is used up'}`);
+    return;
+  }
+  // Checks queued since the hold (a people job's addresses): back to running, and the
+  // last job's finish (holdForEscalation) judges again once they settle.
+  const checks = ongoing ? 0 : await queuedChecks(sql, c.id);
+  if (checks > 0) {
+    await sql`
+      update searches set stage = ${STAGES.round}, stage_note = ${`Found ${counts.verified} verified so far. Checking ${addresses(checks)} before looking further`}
+      where id = ${c.id} and status = 'running' and stage = ${STAGES.replan}
+    `;
     return;
   }
   if (!deps.ai || !(await deps.ai.ready(c.clerk_user_id))) {
@@ -388,7 +437,8 @@ async function startRound(deps: OngoingDeps, c: Claimed): Promise<void> {
     return;
   }
   const runs = c.runs ?? [];
-  const target = verifiedTarget(userLimit(runs, c.limit));
+  // Never aim past what the allowance can still take.
+  const target = Math.min(verifiedTarget(userLimit(runs, c.limit)), counts.verified + room);
   const budget = ongoing ? (c.braveBudget ?? 0) : deps.runBraveBudget;
   const maxQueries = Math.min(PLAN_CAPS.directories + PLAN_CAPS.adjacent + PLAN_CAPS.wider, budget);
   let plan: IcpPlan | null;
@@ -495,7 +545,7 @@ export async function claimOngoing(deps: OngoingDeps, now: Date): Promise<Claime
   `;
   const day = utcDay(now);
   for (const row of rows) {
-    if (await quotaExhausted(sql, row.clerk_user_id, now)) {
+    if ((await allowanceRoom(sql, row.clerk_user_id, now)) <= 0) {
       if (row.stage !== STAGES.paused) {
         const { verified } = await searchCounts(sql, row.id);
         await sql`

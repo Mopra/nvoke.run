@@ -30,9 +30,9 @@ import { holdForEscalation } from '../leads/ongoing.js';
 import { pauseSource } from '../leads/source-pause.js';
 import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
-import { isTempfail, type Verifier } from '../leads/verify/index.js';
+import { isCapacityDeferral, isTempfail, type Verifier, type VerifyResult } from '../leads/verify/index.js';
 import { leadSettled, searchFinished } from '../webhooks/events.js';
-import { cancelSearchJobs, enqueue, type Job, verifyPriority } from './queue.js';
+import { cancelSearchJobs, enqueue, requeue, type Job, type VerifyPayload, verifyPriority } from './queue.js';
 
 export interface PipelineDeps {
   sql: Sql;
@@ -544,6 +544,35 @@ export const GREYLIST_RETRIES = 2;
 export const GREYLIST_DELAY_MS = 10 * 60_000;
 
 /**
+ * A check we could not make on our side (isCapacityDeferral) goes back in
+ * the queue, first after PACED_DELAY_MS when only the minute's slots were
+ * taken (smtp_paced, a job that ran out of time), else after
+ * CAPACITY_DELAY_MS (port 25 blocked on every IPv4 lane, Google or
+ * Microsoft throttling us), doubling each time up to CAPACITY_MAX_DELAY_MS.
+ * It never counts as a retry. Past CAPACITY_DEADLINE_MS since the first
+ * such wait it settles unknown.
+ */
+export const PACED_DELAY_MS = 60_000;
+export const CAPACITY_DELAY_MS = 10 * 60_000;
+export const CAPACITY_MAX_DELAY_MS = 2 * 60 * 60_000;
+export const CAPACITY_DEADLINE_MS = 48 * 60 * 60_000;
+
+/** How long a check waits after its `defers`-th capacity wait (0 for the first), with up to 20% jitter so waits spread out. */
+export function capacityDelayMs(reason: string, defers: number, retryAfterMs = 0, random: () => number = Math.random): number {
+  const base = reason === 'smtp_paced' || reason === 'aborted' ? PACED_DELAY_MS : CAPACITY_DELAY_MS;
+  const delay = Math.max(base * 2 ** Math.min(defers, 16), retryAfterMs);
+  return Math.min(CAPACITY_MAX_DELAY_MS, Math.round(delay * (1 + random() * 0.2)));
+}
+
+/** The capacity wait so far, carried by every requeue of the check, so the deadline is overall. */
+function capacityCarry(payload: Record<string, unknown>): Pick<VerifyPayload, 'capacityDefers' | 'capacitySince'> {
+  return {
+    ...(typeof payload.capacityDefers === 'number' ? { capacityDefers: payload.capacityDefers } : {}),
+    ...(typeof payload.capacitySince === 'string' ? { capacitySince: payload.capacitySince } : {}),
+  };
+}
+
+/**
  * A check that waits for the company's better addresses is woken as soon as
  * one of them settles (wakeDeferredChecks); this is only the fallback.
  */
@@ -570,7 +599,7 @@ async function policyContext(
   `;
   if (!company) return null;
   const others = await tx<PolicyEmail[]>`
-    select kind, first_name, last_name, seniority, title, verification, skipped from emails
+    select address, kind, first_name, last_name, seniority, title, verification, skipped from emails
     where company_id = ${companyId} and id <> ${emailId}
   `;
   return {
@@ -595,11 +624,11 @@ interface Waited {
 async function decideCheck(
   deps: PipelineDeps,
   emailId: string,
-  job: { searchId: string; retry: number; priority: number; waited: Waited },
+  job: { searchId: string; retry: number; priority: number; waited: Waited; carry: Pick<VerifyPayload, 'capacityDefers' | 'capacitySince'> },
 ): Promise<Decision | 'gone'> {
   return deps.sql.begin(async (tx) => {
     const [self] = await tx<(PolicySelf & { company_id: string; search_id: string; verification: Verification | null; skipped: string | null })[]>`
-      select company_id, search_id, kind, first_name, last_name, seniority, title, verification, skipped from emails where id = ${emailId} for update
+      select company_id, search_id, address, kind, first_name, last_name, seniority, title, verification, skipped from emails where id = ${emailId} for update
     `;
     if (!self || self.verification || self.skipped) return 'gone';
     if (checkTier(self) === 'primary') return 'check';
@@ -629,7 +658,7 @@ async function decideCheck(
       // Not a retry: the company's other checks decide whether this one is needed.
       await enqueue(tx, {
         type: 'verify',
-        payload: { emailId, retry: job.retry, deferred: true, defers: job.waited.defers + 1, deferredSince: since },
+        payload: { emailId, retry: job.retry, deferred: true, defers: job.waited.defers + 1, deferredSince: since, ...job.carry },
         searchId: job.searchId,
         runAfter: new Date(now.getTime() + CHECK_DEFER_MS),
         priority: job.priority,
@@ -684,38 +713,66 @@ export async function runVerify(deps: PipelineDeps, job: Job, signal: AbortSigna
     defers: typeof job.payload.defers === 'number' ? job.payload.defers : 0,
     since: typeof job.payload.deferredSince === 'string' ? job.payload.deferredSince : null,
   };
-  const decision = await decideCheck(deps, emailId, { searchId: email.search_id, retry, priority: verifyPriority(email), waited });
+  const carry = capacityCarry(job.payload);
+  const decision = await decideCheck(deps, emailId, { searchId: email.search_id, retry, priority: verifyPriority(email), waited, carry });
   if (decision !== 'check') return;
 
   const result = await deps.verifier.verify(email.address, signal);
-  if (result.reason === 'smtp_paced') {
-    // Over the probe budget for this minute: come back when a slot frees up, spread out. Not a retry.
-    const now = deps.now?.() ?? new Date();
-    const wait = Math.max(5_000, result.retryAfterMs ?? 60_000) + Math.floor(Math.random() * 60_000);
-    await enqueue(sql, {
-      type: 'verify',
-      payload: { emailId, retry },
-      searchId: email.search_id,
-      runAfter: new Date(now.getTime() + wait),
-      priority: verifyPriority(email),
-    });
+  // On shutdown the runner hands the job back as it was.
+  if (signal.aborted && signal.reason instanceof Error && signal.reason.name === 'ShutdownSignal') throw signal.reason;
+  const at = { searchId: email.search_id, emailId, mxHost: result.mxHost };
+  if (isCapacityDeferral(result)) {
+    await waitForCapacity(deps, job, email, result, retry);
     return;
   }
-  // Unknown is the outcome that says the most about our own health (throttling, a blocked port 25).
-  if (result.verification === 'unknown') deps.log.info({ reason: result.reason, mxHost: result.mxHost, retry }, 'verify: unknown');
   if (isTempfail(result) && retry < GREYLIST_RETRIES) {
     // Greylisting: the server wants us to come back later. A queued job keeps the search running.
     const now = deps.now?.() ?? new Date();
     await enqueue(sql, {
       type: 'verify',
-      payload: { emailId, retry: retry + 1 },
+      payload: { emailId, retry: retry + 1, ...carry },
       searchId: email.search_id,
       runAfter: new Date(now.getTime() + GREYLIST_DELAY_MS),
       priority: verifyPriority(email),
     });
+    deps.log.info({ ...at, reason: result.reason, retry: retry + 1, delayMs: GREYLIST_DELAY_MS }, 'verify: requeued');
     return;
   }
+  // Unknown is the outcome that says the most about our own health (throttling, a blocked port 25).
+  if (result.verification === 'unknown') deps.log.info({ ...at, reason: result.reason, retry }, 'verify: unknown');
   await recordVerification(deps, emailId, result.verification);
+}
+
+/**
+ * A check we could not make (isCapacityDeferral) goes back in the queue,
+ * the same job row, later each time (capacityDelayMs), and is never settled
+ * for that reason until CAPACITY_DEADLINE_MS has passed since its first such
+ * wait. Its greylisting retries are left as they were.
+ */
+async function waitForCapacity(
+  deps: PipelineDeps,
+  job: Job,
+  email: { search_id: string; kind: string; seniority: string | null; first_name: string | null },
+  result: VerifyResult,
+  retry: number,
+): Promise<void> {
+  const now = deps.now?.() ?? new Date();
+  const emailId = str(job.payload, 'emailId');
+  const at = { searchId: email.search_id, emailId, mxHost: result.mxHost };
+  const since = typeof job.payload.capacitySince === 'string' ? job.payload.capacitySince : now.toISOString();
+  const defers = typeof job.payload.capacityDefers === 'number' ? job.payload.capacityDefers : 0;
+  if (now.getTime() - new Date(since).getTime() >= CAPACITY_DEADLINE_MS) {
+    deps.log.warn({ ...at, reason: 'capacity_deadline', lastReason: result.reason, defers, since }, 'verify: unknown');
+    await recordVerification(deps, emailId, 'unknown');
+    return;
+  }
+  const delayMs = capacityDelayMs(result.reason, defers, result.retryAfterMs);
+  const payload: VerifyPayload = { emailId, retry, capacity: true, capacityDefers: defers + 1, capacitySince: since };
+  const runAfter = new Date(now.getTime() + delayMs);
+  if (!(await requeue(deps.sql, job.id, payload, runAfter))) {
+    await enqueue(deps.sql, { type: 'verify', payload, searchId: email.search_id, runAfter, priority: verifyPriority(email) });
+  }
+  deps.log.info({ ...at, reason: result.reason, defers: defers + 1, delayMs }, 'verify: requeued');
 }
 
 /**
@@ -765,7 +822,9 @@ async function recordVerification(deps: PipelineDeps, emailId: string, verificat
 /** A verify job that ran out of attempts leaves the address as "unknown". */
 export async function onVerifyGaveUp(deps: PipelineDeps, job: Job): Promise<void> {
   const emailId = job.payload.emailId;
-  if (typeof emailId === 'string') await recordVerification(deps, emailId, 'unknown');
+  if (typeof emailId !== 'string') return;
+  deps.log.info({ searchId: job.searchId, emailId, reason: 'job_failed' }, 'verify: unknown');
+  await recordVerification(deps, emailId, 'unknown');
 }
 
 /** A find job that failed for good fails its search. */

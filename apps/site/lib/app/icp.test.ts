@@ -140,6 +140,16 @@ describe('people first results', () => {
     expect(isRoleInbox(nameless)).toBe(false);
   });
 
+  it('keeps the checked shared inbox in view when no named person is valid', () => {
+    const bounced = email('ole@delta.com', { person: person('Ole', 'founder', 'CEO'), verification: 'invalid' });
+    const sales = email('sales@delta.com');
+    const rows = peopleRows([company('Delta', [bounced, sales])]);
+    expect(rows.map((r) => r.email.address)).toEqual(['ole@delta.com', 'sales@delta.com']);
+    expect(rows.map((r) => r.fallback)).toEqual([false, false]);
+    const verified = peopleRows([company('Delta', [bounced, sales])], { decisionMakersOnly: false, verifiedOnly: true, showAll: false });
+    expect(verified.map((r) => r.email.address)).toEqual(['sales@delta.com']);
+  });
+
   it('shows every address with showAll', () => {
     const rows = peopleRows([acme], { decisionMakersOnly: false, verifiedOnly: false, showAll: true });
     expect(rows.map((r) => r.email.address)).toEqual(['mia@acme.com', 'li@acme.com', 'info@acme.com']);

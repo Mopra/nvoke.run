@@ -193,15 +193,17 @@ function passes(email: Email, filters: PeopleFilters): boolean {
 /**
  * One row per person, in the server's order (companies as listed, decision
  * makers first inside each). Role inboxes show only for a company with no
- * person at all, unless `showAll`. The filters apply after that, so a
- * company with people never falls back to its info@ under a filter.
+ * valid person, unless `showAll`. The filters apply after that, so a
+ * company with a valid person never falls back to its info@ under a filter.
  */
 export function peopleRows(companies: Company[], filters: PeopleFilters = NO_PEOPLE_FILTERS): PersonRow[] {
   const rows: PersonRow[] = [];
   for (const company of companies) {
     const people = company.emails.filter((e) => !isRoleInbox(e));
     const fallback = !filters.showAll && people.length === 0;
-    const shown = filters.showAll || fallback ? company.emails : people;
+    // People none of whom is valid keep the role inbox in view: the server checks one for such a company.
+    const withInboxes = filters.showAll || !people.some((e) => e.verification === 'valid');
+    const shown = withInboxes ? company.emails : people;
     for (const email of shown) {
       if (!passes(email, filters)) continue;
       rows.push({
