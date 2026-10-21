@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-21 Hourly round: the /app 404 quest is still in progress (sonnet), main unchanged since green 19b9849, no aim. Nothing to do.
 - 2026-10-21 Hourly round: unchanged (only memory commits past green 19b9849, log done, no aim). Nothing to do.
 - 2026-10-21 Hourly round: unchanged (only memory commits past green 19b9849, log done, no aim). Nothing to do.
 - 2026-10-21 Round after the sending, cost and pricing checks landed: no fix commits, so main green at 19b9849. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
