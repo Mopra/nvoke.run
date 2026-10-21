@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-21 Round after the /app 404 quest landed (6584776, 307 to sign-in): checks green at 6584776. Log done, no aim. Nothing to file; it reaches nvoke.run only with a site deploy, the human's.
 - 2026-10-21 Hourly round: unchanged (the /app 404 quest still in progress, only memory commits past green 19b9849, no aim). Nothing to do.
 - 2026-10-21 Hourly round: unchanged (the /app 404 quest still in progress, only memory commits past green 19b9849, no aim). Nothing to do.
 - 2026-10-21 Hourly round: unchanged (the /app 404 quest still in progress, only memory commits past green 19b9849, no aim). Nothing to do.
@@ -66,7 +67,8 @@
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 55 quests landed since the last ship; shipping is the human's.
-- Main green at 19b9849 (2026-10-21).
+- Main green at 6584776 (2026-10-21).
+- /app 307 redirect fix (6584776) not live until the site deploys; Wolf Valencia (qa-audit.com) reported it. The human's.
 - SMTP relays (b4611da) need vps-us-1 set up and SMTP_RELAYS in the VPS .env (deploy/README.md); the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
 - Openers landed (8672ee6, b1b1d38); never seen live.
