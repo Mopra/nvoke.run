@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const isApp = createRouteMatcher(['/app(.*)']);
@@ -8,7 +9,15 @@ const isApp = createRouteMatcher(['/app(.*)']);
 // a signed-out visitor goes to /sign-in and comes back after.
 export default clerkMiddleware(
   async (auth, req) => {
-    if (isApp(req)) await auth.protect();
+    if (!isApp(req)) return;
+    // auth.protect() answers 404 to anything that does not look like a
+    // browser navigation (curl, crawlers, link previews), so redirect by hand.
+    const { userId } = await auth();
+    if (!userId) {
+      const url = new URL('/sign-in', req.url);
+      url.searchParams.set('redirect_url', req.url);
+      return NextResponse.redirect(url, 307);
+    }
   },
   { signInUrl: '/sign-in', signUpUrl: '/sign-up' },
 );
