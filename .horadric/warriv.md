@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-21 Hourly round: unchanged (only memory commits past green 19b9849, log done, no aim). Nothing to do.
 - 2026-10-21 Round after the sending, cost and pricing checks landed: no fix commits, so main green at 19b9849. Log done, no aim, tree clean but .horadric. Nothing to file; shipping is the human's.
 - 2026-10-21 Hourly round: tree clean, the human's last commit 19b9849 51 minutes old, so filed 'Checks on main after the sending, cost and pricing work' (sonnet, with build). No aim.
 - 2026-10-21 Round as the human left: 45 human commits past green b599672 (sending, now internal only; cost, Serper, free lookups, ICP index, new pricing ladder, people job) and dirty server fit-after-crawl work (untracked migration 1770) still in the tree. Held checks back again. No aim, nothing filed.
