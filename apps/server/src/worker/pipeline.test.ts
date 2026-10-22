@@ -1178,9 +1178,9 @@ describe('fit after the crawl', () => {
     expect(search).toMatchObject({ companies_found: 2, companies_crawled: 2, emails_found: 2 });
     // The kept company got its people job; the one turned down never did.
     expect(await db.sql`select 1 from jobs where search_id = ${searchId} and type = 'people'`).toHaveLength(1);
-    // Only people.dk's fallback inbox came back valid and was charged, two of the allowance as an icp email.
+    // Only people.dk's fallback inbox came back valid and was charged, three of the allowance as a Sonar email.
     const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
-    expect(usage?.emails_verified).toBe(2);
+    expect(usage?.emails_verified).toBe(3);
   });
 
   it('finds on in the place of a company fit turned down, so the limit counts companies kept', async () => {
