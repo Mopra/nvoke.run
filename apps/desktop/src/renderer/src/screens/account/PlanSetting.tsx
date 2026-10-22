@@ -1,9 +1,9 @@
 import { ArrowUpRight } from 'lucide-react';
-import { FREE_PLAN, PLANS, planLabel } from '@nvoke/shared';
+import { FREE_PLAN } from '@nvoke/shared';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { BILLING_URL } from '@/lib/env';
-import { ICP_WEIGHT_NOTE } from '@/lib/format';
+import { ICP_WEIGHT_NOTE, planSettingLabel } from '@/lib/format';
 import type { Me } from '@/lib/types';
 import { Setting } from './Setting';
 
@@ -11,7 +11,7 @@ import { Setting } from './Setting';
 export function PlanSetting({ me }: { me: Me }) {
   return (
     <Setting
-      label={me.plan === FREE_PLAN ? 'Free plan' : `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month`}
+      label={planSettingLabel(me)}
       description={`Only valid emails count, each address once. ${ICP_WEIGHT_NOTE} Billing lives on nvoke.run.`}
     >
       <Button

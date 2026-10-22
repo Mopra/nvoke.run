@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { PLANS, type Plan } from '@nvoke/shared';
 import { buildQuery } from './api';
 import { companiesToCsv } from './csv';
-import { csvFileName, percent, relativeTime, runsAdded, searchSubtitle, searchTitle } from './format';
+import { csvFileName, percent, planSettingLabel, relativeTime, runsAdded, searchSubtitle, searchTitle } from './format';
 import { parseRoute, routeHref } from './router';
 import type { Company, Search } from './types';
 
@@ -120,5 +121,19 @@ describe('router and query', () => {
   it('skips empty query params', () => {
     expect(buildQuery({ q: '', kind: 'personal', cursor: undefined })).toBe('?kind=personal');
     expect(buildQuery({})).toBe('');
+  });
+});
+
+describe('planSettingLabel', () => {
+  const usage = { period: '2026-10', emailsVerified: 509, emailsLimit: 60_000 };
+
+  it('names the free and known paid plans with their price', () => {
+    expect(planSettingLabel({ plan: 'free', usage })).toBe('Free plan');
+    expect(planSettingLabel({ plan: 'emails_2500', usage })).toBe(`2,500 plan, $${PLANS.emails_2500.priceUsd} a month`);
+  });
+
+  it('falls back to the allowance for a plan from a newer server', () => {
+    // 0.1.3 crashed the Account screen here: the server moved to a ladder it did not know.
+    expect(planSettingLabel({ plan: 'emails_75000' as Plan, usage })).toBe('60,000 plan');
   });
 });

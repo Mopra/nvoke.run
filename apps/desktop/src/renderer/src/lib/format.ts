@@ -1,5 +1,5 @@
-import { ICP_EMAIL_WEIGHT } from '@nvoke/shared';
-import type { Drop, FeedSource, Search, SearchKind, SearchStatus, Verification } from './types';
+import { FREE_PLAN, ICP_EMAIL_WEIGHT, PLANS, isPlan, planLabel } from '@nvoke/shared';
+import type { Drop, FeedSource, Me, Search, SearchKind, SearchStatus, Verification } from './types';
 
 /** "twice", or "3 times": how often one valid email from Describe your customer counts (`ICP_EMAIL_WEIGHT`). */
 export const ICP_WEIGHT_TIMES = ICP_EMAIL_WEIGHT === 2 ? 'twice' : `${ICP_EMAIL_WEIGHT} times`;
@@ -176,6 +176,16 @@ export function capitalize(text: string): string {
 const numberFormat = new Intl.NumberFormat('en-US');
 export function formatNumber(n: number): string {
   return numberFormat.format(n);
+}
+
+/**
+ * "Free plan", "2,500 plan, $19 a month", or for a plan this build does not
+ * know yet (the server's ladder moved on) the allowance it reports, no price.
+ */
+export function planSettingLabel(me: Pick<Me, 'plan' | 'usage'>): string {
+  if (me.plan === FREE_PLAN) return 'Free plan';
+  if (!isPlan(me.plan)) return `${formatNumber(me.usage.emailsLimit)} plan`;
+  return `${planLabel(me.plan)} plan, $${PLANS[me.plan].priceUsd} a month`;
 }
 
 export function percent(part: number, whole: number): number {
