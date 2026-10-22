@@ -26,7 +26,7 @@ export function useStartSearch() {
   return { start, isPending: create.isPending, pendingInput: create.isPending ? create.variables : undefined };
 }
 
-/** What "Describe your customer" asks for: up to the plan's search cap, and it keeps filling. */
+/** What Sonar asks for: up to the plan's search cap, and it keeps filling. */
 export const ICP_LIMIT = 1000;
 
 /**

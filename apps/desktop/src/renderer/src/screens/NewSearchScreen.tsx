@@ -9,6 +9,7 @@ import { navigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { DescribeCustomer } from '@/screens/DescribeCustomer';
 import { StartFromWebsite } from '@/screens/StartFromWebsite';
+import { ICP_NAME } from '@nvoke/shared';
 
 /** The kinds in order, with the short name the keycaps carry. */
 const KINDS: { value: FormKind; label: string; short: string; icon: LucideIcon }[] = [
@@ -26,7 +27,7 @@ const SOURCES: Record<FormKind, string> = {
 };
 
 /**
- * New search. Plain `#/new` asks who you sell to (DescribeCustomer,
+ * New search. Plain `#/new` is Sonar, who do you sell to (DescribeCustomer,
  * docs/desktop/people.md). `#/new?kind=website` opens the website step
  * (docs/desktop/site-profile.md), and a search kind (`#/new?kind=domains`,
  * from the command bar and "Other ways to search") the manual form on that tab.
@@ -68,7 +69,7 @@ function ManualSearch({ initialKind }: { initialKind: FormKind }) {
           <h1 className="sr-only">New search</h1>
           <Pill onClick={() => navigate({ name: 'new', kind: null })} className="mb-7 self-start">
             <ArrowLeft className="size-3" />
-            Describe your customer instead
+            Use {ICP_NAME} instead
           </Pill>
           <div className="grid grid-cols-[196px_minmax(0,1fr)_210px] gap-10">
             <div className="flex flex-col gap-4">

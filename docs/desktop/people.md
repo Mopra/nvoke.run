@@ -7,11 +7,38 @@ how each address was found (`Email.foundVia`), how sure it is
 decision makers first. The desktop shows people first and starts from a
 plain words description of the customer.
 
-## New search: Describe your customer
+## Sonar
+
+The `icp` search kind is Sonar, the premium way to search: it plans the
+searches with Claude, pays for web search and scores every company, so each
+verified email it finds counts 3 times against the allowance
+(`ICP_EMAIL_WEIGHT` and `ICP_NAME` in `packages/shared/src/plans.ts`). The
+renderer prints the name from `ICP_NAME` and the weight from `lib/format.ts`
+(`ICP_WEIGHT_TIMES`, "3 times", and `ICP_WEIGHT_BADGE`, "×3").
+
+The look is the black key: Sonar wears the display strip's material wherever
+it appears, the black screen tokens, a lit orange LED, its name in the Doto
+dot matrix and a dot matrix "×3" in orange. Everything else stays the grey
+chassis, so Sonar reads as the one black key on the panel. The pieces are in
+`components/SonarMark.tsx`: `SonarMark` (the black tag, `weight` adds the
+×3), `SonarWeight` (the ×3 alone) and `SonarPlate` (the plate that heads the
+form). Its keys are the `screen` button variant: a black keycap that sinks
+like the others, with an orange LED in it.
+
+- New search: the form below, headed by the black plate.
+- Searches: a Sonar row carries the black tag with ×3 in the Kind column.
+  The Start bracket's lit key is the black Sonar key, and the empty state's
+  button is the black "Ask Sonar" key.
+- Results: the black tag with ×3 sits over a Sonar search's title.
+- Command bar: the action is "Sonar", typed text offers "Sonar: ...".
+
+## New search: Sonar
 
 Plain `#/new` (New search, Cmd+N, the tray, the Searches empty state) opens
 `screens/DescribeCustomer.tsx`:
 
+- The black plate: LED, SONAR in dot matrix, "Plain words in, the people
+  who decide out" and the ×3 per verified email.
 - "Who do you sell to?" in display type over one large textarea. Enter finds
   leads, Shift+Enter breaks the line. Empty and submitted: "Say who you sell
   to first."
@@ -22,20 +49,22 @@ Plain `#/new` (New search, Cmd+N, the tray, the Searches empty state) opens
   searchable `CountryPicker` in add mode; "any country" clears them) and
   Cities or regions (comma separated, up to 30).
 - "Keep finding new leads", a switch, on by default.
-- Primary action "Find leads": `POST /v1/searches` with kind `icp`, limit
+- Primary action "Run Sonar", a black key with a lit LED: `POST /v1/searches` with kind `icp`, limit
   1000 (or the plan's cap when lower), then `PATCH /v1/searches/:id
   { ongoing: true }` when the switch is on (`useStartIcp`,
   `lib/start-search.ts`). The results open either way; a failed switch only
   toasts and the results screen has the switch too.
+- Under the key, plainly: Sonar goes deeper, so each verified email it
+  finds counts 3 times; unverified ones are free; what is left this month.
 - "Other ways to search": Start from your website (`#/new?kind=website`),
   Local businesses, Web search, New launches, Paste a list (the manual form,
-  `#/new?kind=local` and so on, which links back with "Describe your
-  customer instead").
+  `#/new?kind=local` and so on, which links back with "Use Sonar
+  instead").
 
-The command bar lists "Describe your customer" first among its actions. In
-the quick window typed text offers "Find leads: ..." (an `icp` search,
-limit 1000, switched to ongoing, its hint says "1,000 to start, then keeps
-finding more") next to the web or local search. It comes first only when
+The command bar lists "Sonar" first among its actions. In the quick window
+typed text offers "Sonar: ..." (an `icp` search, limit 1000, switched to
+ongoing, its hint says "1,000 to start, then keeps finding more. Emails
+count 3 times") next to the web or local search. It comes first only when
 the text reads like a description (five words or more, or joining words
 like "with" and "that") and not like a local search, so "dental clinics
 aarhus" keeps the web search first (`parseQuickIcp`, `lib/quick-search.ts`).
@@ -134,7 +163,7 @@ web search, team pages, mail servers) and answers `PATCH` (`ongoing`, 400
 it hides shared inboxes until a search checks them; switched on, they show
 unchecked and settle a few seconds later. It seeds an ongoing `icp` search
 that ended, one that runs for a few minutes and a local search with shared
-inboxes on. `capture` shoots `04a` to `04d` (Describe your customer,
+inboxes on. `capture` shoots `04a` to `04d` (Sonar's form,
 filled, the country panel, details) and `17` to `17f` (the island with a
 stage note, a running and an ended `icp` search, the Decision makers
 filter, the Shared inboxes card, the checks running and settled).

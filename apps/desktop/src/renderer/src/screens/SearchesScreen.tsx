@@ -35,6 +35,8 @@ import type { Search } from '@/lib/types';
 import type { SiteProfile } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
 import { RevealWords } from '@/components/Reveal';
+import { SonarMark } from '@/components/SonarMark';
+import { ICP_NAME } from '@nvoke/shared';
 
 function RowMenu({ search }: { search: Search }) {
   const [confirm, setConfirm] = useState(false);
@@ -123,10 +125,11 @@ const KIND_WORD: Record<string, string> = {
   launches: 'Launches',
   domains: 'List',
   drop: 'Drop',
-  icp: 'Describe',
 };
 
+/** Sonar wears its black tag; every other kind is a word on the chassis. */
 function KindTag({ kind }: { kind: string }) {
+  if (kind === 'icp') return <SonarMark weight />;
   return <span className="cap text-muted-foreground">{KIND_WORD[kind] ?? 'Search'}</span>;
 }
 
@@ -310,7 +313,7 @@ function Section({ searches, offset = 0 }: { searches: Search[]; offset?: number
   );
 }
 
-/** The two ways to start, under a bracket: describe your customer in plain words, or start from your website. */
+/** The two ways to start, under a bracket: Sonar (plain words, the black key), or start from your website. */
 function StartKeys() {
   return (
     <KeyGroup label="Start">
@@ -320,9 +323,9 @@ function StartKeys() {
         </Button>
       </LedKey>
       <LedKey on>
-        <Button onClick={() => navigate({ name: 'new', kind: null })}>
-          <span className="led bg-primary-foreground" />
-          Describe
+        <Button variant="screen" onClick={() => navigate({ name: 'new', kind: null })}>
+          <span aria-hidden className="led led-on" />
+          {ICP_NAME}
         </Button>
       </LedKey>
     </KeyGroup>
@@ -370,13 +373,14 @@ export function SearchesScreen() {
                 icon={UsersRound}
                 title="Who do you sell to?"
                 action={
-                  <Button size="lg" onClick={() => navigate({ name: 'new', kind: null })}>
-                    Describe your customer
-                    <ArrowRight />
+                  <Button variant="screen" size="lg" className="gap-2.5" onClick={() => navigate({ name: 'new', kind: null })}>
+                    <span aria-hidden className="led led-on" />
+                    Ask {ICP_NAME}
+                    <ArrowRight className="opacity-60" />
                   </Button>
                 }
               >
-                Say it in plain words. nvoke plans the searches, reads every site and finds the people who decide.
+                Say it in plain words. {ICP_NAME} plans the searches, reads every site and finds the people who decide.
               </EmptyState>
             </>
           ) : (

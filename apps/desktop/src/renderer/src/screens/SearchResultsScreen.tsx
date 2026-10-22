@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton, PageHeader, Panel } from '@/components/AppShell';
+import { SonarMark } from '@/components/SonarMark';
 import { DeleteSearchDialog } from '@/components/DeleteSearchDialog';
 import { ExportNoticeDialog } from '@/components/ExportNoticeDialog';
 import { StatusLabel, VerificationBadge } from '@/components/indicators';
@@ -152,6 +153,7 @@ function Overview({
   const few = fewFoundLine(search);
   return (
     <section className="px-6 pt-8 pb-10">
+      {search.kind === 'icp' && <SonarMark weight className="mb-3" />}
       <h1 className="font-display text-3xl font-light tracking-[-0.02em] text-balance">
         <RevealWords text={searchTitle(search)} />
       </h1>

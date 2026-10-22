@@ -17,7 +17,7 @@ const WIDEN: Record<FormKind, string> = {
   domains: 'paste more companies and they join this list.',
 };
 
-/** A search can take another run once it ended, unless a drop made it. Describe your customer keeps pushing on its own. */
+/** A search can take another run once it ended, unless a drop made it. Sonar keeps pushing on its own. */
 export function canSearchMore(search: Search): search is Exclude<Search, { kind: 'drop' | 'icp' }> {
   return search.kind !== 'drop' && search.kind !== 'icp' && search.status !== 'queued' && search.status !== 'running';
 }

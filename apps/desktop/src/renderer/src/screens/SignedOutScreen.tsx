@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import type { AuthState } from '@/lib/types';
 import { isFirstRun } from '@/lib/welcome';
+import { ICP_NAME } from '@nvoke/shared';
 
 /** What the first launch says nvoke does, one line each. */
 const POINTS: { icon: LucideIcon; text: string }[] = [
-  { icon: Search, text: 'Search by niche and place, or describe your customer.' },
+  { icon: Search, text: `Search by niche and place, or describe your customer to ${ICP_NAME}.` },
   { icon: MailCheck, text: 'Every email checked with its mail server.' },
   { icon: Keyboard, text: 'Lives in your tray. A shortcut opens it over any app.' },
 ];

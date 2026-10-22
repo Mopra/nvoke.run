@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleUser, ClipboardList, CornerDownLeft, Globe, Inbox, MapPin, Moon, Rocket, Rows3, ScanText, Search as SearchIcon, Sparkles, Sun, UsersRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatNumber, searchSubtitle, searchTitle } from '@/lib/format';
+import { formatNumber, ICP_WEIGHT_TIMES, searchSubtitle, searchTitle } from '@/lib/format';
+import { ICP_NAME } from '@nvoke/shared';
 import { useFindLeads, useSearches } from '@/lib/queries';
 import { useStagger } from '@/lib/motion';
 import { leadHint } from '@/lib/lead-find';
@@ -127,10 +128,10 @@ export function Commands({
       {
         id: 'new:icp',
         group: 'Actions',
-        label: 'Describe your customer',
-        hint: 'Plain words, nvoke plans the search',
+        label: ICP_NAME,
+        hint: `Describe your customer in plain words. Emails count ${ICP_WEIGHT_TIMES}`,
         icon: <UsersRound className={iconClass} />,
-        keywords: 'new search who do you sell to people decision makers icp',
+        keywords: 'sonar describe your customer new search who do you sell to people decision makers icp',
         run: () => navigate({ name: 'new', kind: null }),
       },
       {
@@ -275,8 +276,8 @@ export function Commands({
       out.push({
         id: 'start:icp',
         group: 'Start',
-        label: `Find leads: ${icp.input.params.description}`,
-        hint: '1,000 to start, then keeps finding more',
+        label: `${ICP_NAME}: ${icp.input.params.description}`,
+        hint: `1,000 to start, then keeps finding more. Emails count ${ICP_WEIGHT_TIMES}`,
         icon: <UsersRound className="size-4 text-primary" />,
         keepOpen: true,
         run: () => onStart(icp.input),

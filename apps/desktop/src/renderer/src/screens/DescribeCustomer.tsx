@@ -7,11 +7,12 @@ import { Pill } from '@/components/Sentence';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { countryName } from '@/lib/countries';
+import { SonarPlate } from '@/components/SonarMark';
 import { formatNumber, ICP_WEIGHT_TIMES } from '@/lib/format';
 import { useMe, useSiteProfile } from '@/lib/queries';
 import { navigate } from '@/lib/router';
 import { ICP_LIMIT, useStartIcp } from '@/lib/start-search';
-import type { IcpSearchParams } from '@nvoke/shared';
+import { ICP_NAME, type IcpSearchParams } from '@nvoke/shared';
 import { cn } from '@/lib/utils';
 
 /** Plain words that make a good search: who, how big, where, a signal. */
@@ -64,8 +65,9 @@ export function icpParams(values: { description: string; product: string; countr
 }
 
 /**
- * New search: "Who do you sell to?" in plain words, and nvoke plans the
- * queries itself (`icp`). What you sell comes from your site profile when
+ * New search: Sonar. "Who do you sell to?" in plain words, and nvoke plans
+ * the queries itself (`icp`). Sonar is the one black key on the panel: a
+ * black plate heads the form and its key is black too (components/SonarMark). What you sell comes from your site profile when
  * there is one. The search asks for up to 1000 companies and, unless switched
  * off, keeps finding new leads after that. The other kinds sit below.
  * docs/desktop/people.md.
@@ -122,11 +124,12 @@ export function DescribeCustomer() {
       <PageHeader leading={<BackButton />} />
       <Panel className="px-8 pb-24">
         <form onSubmit={submit} noValidate className="mx-auto flex max-w-[760px] flex-col pt-[4vh] motion-safe:animate-view-in">
+          <SonarPlate note="Plain words in, the people who decide out" className="mb-9" />
           <label htmlFor="icp-description" className="font-display text-4xl font-light text-balance">
             Who do you sell to?
           </label>
           <p className={cn('mt-2 max-w-xl text-pretty', NOTE)}>
-            Say it like you would to a new hire. nvoke plans the searches, reads every site and finds the people who decide.
+            Say it like you would to a new hire. {ICP_NAME} plans the searches, reads every site and finds the people who decide.
           </p>
 
           <div className="group/line relative mt-7 pb-2">
@@ -253,10 +256,10 @@ export function DescribeCustomer() {
           </label>
 
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Button type="submit" size="lg" disabled={start.isPending} className="min-w-40">
-              {start.isPending ? <Loader2 className="motion-safe:animate-spin" /> : null}
-              Find leads
-              {!start.isPending && <CornerDownLeft className="size-3.5 opacity-70" />}
+            <Button type="submit" variant="screen" size="lg" disabled={start.isPending} className="min-w-44 gap-2.5">
+              {start.isPending ? <Loader2 className="text-primary motion-safe:animate-spin" /> : <span aria-hidden className="led led-on" />}
+              Run {ICP_NAME}
+              {!start.isPending && <CornerDownLeft className="size-3.5 opacity-60" />}
             </Button>
             {invalid ? (
               <span role="alert" className="text-sm text-destructive">
@@ -264,7 +267,7 @@ export function DescribeCustomer() {
               </span>
             ) : (
               <p className={cn('max-w-sm', NOTE)}>
-                Only verified emails count, and here each counts {ICP_WEIGHT_TIMES}.
+                {ICP_NAME} goes deeper, so each verified email it finds counts {ICP_WEIGHT_TIMES}. Unverified ones are free.
                 {remaining !== null && (
                   <>
                     {' '}

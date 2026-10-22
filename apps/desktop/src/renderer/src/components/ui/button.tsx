@@ -11,7 +11,9 @@ const buttonVariants = cva(
       variant: {
         // The one place the accent glows: the primary action on a screen.
         default: 'key key-primary bg-primary text-primary-foreground hover:brightness-110',
-        destructive: 'key bg-destructive text-destructive-foreground hover:brightness-110',
+        // Sonar's black key: the display strip's material, its LED lit by the caller.
+        screen: 'key bg-screen text-screen-foreground hover:brightness-125',
+        destructive:'key bg-destructive text-destructive-foreground hover:brightness-110',
         // Light keycaps: outline, secondary and glass are the same cap under three names.
         outline: 'key bg-secondary text-secondary-foreground hover:brightness-[0.97]',
         secondary: 'key bg-secondary text-secondary-foreground hover:brightness-[0.97]',

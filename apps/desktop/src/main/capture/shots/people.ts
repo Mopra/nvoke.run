@@ -5,7 +5,7 @@ const click = (label: string): string =>
   `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click()`;
 
 /**
- * People first (docs/desktop/people.md): Describe your customer, the island
+ * People first (docs/desktop/people.md): Sonar's form, the island
  * with a plain words search's stage note, its results while it runs and once
  * it ended, and the people filters.
  */

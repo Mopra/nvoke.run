@@ -127,7 +127,7 @@ function Session({
     create.mutate(input, {
       onSuccess: (search) => {
         setStarted(search.id);
-        // Described customers keep filling, like New search does by default.
+        // Sonar searches keep filling, like New search does by default.
         if (search.kind === 'icp') update.mutate({ id: search.id, ongoing: true });
       },
     });
