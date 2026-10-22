@@ -93,7 +93,7 @@ Assessment: reasonable expectations are fairly strong for generic role mailboxes
 7. SMTP probe never sends DATA, uses one connection per MX host at a time, remembers catch-all domains, and falls back to MX-only when port 25 is blocked.
 8. Public Article 14 notice on `/privacy` in Danish and English, with sources, crawler behaviour, recipients, retention and rights.
 9. Customer terms: customer is an independent controller for its use of exports, must comply with GDPR and national e-marketing rules including §10, must give Article 14 information at first contact, honour objections, no resale.
-10. Data stays in the EU (Supabase EU region, VPS location TODO confirm).
+10. Data stays in the EU (an EU VPS, data centre country TODO confirm).
 
 ### 4.5 Balancing result
 

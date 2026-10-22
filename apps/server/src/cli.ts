@@ -37,7 +37,7 @@
  *
  * Without --database-url (or CLI_DATABASE_URL) the CLI starts an embedded
  * Postgres with its data in apps/server/.pgdata. `search` and `db` never
- * touch DATABASE_URL, which points at the shared Supabase database.
+ * touch DATABASE_URL, which points at production.
  *
  * `privacy` is the exception. It is the operator's tool for data subject
  * requests (deploy/PRIVACY-RUNBOOK.md). It uses --database-url, then

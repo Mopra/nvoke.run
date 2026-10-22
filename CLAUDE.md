@@ -267,9 +267,10 @@ it through `protocols` in `electron-builder.yml`.
    validates its input.
 5. **No secrets in the renderer.** Only `VITE_` variables reach it and they are
    baked into the build. Secrets stay in `apps/server/.env`.
-6. **Database is Supabase Postgres** over the direct connection or session
-   pooler on port 5432. Never the transaction pooler on 6543. Development
-   runs against a local Postgres (`cli db`, the CLI and tests use embedded
-   Postgres), never the shared Supabase database.
+6. **Database is Postgres 18 on the VPS** (since 2026-10-22, before that
+   Supabase), listening on localhost only and dumped nightly to vps-us-1
+   (deploy/README.md, "Database"). Development runs against a local
+   Postgres (`cli db`, the CLI and tests use embedded Postgres), never
+   production. The CLI's `--prod` reaches it through an SSH tunnel.
 7. **Keep `.env.example` files current** when adding a variable. Never commit
    real values.

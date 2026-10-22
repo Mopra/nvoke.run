@@ -202,10 +202,11 @@ export default function PrivacyPage() {
           <li>Clerk, for sign-in, account management and subscription billing.</li>
           {/* TODO(owner): confirm that Clerk Billing processes cards through Stripe. */}
           <li>Stripe, the payment processor behind Clerk’s billing, for card payments.</li>
-          {/* TODO(owner): confirm the Supabase project region and name it here. */}
-          <li>Supabase, for the Postgres database, hosted in the EU.</li>
-          {/* TODO(owner): name the VPS host and the country of the data centre. */}
-          <li>Our server host, for the servers that run searches, crawling and mailbox checks.</li>
+          {/* TODO(owner): name the country of the data centre. */}
+          <li>
+            Hostinger, our server host in the EU, for the servers that run the database, searches, crawling and mailbox
+            checks.
+          </li>
           <li>Vercel, for hosting this website.</li>
           <li>Google, for website analytics, only if you accept analytics cookies.</li>
           <li>Brave Search API, which receives the search keywords customers enter.</li>

@@ -30,8 +30,9 @@ useradd --system --create-home --home-dir /opt/nvoke --shell /usr/sbin/nologin n
 sudo -u nvoke ssh-keygen -t ed25519 -N "" -f /opt/nvoke/.ssh/id_ed25519   # add .pub as a deploy key
 sudo -u nvoke git clone git@github.com:Mopra/nvoke.run.git /opt/nvoke/app
 install -m 600 -o nvoke -g nvoke /dev/null /opt/nvoke/.env                  # then fill it in
-cp /opt/nvoke/app/deploy/nvoke-*.service /etc/systemd/system/
-systemctl daemon-reload && systemctl enable nvoke-api nvoke-worker
+# Postgres 18, role and database nvoke: see "Database"
+cp /opt/nvoke/app/deploy/nvoke-*.service /opt/nvoke/app/deploy/nvoke-*.timer /etc/systemd/system/
+systemctl daemon-reload && systemctl enable nvoke-api nvoke-worker && systemctl enable --now nvoke-backup.timer
 /opt/nvoke/app/deploy/deploy.sh
 ```
 
@@ -42,7 +43,7 @@ units read it. The API needs the first block; the worker reads the second.
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `DATABASE_URL` | API, worker, migrations | Supabase, port 5432 (see below) |
+| `DATABASE_URL` | API, worker, migrations | The local Postgres, `postgresql://nvoke:...@127.0.0.1:5432/nvoke` (see "Database") |
 | `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | API | Production Clerk instance |
 | `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES` | API | Optional |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | API | Clerk webhook endpoint `https://API_HOST/webhooks/clerk`, events `subscription.*` and `subscriptionItem.*` |
@@ -123,9 +124,45 @@ needs nothing switched on.
 
 ## Database
 
-Supabase Postgres. Use the direct connection or the session pooler, both on
-port 5432. Do not use the transaction pooler on port 6543: it breaks prepared
-statements, which postgres.js uses by default.
+Postgres 18 from the PGDG apt repository, on this VPS, cluster `18/main` on
+port 5432, listening on localhost only. Role and database are both `nvoke`;
+the password is in `/root/nvoke-pg-password` and in `DATABASE_URL`. Tuning
+for this box (4 cores, 15 GB) is in `/etc/postgresql/18/main/conf.d/nvoke.conf`:
+`shared_buffers` 2GB, `effective_cache_size` 8GB, `work_mem` 32MB,
+`maintenance_work_mem` 512MB, `max_wal_size` 4GB. Until 2026-10-22 the
+database was on Supabase (free plan, 500 MB cap); the last dump from there
+is `/var/backups/nvoke/supabase-final.dump`.
+
+```bash
+sudo -u postgres psql -d nvoke                       # a shell on production
+ssh -N -L 55432:127.0.0.1:5432 vps-eu-1              # from a dev machine, for cli ... --prod
+```
+
+On a development machine `DATABASE_URL` in `apps/server/.env` points at
+`127.0.0.1:55432`, so `--prod` commands work while that tunnel is open and
+fail when it is not.
+
+### Backups
+
+`nvoke-backup.timer` runs `deploy/backup-db.sh` every night at 03:30 UTC: a
+`pg_dump -Fc` into `/var/backups/nvoke` (7 days kept), checked with
+`pg_restore -l` and mirrored with rsync to vps-us-1, where the user
+`nvoke-backup` accepts only this box's `/root/.ssh/backup_ed25519` and only
+`rrsync` into `/var/lib/nvoke-backup/nvoke`. A failed run emails
+`ALERT_EMAIL_TO` through Day3.
+
+```bash
+cp deploy/nvoke-backup.service deploy/nvoke-backup.timer /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now nvoke-backup.timer
+systemctl start nvoke-backup                          # a backup now
+```
+
+Restore (stop `nvoke-api` and `nvoke-worker` first):
+
+```bash
+sudo -u postgres dropdb nvoke && sudo -u postgres createdb -O nvoke nvoke
+sudo -u postgres pg_restore --no-owner --role=nvoke -d nvoke < /var/backups/nvoke/nvoke-YYYYMMDD-HHMM.dump
+```
 
 ## Logs
 

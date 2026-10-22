@@ -32,7 +32,7 @@ Two criteria are met (5 and 6) and a third partly (9). CNIL also recommends a DP
 - **Data:** email address, `generic` or `personal` label, source URL, first and last seen, verification result, MX host. Company name, website, location, phone and category from the listing. Since 2026-10-17 also the names and job titles of people a company publishes on its own site (team, about, imprint pages), with the page they came from, and business addresses built for those people from the domain's address pattern and confirmed by an SMTP RCPT probe (`found_via` = `pattern`, with a confidence). No social profiles, no private or consumer data, nothing behind a login.
 - **Sources:** OpenStreetMap (Nominatim, Overpass), Brave Search API, Product Hunt, Hacker News Show HN (through Algolia), and the companies' own websites.
 - **Recipients:** the customer who ran the search (in the app and as CSV). Generic addresses can be served to any customer whose search finds that company. Sub-processors listed in `ropa.md`.
-- **Storage:** Supabase Postgres (EU region, TODO confirm), worker on a VPS (host and region TODO).
+- **Storage:** Postgres and the worker on one Hostinger VPS in the EU (TODO confirm the data centre country).
 - **Retention:** generic cache 12 months from first collection (never renewed) and sooner if a recrawl no longer finds the address; searches with companies and emails 12 months from creation; verification cache 30 days; billing ledger (`billed_emails`) 12 months; suppression hashes forever. Enforced by the worker's hourly purge (`apps/server/src/leads/retention.ts`).
 
 ## 3. Risks
@@ -70,5 +70,5 @@ Scale: likelihood and severity are each Low, Medium or High. "Before" is without
 | Monitor the purge (runs hourly in the worker; alert if it has not run for a day) | Engineering | Open |
 | Review OSM, Nominatim, Brave and Product Hunt terms | Lawyer | Open |
 | Customer terms with §10, GDPR, Art 14 at first contact, no resale, indemnity | Lawyer | Open |
-| Confirm Supabase region and VPS host and region | Engineering | Open |
+| Confirm the VPS data centre country | Engineering | Open |
 | Re-run this DPIA when adding a source, extracting names, or sharing personal addresses | Everyone | Ongoing |

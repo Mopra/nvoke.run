@@ -1,0 +1,15 @@
+# Nightly database dump, started by nvoke-backup.timer.
+#
+#   sudo systemctl start nvoke-backup     # a backup now
+#   journalctl -u nvoke-backup
+
+[Unit]
+Description=nvoke database backup
+Documentation=file:/opt/nvoke/app/deploy/README.md
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/nvoke/app/deploy/backup-db.sh
+SyslogIdentifier=nvoke-backup

@@ -108,8 +108,8 @@ its own copy. Set `TEST_DATABASE_URL` to use an existing Postgres instead.
 - Server: plain Node under systemd on the VPS, code in `/opt/nvoke`. No Docker.
   See `deploy/README.md`.
 - Site: Vercel project with root directory `apps/site`.
-- Database: Supabase Postgres over the direct connection or session pooler
-  (port 5432), never the transaction pooler (6543).
+- Database: Postgres 18 on the same VPS, localhost only, backed up nightly.
+  See "Database" in `deploy/README.md`.
 
 ## Releases
 

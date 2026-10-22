@@ -245,10 +245,9 @@ Storage for 20.5M rows (homepage title, description and 600 characters of
 text, both full text vectors and the GIN index): about 3 to 4 KB a row, so
 60 to 80 GB. Keeping 3 full pages a row as `domain_pages` does
 for crawled domains (up to 6,000 characters each) would be about 10 KB a
-row, over 200 GB: too much for this disk. The production database is
-Supabase, where 80 GB is about $10 a month of disk; a separate Postgres on
-the VPS (as `icp-rethink.md` suggests) fits the free disk but leaves little
-headroom.
+row, over 200 GB: too much for this disk. Since 2026-10-22 the production
+database is Postgres 18 on the VPS itself, with about 175 GB of free disk,
+so the 60 to 80 GB load fits at no extra cost.
 
 Faster, if a budget is approved: the same data sits in S3 `us-east-1`. A
 spot instance there reads the columnar index with Athena (well under a
