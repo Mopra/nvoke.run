@@ -326,7 +326,8 @@ const MERGE_TAG = /[{}[\]<>]|%[A-Za-z_]+%|\b(first ?name|last ?name|company ?nam
 const LINK = /https?:\/\/|www\.|\S+@\S+\.\w|\b[\w-]+\.(com|net|org|io|co|ai|app|dev|run|so|xyz|dk|de|uk|eu|se|no|nl|fr|es|it|us|ca|au)\b/i;
 const FLATTERY = /\b(impressive|amazing|awesome|incredible|love what you|great work|big fan)\b/i;
 const SIGN_OFF = /^(best|cheers|thanks|thank you|regards|kind regards|best regards|warm regards|all the best|talk soon|sincerely)\b[\s,.!]*$/i;
-const STOP_LINE = /unsubscribe|opt[ -]?out|reply (with )?["']?stop\b|found your (email|address)/i;
+// "unsubscribe" alone: "unsubscribes stay unsubscribed" is Day3's offer, not a line about stopping.
+const STOP_LINE = /\bunsubscribe\b|\bopt[ -]?out\b|reply (with )?["']?stop\b|found your (email|address)/i;
 
 /** Dashes used as punctuation become commas, as in openers.ts. */
 function undash(s: string): string {
@@ -336,7 +337,9 @@ function undash(s: string): string {
 /** Why checkBody would not keep a body, in words Claude can act on and the log can show. */
 export function bodyProblem(raw: string, bounds: WordBounds, ownDomain?: string | null): string {
   const text = undash(raw);
-  const link = withoutDomain(text, ownDomain).match(LINK)?.[0];
+  const stop = text.split('\n').find((l) => STOP_LINE.test(l));
+  if (stop) return `a line about unsubscribing or opting out was cut ("${stop.slice(0, 80)}"); the sender adds that line itself`;
+  const link =withoutDomain(text, ownDomain).match(LINK)?.[0];
   if (link) return `it named a web or email address ("${link}"), which is not allowed`;
   const tag = text.match(MERGE_TAG)?.[0];
   if (tag) return `it held a placeholder or bracket ("${tag}")`;
