@@ -9,6 +9,7 @@ import { createAdapters } from '../leads/sources/index.js';
 import { braveAlone } from '../leads/sources/paid-search.js';
 import { dbVerifyCache } from '../leads/verify/db-cache.js';
 import { Verifier } from '../leads/verify/index.js';
+import { lookupMx, systemDns } from '../leads/verify/mx.js';
 import { workerProbesPerMinute, workerSessionsPerMinute } from '../tools/deps.js';
 import type { PipelineDeps } from './pipeline.js';
 
@@ -34,6 +35,8 @@ export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDep
         ? { monthlyUsd: env.BRAVE_MONTHLY_BUDGET_USD, costPer1000Usd: env.BRAVE_COST_PER_1000_USD }
         : undefined,
     crawl,
+    // A domain without MX never verifies, so it gets no Claude people read and no fit wait.
+    mx: (domain) => lookupMx(domain, systemDns()),
     verifier: new Verifier({
       heloName: env.SMTP_HELO_NAME,
       mailFrom: env.SMTP_PROBE_FROM,
