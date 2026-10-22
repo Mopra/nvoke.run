@@ -78,6 +78,8 @@ const sites = fakeFetch({
   'https://staff.dk/team': { body: '<div><h3>Sofie Lund</h3><p>Designer</p><a href="mailto:sofie@staff.dk">Mail</a></div><p>Mette Krogh Hansen startede firmaet i 2009.</p>' },
   'https://founders.dk/': { body: '<a href="/team">Team</a><p>info@founders.dk</p>' },
   'https://founders.dk/team': { body: '<p>Mette Krogh Hansen startede firmaet i 2009.</p><p>Skriv til mette@founders.dk</p>' },
+  'https://prose.dk/': { body: '<a href="/team">Team</a><p>info@prose.dk</p>' },
+  'https://prose.dk/team': { body: '<p>Mette Krogh Hansen startede firmaet i 2009.</p>' },
   'https://people.dk/team': {
     body: '<div><h3>Mette Hansen</h3><p>CEO</p><a href="mailto:mette@people.dk">Mail</a></div><div><h3>Jonas Berg</h3><p>Designer</p></div>',
   },
@@ -1280,6 +1282,53 @@ describe('fit after the crawl', () => {
     expect(await db.sql`select 1 from domains where domain = 'founders.dk' and people_read_at is not null`).toHaveLength(1);
     expect(await db.sql`select first_name from domain_people where domain = 'founders.dk'`).toEqual([{ first_name: 'Mette' }]);
     expect(await db.sql`select 1 from jobs where search_id = ${searchId} and type = 'people'`).toHaveLength(1);
+  });
+
+  it('crawls a cached domain again for the people read a turned down company deferred, then serves it from the cache', async () => {
+    const reads: string[] = [];
+    const ai: Ai = {
+      ready: async () => true,
+      async structured(req) {
+        const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+        if (req.task === 'fit') {
+          const domains = [...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!);
+          return { data: req.schema.parse({ scores: domains.map((domain, i) => ({ n: i + 1, domain, fit: 20, reason: '' })) }), model: 'fake', usage, costUsd: 0 };
+        }
+        const domain = /website is (\S+)\./.exec(req.prompt)?.[1] ?? '';
+        reads.push(domain);
+        return { data: req.schema.parse({ people: [{ name: 'Mette Krogh Hansen', title: 'Founder', sourceUrl: 'https://prose.dk/team' }] }), model: 'fake', usage, costUsd: 0 };
+      },
+    };
+    const { verifier } = recordingVerifier();
+    const prose: FoundCompany[] = [{ name: 'Prose', website: 'https://prose.dk', source: 'brave', fit: 60 }];
+    const icp = await icpSearch(10);
+    await drain({ ...icpDeps(prose, verifier), ai }, icp);
+    // Fit turned it down, so Claude never read it, and the domain is not settled.
+    expect(reads).toEqual([]);
+    expect(await db.sql`select 1 from domains where domain = 'prose.dk' and people_read_at is null`).toHaveLength(1);
+
+    const local = async () => {
+      sites.calls.length = 0;
+      const search = await createSearch(db.sql, 'u1', LOCAL, 10);
+      const runner = new Runner({ ...deps(adapterOf(prose)), ai }, { concurrency: 4, pollMs: 20 });
+      runner.start();
+      try {
+        await waitFor(search.id, ['done', 'failed']);
+      } finally {
+        await runner.stop(5_000);
+      }
+      return search.id;
+    };
+    // The next search crawls it again despite the fresh cache, and Claude reads it now.
+    const second = await local();
+    expect(fetchedHosts().has('prose.dk')).toBe(true);
+    expect(reads).toEqual(['prose.dk']);
+    expect(await db.sql`select first_name from people where search_id = ${second}`).toEqual([{ first_name: 'Mette' }]);
+    // Settled: the one after is served from the cache, with Claude's people, and asks no one.
+    const third = await local();
+    expect(fetchedHosts().has('prose.dk')).toBe(false);
+    expect(reads).toEqual(['prose.dk']);
+    expect(await db.sql`select first_name from people where search_id = ${third}`).toEqual([{ first_name: 'Mette' }]);
   });
 
   it('spends no Claude on a domain without mail, and checks its addresses for free', async () => {

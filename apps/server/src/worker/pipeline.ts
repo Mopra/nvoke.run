@@ -10,6 +10,7 @@ import {
   DomainsSearchParams,
   emailWeight,
   IcpSearchParams,
+  isDecisionMaker,
   LaunchesSearchParams,
   LocalSearchParams,
   WebSearchParams,
@@ -398,7 +399,19 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   }
 
   const cached = await cachedCrawl(sql, company.domain, now);
-  if (cached) {
+  // The cache keeps no people pages (crawl.ts), so a domain whose people
+  // pages were never settled is crawled again for Claude's read: a plain
+  // words company deferred it and fit turned that company down, or the read
+  // failed. A domain that takes no mail is never read, so it stays cached.
+  const unsettled =
+    cached !== null &&
+    deps.ai !== undefined &&
+    !company.imported &&
+    (cached.crawlStatus === 'done' || cached.crawlStatus === 'js_only') &&
+    !cached.people.some((p) => isDecisionMaker(p.seniority)) &&
+    !(await peopleSettled(sql, company.domain)) &&
+    !(await takesNoMail(deps, company.domain));
+  if (cached && !unsettled) {
     const blocked = await suppressedAddresses(sql, cached.emails.map((e) => e.address));
     const emails = cached.emails
       .filter((e) => !blocked.has(e.address))
@@ -418,12 +431,14 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   let peopleTexts: SitePage[] | undefined;
   // Free before paid: a domain that takes no mail can never verify, so Claude reads nothing of it.
   const worth = result.emails.length > 0 || people.length > 0 || result.peopleTexts.length > 0;
-  const mailless = !company.imported && worth && (await takesNoMail(deps, company.domain));
+  const mailless = !unsettled && !company.imported && worth && (await takesNoMail(deps, company.domain));
   // No decision maker among the names the pages gave away: Claude reads the
   // people pages, once per domain in 90 days (the cache keeps what it found).
   // A plain words company keeps the pages for after fit: Claude reads them
-  // only when fit keeps the company (runFit).
-  if (deps.ai && !company.imported && !mailless && needsPeopleLlm(people, result.peopleTexts)) {
+  // only when fit keeps the company (runFit). Pages that give Claude nothing
+  // to read settle the domain too, so its cache serves the next search.
+  if (deps.ai && !company.imported && !mailless && !needsPeopleLlm(people, result.peopleTexts)) peopleRead = true;
+  else if (deps.ai && !company.imported && !mailless) {
     const recent = await recentPeopleRead(sql, company.domain, now);
     if (recent) people = mergePeople([...people, ...recent]);
     else if (company.fit_state === 'gate') peopleTexts = result.peopleTexts;
@@ -442,6 +457,12 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
     .filter((e) => !blocked.has(e.address))
     .map((e) => ({ address: e.address, kind: e.kind, sourceUrl: e.sourceUrl, foundVia: 'page' as const }));
   await finishCrawl(deps, company, result.status, emails, { crawledAt: now, texts: result.texts, people, peopleRead, peopleTexts, mailless });
+}
+
+/** Whether the domain's people pages were settled once (domains.people_read_at, see runCrawl). */
+async function peopleSettled(sql: Sql, domain: string): Promise<boolean> {
+  const [row] = await sql`select 1 from domains where domain = ${domain} and people_read_at is not null`;
+  return row !== undefined;
 }
 
 /**
@@ -477,7 +498,7 @@ interface FinishOptions {
   texts?: SitePage[];
   /** The people the site names, best first. */
   people?: FoundPerson[];
-  /** Claude read the people pages in this crawl. */
+  /** The people pages were settled in this crawl: Claude read them, or they gave Claude nothing to read. */
   peopleRead?: boolean;
   /** People pages Claude reads once fit keeps the company (needsPeopleLlm said so). */
   peopleTexts?: SitePage[];
