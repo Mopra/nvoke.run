@@ -195,8 +195,8 @@ describe('runWriteJob', () => {
     ready: async () => true,
     async structured(req) {
       calls.push(req as StructuredRequest<never>);
-      const n = calls.filter((c) => c.tier === 'quality').length - 1;
-      const reply = req.tier === 'quality' ? (typeof first === 'function' ? first(n) : first) : follow;
+      const n = calls.filter((c) => c.toolName === 'save_emails').length - 1;
+      const reply = req.toolName === 'save_emails' ? (typeof first === 'function' ? first(n) : first) : follow;
       if (reply instanceof Error) throw reply;
       // The answers name leads by domain; the prompt keys them l1, l2 ... in id order.
       const keys = new Map([...req.prompt.matchAll(/<lead key="(l\d+)" company="[^"]*" domain="([^"]+)"/g)].map((m) => [m[2]!, m[1]!]));
@@ -269,12 +269,12 @@ describe('runWriteJob', () => {
       select address, status, skip_reason, written_at, next_send_at from campaign_leads where campaign_id = ${id} order by address`;
   const campaignStatus = async (id: string) => (await db.sql<{ status: string }[]>`select status from campaigns where id = ${id}`)[0]!.status;
 
-  it('writes step 1 with the quality model and the follow ups with the bulk one, and keeps only emails that pass', async () => {
+  it('writes every step with the bulk model, and keeps only emails that pass', async () => {
     const c = await campaign();
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
 
     // Step 1, a second try for the email that broke the rules, then the follow ups.
-    expect(calls.map((r) => [r.task, r.tier])).toEqual([['write', 'quality'], ['write', 'quality'], ['write', 'bulk']]);
+    expect(calls.map((r) => [r.task, r.tier])).toEqual([['write', 'bulk'], ['write', 'bulk'], ['write', 'bulk']]);
     expect(calls[0]!.prompt).toMatch(/<lead key="l\d" company="acme.io" domain="acme.io" first_name="anna">/);
     expect(calls[0]!.prompt).toContain('Offer: Lead lists with verified emails');
     // The reason to write now: the campaign's words, the fit line and the job post source.
@@ -315,7 +315,7 @@ describe('runWriteJob', () => {
       ],
     };
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
-    expect(calls.map((r) => r.tier)).toEqual(['quality', 'quality', 'bulk']);
+    expect(calls.map((r) => r.tier)).toEqual(['bulk', 'bulk', 'bulk']);
     expect(calls[1]!.prompt).toContain('another email has it: "A product like that sells best when someone calls the clinics before a rival does."');
     expect(calls[1]!.prompt).toContain('The subject "booking tools" is taken.');
     expect((await leadRows(c.id)).map((r) => [r.address, r.status, r.skip_reason])).toEqual([
@@ -339,7 +339,7 @@ describe('runWriteJob', () => {
     });
     follow = { leads: [{ lead: 'beta.io', steps: [{ step: 2, body: 'Hi Ben, one more angle: nvoke checks every address with the mail server before you see it.' }, { step: 3, body: 'Hi Ben, I will leave it here. If the pipeline ever runs thin, nvoke is around.' }] }] };
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
-    expect(calls.filter((r) => r.tier === 'quality')).toHaveLength(2);
+    expect(calls.filter((r) => r.toolName === 'save_emails')).toHaveLength(2);
     expect(calls[0]!.prompt).not.toContain('domain="acme.io"');
     const [ben] = await db.sql<{ subject: string; body: string }[]>`
       select w.subject, w.body from campaign_leads l join campaign_steps_written w on w.campaign_lead_id = l.id and w.step = 1
@@ -356,7 +356,7 @@ describe('runWriteJob', () => {
       ],
     };
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
-    expect(calls.filter((r) => r.tier === 'quality')).toHaveLength(2);
+    expect(calls.filter((r) => r.toolName === 'save_emails')).toHaveLength(2);
     expect(calls[1]!.prompt).toContain('quote was not found');
     expect(calls[1]!.prompt).not.toContain('domain="beta.io"');
     expect((await leadRows(c.id)).map((r) => [r.status, r.skip_reason])).toEqual([

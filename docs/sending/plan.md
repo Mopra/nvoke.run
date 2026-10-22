@@ -302,7 +302,7 @@ One folder, one file per job:
   hours, with the ramp for unwarmed mailboxes: 5 a day, plus 3 a day, up
   to the cap).
 - `write.ts`: the `write` job. For a batch of campaign leads, ask
-  `ai.structured` (tier `quality` for step 1, `bulk` for follow-ups) for
+  `ai.structured` (tier `bulk`, Haiku) for
   every step: subject and body, from the site profile
   (`getSiteProfile`), the company's opener and quote, the person's name and
   title, and the step's brief. Rules in the prompt: plain text, under 120

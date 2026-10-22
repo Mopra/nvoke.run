@@ -632,7 +632,7 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
     deps.ai.structured({
       userId,
       task: 'write',
-      tier: 'quality',
+      tier: 'bulk',
       system: systemFirst(ownDomain),
       prompt: firstPrompt(profile, steps, batch, { prices, campaign: context, product }),
       schema: ClaudeFirstEmails,
