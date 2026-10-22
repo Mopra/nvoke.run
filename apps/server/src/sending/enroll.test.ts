@@ -240,7 +240,31 @@ describe('autopilot', () => {
     await db.sql`update emails set verification = 'valid' where address = 'ben@beta.com'`;
     expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 12 * MIN))).toBe(0);
     expect((await leads(campaign.id)).find((r) => r.address === 'ben@beta.com')?.skip_reason).toBe('per_company');
+    // Bea waits for a fuller write batch, at most WRITE_WAIT_MS.
+    expect(await db.sql`select 1 from jobs where type = 'write'`).toHaveLength(1);
+    await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 37 * MIN));
     expect(await db.sql`select 1 from jobs where type = 'write'`).toHaveLength(2);
+  });
+
+  it('writes in full batches of WRITE_BATCH, and sends the rest once the oldest waited, paused or not', async () => {
+    const s = await search();
+    const campaign = await started({ source: 'search', searchId: s });
+    for (let i = 0; i < 12; i++) await email(s, await company(s, `c${i}.com`), `x@c${i}.com`);
+    const writeJobs = () => db.sql<{ payload: { leadIds: string[] } }[]>`select payload from jobs where type = 'write' order by id`;
+
+    expect(await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 6 * MIN))).toBe(12);
+    expect((await writeJobs()).map((j) => j.payload.leadIds.length)).toEqual([10]);
+    // Paused: nothing enrolls, but the two waiting are still written.
+    await db.sql`update campaigns set status = 'paused' where id = ${campaign.id}`;
+    await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 20 * MIN));
+    expect(await writeJobs()).toHaveLength(1);
+    await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 37 * MIN));
+    expect((await writeJobs()).map((j) => j.payload.leadIds.length)).toEqual([10, 2]);
+    // Each lead is in one job.
+    const ids = (await writeJobs()).flatMap((j) => j.payload.leadIds);
+    expect(new Set(ids).size).toBe(12);
+    await enrollTick(db.sql, silentLog, ['u1'], new Date(NOW.getTime() + 80 * MIN));
+    expect(await writeJobs()).toHaveLength(2);
   });
 
   it('enrolls only for SENDING_USERS, and nothing with nobody in it', async () => {

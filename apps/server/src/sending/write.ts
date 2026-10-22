@@ -5,19 +5,29 @@
 // prices when the sender is nvoke),
 // the step's brief, what the campaign looks for, the person, the company's
 // fit signal (a job post, a launch) and its own pages: the kept crawl pages,
-// the opener and its quote, and its newest post fetched at write time
-// (fresh.ts). Each first email names one specific detail and quotes the
-// words it rests on; the quote must be on the company's pages. The follow
-// ups are short, in the same thread, each with a new angle. Claude writes
-// the subject and body only: the signature, the "why you" line and how to
-// stop are the footer the sender appends (footer.ts), so they cannot drift.
+// its newest post fetched at write time (fresh.ts), its homepage and the
+// opener and its quote, each trimmed (trimPage). Each first email names one
+// specific detail and quotes the words it rests on; the quote must be on
+// the pages as the prompt had them. The follow ups are short, in the same
+// thread, each with a new angle, and come in the same answer as step 1.
+// Claude writes the subject and body only: the signature, the "why you"
+// line and how to stop are the footer the sender appends (footer.ts), so
+// they cannot drift.
+//
+// The head (sender, prices, pitch, campaign, briefs, and the subjects and
+// closing questions the campaign already used) is the same for every lead
+// of a job, so it goes as the cached prefix; the leads follow it.
 //
 // Each email is checked before it is kept: plain text, a sane length, no
 // links, no placeholders, no sign-off, and no sentence or subject shared
 // with another first email of the campaign from the last 7 days
-// (overlap.ts). A lead that fails is asked for once more, naming what to
-// avoid; still failing, it goes 'failed' with skip_reason 'write_failed'
-// (or 'too_similar') and is never sent.
+// (overlap.ts; sentences made of the offer's own words do not count). A
+// lead whose first email fails is asked for once more, naming what to
+// avoid, and one whose follow ups fail gets one more ask for those alone;
+// still failing, it goes 'failed' with skip_reason 'write_failed' (or
+// 'too_similar') and is never sent. ai_usage names each call: write_all
+// (every step), write_retry (the second try) and write_follow (follow ups
+// asked again).
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
@@ -34,7 +44,7 @@ import type { Job, WritePayload } from '../worker/queue.js';
 import { CAMPAIGN_COLUMNS, firstSendAfter, type CampaignRow } from './campaigns.js';
 import { WRITE_BATCH } from './enroll.js';
 import { isPostUrl, latestPost } from './fresh.js';
-import { conflictWith, MAX_OVERLAP, type Conflict } from './overlap.js';
+import { conflictWith, MAX_OVERLAP, offerWords, sentences, type Conflict } from './overlap.js';
 import { nextSendAt } from './schedule.js';
 
 /** Word bounds a kept email must meet. The prompt asks for 60 to 110 (step 1) and 25 to 60 (follow ups). */
@@ -67,12 +77,21 @@ export const ClaudeFirstEmails = z.object({
         .nullable()
         .optional()
         .describe("The words on the company's pages the email's specific detail rests on, copied exactly (under 300 characters). Null with subject."),
+      follow_ups: z
+        .array(
+          z.object({
+            step: z.number().int().describe('The step number, 2 or higher, as given.'),
+            body: z.string().describe('The plain text body of that follow up, no sign-off.'),
+          }),
+        )
+        .optional()
+        .describe('One follow up per later brief. Empty when the subject is null or there is no later brief.'),
     }),
   ),
 });
 export type ClaudeFirstEmails = z.infer<typeof ClaudeFirstEmails>;
 
-/** What Claude answers for the follow ups: one body per later step. */
+/** What Claude answers when only the follow ups are asked again: one body per later step. */
 export const ClaudeFollowUps = z.object({
   leads: z.array(
     z.object({
@@ -105,30 +124,41 @@ const RULES = `- Says only what the sender profile, the prices, the pitch, the c
 - No placeholders or merge tags, no brackets, no exclamation marks, no flattery ("impressive", "love", "amazing", "great work", "smart") and no dashes as punctuation.
 - Ends with its last sentence. No sign-off, no name, no signature, no line about why they get the email or how to stop: the sender adds those under every email.`;
 
-const systemFirst = (ownDomain: boolean) => `You write the first cold email from the sender to one person at a company, for each lead given. It goes out from the sender's own mailbox as plain text, to one person, so it reads like a short note one professional writes to another, never like marketing.
+/** How a follow up is written, for the follow ups in the step 1 answer and for a second ask. */
+const FOLLOW_SHAPE = `- Does what its brief asks, from a new angle the first email did not use: another fact from the signal or the pages, a different part of the offer, a worked example, or a short honest close. Never a rephrase of the first email, and never "just following up", "bumping this", "circling back" or "did you see my last email".
+- Opens with "Hi <first name>," when a first name is given, else "Hi,".
+- 25 to 60 words in the body, in English, with one short question or none.
+- Shares no sentence with the first email or with the other follow ups.`;
+
+const FOLLOW_PART = `
+
+Then, for each lead whose first email you wrote, its follow ups in "follow_ups": one per later brief, with its step number. Each goes out in the same thread as the first email, a few days later, only when the person has not replied. Each follow up:
+${FOLLOW_SHAPE}
+- Keeps every rule of the first email above.
+When the subject is null, follow_ups is empty.`;
+
+const systemFirst = (ownDomain: boolean, follow = false) => `You write the first cold email from the sender to one person at a company, for each lead given. It goes out from the sender's own mailbox as plain text, to one person, so it reads like a short note one professional writes to another, never like marketing.
 
 Each email does what the brief for step 1 asks, for this company, in this order:
 1. "Hi <first name>," when a first name is given, else "Hi,". Never guess a name.
 2. One fresh, specific detail from the company's own pages, said plainly in your words: a post title, a launch, a named product, a customer, a city, a number. The newest is best: the latest post (<page kind="latest">) first, else the opener and its quote, else another page. Copy the exact words on the page it rests on into "quote".
 3. Why you write now. Build it from the <signal> when the signal is concrete, in the light of the <pitch> when one is given: a current job post for a sales role means they are building outbound now, a launch means they need their first customers, a new office or market means new buyers. Tie it to the sender's offer in a sentence or two. When the signal is missing, vague or only says what the company is, do not invent a reason or an event: let the detail carry the email.
-4. The offer, with low friction: what they would get and that it is free to try, when the prices say so. When it makes the offer concrete, one simple number for their situation, worked out from <prices>: only from a fact on their pages (team size, locations, open roles), or plainly framed as an example of a case like theirs, with the plan it lands on. One number at most, rounded, the arithmetic in plain words. No number is better than a made up one.
+4. The offer, with low friction: what they would get and that it is free to try, when the prices say so, said in your own words for this company. When it makes the offer concrete, one simple number for their situation, worked out from <prices>: only from a fact on their pages (team size, locations, open roles), or plainly framed as an example of a case like theirs, with the plan it lands on. One number at most, rounded, the arithmetic in plain words. No number is better than a made up one.
 5. One closing question only they can answer, about their own situation: how they find clients today, who handles outreach, when a plan renews. Never "would you be open to a call", "interested?" or "thoughts?".
 
 - 60 to 110 words in the body.
 - A subject of 3 to 8 plain words about them (their post, product, city, hiring), in sentence case, unique to this company. Not about the sender, no question mark, no clickbait.
 - Each email is written for its company alone: no sentence, opening, offer wording or closing question is shared with another email in the batch, not even lightly reworded. Vary the structure and the length of sentences.
+- Never reuse or lightly reword a subject or closing question listed in <recent>: other emails of this campaign already used them.
 - Written in English.
 ${rules(ownDomain)}
 
-When the pages give nothing honest and specific to say to this company, answer subject, body and quote as null. A null is better than a vague email.`;
+When the pages give nothing honest and specific to say to this company, answer subject, body and quote as null. A null is better than a vague email.${follow ? FOLLOW_PART : ''}`;
 
 const systemFollow = (ownDomain: boolean) => `You write the follow ups of a cold email sequence, for each lead given. Each follow up goes out in the same thread as the first email, a few days later, only when the person has not replied.
 
 Each follow up:
-- Does what its brief asks, from a new angle the first email did not use: another fact from the signal or the pages, a different part of the offer, a worked example, or a short honest close. Never a rephrase of the first email, and never "just following up", "bumping this", "circling back" or "did you see my last email".
-- Opens with "Hi <first name>," when a first name is given, else "Hi,".
-- 25 to 60 words in the body, in English, with one short question or none.
-- Shares no sentence with the first email or with the other follow ups.
+${FOLLOW_SHAPE}
 ${rules(ownDomain)}`;
 
 function attr(v: string): string {
@@ -137,7 +167,7 @@ function attr(v: string): string {
 
 /** Untrusted text inside a block: the block's own tags are taken out, so it cannot close or open one. */
 function inner(v: string): string {
-  return v.replace(/<\/?(sender|prices|pitch|campaign|brief|lead|signal|page|title|description|opener|quote|first_email|avoid)\b[^>]*>/gi, ' ');
+  return v.replace(/<\/?(sender|prices|pitch|campaign|brief|lead|signal|page|title|description|opener|quote|first_email|avoid|recent)\b[^>]*>/gi, ' ');
 }
 
 /** Who sends: the campaign's product when it has one, else the site profile. */
@@ -262,46 +292,111 @@ function avoidBlock(avoid: string[] | undefined): string {
   return `<avoid>\nYour last email for this lead was not kept. Write a new one that fixes this:\n${avoid.map((a) => `- ${inner(a)}`).join('\n')}\n</avoid>`;
 }
 
-/** The prompt for step 1: the sender, the prices, the campaign, the brief, then each lead with its signal and pages. */
-export function firstPrompt(
-  profile: SiteProfileFields | null,
-  steps: CampaignStep[],
-  leads: WriteLead[],
-  opts: { prices?: boolean; campaign?: CampaignContext | null; product?: CampaignProduct | null } = {},
-): string {
-  const blocks = leads.map((l) => {
-    const parts: string[] = [];
-    const signal = signalBlock(l.signal);
-    if (signal) parts.push(signal);
-    if (l.opener) {
-      parts.push(`<opener>${inner(l.opener.line)}</opener>`);
-      if (l.opener.quote) parts.push(`<quote url="${attr(l.opener.sourceUrl ?? '')}">${inner(l.opener.quote)}</quote>`);
+/** Text kept per page in the prompt (trimPage), and the cap on the opener's quote. */
+export const PAGE_MAX = 1_500;
+/** Lines of a page that are site chrome, not what the company says. */
+const CHROME_LINE = /\bcookies?\b|all rights reserved|^(©|\(c\)|copyright\b)/i;
+
+/**
+ * A page cut for the prompt: lines of under four words that end no
+ * sentence (menu items, buttons, crumbs) and cookie or copyright lines
+ * taken out, then cut at a line end near `max`. The quote check reads this
+ * same text.
+ */
+export function trimPage(p: SitePage, max = PAGE_MAX): SitePage {
+  const kept: string[] = [];
+  let size = 0;
+  for (const line of p.text.split('\n')) {
+    const l = line.trim();
+    if (!l || CHROME_LINE.test(l)) continue;
+    if (l.split(/\s+/).length < 4 && !/[.?!]$/.test(l)) continue;
+    if (size + l.length > max) {
+      if (kept.length === 0) kept.push(l.slice(0, max).replace(/\s+\S*$/, ''));
+      break;
     }
-    if (l.latest) parts.push(pageBlock(l.latest, 'latest'));
-    for (const p of l.pages) parts.push(pageBlock(p));
-    const avoid = avoidBlock(l.avoid);
-    if (avoid) parts.push(avoid);
-    return `<lead ${leadMeta(l)}>\n${parts.join('\n')}\n</lead>`;
-  });
-  const head = [
+    kept.push(l);
+    size += l.length + 1;
+  }
+  return { ...p, text: kept.join('\n') };
+}
+
+/** The subjects and closing questions this campaign's first emails used, newest first, for Claude to avoid. */
+export function recentBlock(recent: Array<{ subject: string; body: string }>, max = 25): string {
+  if (recent.length === 0) return '';
+  const subjects = [...new Set(recent.map((r) => r.subject.trim()).filter(Boolean))].slice(0, max);
+  const closing = recent.map((r) => sentences(r.body).filter((x) => x.endsWith('?')).at(-1)).filter((q): q is string => !!q);
+  const questions = [...new Set(closing)].slice(0, max);
+  const lines = ['Used by other first emails of this campaign. Do not reuse or lightly reword any of them.'];
+  if (subjects.length) lines.push('Subjects:', ...subjects.map((x) => `- ${x}`));
+  if (questions.length) lines.push('Closing questions:', ...questions.map((x) => `- ${x}`));
+  return `<recent>\n${inner(lines.join('\n'))}\n</recent>`;
+}
+
+/** A prompt in two parts: the head, the same for every lead of a job (the cached prefix), and the leads. */
+export interface WritePrompt {
+  head: string;
+  leads: string;
+}
+
+export interface HeadOptions {
+  prices?: boolean;
+  campaign?: CampaignContext | null;
+  product?: CampaignProduct | null;
+  /** The campaign's recent first emails, for <recent>. */
+  recent?: Array<{ subject: string; body: string }>;
+}
+
+/** The sender, the prices or the product's prices and pitch, the campaign and the briefs from step `from` on. */
+function offerHead(profile: SiteProfileFields | null, steps: CampaignStep[], from: number, opts: HeadOptions): string[] {
+  return [
     senderBlock(profile, opts.product),
     ...(opts.product ? productBlocks(opts.product) : [opts.prices ? pricesBlock() : '']),
     campaignBlock(opts.campaign ?? null),
-    briefBlock(steps.slice(0, 1), 1),
+    briefBlock(steps, from),
   ].filter(Boolean);
-  return `${head.join('\n\n')}\n\n${blocks.join('\n\n')}`;
+}
+
+/** The offer's words, which sentences of a first email may share with other emails (overlap.ts). */
+export function offerVocabulary(profile: SiteProfileFields | null, steps: CampaignStep[], opts: HeadOptions): Set<string> {
+  return offerWords(offerHead(profile, steps, 1, opts).join('\n'));
+}
+
+/** The lead block for step 1: its signal, the opener and its quote, the newest post and the other pages. */
+function firstLeadBlock(l: WriteLead): string {
+  const parts: string[] = [];
+  const signal = signalBlock(l.signal);
+  if (signal) parts.push(signal);
+  if (l.opener) {
+    parts.push(`<opener>${inner(l.opener.line)}</opener>`);
+    if (l.opener.quote) parts.push(`<quote url="${attr(l.opener.sourceUrl ?? '')}">${inner(l.opener.quote)}</quote>`);
+  }
+  if (l.latest) parts.push(pageBlock(l.latest, 'latest'));
+  for (const p of l.pages) parts.push(pageBlock(p));
+  const avoid = avoidBlock(l.avoid);
+  if (avoid) parts.push(avoid);
+  return `<lead ${leadMeta(l)}>\n${parts.join('\n')}\n</lead>`;
+}
+
+/**
+ * The prompt for step 1 and, in the same answer, the follow ups: the head
+ * (sender, prices, campaign, every brief, what the campaign already used),
+ * then each lead with its signal and pages.
+ */
+export function firstPrompt(profile: SiteProfileFields | null, steps: CampaignStep[], leads: WriteLead[], opts: HeadOptions = {}): WritePrompt {
+  const head = [...offerHead(profile, steps, 1, opts), recentBlock(opts.recent ?? [])].filter(Boolean);
+  return { head: head.join('\n\n'), leads: leads.map(firstLeadBlock).join('\n\n') };
 }
 
 /** Follow ups see a short cut of the newest post, for a second angle. */
 const FOLLOW_LATEST_MAX = 1_200;
 
-/** The prompt for the follow ups: the sender, the later briefs, then each lead with its signal, newest post and first email. */
+/** The prompt for follow ups asked again: the sender, the later briefs, then each lead with its signal, newest post and first email. */
 export function followUpPrompt(
   profile: SiteProfileFields | null,
   steps: CampaignStep[],
   leads: Array<WriteLead & { subject: string; body: string }>,
   opts: { prices?: boolean; product?: CampaignProduct | null } = {},
-): string {
+): WritePrompt {
   const blocks = leads.map((l) => {
     const parts: string[] = [];
     const signal = signalBlock(l.signal);
@@ -313,12 +408,7 @@ export function followUpPrompt(
     if (avoid) parts.push(avoid);
     return `<lead ${leadMeta(l)}>\n${parts.join('\n')}\n</lead>`;
   });
-  const head = [
-    senderBlock(profile, opts.product),
-    ...(opts.product ? productBlocks(opts.product) : [opts.prices ? pricesBlock() : '']),
-    briefBlock(steps, 2),
-  ].filter(Boolean);
-  return `${head.join('\n\n')}\n\n${blocks.join('\n\n')}`;
+  return { head: offerHead(profile, steps, 2, opts).join('\n\n'), leads: blocks.join('\n\n') };
 }
 
 /** Placeholders and markup an email must not hold: {{first_name}}, [Company], <name>, %NAME%. */
@@ -543,13 +633,15 @@ type Verdict = { ok: true; subject: string; body: string } | { ok: false; reason
 
 /**
  * Checks one first email: the rules (checkBody, checkSubject), the quote
- * against the lead's pages, then the overlap with the emails kept so far.
+ * against the lead's pages, then the overlap with the emails kept so far,
+ * the offer's own sentences aside (`offer`, offerVocabulary).
  */
 export function judgeFirst(
   answer: FirstAnswer,
   lead: WriteLead,
   kept: Array<{ subject: string; body: string }>,
   ownDomain = false,
+  offer?: Set<string>,
 ): Verdict {
   if (!answer?.subject || !answer.body) return { ok: false, reason: 'null', avoid: [] };
   const domain = ownDomain ? lead.domain : null;
@@ -567,16 +659,16 @@ export function judgeFirst(
   if (!quoteOnPages(answer.quote, lead)) {
     return { ok: false, reason: 'quote', avoid: ["Its quote was not found on the company's pages. Copy the words the detail rests on exactly as the page has them."] };
   }
-  const conflict = conflictWith({ subject, body }, kept);
+  const conflict = conflictWith({ subject, body }, kept, offer);
   if (conflict) return { ok: false, reason: 'similar', avoid: avoidLines(conflict) };
   return { ok: true, subject, body };
 }
 
 /**
  * The write job: Claude calls for up to WRITE_BATCH leads of one campaign
- * (step 1, at most one second try for the leads whose email was not kept,
- * then the follow ups). A campaign of a user outside SENDING_USERS is left
- * as it is.
+ * (every step in one ask, at most one second try for the leads whose first
+ * email was not kept, and one more ask for follow ups that were not). A
+ * campaign of a user outside SENDING_USERS is left as it is.
  */
 export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promise<void> {
   const { sql } = deps;
@@ -600,8 +692,12 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
   const now = deps.now?.() ?? new Date();
   const pages = await domainPages(sql, [...new Set(rows.map((r) => r.domain))]);
   const posts = await latestPosts(deps, rows, pages);
-  const leads = rows.map(
-    (r, i): WriteLead & { id: string } => ({
+  const leads = rows.map((r, i): WriteLead & { id: string } => {
+    const kept = pages.get(r.domain) ?? [];
+    // The newest post (fetched, or one of the kept pages), and the homepage, kept first.
+    const latest = posts.get(r.domain) ?? kept.find((p) => isPostUrl(p.url)) ?? null;
+    const home = kept.find((p) => p.url !== latest?.url);
+    return {
       id: r.id,
       key: `l${i + 1}`,
       firstName: r.first_name,
@@ -612,11 +708,14 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
       category: r.category,
       location: r.location,
       signal: { fitReason: r.fit_reason, source: r.source, sourceRef: r.source_ref, foundAt: r.found_at },
-      opener: r.opener_status === 'done' && r.opener ? { line: r.opener, quote: r.opener_quote, sourceUrl: r.opener_source_url } : null,
-      latest: posts.get(r.domain) ?? null,
-      pages: pages.get(r.domain) ?? [],
-    }),
-  );
+      opener:
+        r.opener_status === 'done' && r.opener
+          ? { line: r.opener, quote: r.opener_quote?.slice(0, PAGE_MAX) ?? null, sourceUrl: r.opener_source_url }
+          : null,
+      latest: latest ? trimPage(latest) : null,
+      pages: home ? [trimPage(home)] : [],
+    };
+  });
   const site = await getSiteProfile(sql, userId);
   const profile = site?.profile ?? null;
   // A product brings its own prices; nvoke's plans only when nvoke itself sends.
@@ -625,109 +724,106 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
   const ownDomain = !!product;
   const context = await campaignContext(sql, campaign);
   const steps = campaign.steps;
+  const followSteps = steps.length > 1;
   const written = new Map<string, Written>();
   const similar = new Set<string>();
+  type Lead = (typeof leads)[number];
 
-  const askFirst = (batch: WriteLead[]) =>
-    deps.ai.structured({
-      userId,
-      task: 'write',
-      tier: 'bulk',
-      system: systemFirst(ownDomain),
-      prompt: firstPrompt(profile, steps, batch, { prices, campaign: context, product }),
-      schema: ClaudeFirstEmails,
-      toolName: 'save_emails',
-      toolDescription: 'Saves the first email per lead key.',
-      effort: 'low',
-      maxTokens: 900 * batch.length + 2000,
-    });
+  // The follow ups of one answer, or what was wrong with them.
+  const judgeFollow = (answer: Array<{ step: number; body: string }> | undefined, l: Lead): string[] | string => {
+    const thread = [written.get(l.id)!.bodies[0]!];
+    for (let step = 2; step <= steps.length; step++) {
+      const raw = answer?.find((s) => s.step === step)?.body;
+      if (!raw) return `Step ${step} was missing.`;
+      const body = checkBody(raw, FOLLOW_WORDS, ownDomain ? l.domain : null);
+      if (!body) return `Step ${step} was not kept: ${bodyProblem(raw, FOLLOW_WORDS, ownDomain ? l.domain : null)}. Write 25 to 60 words.`;
+      // A follow up takes a new angle: it may not repeat the thread so far.
+      if (conflictWith({ subject: '', body }, thread.map((b) => ({ subject: '', body: b })))) {
+        return `Step ${step} repeated words from the thread. Take a new angle in new words.`;
+      }
+      thread.push(body);
+    }
+    return thread.slice(1);
+  };
 
   try {
     // Emails kept so far: the campaign's recent first emails, then this batch's as they pass.
     const kept = await recentFirstEmails(sql, campaign.id, leads.map((l) => l.id), now);
-    const first = await askFirst(leads);
-    const byKey = new Map(first.data.emails.map((e) => [e.lead.trim(), e]));
-    const again: Array<WriteLead & { id: string }> = [];
-    for (const l of leads) {
-      const v = judgeFirst(byKey.get(l.key), l, kept, ownDomain);
-      if (v.ok) {
+    const headOpts = { prices, campaign: context, product, recent: kept.slice(0, 50) };
+    // The head is the same for the first ask and the second try, so the second reads it from the cache.
+    const head = firstPrompt(profile, steps, [], headOpts).head;
+    const offer = offerVocabulary(profile, steps, headOpts);
+    const askAll = (batch: WriteLead[], task: 'write_all' | 'write_retry') =>
+      deps.ai.structured({
+        userId,
+        task,
+        tier: 'bulk',
+        system: systemFirst(ownDomain, followSteps),
+        cachedPrefix: head,
+        prompt: firstPrompt(profile, steps, batch, headOpts).leads,
+        schema: ClaudeFirstEmails,
+        toolName: 'save_emails',
+        toolDescription: followSteps ? 'Saves the first email and its follow ups per lead key.' : 'Saves the first email per lead key.',
+        effort: 'low',
+        maxTokens: (900 + 400 * (steps.length - 1)) * batch.length + 2000,
+      });
+
+    // Leads whose follow ups were not kept, with why, for one more ask of those alone.
+    const followAgain: Lead[] = [];
+    const take = (answers: ClaudeFirstEmails, batch: Lead[], last: boolean): Lead[] => {
+      const byKey = new Map(answers.emails.map((e) => [e.lead.trim(), e]));
+      const again: Lead[] = [];
+      for (const l of batch) {
+        const answer = byKey.get(l.key);
+        const v = judgeFirst(answer, l, kept, ownDomain, offer);
+        if (!v.ok) {
+          if (last && v.reason === 'similar') similar.add(l.id);
+          else if (!last && v.reason !== 'null') again.push({ ...l, avoid: v.avoid });
+          continue;
+        }
         written.set(l.id, { subject: v.subject, bodies: [v.body] });
         kept.push({ subject: v.subject, body: v.body });
-      } else if (v.reason !== 'null') {
-        again.push({ ...l, avoid: v.avoid });
+        if (!followSteps) continue;
+        const f = judgeFollow(answer?.follow_ups, l);
+        if (typeof f === 'string') followAgain.push({ ...l, avoid: [f] });
+        else written.get(l.id)!.bodies.push(...f);
       }
-    }
+      return again;
+    };
 
-    if (again.length > 0) {
-      const retry = await askFirst(again);
-      const byRetry = new Map(retry.data.emails.map((e) => [e.lead.trim(), e]));
-      for (const l of again) {
-        const v = judgeFirst(byRetry.get(l.key), l, kept, ownDomain);
-        if (v.ok) {
-          written.set(l.id, { subject: v.subject, bodies: [v.body] });
-          kept.push({ subject: v.subject, body: v.body });
-        } else if (v.reason === 'similar') {
-          similar.add(l.id);
-        }
-      }
-    }
+    const again = take((await askAll(leads, 'write_all')).data, leads, false);
+    if (again.length > 0) take((await askAll(again, 'write_retry')).data, again, true);
 
-    const follow = leads.filter((l) => written.has(l.id));
-    if (steps.length > 1 && follow.length > 0) {
-      const askFollow = (batch: Array<WriteLead & { id: string }>) =>
-        deps.ai.structured({
-          userId,
-          task: 'write',
-          tier: 'bulk',
-          system: systemFollow(ownDomain),
-          prompt: followUpPrompt(
-            profile,
-            steps,
-            batch.map((l) => ({ ...l, subject: written.get(l.id)!.subject, body: written.get(l.id)!.bodies[0]! })),
-            { prices, product },
-          ),
-          schema: ClaudeFollowUps,
-          toolName: 'save_follow_ups',
-          toolDescription: 'Saves the follow up bodies per lead key.',
-          effort: 'low',
-          maxTokens: 400 * batch.length * (steps.length - 1) + 2000,
-        });
-      // The follow ups of one answer, or what was wrong with them.
-      const judgeFollow = (answer: ClaudeFollowUps['leads'][number] | undefined, l: WriteLead & { id: string }): string[] | string => {
-        const thread = [written.get(l.id)!.bodies[0]!];
-        for (let step = 2; step <= steps.length; step++) {
-          const raw = answer?.steps.find((s) => s.step === step)?.body;
-          if (!raw) return `Step ${step} was missing.`;
-          const body = checkBody(raw, FOLLOW_WORDS, ownDomain ? l.domain : null);
-          if (!body) return `Step ${step} was not kept: ${bodyProblem(raw, FOLLOW_WORDS, ownDomain ? l.domain : null)}. Write 25 to 60 words.`;
-          // A follow up takes a new angle: it may not repeat the thread so far.
-          if (conflictWith({ subject: '', body }, thread.map((b) => ({ subject: '', body: b })))) {
-            return `Step ${step} repeated words from the thread. Take a new angle in new words.`;
-          }
-          thread.push(body);
-        }
-        return thread.slice(1);
-      };
-      // One more ask for the leads whose follow ups were not kept, naming why.
-      let pending: Array<WriteLead & { id: string }> = follow;
-      for (let attempt = 0; attempt < 2 && pending.length > 0; attempt++) {
-        const res = await askFollow(pending);
-        const byLead = new Map(res.data.leads.map((e) => [e.lead.trim(), e]));
-        const again: Array<WriteLead & { id: string }> = [];
-        for (const l of pending) {
-          const v = judgeFollow(byLead.get(l.key), l);
-          if (typeof v === 'string') again.push({ ...l, avoid: [v] });
-          else written.get(l.id)!.bodies.push(...v);
-        }
-        if (again.length > 0) {
-          deps.log.info(
-            { campaignId: campaign.id, attempt: attempt + 1, failed: again.length, reasons: again.slice(0, 5).map((a) => a.avoid![0]) },
-            'write: follow ups not kept',
-          );
-        }
-        pending = again;
+    if (followAgain.length > 0) {
+      deps.log.info(
+        { campaignId: campaign.id, failed: followAgain.length, reasons: followAgain.slice(0, 5).map((a) => a.avoid![0]) },
+        'write: follow ups not kept',
+      );
+      const follow = followUpPrompt(
+        profile,
+        steps,
+        followAgain.map((l) => ({ ...l, subject: written.get(l.id)!.subject, body: written.get(l.id)!.bodies[0]! })),
+        { prices, product },
+      );
+      const res = await deps.ai.structured({
+        userId,
+        task: 'write_follow',
+        tier: 'bulk',
+        system: systemFollow(ownDomain),
+        cachedPrefix: follow.head,
+        prompt: follow.leads,
+        schema: ClaudeFollowUps,
+        toolName: 'save_follow_ups',
+        toolDescription: 'Saves the follow up bodies per lead key.',
+        effort: 'low',
+        maxTokens: 400 * followAgain.length * (steps.length - 1) + 2000,
+      });
+      const byLead = new Map(res.data.leads.map((e) => [e.lead.trim(), e]));
+      for (const l of followAgain) {
+        const v = judgeFollow(byLead.get(l.key)?.steps, l);
+        if (typeof v === 'string') written.delete(l.id);
+        else written.get(l.id)!.bodies.push(...v);
       }
-      for (const l of pending) written.delete(l.id);
     }
   } catch (err) {
     // Claude declined, gave nothing usable, or the budget is spent: retrying would not help.

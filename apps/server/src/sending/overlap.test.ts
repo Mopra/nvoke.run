@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conflictWith, MAX_OVERLAP, overlap, sentences, sharedSentences, similarSubjects, trigrams } from './overlap.js';
+import { conflictWith, MAX_OVERLAP, offerWords, overlap, sentences, sharedSentences, similarSubjects, trigrams, withoutOffer } from './overlap.js';
 
 const A =
   'Hi Anna, the October issue put the Oil Bowl and the fall carnival up top, which made it easy to scan. Day3 bills per email sent, so a weekly issue to 10,000 readers is about $14 a month. When does your plan renew?';
@@ -38,6 +38,17 @@ describe('overlap', () => {
     expect(similarSubjects('Oil Bowl week and a cheaper send', 'Oil Bowl week, a cheaper send')).toBe(true);
     expect(similarSubjects('Oil Bowl week', 'Columbus at 59th')).toBe(false);
     expect(similarSubjects('', 'anything')).toBe(false);
+  });
+
+  it("leaves the offer's own sentences out of the comparison", () => {
+    const offer = offerWords('Day3 bills per email sent. $14 a month for 50,000 emails, so a weekly issue to 10,000 readers costs about that.');
+    const price = 'Day3 bills per email sent, so a weekly issue to 10,000 readers is about $14 a month.';
+    expect(withoutOffer(`Hi Mia, your new menu is up. ${price} Who runs it?`, offer)).toBe('Hi Mia, your new menu is up.\nWho runs it?');
+    const c = `Hi Mia, the spring menu went out on Tuesday with the new brunch hours. ${price} Who picks the tools there?`;
+    expect(conflictWith({ subject: 'Spring menu', body: c }, [{ subject: 'Oil Bowl week', body: A }])).not.toBeNull();
+    expect(conflictWith({ subject: 'Spring menu', body: c }, [{ subject: 'Oil Bowl week', body: A }], offer)).toBeNull();
+    // A sentence of the email's own still counts.
+    expect(conflictWith({ subject: 'Spring menu', body: A }, [{ subject: 'Oil Bowl week', body: A }], offer)).not.toBeNull();
   });
 
   it('reports a conflict with the highest score, the shared sentences and a repeated subject', () => {

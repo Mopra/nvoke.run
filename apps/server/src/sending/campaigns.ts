@@ -203,7 +203,8 @@ export async function createCampaign(sql: Sql, userId: string, req: CreateCampai
     const c = row!;
     await tx`insert into campaign_mailboxes ${tx(mailboxIds.map((m) => ({ campaign_id: c.id, mailbox_id: m })))}`;
 
-    const res = await enrollCampaign(tx, c, now, { emailIds: source === 'list' ? req.emailIds : undefined });
+    // The owner waits for this first batch, so it is written now, however small.
+    const res = await enrollCampaign(tx, c, now, { emailIds: source === 'list' ? req.emailIds : undefined, force: true });
     if (source === 'list' && res.enrolled === 0) {
       throw new CampaignError('no_leads', 'None of these leads can be written to: they are not valid yet, suppressed, contacted before or in a blocked country.');
     }

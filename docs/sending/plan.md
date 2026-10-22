@@ -92,6 +92,12 @@ A campaign can follow a source instead of a fixed list:
   enroll tick (`sending/enroll.ts`) takes the source's valid addresses not
   yet in the campaign, applies the rules below, enrolls them and queues
   `write` jobs. A paused, canceled or done campaign enrolls nothing.
+- **Full write batches:** an enrolled lead waits in `writing` until its
+  campaign has 10 waiting (`WRITE_BATCH`) or the oldest has waited 30
+  minutes (`WRITE_WAIT_MS`), then goes into one job
+  (`campaign_leads.write_queued_at`). The enroll tick sweeps every campaign
+  with a lead past the wait, paused ones too, so none is left unwritten.
+  The first enroll at create writes at once: the owner is waiting.
 - **Who gets enrolled:** `valid` only (`catch_all` when the campaign says
   so), named people first (`people_only`, default true: `first_name` set),
   at most `per_company` per company (default 1: the highest seniority,
@@ -99,7 +105,9 @@ A campaign can follow a source instead of a fixed list:
   campaigns in the last 90 days, never suppressed, never a blocked country.
 - **Hold:** a written lead's first send is no earlier than `hold_hours`
   (default 2) after it was written, so the owner can read the day's emails
-  in the campaign screen and stop any of them.
+  in the campaign screen and stop any of them. The hold counts from the
+  write, so the batch wait comes on top of it: at most 30 minutes, inside
+  a send schedule that spreads a day's sends over working hours anyway.
 - **Daily ceiling:** `daily_new` (default 30) caps how many new leads a
   campaign enrolls a day, so a big drop does not queue weeks of sends.
 - The first start of an autopilot campaign needs a Clerk session, like
@@ -120,8 +128,11 @@ made them work:
   study page picked from the homepage links, fetched with the list page
   rules (guarded fetch, robots.txt, the shared per host rate, 2 MB, 12
   seconds) and passed as `<page kind="latest">`. A failure only means no
-  post. Claude quotes the words its detail rests on; an email whose quote is
-  not on the company's pages is not kept.
+  post. Per lead the prompt has that post, the homepage and the opener's
+  quote, each cut to about 1,500 characters with menu lines and cookie and
+  copyright lines dropped (`trimPage`). Claude quotes the words its detail
+  rests on; an email whose quote is not in that same trimmed text is not
+  kept.
 - **Numbers for them.** When the sender is nvoke, the prompt has the real
   prices from `plans.ts`, and Claude may work out one number, from a fact on
   their pages or framed as an example.
@@ -132,9 +143,19 @@ made them work:
 - **No template feel.** `overlap.ts` compares each new step 1 with the
   campaign's other step 1 emails of the last 7 days and the batch so far
   (word trigram containment above 0.2, a shared sentence of 7 words or more,
-  or a near duplicate subject). Such a lead, and one that broke a rule or
-  quoted wrongly, is asked for once more with what to avoid named; still too
-  similar, it fails with skip_reason `too_similar`.
+  or a near duplicate subject). A sentence with three quarters of its words
+  from the offer (sender, prices, pitch, campaign, briefs) is left out of
+  the comparison: every email states the same offer. The prompt lists the
+  subjects and closing questions the campaign already used (`<recent>`) for
+  Claude to avoid. A lead that clashes, broke a rule or quoted wrongly is
+  asked for once more with what to avoid named; still too similar, it fails
+  with skip_reason `too_similar`.
+- **One ask for every step.** Step 1 and its follow ups come in one answer
+  (`write_all` in `ai_usage`). The second try for a step 1 asks again for
+  every step (`write_retry`); a lead whose step 1 passed but whose follow
+  ups did not gets one ask for the follow ups alone (`write_follow`). The
+  head (sender, prices, pitch, campaign, briefs, `<recent>`) goes as the
+  cached prefix, so the second try reads it from the cache.
 - **Footer** (`footer.ts`). The signature is the mailbox's, else the
   display name's first name and the sender's site domain. The "why you" line
   and the opt-out line are each one of 10 hand-written variants, picked by

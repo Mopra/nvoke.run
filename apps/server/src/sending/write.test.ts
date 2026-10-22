@@ -16,10 +16,16 @@ import {
   onWriteGaveUp,
   pricesBlock,
   quoteOnPages,
+  recentBlock,
   runWriteJob,
+  trimPage,
   type ClaudeFirstEmails,
   type ClaudeFollowUps,
+  type WritePrompt,
 } from './write.js';
+
+/** The whole prompt, head and leads, as Claude reads it. */
+const whole = (p: WritePrompt) => `${p.head}\n\n${p.leads}`;
 
 const PROFILE: SiteProfileFields = {
   name: 'nvoke',
@@ -98,7 +104,7 @@ describe('checkBody and checkSubject', () => {
 
 describe('firstPrompt', () => {
   it('puts each lead, its signal and its pages in their own blocks, with page text unable to close them', () => {
-    const prompt = firstPrompt(
+    const parts = firstPrompt(
       PROFILE,
       [{ waitDays: 0, brief: 'The problem and the offer.' }],
       [
@@ -119,6 +125,11 @@ describe('firstPrompt', () => {
       ],
       { prices: true, campaign: { lines: ['The leads were found for: dental software companies'] } },
     );
+    const prompt = whole(parts);
+    // The head holds what every lead shares; the leads hold the rest.
+    expect(parts.head).toContain('Offer: Lead lists with verified emails');
+    expect(parts.head).not.toContain('<lead');
+    expect(parts.leads).not.toContain('<sender>');
     expect(prompt).toContain('Offer: Lead lists with verified emails');
     expect(prompt).toContain('<brief step="1" wait_days="0">\nThe problem and the offer.\n</brief>');
     expect(prompt).toContain('<lead key="l1" company="Acme  Dental " domain="acme.io" first_name="Anna" title="Founder" location="London, UK">');
@@ -132,7 +143,7 @@ describe('firstPrompt', () => {
     expect(prompt).toContain('<campaign>\nThe leads were found for: dental software companies\n</campaign>');
     expect(prompt).toContain('1,000 verified emails a month for $9');
     // Another sender gets no prices.
-    expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [])).not.toContain('<prices>');
+    expect(whole(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], []))).not.toContain('<prices>');
   });
 
   it("writes for a campaign's product: its profile, prices and pitch, never nvoke's plans", () => {
@@ -149,7 +160,7 @@ describe('firstPrompt', () => {
     };
     const lead = { key: 'l1', firstName: null, lastName: null, title: null, companyName: 'Lookout', domain: 'lookout.com', category: null, location: null, opener: null, pages: [] };
     const signal = { fitReason: 'A weekly beehiiv newsletter.', source: 'import', sourceRef: null, foundAt: null };
-    const prompt = firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [{ ...lead, signal }], { prices: true, product });
+    const prompt = whole(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [{ ...lead, signal }], { prices: true, product }));
     expect(prompt).toContain('Name: Day3');
     expect(prompt).not.toContain('Lead lists with verified emails');
     expect(prompt).toContain('<prices>\n$14 a month for 50,000 emails.\n</prices>');
@@ -157,14 +168,41 @@ describe('firstPrompt', () => {
     expect(prompt.match(/<\/pitch>/g)).toHaveLength(1);
     expect(prompt.match(/<sender>/g)).toHaveLength(1);
     expect(prompt).toContain("The sender's own research found them");
-    const follow = followUpPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }, { waitDays: 3, brief: 'y' }], [{ ...lead, subject: 's', body: 'b' }], { product });
+    const follow = whole(followUpPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }, { waitDays: 3, brief: 'y' }], [{ ...lead, subject: 's', body: 'b' }], { product }));
     expect(follow).toContain('Name: Day3');
     expect(follow).toContain('<pitch>');
+  });
+
+  it('lists the subjects and closing questions the campaign already used, in the head', () => {
+    const recent = [
+      { subject: 'booking tools', body: LONG },
+      { subject: 'One flat fee per chair', body: OTHER },
+      { subject: 'booking tools', body: LONG },
+    ];
+    const block = recentBlock(recent);
+    expect(block).toContain('- booking tools\n- One flat fee per chair\n');
+    expect(block).toContain('- Who books the demos for you today, you or a sales hire?');
+    expect(block).toContain('- Where do your best clinic customers come from now?');
+    expect(block.match(/booking tools/g)).toHaveLength(1);
+    expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [], { recent }).head).toContain('<recent>');
+    expect(recentBlock([])).toBe('');
   });
 
   it('lists the prices from plans.ts', () => {
     expect(pricesBlock()).toContain('Free: 50 verified emails a month');
     expect(pricesBlock()).toContain('60,000 verified emails a month for $199');
+  });
+});
+
+describe('trimPage', () => {
+  it('drops menu items and cookie lines, and cuts at a line end', () => {
+    const text = ['Home', 'Pricing', 'Log in', 'We build booking tools for dental clinics in Leeds.', 'Now open.', 'We use cookies to improve your visit', `${'Long line of real words here. '.repeat(40)}`, '© 2026 Acme Ltd'].join('\n');
+    const p = trimPage({ url: 'https://acme.io/', title: 'Acme', description: '', text }, 200);
+    expect(p.text).toBe('We build booking tools for dental clinics in Leeds.\nNow open.');
+    // A first line longer than the cap is cut at a word.
+    const one = trimPage({ url: 'u', title: '', description: '', text: 'word '.repeat(100) }, 50);
+    expect(one.text.length).toBeLessThanOrEqual(50);
+    expect(one.text.endsWith('word')).toBe(true);
   });
 });
 
@@ -196,8 +234,13 @@ describe('runWriteJob', () => {
     async structured(req) {
       calls.push(req as StructuredRequest<never>);
       const n = calls.filter((c) => c.toolName === 'save_emails').length - 1;
-      const reply = req.toolName === 'save_emails' ? (typeof first === 'function' ? first(n) : first) : follow;
-      if (reply instanceof Error) throw reply;
+      const asked = req.toolName === 'save_emails' ? (typeof first === 'function' ? first(n) : first) : follow;
+      if (asked instanceof Error) throw asked;
+      // Step 1 answers carry each lead's follow ups, as `follow` has them.
+      const reply =
+        'emails' in asked
+          ? { emails: asked.emails.map((e) => ({ ...e, follow_ups: e.follow_ups ?? (follow instanceof Error ? [] : (follow.leads.find((f) => f.lead === e.lead)?.steps ?? [])) })) }
+          : asked;
       // The answers name leads by domain; the prompt keys them l1, l2 ... in id order.
       const keys = new Map([...req.prompt.matchAll(/<lead key="(l\d+)" company="[^"]*" domain="([^"]+)"/g)].map((m) => [m[2]!, m[1]!]));
       const rekey = <T extends { lead: string }>(rows: T[]) => rows.map((r) => ({ ...r, lead: keys.get(r.lead) ?? 'none' }));
@@ -273,22 +316,24 @@ describe('runWriteJob', () => {
     const c = await campaign();
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
 
-    // Step 1, a second try for the email that broke the rules, then the follow ups.
-    expect(calls.map((r) => [r.task, r.tier])).toEqual([['write', 'bulk'], ['write', 'bulk'], ['write', 'bulk']]);
+    // Every step in one ask, then a second try for the email that broke the rules.
+    expect(calls.map((r) => [r.task, r.tier])).toEqual([['write_all', 'bulk'], ['write_retry', 'bulk']]);
+    expect(calls[0]!.system).toContain('follow_ups');
     expect(calls[0]!.prompt).toMatch(/<lead key="l\d" company="acme.io" domain="acme.io" first_name="anna">/);
-    expect(calls[0]!.prompt).toContain('Offer: Lead lists with verified emails');
+    // The head goes as the cached prefix, the same for both asks.
+    expect(calls[0]!.cachedPrefix).toContain('Offer: Lead lists with verified emails');
+    expect(calls[0]!.prompt).not.toContain('<sender>');
+    expect(calls[1]!.cachedPrefix).toBe(calls[0]!.cachedPrefix);
     // The reason to write now: the campaign's words, the fit line and the job post source.
-    expect(calls[0]!.prompt).toContain('The leads were found for: dental software companies that sell to clinics');
+    expect(calls[0]!.cachedPrefix).toContain('The leads were found for: dental software companies that sell to clinics');
+    expect(calls[0]!.cachedPrefix).toContain('<brief step="3" wait_days="5">');
     expect(calls[0]!.prompt).toContain('Fit: Dental booking SaaS, Hiring: Account Executive');
     expect(calls[0]!.prompt).toContain('<signal source="hiring"');
     // The sender is nvoke, so the prompt has its prices.
-    expect(calls[0]!.prompt).toContain('<prices>');
+    expect(calls[0]!.cachedPrefix).toContain('<prices>');
     // The second try asks only for beta.io and says what to fix.
     expect(calls[1]!.prompt).not.toContain('domain="acme.io"');
     expect(calls[1]!.prompt).toContain('<avoid>');
-    // Only the lead that passed is asked for follow ups.
-    expect(calls[2]!.prompt).toContain('<first_email subject="booking tools">');
-    expect(calls[2]!.prompt).not.toContain('beta.io');
 
     const rows = await leadRows(c.id);
     expect(rows.map((r) => [r.address, r.status, r.skip_reason])).toEqual([
@@ -315,7 +360,7 @@ describe('runWriteJob', () => {
       ],
     };
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
-    expect(calls.map((r) => r.tier)).toEqual(['bulk', 'bulk', 'bulk']);
+    expect(calls.map((r) => r.task)).toEqual(['write_all', 'write_retry']);
     expect(calls[1]!.prompt).toContain('another email has it: "A product like that sells best when someone calls the clinics before a rival does."');
     expect(calls[1]!.prompt).toContain('The subject "booking tools" is taken.');
     expect((await leadRows(c.id)).map((r) => [r.address, r.status, r.skip_reason])).toEqual([
@@ -341,6 +386,9 @@ describe('runWriteJob', () => {
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
     expect(calls.filter((r) => r.toolName === 'save_emails')).toHaveLength(2);
     expect(calls[0]!.prompt).not.toContain('domain="acme.io"');
+    // Claude is told the subject and closing question Anna's email used.
+    expect(calls[0]!.cachedPrefix).toContain('<recent>');
+    expect(calls[0]!.cachedPrefix).toContain('- Who books the demos for you today, you or a sales hire?');
     const [ben] = await db.sql<{ subject: string; body: string }[]>`
       select w.subject, w.body from campaign_leads l join campaign_steps_written w on w.campaign_lead_id = l.id and w.step = 1
       where l.address = 'ben@beta.io'`;
@@ -389,6 +437,28 @@ describe('runWriteJob', () => {
     follow = { leads: [{ lead: 'acme.io', steps: [{ step: 2, body: LONG.replace('Who books', 'So, who books') }, { step: 3, body: 'Hi Anna, I will leave it here. If leads ever become the bottleneck, nvoke is around.' }] }] };
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
     expect((await leadRows(c.id))[0]!.status).toBe('failed');
+    // The follow ups alone were asked again, with the first email kept.
+    const again = calls.find((r) => r.task === 'write_follow')!;
+    expect(again.toolName).toBe('save_follow_ups');
+    expect(again.prompt).toContain('<first_email subject="booking tools">');
+    expect(again.prompt).toContain('Step 2 was not kept');
+    expect(again.prompt).not.toContain('beta.io');
+  });
+
+  it('keeps follow ups that pass on their second ask', async () => {
+    const c = await campaign();
+    first = {
+      emails: [
+        // The first answer's follow ups are missing; the second ask brings them.
+        { lead: 'acme.io', subject: 'booking tools', body: LONG, quote: 'Booking tools for clinics', follow_ups: [] },
+        { lead: 'beta.io', subject: null, body: null, quote: null },
+      ],
+    };
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
+    expect(calls.map((r) => r.task)).toEqual(['write_all', 'write_follow']);
+    expect((await leadRows(c.id)).map((r) => r.status)).toEqual(['queued', 'failed']);
+    const steps = await db.sql<{ step: number }[]>`select step from campaign_steps_written order by step`;
+    expect(steps.map((s) => s.step)).toEqual([1, 2, 3]);
   });
 
   it('writes nothing for a user outside SENDING_USERS', async () => {

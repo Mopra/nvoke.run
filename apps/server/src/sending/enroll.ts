@@ -8,6 +8,12 @@
 // that breaks a rule is kept as a 'skipped' row with its reason, so the
 // counts show and it is not looked at again; one held back by daily_new is
 // left for the next day.
+//
+// Enrolled leads are written in full batches: a lead waits in 'writing'
+// until its campaign has WRITE_BATCH waiting or the oldest has waited
+// WRITE_WAIT_MS, so one Claude call reads the campaign's head for ten leads
+// instead of one. The enroll tick sweeps campaigns whose leads waited long
+// enough, paused ones too, so no lead is left unwritten.
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
@@ -20,6 +26,8 @@ type Db = Sql | TransactionSql;
 
 /** Leads per write job. */
 export const WRITE_BATCH = 10;
+/** A lead waits at most this long for its write batch to fill. */
+export const WRITE_WAIT_MS = 30 * 60_000;
 /** An address this user wrote to (or enrolled) in another campaign this recently is left alone. */
 export const CONTACTED_DAYS = 90;
 /** How often the enroll tick looks at an autopilot campaign's source again. */
@@ -99,7 +107,7 @@ export async function enrollCampaign(
   tx: Db,
   c: CampaignRow,
   now: Date,
-  opts: { emailIds?: string[] } = {},
+  opts: { emailIds?: string[]; force?: boolean } = {},
 ): Promise<EnrollResult> {
   const userId = c.clerk_user_id;
   const since = new Date(now.getTime() - CONTACTED_DAYS * 86_400_000);
@@ -125,6 +133,7 @@ export async function enrollCampaign(
   `;
   if (rows.length === 0) {
     await tx`update campaigns set enrolled_at = ${now} where id = ${c.id}`;
+    await queueWrites(tx, c.id, now, { force: opts.force });
     return { enrolled: 0, skipped: {} };
   }
 
@@ -216,18 +225,61 @@ export async function enrollCampaign(
     for (const r of ids) if (r.status === 'writing') written.push(r.id);
   }
   await tx`update campaigns set leads = leads + ${written.length}, enrolled_at = ${now} where id = ${c.id}`;
-  await queueWrites(tx, c.id, written);
+  await queueWrites(tx, c.id, now, { force: opts.force });
   return { enrolled: written.length, skipped };
 }
 
-/** Queues the write jobs for a campaign's new leads, WRITE_BATCH per job. */
-export async function queueWrites(tx: Db, campaignId: string, leadIds: string[]): Promise<void> {
-  const ids = [...leadIds].sort();
+/**
+ * Queues write jobs for the campaign's waiting leads, WRITE_BATCH per job:
+ * every full batch, and the rest too once the oldest waited WRITE_WAIT_MS
+ * (or `force`, for a campaign just made, whose owner waits to review).
+ * Returns how many leads were queued. Run it where the campaign row is held.
+ */
+export async function queueWrites(tx: Db, campaignId: string, now: Date, opts: { force?: boolean } = {}): Promise<number> {
+  const waiting = await tx<{ id: string; created_at: Date }[]>`
+    select id, created_at from campaign_leads
+    where campaign_id = ${campaignId} and status = 'writing' and write_queued_at is null
+    order by created_at, address
+  `;
+  if (waiting.length === 0) return 0;
+  const due = opts.force || waiting[0]!.created_at.getTime() <= now.getTime() - WRITE_WAIT_MS;
+  const take = due ? waiting.length : waiting.length - (waiting.length % WRITE_BATCH);
+  if (take === 0) return 0;
+  const ids = waiting.slice(0, take).map((w) => w.id);
   const jobs = [];
   for (let i = 0; i < ids.length; i += WRITE_BATCH) {
     jobs.push({ type: 'write' as const, payload: { campaignId, leadIds: ids.slice(i, i + WRITE_BATCH) } });
   }
+  await tx`update campaign_leads set write_queued_at = ${now} where id in ${tx(ids)}`;
   await enqueue(tx, jobs);
+  return ids.length;
+}
+
+/**
+ * Queues the waiting leads of every campaign whose oldest waited
+ * WRITE_WAIT_MS, whatever the campaign's status, so a lead never stays
+ * unwritten. Part of the enroll tick. Returns how many leads were queued.
+ */
+export async function sweepWrites(sql: Sql, log: Logger, users: readonly string[], now: Date = new Date()): Promise<number> {
+  if (users.length === 0) return 0;
+  const due = await sql<{ campaign_id: string }[]>`
+    select distinct campaign_id from campaign_leads
+    where status = 'writing' and write_queued_at is null and created_at <= ${new Date(now.getTime() - WRITE_WAIT_MS)}
+      and clerk_user_id in ${sql(users)}
+    limit 200
+  `;
+  let total = 0;
+  for (const { campaign_id: id } of due) {
+    try {
+      total += await sql.begin(async (tx) => {
+        const [c] = await tx<{ id: string }[]>`select id from campaigns where id = ${id} for update skip locked`;
+        return c ? queueWrites(tx, id, now) : 0;
+      });
+    } catch (err) {
+      log.error({ err, campaignId: id }, 'enroll: write sweep failed');
+    }
+  }
+  return total;
 }
 
 /**
@@ -244,6 +296,8 @@ const ENROLL_STATUSES = ['writing', 'review', 'scheduled', 'sending'];
 
 export async function enrollTick(sql: Sql, log: Logger, users: readonly string[], now: Date = new Date()): Promise<number> {
   if (users.length === 0) return 0;
+  const swept = await sweepWrites(sql, log, users, now);
+  if (swept > 0) log.info({ leads: swept }, 'enroll: queued leads that waited for a full write batch');
   const before = new Date(now.getTime() - ENROLL_EVERY_MS);
   const due = await sql<{ id: string }[]>`
     select id from campaigns
