@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-22 Round after the owner's Day3 and exit1 campaigns quest landed (fd7a709 to 2f2c5ad): Horadric reports checks passed at 2f2c5ad, so no checks quest. Clips still wait on the owner, no aim. Nothing to file.
 - 2026-10-22 Hourly round: unchanged (only memory commits past green 6584776; the sending quest is in progress, clips are waiting on the owner, no aim). Nothing to do.
 - 2026-10-22 First round after 04:00 (the human left): main code unchanged since green 6584776. Clips quest blocked on the owner's verdict on clip 1; the owner's sending quest for Day3 and exit1 campaigns is in progress. No aim, nothing to file. The day gave 3 lore notes (#53 to #55). Day was clean.
 
@@ -67,14 +68,13 @@
 ## Open
 
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
-- Owner's quest 'Sending: run Day3 and exit1 outreach campaigns' (2026-10-22) in progress; it is the owner's own sending order, internal only. When it lands, file checks on main.
+- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; main green at 2f2c5ad.
 - Production OpenRouter out of credits since 2026-10-21: Describe your customer and the people step fail until the owner tops up.
 
 - Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
 - Brave prepaid credit empty since 2026-10-18 (402): the human tops up and runs nv sources resume brave --prod. Free search fallback (Mwmbl) landed in 94a8266, shipped with the 2026-10-20 server deploy.
 - Go public aim reached (2026-10-17); site, server and desktop 0.1.3 shipped 2026-10-20. 55 quests landed since the last ship; shipping is the human's.
-- Main green at 6584776 (2026-10-21).
 - /app 307 redirect fix (6584776) not live until the site deploys; Wolf Valencia (qa-audit.com) reported it. The human's.
 - SMTP relays (b4611da) need vps-us-1 set up and SMTP_RELAYS in the VPS .env (deploy/README.md); the human's.
 - Journey check landed (2678983); sign-up form for a new account never exercised. Shipped 2026-10-20.
