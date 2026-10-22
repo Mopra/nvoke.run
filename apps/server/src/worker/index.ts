@@ -18,6 +18,7 @@ import { purgeAgentSignups } from '../agents/purge.js';
 import { startOngoingLoop } from '../leads/ongoing.js';
 import { purge, RETENTION } from '../leads/retention.js';
 import { startSeedLoop } from '../leads/seed/tick.js';
+import { recheckUnknown } from '../leads/verify/recheck.js';
 import { webSearchConfigured } from '../leads/sources/paid-search.js';
 import { createSecrets } from '../crypto/secrets.js';
 import { enrollTick } from '../sending/enroll.js';
@@ -123,6 +124,24 @@ async function runWebhooks(): Promise<void> {
 const webhookTimer = setInterval(() => void runWebhooks(), WEBHOOK_TICK_MS);
 webhookTimer.unref();
 
+// Unknown SMTP results get asked again hours later: those emails are already paid for.
+const RECHECK_TICK_MS = 15 * 60_000;
+let recheckBusy = false;
+async function runRecheck(): Promise<void> {
+  if (recheckBusy || stopping) return;
+  recheckBusy = true;
+  try {
+    const out = await recheckUnknown({ sql, verifier: deps.verifier, log: log.child({ part: 'recheck' }) });
+    if (out.asked > 0) log.info(out, 'recheck tick done');
+  } catch (err) {
+    log.error({ err }, 'recheck tick failed');
+  } finally {
+    recheckBusy = false;
+  }
+}
+const recheckTimer = setInterval(() => void runRecheck(), RECHECK_TICK_MS);
+recheckTimer.unref();
+
 // Sending: enroll new leads into autopilot campaigns, send due steps, read
 // replies. Each claims its rows with SKIP LOCKED, so several workers share
 // the work. All off without SECRETS_KEY (no mailbox password can be opened),
@@ -192,6 +211,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(purgeTimer);
   clearInterval(feedTimer);
   clearInterval(webhookTimer);
+  clearInterval(recheckTimer);
   for (const t of sendingTimers) clearInterval(t);
   stopOngoing();
   try {
