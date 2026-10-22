@@ -10,6 +10,8 @@
 
 ## Lately
 
+- 2026-10-22 First round after 04:00 (the human left): main code unchanged since green 6584776. Clips quest blocked on the owner's verdict on clip 1; the owner's sending quest for Day3 and exit1 campaigns is in progress. No aim, nothing to file. The day gave 3 lore notes (#53 to #55). Day was clean.
+
 - 2026-10-21 Round after the /app 404 quest landed (6584776, 307 to sign-in): checks green at 6584776. Log done, no aim. Nothing to file; it reaches nvoke.run only with a site deploy, the human's.
 - 2026-10-21 Hourly round: unchanged (the /app 404 quest still in progress, only memory commits past green 19b9849, no aim). Nothing to do.
 - 2026-10-21 Hourly round: unchanged (the /app 404 quest still in progress, only memory commits past green 19b9849, no aim). Nothing to do.
@@ -62,6 +64,10 @@
 - 2026-10-13 Round after round of merge fix-ups (tray, hotkey, notifications, SQLite, CSV drop, local MCP) given sonnet; filed the capture UnknownVizError quest; set Model lines on 9 native-app quests.
 
 ## Open
+
+- Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
+- Owner's quest 'Sending: run Day3 and exit1 outreach campaigns' (2026-10-22) in progress; it is the owner's own sending order, internal only. When it lands, file checks on main.
+- Production OpenRouter out of credits since 2026-10-21: Describe your customer and the people step fail until the owner tops up.
 
 - Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
 - GA4 sign_up and file_download events landed (cc48271) and were pushed live; file_download is a key event, sign_up can be starred in GA4 Admin only after the first one arrives (the human's).
