@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-22 Round as the human left: the human committed 013e55f (production database from Supabase to Postgres 18 on the VPS, nightly backup units, docs, one cli line) past green 8f58c67, so filed 'Checks on main after the Postgres 18 move' (sonnet, no build). Clips and the Common Crawl trial still wait on the owner, no aim.
 - 2026-10-22 Woken: the owner stopped the 100k Common Crawl trial load (554 rows, Common Crawl 403s at 15 to 20 req/s). Left it blocked with the owner, noted; the measure quest stays held.
 - 2026-10-22 Round after 'load Common Crawl homepages' landed: Horadric reports checks passed at 8f58c67, so the human's seed and index stream is green; no checks quest. 100k trial load in progress, gave the measure quest Model: sonnet (its 20M spend is the owner's call when it comes). Clips wait on the owner, no aim.
 - 2026-10-22 Round after 'Company index: test one Common Crawl segment' landed (b6c7d5d research): the human is still mid stream (5 seed and search commits 3ec6618 to b0ec661, the last 75s before), so held checks back again. 'load Common Crawl homepages' in progress, clips wait on the owner, no aim.
@@ -79,8 +80,8 @@
 ## Open
 
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
-- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866; seed and Common Crawl index green at 8f58c67 (2026-10-22).
-- Common Crawl: 100k trial load stopped by the owner at 554 rows (403s from Common Crawl), resumable from /opt/nvoke/cc on the VPS; resume or undo is the owner's; the measure quest waits a week after it, and the full 20M load spend (Supabase disk or VPS Postgres) goes to the owner.
+- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866; seed and Common Crawl index green at 8f58c67 (2026-10-22); Postgres 18 move 013e55f under checks.
+- Common Crawl: 100k trial load stopped by the owner at 554 rows (403s from Common Crawl), resumable from /opt/nvoke/cc on the VPS; resume or undo is the owner's; the measure quest waits a week after it, and the full 20M load spend (VPS Postgres disk now, since 013e55f) goes to the owner.
 - Production OpenRouter out of credits since 2026-10-21: Describe your customer and the people step fail until the owner tops up.
 
 - Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
