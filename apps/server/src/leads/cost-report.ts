@@ -2,12 +2,22 @@
 // counted per search kind from the searches' own counters and priced per
 // provider from web_search_usage; Claude comes from ai_usage, which is kept
 // per account and task, not per search, so it is summed over the find
-// pipeline's tasks only. Reads stored numbers, never calls a paid API.
+// pipeline's tasks only. Companies and valid emails per kind come from the
+// searches' companies, with the share the company index served (companies
+// whose source is 'index', leads/company-index.ts) next to the paid tiers.
+// Reads stored numbers, never calls a paid API.
 
 import type { Sql } from 'postgres';
 
 /** The Claude tasks of the find, crawl and verify pipeline. */
 export const PIPELINE_AI_TASKS = ['plan', 'replan', 'fit', 'people'] as const;
+
+/** Sending's writing tasks (write, write_first, write_retry, write_follow) count as one, outside the pipeline. */
+const WRITE_GROUP = 'write';
+const taskGroup = (task: string) => (task.startsWith(WRITE_GROUP) ? WRITE_GROUP : task);
+
+/** companies.source of a company a paid web search result named. Lists, feeds, OSM and the index are free. */
+const PAID_SOURCES = ['brave', 'serper'];
 
 /** Dollars per 1,000 paid requests, per provider (BRAVE_COST_PER_1000_USD, SERPER_COST_PER_1000_USD). */
 export type SearchPrices = { brave: number } & Record<string, number>;
@@ -19,6 +29,13 @@ export interface KindCost {
   paidRequests: number;
   cacheHits: number;
   valid: number;
+  /** Companies the kind's searches found, and those with at least one valid email. */
+  companies: number;
+  companiesValid: number;
+  /** Companies the company index served, at no paid search. */
+  fromIndex: number;
+  /** Companies a paid web search result named. The rest came from free sources (lists, feeds, maps). */
+  fromPaid: number;
   /** The kind's share of the paid search dollars, by its share of paid requests. */
   searchUsd: number;
 }
@@ -34,6 +51,8 @@ export interface AiTaskCost {
   calls: number;
   usd: number;
   inPipeline: boolean;
+  /** The tasks grouped under this one (the write tasks), when more than itself. */
+  parts?: string[];
 }
 
 export interface CostReport {
@@ -51,6 +70,10 @@ export interface CostReport {
   usdPer1000Valid: number | null;
   /** Share of web search pages served from the shared cache, null without any. */
   cacheHitRate: number | null;
+  companies: number;
+  fromIndex: number;
+  /** Share of the companies found that the company index served, null without any. */
+  indexShare: number | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -118,6 +141,17 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
     where created_at > ${start}
     group by kind order by kind
   `;
+  const companyRows = await sql<{ kind: string; companies: number; companies_valid: number; from_index: number; from_paid: number }[]>`
+    select s.kind, count(*)::int as companies,
+           count(*) filter (where exists (
+             select 1 from emails e where e.company_id = c.id and e.verification = 'valid'
+           ))::int as companies_valid,
+           count(*) filter (where c.source = 'index')::int as from_index,
+           count(*) filter (where c.source = any(${PAID_SOURCES}::text[]))::int as from_paid
+    from companies c join searches s on s.id = c.search_id
+    where s.created_at > ${start}
+    group by s.kind
+  `;
   const aiRows = await sql<{ task: string; calls: number; usd: string }[]>`
     select task, count(*)::int as calls, sum(cost_usd) as usd
     from ai_usage
@@ -128,20 +162,40 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
 
   const searchUsd = providers.reduce((sum, p) => sum + p.usd, 0);
   const requests = kindRows.reduce((sum, k) => sum + k.requests, 0);
-  const kinds = kindRows.map((r) => ({
-    kind: r.kind,
-    searches: r.searches,
-    paidRequests: r.requests,
-    cacheHits: r.cache_hits,
-    valid: r.valid,
-    searchUsd: requests > 0 ? (searchUsd * r.requests) / requests : 0,
-  }));
+  const kinds = kindRows.map((r) => {
+    const c = companyRows.find((row) => row.kind === r.kind);
+    return {
+      kind: r.kind,
+      searches: r.searches,
+      paidRequests: r.requests,
+      cacheHits: r.cache_hits,
+      valid: r.valid,
+      companies: c?.companies ?? 0,
+      companiesValid: c?.companies_valid ?? 0,
+      fromIndex: c?.from_index ?? 0,
+      fromPaid: c?.from_paid ?? 0,
+      searchUsd: requests > 0 ? (searchUsd * r.requests) / requests : 0,
+    };
+  });
   const pipeline: readonly string[] = PIPELINE_AI_TASKS;
-  const aiTasks = aiRows.map((r) => ({ task: r.task, calls: r.calls, usd: Number(r.usd), inPipeline: pipeline.includes(r.task) }));
+  const groups = new Map<string, AiTaskCost>();
+  for (const r of aiRows) {
+    const task = taskGroup(r.task);
+    const g = groups.get(task) ?? { task, calls: 0, usd: 0, inPipeline: pipeline.includes(task), parts: [] };
+    g.calls += r.calls;
+    g.usd += Number(r.usd);
+    g.parts!.push(r.task);
+    groups.set(task, g);
+  }
+  const aiTasks = [...groups.values()]
+    .sort((a, b) => a.task.localeCompare(b.task))
+    .map(({ parts, ...t }) => (parts && (parts.length > 1 || parts[0] !== t.task) ? { ...t, parts } : t));
 
   const pipelineAiUsd = aiTasks.filter((t) => t.inPipeline).reduce((sum, t) => sum + t.usd, 0);
   const valid = kinds.reduce((sum, k) => sum + k.valid, 0);
   const hits = kinds.reduce((sum, k) => sum + k.cacheHits, 0);
+  const companies = kinds.reduce((sum, k) => sum + k.companies, 0);
+  const fromIndex = kinds.reduce((sum, k) => sum + k.fromIndex, 0);
 
   return {
     days,
@@ -154,6 +208,9 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
     valid,
     usdPer1000Valid: valid > 0 ? ((searchUsd + pipelineAiUsd) * 1000) / valid : null,
     cacheHitRate: requests + hits > 0 ? hits / (requests + hits) : null,
+    companies,
+    fromIndex,
+    indexShare: companies > 0 ? fromIndex / companies : null,
   };
 }
 
@@ -169,6 +226,13 @@ export function formatCostReport(r: CostReport): string {
       `  ${k.kind.padEnd(9)} searches ${k.searches}  paid requests ${k.paidRequests}  cache hits ${k.cacheHits}  valid ${k.valid}  valid per request ${perRequest}  search ${usd(k.searchUsd)}  per 1,000 valid ${per1000}`,
     );
   }
+  lines.push('', 'companies, per search kind');
+  for (const k of r.kinds) {
+    const share = k.companies > 0 ? k.fromIndex / k.companies : null;
+    lines.push(
+      `  ${k.kind.padEnd(9)} companies ${k.companies}  with a valid email ${k.companiesValid}  valid emails ${k.valid}  from the index ${k.fromIndex} (${pct(share)})  from paid search ${k.fromPaid}  from free sources ${k.companies - k.fromIndex - k.fromPaid}`,
+    );
+  }
   lines.push('', 'paid web search, per provider');
   for (const p of r.providers) {
     const uncounted = Math.round(r.uncountedRequests);
@@ -177,13 +241,16 @@ export function formatCostReport(r: CostReport): string {
   }
   lines.push('', 'claude, per task');
   for (const t of r.aiTasks) {
-    lines.push(`  ${t.task.padEnd(13)} calls ${t.calls}  ${usd(t.usd)}${t.inPipeline ? '' : '  (not in the pipeline)'}`);
+    const per1000 = r.valid > 0 && t.inPipeline ? `  per 1,000 valid ${usd((t.usd * 1000) / r.valid)}` : '';
+    const parts = t.parts ? ` ${t.parts.join(', ')}` : '';
+    lines.push(`  ${t.task.padEnd(13)} calls ${t.calls}  ${usd(t.usd)}${per1000}${t.inPipeline ? '' : `  (not in the pipeline${parts ? `:${parts}` : ''})`}`);
   }
   lines.push(
     '',
     `web search ${usd(r.searchUsd)} + pipeline claude ${usd(r.pipelineAiUsd)} for ${r.valid} valid emails`,
     `cost per 1,000 valid ${r.usdPer1000Valid === null ? 'n/a' : usd(r.usdPer1000Valid)}`,
     `web search cache hit rate ${pct(r.cacheHitRate)}`,
+    `companies from the company index ${r.fromIndex} of ${r.companies} (${pct(r.indexShare)})`,
   );
   return lines.join('\n');
 }

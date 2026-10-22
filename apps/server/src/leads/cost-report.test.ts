@@ -17,11 +17,29 @@ beforeAll(async () => {
       ('u1', 'local', 50, 0, 0, 30, ${NOW}),
       ('u1', 'web', 100, 999, 0, 1, ${DAYS_AGO_40})
   `;
+  // Three companies of the first web search, one from the index; two have a valid email, one only a risky one.
+  const [web] = await db.sql<{ id: string }[]>`select id from searches where kind = 'web' and source_requests = 20`;
+  const companies = await db.sql<{ id: string; domain: string }[]>`
+    insert into companies (search_id, clerk_user_id, name, domain, website, source) values
+      (${web!.id}, 'u1', 'A', 'a.com', 'https://a.com', 'index'),
+      (${web!.id}, 'u1', 'B', 'b.com', 'https://b.com', 'brave'),
+      (${web!.id}, 'u1', 'C', 'c.com', 'https://c.com', 'brave')
+    returning id, domain
+  `;
+  const id = (d: string) => companies.find((c) => c.domain === d)!.id;
+  await db.sql`
+    insert into emails (company_id, search_id, clerk_user_id, address, kind, verification) values
+      (${id('a.com')}, ${web!.id}, 'u1', 'info@a.com', 'generic', 'valid'),
+      (${id('a.com')}, ${web!.id}, 'u1', 'ole@a.com', 'personal', 'valid'),
+      (${id('b.com')}, ${web!.id}, 'u1', 'info@b.com', 'generic', 'valid'),
+      (${id('c.com')}, ${web!.id}, 'u1', 'info@c.com', 'generic', 'risky')
+  `;
   await db.sql`
     insert into ai_usage (clerk_user_id, task, model, cost_usd, created_at) values
       ('u1', 'plan', 'm', 0.02, ${NOW}),
       ('u1', 'people', 'm', 0.05, ${NOW}),
       ('u1', 'write', 'm', 1.00, ${NOW}),
+      ('u1', 'write_first', 'm', 0.50, ${NOW}),
       ('u1', 'fit', 'm', 9.00, ${DAYS_AGO_40})
   `;
 });
@@ -40,13 +58,22 @@ describe('costReport', () => {
     expect(r.uncountedRequests).toBe(30);
     expect(r.searchUsd).toBeCloseTo(0.15);
     expect(r.pipelineAiUsd).toBeCloseTo(0.07);
-    expect(r.aiTasks.find((t) => t.task === 'write')?.inPipeline).toBe(false);
+    const write = r.aiTasks.find((t) => t.task === 'write');
+    expect(write).toMatchObject({ calls: 2, inPipeline: false, parts: ['write', 'write_first'] });
+    expect(write?.usd).toBeCloseTo(1.5);
+    expect(r.aiTasks.map((t) => t.task)).toEqual(['people', 'plan', 'write']);
+    expect(r.kinds.find((k) => k.kind === 'web')).toMatchObject({ companies: 3, companiesValid: 2, fromIndex: 1, fromPaid: 2 });
+    expect(r.kinds.find((k) => k.kind === 'local')).toMatchObject({ companies: 0, companiesValid: 0, fromIndex: 0 });
+    expect(r.indexShare).toBeCloseTo(1 / 3);
     expect(r.valid).toBe(90);
     expect(r.usdPer1000Valid).toBeCloseTo((0.22 * 1000) / 90);
     expect(r.cacheHitRate).toBeCloseTo(20 / 50);
     const text = formatCostReport(r);
     expect(text).toContain('cost per 1,000 valid $2.44');
     expect(text).toContain("brave     requests 30  $0.15  (30 of them from the search counters, at Brave's price)");
+    expect(text).toContain('web       companies 3  with a valid email 2  valid emails 60  from the index 1 (33%)  from paid search 2  from free sources 0');
+    expect(text).toContain('(not in the pipeline: write, write_first)');
+    expect(text).toContain('companies from the company index 1 of 3 (33%)');
   });
 
   it('prices each provider from web_search_usage, the uncounted rest at Brave, a partial month in proportion', async () => {
@@ -87,8 +114,12 @@ describe('costReport', () => {
       valid: 0,
       usdPer1000Valid: null,
       cacheHitRate: null,
+      companies: 0,
+      fromIndex: 0,
+      indexShare: null,
     });
     expect(text).toContain('cost per 1,000 valid n/a');
     expect(text).toContain('web search cache hit rate n/a');
+    expect(text).toContain('companies from the company index 0 of 0 (n/a)');
   });
 });
