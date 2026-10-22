@@ -12,6 +12,8 @@
  *   pnpm --filter @nvoke/server cli privacy suppress-domain example.dk
  *   pnpm --filter @nvoke/server cli stats --days 30
  *   pnpm --filter @nvoke/server cli seed majestic --limit 5000
+ *   pnpm --filter @nvoke/server cli cc list --blocks 4000 --out cc-list.jsonl.gz
+ *   pnpm --filter @nvoke/server cli cc load cc-list.jsonl.gz --limit 100000
  *   pnpm --filter @nvoke/server cli sources resume brave
  *   pnpm --filter @nvoke/server cli alert test
  *   pnpm --filter @nvoke/server cli feed collect
@@ -65,6 +67,17 @@
  * CSV with a Domain column, or one domain per line). --limit N domains to
  * add (default 5000), --skip N ranks to pass over (majestic: 10000). It
  * picks its database like stats.
+ * `cc` loads Common Crawl homepages into the company index
+ * (src/leads/seed/cc-load.ts, docs/research/common-crawl-index.md). `cc list`
+ * needs no database: it reads the CDX index of --crawl (default
+ * CC_CRAWL), whole --shards (0-299 is the whole crawl) or --blocks N random
+ * blocks (--seed S) for a trial, and writes the domains worth loading to
+ * --out (gzipped when it ends in .gz). `cc load <list>` fetches their
+ * homepages until about --limit N are added (default 100000), at --rate R requests
+ * a second (default 20), and writes them into the index. It keeps its place
+ * in <list>.progress and goes on from there; --restart reads the list from
+ * the top. `cc` alone prints the rows each crawl added. Both pick the
+ * database like stats.
  * `sources resume <source>` ends a source pause early once its cause is
  * fixed. `alert test` emails a test alert through Day3 (needs DAY3_API_KEY,
  * ALERT_EMAIL_TO and ALERT_EMAIL_FROM). Both pick the database like stats.
@@ -123,12 +136,14 @@
  *   sending pool <name> --cap N --user U <mailbox addresses...>
  *       a mailbox pool with a shared daily cap, and those mailboxes in it.
  */
-import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { once } from 'node:events';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { fileURLToPath } from 'node:url';
+import { createGunzip, createGzip } from 'node:zlib';
 import postgres, { type Sql } from 'postgres';
 import { pino } from 'pino';
 import { CreateCampaignRequest, CreateSearchRequest, handsToLocalCrawl, type Search } from '@nvoke/shared';
@@ -157,6 +172,8 @@ import { feedSourceStatus } from './feed/drops.js';
 import { loadEnv } from './env.js';
 import { costPer1000 } from './leads/sources/paid-search.js';
 import { costReport, formatCostReport } from './leads/cost-report.js';
+import { CcFetcher, ccList, ccLoad, ccLoaded, type CcLoadStats } from './leads/seed/cc-load.js';
+import type { ListedDomain } from './leads/seed/common-crawl.js';
 import { importSeed, seedQueue } from './leads/seed/import.js';
 import { SEED_SOURCES, seedEntries } from './leads/seed/sources.js';
 import { toCsv } from './leads/csv.js';
@@ -194,7 +211,7 @@ function parseArgs(argv: string[]): Args {
     if (a.startsWith('--')) {
       const name = a.slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod', 'no-cache', 'no-judge', 'keep-db'].includes(name)) {
+      if (next !== undefined && !next.startsWith('--') && !['no-smtp', 'verbose', 'prod', 'no-cache', 'no-judge', 'keep-db', 'restart'].includes(name)) {
         flags.set(name, next);
         lists.set(name, [...(lists.get(name) ?? []), next]);
         i++;
@@ -218,6 +235,9 @@ function usage(): never {
       '  cli privacy suppress-domain <domain> [--source S] [--prod]',
       '  cli stats [--days N] [--prod]',
       '  cli seed majestic | file <path> [--limit N] [--skip N] [--prod]',
+      '  cli cc list (--shards A-B | --blocks N [--seed S]) --out <file> [--crawl C]',
+      '  cli cc load <file> [--limit N] [--rate R] [--crawl C] [--restart] [--prod]',
+      '  cli cc [--prod]',
       '  cli sources resume <source> [--prod]',
       '  cli alert test [--prod]',
       '  cli feed [collect] [--prod]',
@@ -232,7 +252,7 @@ function usage(): never {
       '  cli sending campaign <spec.json> --user U [--search ID] [--prod]',
       '  cli sending pool <name> --cap N --user U <mailbox addresses...> [--prod]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
-      'privacy, stats, seed, sources, alert, feed and sending act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+      'privacy, stats, seed, cc, sources, alert, feed and sending act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
     ].join('\n'),
   );
@@ -413,6 +433,95 @@ async function seed(args: Args): Promise<void> {
     console.log(`seed queue: queued ${q.queued}  running ${q.running}  done ${q.done}  skipped ${q.skipped}  crawled in the last 24 hours ${q.lastDay}`);
   } finally {
     (lines as { close?: () => void }).close?.();
+    await close();
+  }
+}
+
+/** The Common Crawl crawl `cli cc` reads unless --crawl names another. */
+const CC_CRAWL = 'CC-MAIN-2026-43';
+
+/** `cli cc`: Common Crawl homepages into the company index (src/leads/seed/cc-load.ts). */
+async function commonCrawl(args: Args): Promise<void> {
+  const [, action, path] = args.positional;
+  const str = (n: string) => {
+    const v = args.flags.get(n);
+    return typeof v === 'string' ? v : undefined;
+  };
+  const num = (n: string, fallback: number) => {
+    const v = Number(str(n) ?? fallback);
+    if (!Number.isFinite(v) || v <= 0) usage();
+    return v;
+  };
+  const crawl = str('crawl') ?? CC_CRAWL;
+  const log = (line: string) => console.error(line);
+  const fetcher = new CcFetcher({ rate: num('rate', 20), log });
+  const report = () => console.error(`requests ${fetcher.stats.requests}  retries ${fetcher.stats.retries}  403s ${fetcher.stats.blocked}  ${Math.round(fetcher.stats.bytes / 1e6)} MB`);
+
+  if (action === 'list') {
+    const out = str('out');
+    const shardsFlag = str('shards');
+    const blocks = str('blocks');
+    if (!out || (!shardsFlag && !blocks)) usage();
+    let shards: string[] | undefined;
+    if (shardsFlag) {
+      const [from, to = from] = shardsFlag.split('-').map(Number);
+      if (!Number.isInteger(from) || !Number.isInteger(to) || from! < 0 || to! > 299 || from! > to!) usage();
+      shards = Array.from({ length: to! - from! + 1 }, (_, i) => `cdx-${String(from! + i).padStart(5, '0')}.gz`);
+    }
+    const file = createWriteStream(resolve(out));
+    const sink = out.endsWith('.gz') ? createGzip() : null;
+    sink?.pipe(file);
+    const target = sink ?? file;
+    const write = (d: ListedDomain) => {
+      if (!target.write(`${JSON.stringify(d)}
+`)) return once(target, 'drain').then(() => undefined);
+    };
+    const started = Date.now();
+    const stats = await ccList({ crawl, fetcher, shards, blocks: blocks ? num('blocks', 1) : undefined, seed: num('seed', 1), write, log });
+    target.end();
+    await once(file, 'close');
+    console.log(`domains ${stats.domains}  filtered ${stats.filtered}  no homepage ${stats.noHomepage}  listed ${stats.listed}  in ${Math.round((Date.now() - started) / 1000)} s`);
+    report();
+    return;
+  }
+
+  const { sql, close } = await opsDatabase(args);
+  try {
+    if (action === 'load') {
+      if (!path) usage();
+      const progressFile = `${resolve(path)}.progress`;
+      let skip = 0;
+      if (!args.flags.has('restart') && existsSync(progressFile)) skip = Number(readFileSync(progressFile, 'utf8').trim()) || 0;
+      if (skip > 0) console.error(`going on after line ${skip} (${progressFile}; --restart reads from the top)`);
+      const input = createReadStream(resolve(path));
+      const lines = createInterface({ input: path.endsWith('.gz') ? input.pipe(createGunzip()) : input, crlfDelay: Infinity });
+      const list = (async function* () {
+        for await (const line of lines) if (line.trim()) yield JSON.parse(line) as ListedDomain;
+      })();
+      const started = Date.now();
+      let shown = 0;
+      const line = (s: CcLoadStats) =>
+        `read ${s.read}  known ${s.known}  failed ${s.failed}  parked ${s.dropped.parked}  walled ${s.dropped.wall}  empty ${s.dropped.empty}  not html ${s.dropped.not_html}  added ${s.added}`;
+      const stats = await ccLoad(sql, list, {
+        crawl,
+        fetcher,
+        limit: num('limit', 100_000),
+        skip,
+        onProgress: (s) => {
+          writeFileSync(progressFile, String(s.read));
+          if (Date.now() - shown > 60_000) {
+            shown = Date.now();
+            const perSecond = fetcher.stats.requests / ((Date.now() - started) / 1000);
+            console.error(`${line(s)}  (${perSecond.toFixed(1)} requests a second)`);
+          }
+        },
+      });
+      lines.close();
+      console.log(line(stats));
+      report();
+    }
+    for (const r of await ccLoaded(sql)) console.log(`${r.crawl}: ${r.domains} domains in the index, last loaded ${r.last.toISOString()}`);
+  } finally {
     await close();
   }
 }
@@ -760,6 +869,7 @@ async function main(): Promise<void> {
   if (args.positional[0] === 'privacy') return privacy(args);
   if (args.positional[0] === 'stats') return stats(args);
   if (args.positional[0] === 'seed') return seed(args);
+  if (args.positional[0] === 'cc') return commonCrawl(args);
   if (args.positional[0] === 'sources') return sources(args);
   if (args.positional[0] === 'alert') return alertTest(args);
   if (args.positional[0] === 'feed') return feed(args);

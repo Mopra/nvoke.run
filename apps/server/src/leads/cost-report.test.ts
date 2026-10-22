@@ -27,6 +27,12 @@ beforeAll(async () => {
     returning id, domain
   `;
   const id = (d: string) => companies.find((c) => c.domain === d)!.id;
+  // a.com came into the index from a Common Crawl load; b.com did too, but a paid search found it.
+  await db.sql`
+    insert into domains (domain, crawl_status, crawled_at, recheck_at) values
+      ('a.com', 'done', ${NOW}, ${NOW}), ('b.com', 'done', ${NOW}, ${NOW})
+  `;
+  await db.sql`insert into index_imports (domain, source, crawl, loaded_at) values ('a.com', 'common_crawl', 'CC-MAIN-2026-43', '2026-10-01'), ('b.com', 'common_crawl', 'CC-MAIN-2026-43', '2026-10-01')`;
   await db.sql`
     insert into emails (company_id, search_id, clerk_user_id, address, kind, verification) values
       (${id('a.com')}, ${web!.id}, 'u1', 'info@a.com', 'generic', 'valid'),
@@ -62,7 +68,7 @@ describe('costReport', () => {
     expect(write).toMatchObject({ calls: 2, inPipeline: false, parts: ['write', 'write_first'] });
     expect(write?.usd).toBeCloseTo(1.5);
     expect(r.aiTasks.map((t) => t.task)).toEqual(['people', 'plan', 'write']);
-    expect(r.kinds.find((k) => k.kind === 'web')).toMatchObject({ companies: 3, companiesValid: 2, fromIndex: 1, fromPaid: 2 });
+    expect(r.kinds.find((k) => k.kind === 'web')).toMatchObject({ companies: 3, companiesValid: 2, fromIndex: 1, fromCommonCrawl: 1, fromPaid: 2 });
     expect(r.kinds.find((k) => k.kind === 'local')).toMatchObject({ companies: 0, companiesValid: 0, fromIndex: 0 });
     expect(r.indexShare).toBeCloseTo(1 / 3);
     expect(r.valid).toBe(90);
@@ -73,7 +79,7 @@ describe('costReport', () => {
     expect(text).toContain("brave     requests 30  $0.15  (30 of them from the search counters, at Brave's price)");
     expect(text).toContain('web       companies 3  with a valid email 2  valid emails 60  from the index 1 (33%)  from paid search 2  from free sources 0');
     expect(text).toContain('(not in the pipeline: write, write_first)');
-    expect(text).toContain('companies from the company index 1 of 3 (33%)');
+    expect(text).toContain('companies from the company index 1 of 3 (33%), 1 of them loaded from Common Crawl');
   });
 
   it('prices each provider from web_search_usage, the uncounted rest at Brave, a partial month in proportion', async () => {
@@ -116,6 +122,7 @@ describe('costReport', () => {
       cacheHitRate: null,
       companies: 0,
       fromIndex: 0,
+      fromCommonCrawl: 0,
       indexShare: null,
     });
     expect(text).toContain('cost per 1,000 valid n/a');

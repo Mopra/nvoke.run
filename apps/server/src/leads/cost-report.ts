@@ -34,6 +34,8 @@ export interface KindCost {
   companiesValid: number;
   /** Companies the company index served, at no paid search. */
   fromIndex: number;
+  /** Of those, the ones a Common Crawl load put in the index (index_imports). */
+  fromCommonCrawl: number;
   /** Companies a paid web search result named. The rest came from free sources (lists, feeds, maps). */
   fromPaid: number;
   /** The kind's share of the paid search dollars, by its share of paid requests. */
@@ -72,6 +74,8 @@ export interface CostReport {
   cacheHitRate: number | null;
   companies: number;
   fromIndex: number;
+  /** Of those, the ones a Common Crawl load put in the index. */
+  fromCommonCrawl: number;
   /** Share of the companies found that the company index served, null without any. */
   indexShare: number | null;
 }
@@ -141,12 +145,15 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
     where created_at > ${start}
     group by kind order by kind
   `;
-  const companyRows = await sql<{ kind: string; companies: number; companies_valid: number; from_index: number; from_paid: number }[]>`
+  const companyRows = await sql<{ kind: string; companies: number; companies_valid: number; from_index: number; from_cc: number; from_paid: number }[]>`
     select s.kind, count(*)::int as companies,
            count(*) filter (where exists (
              select 1 from emails e where e.company_id = c.id and e.verification = 'valid'
            ))::int as companies_valid,
            count(*) filter (where c.source = 'index')::int as from_index,
+           count(*) filter (where c.source = 'index' and exists (
+             select 1 from index_imports i where i.domain = c.domain and i.source = 'common_crawl' and i.loaded_at < c.created_at
+           ))::int as from_cc,
            count(*) filter (where c.source = any(${PAID_SOURCES}::text[]))::int as from_paid
     from companies c join searches s on s.id = c.search_id
     where s.created_at > ${start}
@@ -173,6 +180,7 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
       companies: c?.companies ?? 0,
       companiesValid: c?.companies_valid ?? 0,
       fromIndex: c?.from_index ?? 0,
+      fromCommonCrawl: c?.from_cc ?? 0,
       fromPaid: c?.from_paid ?? 0,
       searchUsd: requests > 0 ? (searchUsd * r.requests) / requests : 0,
     };
@@ -196,6 +204,7 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
   const hits = kinds.reduce((sum, k) => sum + k.cacheHits, 0);
   const companies = kinds.reduce((sum, k) => sum + k.companies, 0);
   const fromIndex = kinds.reduce((sum, k) => sum + k.fromIndex, 0);
+  const fromCommonCrawl = kinds.reduce((sum, k) => sum + k.fromCommonCrawl, 0);
 
   return {
     days,
@@ -210,6 +219,7 @@ export async function costReport(sql: Sql, days: number, prices: SearchPrices, n
     cacheHitRate: requests + hits > 0 ? hits / (requests + hits) : null,
     companies,
     fromIndex,
+    fromCommonCrawl,
     indexShare: companies > 0 ? fromIndex / companies : null,
   };
 }
@@ -250,7 +260,7 @@ export function formatCostReport(r: CostReport): string {
     `web search ${usd(r.searchUsd)} + pipeline claude ${usd(r.pipelineAiUsd)} for ${r.valid} valid emails`,
     `cost per 1,000 valid ${r.usdPer1000Valid === null ? 'n/a' : usd(r.usdPer1000Valid)}`,
     `web search cache hit rate ${pct(r.cacheHitRate)}`,
-    `companies from the company index ${r.fromIndex} of ${r.companies} (${pct(r.indexShare)})`,
+    `companies from the company index ${r.fromIndex} of ${r.companies} (${pct(r.indexShare)}), ${r.fromCommonCrawl} of them loaded from Common Crawl`,
   );
   return lines.join('\n');
 }

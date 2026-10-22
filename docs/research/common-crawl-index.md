@@ -33,6 +33,43 @@ homepages"):
 4. Stack the previous crawl for the domains the latest one has no homepage
    for (adds about a quarter of them).
 
+## Loading it
+
+`cli cc` (`apps/server/src/leads/seed/cc-load.ts`) does steps 1 and 2:
+
+```bash
+cd apps/server
+# Trial: random index blocks spread over every TLD (about 50 domains a block, half listed)
+pnpm cli cc list --blocks 4000 --seed 1 --out cc-list.jsonl.gz
+# Whole crawl, on the VPS: all 300 shards, about 248 GB streamed, never on disk
+pnpm cli cc list --shards 0-299 --out cc-list.jsonl.gz
+# Homepages into the index, 20 requests a second; keeps its place in cc-list.jsonl.gz.progress
+pnpm cli cc load cc-list.jsonl.gz --limit 100000 --prod
+pnpm cli cc --prod        # rows per crawl
+pnpm cli stats --prod     # "N of them loaded from Common Crawl"
+```
+
+Each loaded domain gets a `domains` row (status `done`, due for a recrawl
+at once, so a search that picks it still crawls it live and the seed tick
+passes it over), one `domain_pages` row (title, description, the first 600
+characters of text) and an `index_imports` row naming the crawl
+(`1850_index_imports`). Domains a crawl of ours already read, and
+suppressed ones, are left alone. Dropped: `isParkedPage`, `pageWall` and a
+few short bot walls it misses, and pages with under 200 characters of text
+and no title or a placeholder ("coming soon", hosting defaults). `cli
+stats` counts the companies the index served from a domain loaded before
+the search found it. A homepage that still fails after six tries is passed
+over for good; `--restart` reads the list again and skips what is in. Undo a load
+with `delete from domains d using index_imports i where i.domain = d.domain
+and i.crawl = '...' and d.crawled_at < i.loaded_at` (a domain a search
+crawled since keeps its crawl).
+
+Trial run from a home connection (20 random blocks): 1,113 domains, 530
+listed (48%, the research said 45%), cluster.idx and the blocks 110 MB in 8
+seconds. Loading 200 of them: 162 requests at 15 a second, no 403, 150
+added; 2 parked, 3 walled, 4 empty, 1 not HTML. A row is about 2.3 KB with
+its vector before the GIN index.
+
 ## Method
 
 `apps/server/src/bench/common-crawl.ts`, three commands, no database:
