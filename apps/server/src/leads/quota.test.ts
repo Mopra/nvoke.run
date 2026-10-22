@@ -133,6 +133,10 @@ describe('quota', () => {
           insert into emails (company_id, search_id, clerk_user_id, address, kind, verification, skipped)
           values (${c!.id}, ${search.id}, 'u6', ${`a${i}@${domain}`}, 'generic', ${verification}, ${skipped})`;
       }
+      return c!.id;
+    };
+    const job = async (type: string, payload: Record<string, string>, status = 'queued') => {
+      await db.sql`insert into jobs (type, payload, search_id, status) values (${type}, ${db.sql.json(payload)}, ${search.id}, ${status})`;
     };
     await company('valid.test', 'done', 'kept', [['valid', null], ['valid', null]]);
     await company('none.test', 'done', null, []);
@@ -142,7 +146,14 @@ describe('quota', () => {
     await company('open.test', 'done', null, [[null, null]]);
     await company('crawling.test', 'pending', null, []);
     await company('waiting.test', 'done', 'pending', [['valid', null]]);
+    // A people job yet to make its guessed addresses, or a check still running, leaves a company open.
+    await job('people', { companyId: await company('guessing.test', 'done', 'kept', [['invalid', null]]) });
+    await company('checking.test', 'done', 'kept', [['invalid', null]]);
+    const [checking] = await db.sql<{ id: string }[]>`select id from emails where address = 'a0@checking.test'`;
+    await job('verify', { emailId: checking!.id }, 'running');
+    // A finished job leaves it settled.
+    await job('people', { companyId: await company('guessed.test', 'done', 'kept', [['valid', null]]) }, 'done');
     // 50 free, 20 used: room for 10 icp emails at three each.
-    expect(await searchQuota(db.sql, 'u6', search.id, now)).toEqual({ room: 10, settled: 4, valid: 2 });
+    expect(await searchQuota(db.sql, 'u6', search.id, now)).toEqual({ room: 10, settled: 5, valid: 3 });
   });
 });

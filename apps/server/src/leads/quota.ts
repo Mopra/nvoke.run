@@ -115,7 +115,9 @@ export async function quotaExhausted(sql: Db, userId: string, now: Date = new Da
  * `settled` the search's companies whose crawl ended and whose addresses came
  * back from their checks (or that have none to check), `valid` the valid
  * addresses among them. A company still waiting for fit after its crawl is
- * not settled: it may yet be dropped.
+ * not settled: it may yet be dropped. Nor is one with a crawl, fit, people or
+ * verify job queued or running: its people job may still make addresses to
+ * check. The jobs are read by jobs_search_status_idx, a search's few at a time.
  */
 export async function searchQuota(
   sql: Db,
@@ -125,10 +127,21 @@ export async function searchQuota(
 ): Promise<{ room: number; settled: number; valid: number }> {
   const left = emailsPerMonth(await planOf(sql, userId)) - (await emailsVerified(sql, userId, periodOf(now)));
   const [row] = await sql<{ settled: number; valid: number }[]>`
+    with live as materialized (
+      select type, payload from jobs
+      where search_id = ${searchId} and status in ('queued', 'running') and type in ('crawl', 'people', 'fit', 'verify')
+    ), busy as (
+      select payload ->> 'companyId' as id from live where type in ('crawl', 'people')
+      union
+      select jsonb_array_elements_text(payload -> 'companyIds') from live where type = 'fit'
+      union
+      select e.company_id::text from live l join emails e on e.id = (l.payload ->> 'emailId')::uuid where l.type = 'verify'
+    )
     select count(*)::int as settled, coalesce(sum(s.valid), 0)::int as valid from (
       select (select count(*) from emails e where e.company_id = c.id and e.verification = 'valid') as valid
       from companies c
       where c.search_id = ${searchId} and c.crawl_status <> 'pending' and c.fit_state is distinct from 'pending'
+        and not exists (select 1 from busy b where b.id = c.id::text)
         and (
           exists (select 1 from emails e where e.company_id = c.id and e.verification is not null)
           or not exists (select 1 from emails e where e.company_id = c.id and e.verification is null and e.skipped is null)
