@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
-import { backoffMs, cancelSearchJobs, claim, complete, enqueue, fail, FIT_JOB_BATCH, queueFit, release, requeueStale, type Job } from './queue.js';
+import { backoffMs, cancelSearchJobs, claim, complete, enqueue, fail, FIT_JOB_BATCH, flushFit, queueFit, release, requeueStale, type Job } from './queue.js';
 
 let db: TestDb;
 
@@ -151,5 +151,25 @@ describe('job queue', () => {
     await queueFit(db.sql, s1, ['d'], 60_000);
     const [, next] = await fits();
     expect(next).toEqual({ payload: { searchId: s1, companyIds: ['d'] }, due: false, status: 'queued' });
+  });
+
+  it('runs the waiting fit job at once when the search has no crawl left', async () => {
+    const s1 = await search();
+    const company = async (crawl: string) => {
+      const [c] = await db.sql<{ id: string }[]>`
+        insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status)
+        values (${s1}, 'u1', ${crawl}, ${`${crawl}-${Math.random()}.dk`}, 'https://x.dk', 'test', ${crawl}) returning id`;
+      return c!.id;
+    };
+    const done = await company('done');
+    const pending = await company('pending');
+    await queueFit(db.sql, s1, [done], 60_000);
+    const due = async () => (await db.sql<{ due: boolean }[]>`select run_after <= now() as due from jobs where search_id = ${s1} and type = 'fit'`)[0]?.due;
+    // Another company is still being crawled: the job waits for it.
+    await flushFit(db.sql, s1);
+    expect(await due()).toBe(false);
+    await db.sql`update companies set crawl_status = 'done' where id = ${pending}`;
+    await flushFit(db.sql, s1);
+    expect(await due()).toBe(true);
   });
 });

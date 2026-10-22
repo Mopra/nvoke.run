@@ -26,7 +26,7 @@ import type { IcpPlan } from './planner.js';
  * homepage read, 60 kept most clear fits and few adjacent ones.
  */
 export const FIT_THRESHOLD = 60;
-/** Companies per call in the second look: the instructions (about 1,300 tokens) are paid once per call. */
+/** Companies per call in the second look: the instructions (about 1,300 tokens) are paid once per call, cached after the first. */
 export const FIT_BATCH = 30;
 /**
  * The first look drops candidates below this: "not a fit" on the scale. A
@@ -199,13 +199,27 @@ export interface FitBrief {
   plan?: Pick<IcpPlan, 'fit' | 'disqualifiers'> & { segments?: string[] };
 }
 
-export function fitPrompt(brief: FitBrief, batch: FitCandidate[]): string {
+/**
+ * The search's brief: the same for every fit call of the search, so it goes
+ * in the cached prefix after the system prompt (scoreBatch).
+ */
+export function fitBrief(brief: FitBrief): string {
   const head = [`The customer: ${brief.description}`];
   if (brief.product) head.push(`The user sells: ${brief.product}`);
   if (brief.plan?.segments?.length) head.push(`Customer segments (any one is a fit):\n${brief.plan.segments.map((s) => `- ${s}`).join('\n')}`);
   if (brief.plan?.fit.length) head.push(`Fit criteria:\n${brief.plan.fit.map((f) => `- ${f}`).join('\n')}`);
   if (brief.plan?.disqualifiers.length) head.push(`Not a fit:\n${brief.plan.disqualifiers.map((f) => `- ${f}`).join('\n')}`);
-  return `${head.join('\n\n')}\n\n<candidates>\n${batch.map((c, i) => line(c, i + 1)).join('\n')}\n</candidates>`;
+  return head.join('\n\n');
+}
+
+/** The part of a fit call that changes with every batch. */
+export function candidatesBlock(batch: FitCandidate[]): string {
+  return `<candidates>\n${batch.map((c, i) => line(c, i + 1)).join('\n')}\n</candidates>`;
+}
+
+/** What Claude reads after the system prompt: the brief, then the candidates. */
+export function fitPrompt(brief: FitBrief, batch: FitCandidate[]): string {
+  return `${fitBrief(brief)}\n\n${candidatesBlock(batch)}`;
 }
 
 export interface FitOptions {
@@ -238,7 +252,9 @@ export async function scoreBatch(opts: FitOptions, batch: FitCandidate[]): Promi
     task: 'fit',
     tier: 'bulk',
     system: SYSTEM[gate ? 'gate' : 'final'],
-    prompt: fitPrompt(opts.brief, batch),
+    // System and brief are one stable prefix for every call of the search and mode: cached, read at a tenth.
+    cachedPrefix: fitBrief(opts.brief),
+    prompt: candidatesBlock(batch),
     // The first look's entries are the second's without a reason.
     schema: (gate ? ClaudeGate : ClaudeFit) as typeof ClaudeFit,
     toolName: 'save_fit_scores',
@@ -273,22 +289,22 @@ function unreachable(err: unknown): boolean {
 }
 
 /**
- * One batch, made to land. A call that fails or answers for less than half
- * the batch is split in halves and each half tried (a bad answer is usually
- * about one odd candidate or a long batch), down to MIN_SPLIT, which gets one
- * more try. Candidates a good answer skipped are asked again once on their
- * own. What still has no verdict scores 0. Rethrows only when Claude cannot
- * be asked at all.
+ * One batch, made to land. A call that fails or scores nobody is split in
+ * halves and each half tried (a bad answer is usually about one odd
+ * candidate or a long batch), down to MIN_SPLIT, which gets one more try.
+ * Candidates an answer skipped are asked again on their own, the rest of the
+ * batch kept: once when the answer scored most of the batch, and again
+ * while each answer scores some when it scored less. What still has no
+ * verdict scores 0. Rethrows only when Claude cannot be asked at all.
  */
 async function scoreSure(opts: FitOptions, batch: FitCandidate[], retry = true): Promise<FitVerdict[]> {
   const call = async (): Promise<(FitVerdict | undefined)[] | null> => {
     for (let attempt = 1; ; attempt++) {
       try {
         const verdicts = await scoreBatch(opts, batch);
-        const scored = verdicts.filter(Boolean).length;
-        // An answer that misses most of the batch is a bad answer, not a verdict on the rest.
-        if (scored >= batch.length / 2) return verdicts;
-        throw new AiError('invalid_output', `Claude scored ${scored} of ${batch.length} candidates`);
+        // An answer that scores nobody is a bad answer; one that skips some is asked again for those only.
+        if (verdicts.some(Boolean)) return verdicts;
+        throw new AiError('invalid_output', `Claude scored none of ${batch.length} candidates`);
       } catch (err) {
         if (unreachable(err)) throw err;
         opts.onError?.(err);
@@ -309,7 +325,8 @@ async function scoreSure(opts: FitOptions, batch: FitCandidate[], retry = true):
   }
   const missing = verdicts.flatMap((v, i) => (v ? [] : [i]));
   if (retry && missing.length > 0) {
-    const again = await scoreSure(opts, missing.map((i) => batch[i]!), false);
+    // Every answer scored someone, so each ask is smaller than the last.
+    const again = await scoreSure(opts, missing.map((i) => batch[i]!), missing.length > batch.length / 2);
     missing.forEach((i, j) => (verdicts[i] = again[j]));
   }
   return verdicts.map((v) => v ?? { fit: 0, reason: 'Not scored', unscored: true });

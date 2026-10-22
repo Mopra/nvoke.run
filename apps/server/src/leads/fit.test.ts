@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AiError, type Ai, type StructuredRequest } from '../ai/client.js';
-import { FIT_BATCH, GATE_BATCH, fitPrompt, isObviousNonCompany, scoreBatch, scoreCandidates, type FitCandidate } from './fit.js';
+import { FIT_BATCH, GATE_BATCH, fitBrief, fitPrompt, isObviousNonCompany, scoreBatch, scoreCandidates, type FitCandidate } from './fit.js';
 
 const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
 
@@ -13,7 +13,8 @@ function fakeAi(score: (domain: string) => number | null, fail?: () => Error | n
     systems,
     ready: async () => true,
     async structured<S>(req: StructuredRequest<S & never>) {
-      prompts.push(req.prompt);
+      // What Claude reads: the cached brief, then the candidates.
+      prompts.push(req.cachedPrefix ? `${req.cachedPrefix}\n\n${req.prompt}` : req.prompt);
       systems.push(req.system ?? '');
       const err = fail?.();
       if (err) throw err;
@@ -157,12 +158,48 @@ describe('scoreCandidates', () => {
     expect((await scoreCandidates({ ai: broken, userId: 'u', brief, retryDelayMs: 0 }, [cand('a.com')]))[0]?.fit).toBe(0);
   });
 
-  it('splits a batch whose answer misses most of it', async () => {
+  it('asks again only for what an answer skipped, and splits only what scores nobody', async () => {
     const ai = fakeAi((d) => (d === 'a.com' ? 70 : null));
     const res = await scoreCandidates({ ai, userId: 'u', brief }, [cand('a.com'), cand('b.com'), cand('c.com'), cand('d.com')]);
     expect(res.map((v) => v?.fit)).toEqual([70, 0, 0, 0]);
-    // The halves are asked on their own: [a, b] lands with a, b is asked alone, [c, d] splits down to one each.
-    expect(ai.prompts.some((p) => p.includes('1. [c.com]') && !p.includes('[d.com]'))).toBe(true);
+    // a is kept from the first answer: the next ask is b, c and d, and only that one splits.
+    expect(ai.prompts[1]).toContain('3. [d.com]');
+    expect(ai.prompts.slice(1).some((p) => p.includes('[a.com]'))).toBe(false);
+    expect(ai.prompts.some((p) => p.includes('1. [b.com]') && p.includes('[c.com]') && !p.includes('[d.com]'))).toBe(true);
+  });
+
+  it('keeps a partial answer and asks again for the rest, without halving the batch', async () => {
+    let first = true;
+    const ai = fakeAi((d) => (first && d !== 'a.com' ? null : 70));
+    const wrapped: Ai = {
+      ready: async () => true,
+      structured: async (req) => {
+        const res = await ai.structured(req);
+        first = false;
+        return res;
+      },
+    };
+    const res = await scoreCandidates({ ai: wrapped, userId: 'u', brief }, ['a', 'b', 'c', 'd'].map((d) => cand(`${d}.com`)));
+    expect(res.map((v) => v?.fit)).toEqual([70, 70, 70, 70]);
+    expect(ai.prompts).toHaveLength(2);
+  });
+
+  it('sends the brief as the cached prefix and only the candidates as the prompt', async () => {
+    const seen: StructuredRequest<never>[] = [];
+    const ai = fakeAi(() => 70);
+    const wrapped: Ai = {
+      ready: async () => true,
+      structured: async (req) => {
+        seen.push(req as never);
+        return ai.structured(req);
+      },
+    };
+    await scoreCandidates({ ai: wrapped, userId: 'u', brief, mode: 'final' }, [cand('a.com')]);
+    await scoreCandidates({ ai: wrapped, userId: 'u', brief, mode: 'final' }, [cand('b.com')]);
+    expect(seen[0]?.cachedPrefix).toBe(fitBrief(brief));
+    expect(seen[1]?.cachedPrefix).toBe(seen[0]?.cachedPrefix);
+    expect(seen[0]?.prompt.startsWith('<candidates>')).toBe(true);
+    expect(seen[0]?.prompt).not.toContain('Outbound agencies');
   });
 });
 

@@ -237,15 +237,21 @@ export async function queuedChecks(sql: Db, searchId: string): Promise<QueuedChe
   return row ?? { queued: 0, capacity: 0 };
 }
 
-/** How long the first crawled company of a batch waits for others before the fit job scores what it has. */
-export const FIT_WAIT_MS = 15_000;
+/**
+ * How long the first crawled company of a batch waits for others before the
+ * fit job scores what it has. Long, so a call holds many companies: crawls
+ * trickle in, and each call pays the instructions again. The last batch of a
+ * search does not wait for it (flushFit).
+ */
+export const FIT_WAIT_MS = 75_000;
 /** Companies a fit job waits for before it runs at once: one fit call (leads/fit.ts FIT_BATCH). */
 export const FIT_JOB_BATCH = 30;
 
 /**
  * Hands crawled companies to the search's queued fit job, or queues one.
  * The job runs FIT_WAIT_MS after its first company, or at once when it holds
- * FIT_JOB_BATCH. A job already running keeps the companies it was given, so
+ * FIT_JOB_BATCH or the search has no crawl left (flushFit). A job already
+ * running keeps the companies it was given, so
  * no company is scored twice. Call it after the transaction updated the
  * search row, which serializes the crawls of one search.
  */
@@ -268,6 +274,20 @@ export async function queueFit(sql: Db, searchId: string, companyIds: string[], 
   if (joined) return;
   const runAfter = new Date(Date.now() + (companyIds.length >= FIT_JOB_BATCH ? 0 : waitMs));
   await enqueue(sql, { type: 'fit', payload: { searchId, companyIds }, searchId, runAfter });
+}
+
+/**
+ * Runs the search's queued fit job now when none of its companies waits for
+ * a crawl any more: no company is coming to fill the batch, so none waits on
+ * the timer. Call it in the transaction that finished a crawl, after the
+ * search row's update, so the last crawl to finish sees the others' rows.
+ */
+export async function flushFit(sql: Db, searchId: string): Promise<void> {
+  await sql`
+    update jobs set run_after = least(run_after, now())
+    where search_id = ${searchId} and type = 'fit' and status = 'queued'
+      and not exists (select 1 from companies where search_id = ${searchId} and crawl_status = 'pending')
+  `;
 }
 
 /** Hands a claimed job back without spending an attempt (used on shutdown). */

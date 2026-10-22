@@ -76,6 +76,8 @@ const sites = fakeFetch({
   'https://staff.dk/': { body: '<a href="/team">Team</a>' },
   // Sofie is read by the rules; the founder's story in prose is what Claude is asked about.
   'https://staff.dk/team': { body: '<div><h3>Sofie Lund</h3><p>Designer</p><a href="mailto:sofie@staff.dk">Mail</a></div><p>Mette Krogh Hansen startede firmaet i 2009.</p>' },
+  'https://founders.dk/': { body: '<a href="/team">Team</a><p>info@founders.dk</p>' },
+  'https://founders.dk/team': { body: '<p>Mette Krogh Hansen startede firmaet i 2009.</p><p>Skriv til mette@founders.dk</p>' },
   'https://people.dk/team': {
     body: '<div><h3>Mette Hansen</h3><p>CEO</p><a href="mailto:mette@people.dk">Mail</a></div><div><h3>Jonas Berg</h3><p>Designer</p></div>',
   },
@@ -1238,6 +1240,66 @@ describe('fit after the crawl', () => {
       { domain: 'two.dk', fit: 50, fit_state: 'kept' },
     ]);
     expect((await queuedChecks(db.sql, searchId)).queued).toBe(2);
+  });
+
+  it('reads the people pages with Claude only for companies fit keeps, after fit', async () => {
+    const searchId = await icpSearch(10);
+    const { verifier } = recordingVerifier();
+    const calls: string[] = [];
+    const ai: Ai = {
+      ready: async () => true,
+      async structured(req) {
+        const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+        if (req.task === 'fit') {
+          const domains = [...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!);
+          calls.push(...domains.map((d) => `fit ${d}`));
+          const scores = domains.map((domain, i) => ({ n: i + 1, domain, fit: domain === 'founders.dk' ? 80 : 20, reason: domain === 'founders.dk' ? 'Founder led' : '' }));
+          return { data: req.schema.parse({ scores }), model: 'fake', usage, costUsd: 0 };
+        }
+        const domain = /website is (\S+)\./.exec(req.prompt)?.[1] ?? '';
+        calls.push(`people ${domain}`);
+        const people = domain === 'founders.dk' ? [{ name: 'Mette Krogh Hansen', title: null, sourceUrl: 'https://founders.dk/team' }] : [];
+        return { data: req.schema.parse({ people }), model: 'fake', usage, costUsd: 0 };
+      },
+    };
+    const companies: FoundCompany[] = [
+      { name: 'Founders', website: 'https://founders.dk', source: 'brave', fit: 60 },
+      { name: 'Staff', website: 'https://staff.dk', source: 'brave', fit: 60 },
+    ];
+    await drain({ ...icpDeps(companies, verifier), ai }, searchId);
+    // Both needed Claude's read; only the kept one got it, and only after fit.
+    expect(calls.filter((c) => c.startsWith('people'))).toEqual(['people founders.dk']);
+    expect(calls.indexOf('people founders.dk')).toBeGreaterThan(calls.indexOf('fit founders.dk'));
+    const people = await db.sql`select first_name, last_name from people where search_id = ${searchId}`;
+    expect(people).toEqual([{ first_name: 'Mette', last_name: 'Krogh Hansen' }]);
+    // The address printed before Claude named her is hers now.
+    const [mette] = await db.sql`select first_name, person_id is not null as linked from emails where address = 'mette@founders.dk'`;
+    expect(mette).toEqual({ first_name: 'Mette', linked: true });
+    const [company] = await db.sql`select fit_state, people_texts from companies where domain = 'founders.dk'`;
+    expect(company).toEqual({ fit_state: 'kept', people_texts: null });
+    expect(await db.sql`select 1 from domains where domain = 'founders.dk' and people_read_at is not null`).toHaveLength(1);
+    expect(await db.sql`select first_name from domain_people where domain = 'founders.dk'`).toEqual([{ first_name: 'Mette' }]);
+    expect(await db.sql`select 1 from jobs where search_id = ${searchId} and type = 'people'`).toHaveLength(1);
+  });
+
+  it('spends no Claude on a domain without mail, and checks its addresses for free', async () => {
+    const searchId = await icpSearch(10);
+    const scored: string[] = [];
+    const { asked, verifier } = recordingVerifier();
+    const companies: FoundCompany[] = [
+      { name: 'People', website: 'https://people.dk', source: 'brave', fit: 60 },
+      { name: 'Beta', website: 'https://beta.dk', source: 'brave', fit: 60 },
+    ];
+    const mx = async (domain: string) => (domain === 'beta.dk' ? { kind: 'none' as const } : { kind: 'ok' as const, hosts: ['mx.test'], implicit: false });
+    await drain({ ...icpDeps(companies, verifier, scored), mx }, searchId);
+    expect(scored).toEqual(['people.dk']);
+    const rows = await db.sql`select domain, fit_state from companies where search_id = ${searchId} order by domain`;
+    expect(rows).toEqual([
+      { domain: 'beta.dk', fit_state: 'gate' },
+      { domain: 'people.dk', fit_state: 'kept' },
+    ]);
+    // Its addresses go straight to their checks, which find no mail server and charge nothing.
+    expect(asked.some((a) => a.endsWith('@beta.dk'))).toBe(true);
   });
 
   it('keeps a company when every fit call fails, never deleting what Claude did not score', async () => {

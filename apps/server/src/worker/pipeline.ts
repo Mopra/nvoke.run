@@ -1,7 +1,8 @@
 // Job handlers for one search: find -> crawl (per company) -> verify (per email).
 // A plain words (icp) search scores fit after the crawl: a crawled company
 // with someone to check waits for the fit job (per batch of companies), and
-// only a company it keeps gets its checks and people job.
+// only a company it keeps gets its checks, Claude's read of its people pages
+// and its people job.
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
@@ -38,8 +39,9 @@ import { pauseSource } from '../leads/source-pause.js';
 import { PermanentError, SourceUnavailableError } from '../leads/sources/types.js';
 import { isDomainSuppressed, suppressedAddresses } from '../leads/suppression.js';
 import { isCapacityDeferral, isTempfail, type Verifier, type VerifyResult } from '../leads/verify/index.js';
+import type { MxLookup } from '../leads/verify/mx.js';
 import { leadSettled, searchFinished } from '../webhooks/events.js';
-import { cancelSearchJobs, enqueue, FIT_WAIT_MS, queueFit, requeue, type Job, type VerifyPayload, verifyPriority } from './queue.js';
+import { cancelSearchJobs, enqueue, FIT_WAIT_MS, flushFit, queueFit, requeue, type Job, type VerifyPayload, verifyPriority } from './queue.js';
 
 export interface PipelineDeps {
   sql: Sql;
@@ -56,6 +58,11 @@ export interface PipelineDeps {
   braveBudget?: { monthlyUsd: number; costPer1000Usd: number };
   /** How long a crawled company waits for others before the fit job runs. Default FIT_WAIT_MS. */
   fitWaitMs?: number;
+  /**
+   * The free MX lookup before Claude reads a company (verify/mx.ts lookupMx).
+   * Without it no domain is taken as mailless.
+   */
+  mx?: (domain: string) => Promise<MxLookup>;
   /** How long a plain words find waits at its limit for crawls and fit to turn companies down. Default FIND_SETTLE_MS. */
   findSettleMs?: number;
 }
@@ -400,22 +407,31 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
       { companyId, domain: company.domain, status: cached.crawlStatus, emails: emails.length, people: cached.people.length },
       'crawl: cache hit',
     );
-    await finishCrawl(deps, company, cached.crawlStatus, emails, { people: cached.people });
+    const mailless = !company.imported && (emails.length > 0 || cached.people.length > 0) && (await takesNoMail(deps, company.domain));
+    await finishCrawl(deps, company, cached.crawlStatus, emails, { people: cached.people, mailless });
     return;
   }
 
   const result = await crawlSite(company.website, company.domain, deps.crawl, { signal });
   let people = result.people;
   let peopleRead = false;
+  let peopleTexts: SitePage[] | undefined;
+  // Free before paid: a domain that takes no mail can never verify, so Claude reads nothing of it.
+  const worth = result.emails.length > 0 || people.length > 0 || result.peopleTexts.length > 0;
+  const mailless = !company.imported && worth && (await takesNoMail(deps, company.domain));
   // No decision maker among the names the pages gave away: Claude reads the
   // people pages, once per domain in 90 days (the cache keeps what it found).
-  if (deps.ai && !company.imported && needsPeopleLlm(people, result.peopleTexts)) {
+  // A plain words company keeps the pages for after fit: Claude reads them
+  // only when fit keeps the company (runFit).
+  if (deps.ai && !company.imported && !mailless && needsPeopleLlm(people, result.peopleTexts)) {
     const recent = await recentPeopleRead(sql, company.domain, now);
-    const read =
-      recent ??
-      (await peopleFromText({ ai: deps.ai, log: deps.log }, { userId: company.clerk_user_id, domain: company.domain, texts: result.peopleTexts }));
-    peopleRead = recent === null && read !== null;
-    people = mergePeople([...people, ...(read ?? [])]);
+    if (recent) people = mergePeople([...people, ...recent]);
+    else if (company.fit_state === 'gate') peopleTexts = result.peopleTexts;
+    else {
+      const read = await peopleFromText({ ai: deps.ai, log: deps.log }, { userId: company.clerk_user_id, domain: company.domain, texts: result.peopleTexts });
+      peopleRead = read !== null;
+      people = mergePeople([...people, ...(read ?? [])]);
+    }
   }
   deps.log.debug(
     { companyId, domain: company.domain, status: result.status, pages: result.pages.length, emails: result.emails.length, people: people.length },
@@ -425,7 +441,18 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   const emails = result.emails
     .filter((e) => !blocked.has(e.address))
     .map((e) => ({ address: e.address, kind: e.kind, sourceUrl: e.sourceUrl, foundVia: 'page' as const }));
-  await finishCrawl(deps, company, result.status, emails, { crawledAt: now, texts: result.texts, people, peopleRead });
+  await finishCrawl(deps, company, result.status, emails, { crawledAt: now, texts: result.texts, people, peopleRead, peopleTexts, mailless });
+}
+
+/**
+ * Whether the domain takes no mail: no MX and no address, or a null MX. No
+ * address on it can ever verify and the people job has no server to ask. A
+ * lookup that failed proves nothing.
+ */
+async function takesNoMail(deps: PipelineDeps, domain: string): Promise<boolean> {
+  if (!deps.mx) return false;
+  const mx = await deps.mx(domain).catch(() => null);
+  return mx?.kind === 'none' || mx?.kind === 'null_mx';
 }
 
 interface FoundEmail {
@@ -452,6 +479,10 @@ interface FinishOptions {
   people?: FoundPerson[];
   /** Claude read the people pages in this crawl. */
   peopleRead?: boolean;
+  /** People pages Claude reads once fit keeps the company (needsPeopleLlm said so). */
+  peopleTexts?: SitePage[];
+  /** The company's domain takes no mail (takesNoMail). */
+  mailless?: boolean;
 }
 
 /**
@@ -459,15 +490,18 @@ interface FinishOptions {
  * the person whose name an address is made from) and a check per new
  * address, then a people job when it named anyone. `crawledAt` is set for a
  * real crawl, which also refreshes the shared cache. A plain words company
- * with someone to check (needsFit) gets neither yet: it waits for the fit
- * job, which queues them when it keeps the company.
+ * with someone to check (needsFit), or people pages for Claude to read, gets
+ * neither yet: it waits for the fit job, which queues them when it keeps the
+ * company. A company whose domain takes no mail keeps no people and gets no
+ * people job, and only addresses elsewhere make it wait for fit: its own
+ * settle invalid in their checks, which cost nothing.
  */
 async function finishCrawl(
   deps: PipelineDeps,
   company: CompanyRow,
   status: CrawlOutcome,
   emails: FoundEmail[],
-  { crawledAt, texts, people = [], peopleRead = false }: FinishOptions = {},
+  { crawledAt, texts, people = [], peopleRead = false, peopleTexts, mailless = false }: FinishOptions = {},
 ): Promise<void> {
   const { sql } = deps;
   // A "person" that is the company itself ("Agence Nova" on agencenova.com) is not one.
@@ -506,8 +540,11 @@ async function finishCrawl(
     if (search?.import) {
       emails = [];
       people = [];
+      peopleTexts = undefined;
       await wakeDeferredChecks(tx, company.id);
     }
+    // The cache still keeps the names; the company has no address to find for them.
+    if (mailless) people = [];
 
     let named: PersonRow[] = [];
     if (people.length > 0) {
@@ -551,9 +588,16 @@ async function finishCrawl(
       };
     });
     // Fit's second look first: nothing of a company it may turn down is checked or probed.
-    const awaitFit = company.fit_state === 'gate' && needsFit(rows, named, search?.check_inboxes ?? false);
-    if (awaitFit) await tx`update companies set fit_state = 'pending' where id = ${company.id}`;
-    else if (named.length > 0) await enqueue(tx, { type: 'people', payload: { companyId: company.id }, searchId: company.search_id });
+    const site = registrableDomain(company.domain);
+    const reachable = mailless ? rows.filter((r) => registrableDomain(r.address.slice(r.address.lastIndexOf('@') + 1)) !== site) : rows;
+    const toRead = peopleTexts && peopleTexts.length > 0 ? peopleTexts : null;
+    const awaitFit = company.fit_state === 'gate' && (needsFit(reachable, named, search?.check_inboxes ?? false) || toRead !== null);
+    if (awaitFit) {
+      await tx`
+        update companies set fit_state = 'pending', people_texts = ${toRead ? tx.json(toRead as unknown as Parameters<typeof tx.json>[0]) : null}
+        where id = ${company.id}
+      `;
+    } else if (named.length > 0) await enqueue(tx, { type: 'people', payload: { companyId: company.id }, searchId: company.search_id });
 
     let stored = 0;
     if (rows.length > 0) {
@@ -599,6 +643,7 @@ async function finishCrawl(
     `;
     // After the search row's update, which holds the other crawls of the search back until this commits.
     if (awaitFit) await queueFit(tx, company.search_id, [company.id], deps.fitWaitMs ?? FIT_WAIT_MS);
+    if (company.fit_state === 'gate') await flushFit(tx, company.search_id);
     return stored;
   });
   deps.log.debug({ companyId: company.id, stored }, 'crawl: stored');
@@ -623,7 +668,9 @@ export async function onCrawlGaveUp(deps: PipelineDeps, job: Job): Promise<void>
       returning search_id
     `;
     const searchId = rows[0]?.search_id;
-    if (searchId) await tx`update searches set companies_crawled = companies_crawled + 1 where id = ${searchId}`;
+    if (!searchId) return;
+    await tx`update searches set companies_crawled = companies_crawled + 1 where id = ${searchId}`;
+    await flushFit(tx, searchId);
   });
 }
 
@@ -950,6 +997,8 @@ interface FitRow {
   source_ref: string | null;
   category: string | null;
   location: string | null;
+  /** People pages left for Claude to read once fit keeps the company. */
+  people_texts: unknown;
 }
 
 /** How the search found a company, for fit's second look: the job post or list page says what the homepage may not. */
@@ -969,7 +1018,8 @@ function fitCompanyIds(payload: Record<string, unknown>): string[] {
  * Fit's second look for crawled plain words companies (leads/fit.ts, mode
  * final), from the homepage title, description and text the crawl kept. A
  * company it keeps, or that Claude could not be asked about at all, gets its
- * checks and people job; one it turns down is deleted with its addresses
+ * checks, Claude's read of its people pages when the crawl left one, and its
+ * people job; one it turns down is deleted with its addresses
  * and people before anything was checked, and its site joins the plan's
  * turned down sites, so no later round finds it again.
  */
@@ -985,7 +1035,7 @@ export async function runFit(deps: PipelineDeps, job: Job, _signal: AbortSignal)
   // one goes on: the desktop's local crawl hands in addresses after a search ended.
   if (!search || search.status === 'canceled' || search.status === 'failed') return;
   const rows = await sql<FitRow[]>`
-    select id, name, domain, website, source, source_ref, category, location from companies
+    select id, name, domain, website, source, source_ref, category, location, people_texts from companies
     where id in ${sql(ids)} and search_id = ${searchId} and fit_state = 'pending'
   `;
   if (rows.length === 0) return;
@@ -1011,36 +1061,154 @@ export async function runFit(deps: PipelineDeps, job: Job, _signal: AbortSignal)
           candidates,
         )
       : rows.map(() => null);
+  // The 0 of a batch Claude could not score is no verdict: the company is kept unscored, like one fit gave up on.
+  const keeps = rows.map((_, i) => {
+    const v = verdicts[i] ?? null;
+    return !v || v.unscored || v.fit >= FIT_THRESHOLD;
+  });
+  const reads = await readPeopleOfKept(deps, search.clerk_user_id, rows.filter((_, i) => keeps[i]));
   const rejected: string[] = [];
   let kept = 0;
   for (const [i, r] of rows.entries()) {
     const v = verdicts[i] ?? null;
-    // The 0 of a batch Claude could not score is no verdict: the company is kept unscored, like one fit gave up on.
-    if (!v || v.unscored || v.fit >= FIT_THRESHOLD) {
-      if (await keepForChecks(sql, r.id, v?.unscored ? null : v)) kept++;
+    if (keeps[i]) {
+      if (await keepForChecks(sql, r.id, v?.unscored ? null : v, reads.get(r.id))) kept++;
     } else if (await dropOffTarget(sql, r.id)) {
       rejected.push(registrableDomain(r.domain));
     }
   }
   if (rejected.length > 0) await sql.begin((tx) => rememberRejected(tx, searchId, rejected));
-  log.info({ scored: rows.length, kept, rejected: rejected.length }, 'fit: done');
+  log.info({ scored: rows.length, kept, rejected: rejected.length, peopleRead: reads.size }, 'fit: done');
+}
+
+/** People pages Claude reads at once after a fit job: a batch keeps up to FIT_BATCH companies. */
+const PEOPLE_READS_AT_ONCE = 4;
+
+/** What Claude read on a kept company's people pages, for keepForChecks. */
+interface PeopleRead {
+  people: FoundPerson[];
+  /** Read now, not served from an earlier read of the domain: the domain cache records it. */
+  fresh: boolean;
+  at: Date;
+}
+
+/** The people pages a company kept for after fit (companies.people_texts). */
+function storedPages(value: unknown): SitePage[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((p: unknown) => {
+    if (!p || typeof p !== 'object') return [];
+    const { url, title, description, text } = p as Record<string, unknown>;
+    if (typeof url !== 'string' || typeof text !== 'string') return [];
+    return [{ url, title: typeof title === 'string' ? title : '', description: typeof description === 'string' ? description : '', text }];
+  });
 }
 
 /**
- * Keeps a company that waited for fit: its score and reason are stored, and
- * its people job and a check per unchecked address go in the queue (a check
- * already queued is left to run). False when it no longer waits.
+ * Claude reads the people pages of the companies fit kept, the ones whose
+ * crawl left them for after fit (needsPeopleLlm), unless another search read
+ * the domain within PEOPLE_READ_DAYS meanwhile. Claude is never paid to
+ * read a company fit turns down.
  */
-async function keepForChecks(sql: Sql, companyId: string, v: FitVerdict | null): Promise<boolean> {
+async function readPeopleOfKept(deps: PipelineDeps, userId: string, kept: FitRow[]): Promise<Map<string, PeopleRead>> {
+  const out = new Map<string, PeopleRead>();
+  const todo = kept.flatMap((r) => {
+    const texts = storedPages(r.people_texts);
+    return texts.length > 0 ? [{ r, texts }] : [];
+  });
+  if (!deps.ai || todo.length === 0) return out;
+  const at = deps.now?.() ?? new Date();
+  for (let i = 0; i < todo.length; i += PEOPLE_READS_AT_ONCE) {
+    await Promise.all(
+      todo.slice(i, i + PEOPLE_READS_AT_ONCE).map(async ({ r, texts }) => {
+        const recent = await recentPeopleRead(deps.sql, r.domain, at);
+        if (recent) return out.set(r.id, { people: recent, fresh: false, at });
+        const read = await peopleFromText({ ai: deps.ai, log: deps.log }, { userId, domain: r.domain, texts });
+        if (read) out.set(r.id, { people: read, fresh: true, at });
+      }),
+    );
+  }
+  return out;
+}
+
+/**
+ * Stores the people Claude read for a kept company and links its personal
+ * addresses that no name printed on the site claimed (the crawl stored them
+ * before Claude read). A fresh read also goes into the domain cache, after
+ * the crawl's people, so the next search of the domain asks no one.
+ */
+async function storePeopleRead(tx: TransactionSql, company: { id: string; search_id: string; name: string; domain: string }, read: PeopleRead): Promise<void> {
+  const people = mergePeople(read.people).filter((p) => !companyAsPerson(p, company.name));
+  if (people.length > 0) {
+    const rows = people.map((p) => ({
+      company_id: company.id,
+      search_id: company.search_id,
+      first_name: p.firstName,
+      last_name: p.lastName,
+      title: p.title,
+      seniority: p.seniority,
+      source: 'page',
+      source_url: p.sourceUrl,
+    }));
+    await tx`
+      insert into people ${tx(rows, 'company_id', 'search_id', 'first_name', 'last_name', 'title', 'seniority', 'source', 'source_url')}
+      on conflict do nothing
+    `;
+    const named = await tx<PersonRow[]>`
+      select id, first_name, last_name, title, seniority from people where company_id = ${company.id} order by created_at, id
+    `;
+    const owners = named.map((p) => ({ firstName: p.first_name, lastName: p.last_name, row: p }));
+    const loose = await tx<{ id: string; address: string }[]>`
+      select id, address from emails where company_id = ${company.id} and kind = 'personal' and person_id is null
+    `;
+    for (const e of loose) {
+      const owner = personForAddress(e.address, owners)?.row;
+      if (!owner) continue;
+      await tx`
+        update emails set person_id = ${owner.id}, first_name = ${owner.first_name}, last_name = ${owner.last_name},
+          title = ${owner.title}, seniority = ${owner.seniority}, confidence = ${PAGE_CONFIDENCE.personal}
+        where id = ${e.id}
+      `;
+    }
+  }
+  if (!read.fresh) return;
+  const at = read.at.toISOString();
+  await tx`update domains set people_read_at = ${at} where domain = ${company.domain}`;
+  if (people.length === 0) return;
+  const [last] = await tx<{ position: number | null }[]>`select max(position)::int as position from domain_people where domain = ${company.domain}`;
+  const from = (last?.position ?? -1) + 1;
+  const cached = people.map((p, i) => ({
+    domain: company.domain,
+    first_name: p.firstName,
+    last_name: p.lastName,
+    title: p.title,
+    seniority: p.seniority,
+    source_url: p.sourceUrl,
+    position: from + i,
+    fetched_at: at,
+  }));
+  await tx`
+    insert into domain_people ${tx(cached, 'domain', 'first_name', 'last_name', 'title', 'seniority', 'source_url', 'position', 'fetched_at')}
+    on conflict do nothing
+  `;
+}
+
+/**
+ * Keeps a company that waited for fit: its score and reason are stored, the
+ * people Claude read on its pages with them, and its people job and a check
+ * per unchecked address go in the queue (a check already queued is left to
+ * run). False when it no longer waits.
+ */
+async function keepForChecks(sql: Sql, companyId: string, v: FitVerdict | null, read?: PeopleRead): Promise<boolean> {
   return sql.begin(async (tx) => {
-    const [company] = await tx<{ search_id: string }[]>`
-      update companies set fit_state = 'kept',
+    const [company] = await tx<{ search_id: string; name: string; domain: string }[]>`
+      update companies set fit_state = 'kept', people_texts = null,
         fit = coalesce(${v?.fit ?? null}::smallint, fit), fit_reason = coalesce(${v?.reason || null}::text, fit_reason)
       where id = ${companyId} and fit_state = 'pending'
-      returning search_id
+      returning search_id, name, domain
     `;
     if (!company) return false;
     const searchId = company.search_id;
+    if (read) await storePeopleRead(tx, { id: companyId, ...company }, read);
     const [named] = await tx`select 1 from people where company_id = ${companyId} limit 1`;
     if (named) await enqueue(tx, { type: 'people', payload: { companyId }, searchId });
     // A running check may have seen the company still waiting and dropped out: only a queued one is left to run.
