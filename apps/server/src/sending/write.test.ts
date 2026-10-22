@@ -184,7 +184,7 @@ describe('firstPrompt', () => {
     expect(block).toContain('- Who books the demos for you today, you or a sales hire?');
     expect(block).toContain('- Where do your best clinic customers come from now?');
     expect(block.match(/booking tools/g)).toHaveLength(1);
-    expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [], { recent }).head).toContain('<recent>');
+    expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [], { recent }).leads).toContain('<recent>');
     expect(recentBlock([])).toBe('');
   });
 

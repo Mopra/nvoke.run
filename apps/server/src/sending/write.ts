@@ -379,12 +379,14 @@ function firstLeadBlock(l: WriteLead): string {
 
 /**
  * The prompt for step 1 and, in the same answer, the follow ups: the head
- * (sender, prices, campaign, every brief, what the campaign already used),
- * then each lead with its signal and pages.
+ * (sender, prices, campaign, every brief), then what the campaign already
+ * used and each lead with its signal and pages.
  */
 export function firstPrompt(profile: SiteProfileFields | null, steps: CampaignStep[], leads: WriteLead[], opts: HeadOptions = {}): WritePrompt {
-  const head = [...offerHead(profile, steps, 1, opts), recentBlock(opts.recent ?? [])].filter(Boolean);
-  return { head: head.join('\n\n'), leads: leads.map(firstLeadBlock).join('\n\n') };
+  // What the campaign already used changes with every batch, so it goes after the cached head.
+  const head = offerHead(profile, steps, 1, opts).filter(Boolean);
+  const rest = [recentBlock(opts.recent ?? []), ...leads.map(firstLeadBlock)].filter(Boolean);
+  return { head: head.join('\n\n'), leads: rest.join('\n\n') };
 }
 
 /** Follow ups see a short cut of the newest post, for a second angle. */
