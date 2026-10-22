@@ -5,9 +5,13 @@ import { createTestDb, type TestDb } from '../testing/db.js';
 import { silentLog } from '../testing/fakes.js';
 import { failSearch, maybeFinishSearch } from '../worker/pipeline.js';
 import { periodOf } from './plans.js';
+import { icpAdapter } from './sources/icp.js';
+import type { BraveClient } from './sources/web.js';
 import {
   MAX_ESCALATIONS_PER_DAY,
   MIN_SETTLED_FOR_RATE,
+  followUpBudget,
+  roundCredits,
   STAGES,
   allowanceRoom,
   decide,
@@ -84,7 +88,7 @@ beforeEach(() => {
 });
 
 /** An icp search that ran out of work: running, with its plan and no jobs left. The account is on the top plan unless `plan` says otherwise. */
-async function shortSearch(user = 'alice', limit = 100, over: { runs?: RunRecord[]; validEmails?: number; plan?: Plan } = {}): Promise<string> {
+async function shortSearch(user = 'alice', limit = 333, over: { runs?: RunRecord[]; validEmails?: number; plan?: Plan } = {}): Promise<string> {
   await ensureAccount(db.sql, user);
   await db.sql`update accounts set plan = ${over.plan ?? TOP_PLAN} where clerk_user_id = ${user}`;
   const search = await createSearch(db.sql, user, { kind: 'icp', params }, limit);
@@ -123,17 +127,17 @@ const findJobs = async (id: string) =>
 
 describe('decide', () => {
   const now = new Date('2026-10-17T12:00:00Z');
-  const base = { runs: [], limit: 150, ongoing: false, verified: 10, verifiedSince: 0, room: 10_000, now };
+  const base = { runs: [], limit: 333, ongoing: false, verified: 10, verifiedSince: 0, room: 10_000, now };
   const run = (trigger?: RunRecord['trigger'], hoursAgo = 1): RunRecord => ({
     params,
-    limit: 150,
+    limit: 333,
     foundBefore: 0,
     createdAt: new Date(now.getTime() - hoursAgo * 3_600_000).toISOString(),
     ...(trigger ? { trigger } : {}),
   });
 
-  it('aims for 30% of the limit the user asked for, at least 100', () => {
-    expect(verifiedTarget(150)).toBe(100);
+  it('aims for 30% of the limit the user asked for, with no floor', () => {
+    expect(verifiedTarget(50)).toBe(15);
     expect(verifiedTarget(1000)).toBe(300);
   });
 
@@ -173,6 +177,28 @@ describe('decide', () => {
     expect(decide({ ...base, room: 0 })).toMatchObject({ escalate: false, stage: 'paused', note: 'Found 10 verified emails. This month’s allowance is used up' });
   });
 
+  it('pushes on only while the last round found enough per paid credit', () => {
+    // 5 verified for 100 credits is 0.05 a credit: not worth another round.
+    expect(decide({ ...base, verifiedSince: 5, roundCredits: 100 })).toMatchObject({
+      escalate: false,
+      stage: STAGES.exhausted,
+      note: 'Found 10 verified emails, short of 100. The last round found 5 for 100 paid web searches, too few to pay for another. Describe your customer more broadly or add countries to find more',
+    });
+    expect(decide({ ...base, verifiedSince: 5, roundCredits: 20 }).escalate).toBe(true);
+    // Judged early, what its open checks may still bring counts for the round.
+    expect(decide({ ...base, verifiedSince: 5, projected: 30, roundCredits: 100 }).escalate).toBe(true);
+    // A round that paid nothing (the index, the cache) is never judged by it.
+    expect(decide({ ...base, roundCredits: 0 }).escalate).toBe(true);
+  });
+
+  it('reads the credits of the latest run only, and gives a fresh round half the first run\'s', () => {
+    expect(roundCredits({ runs: [], paidRun: 0, paidCredits: 40 })).toBe(40);
+    expect(roundCredits({ runs: [run()], paidRun: 0, paidCredits: 40 })).toBeUndefined();
+    expect(roundCredits({ runs: null, paidRun: null, paidCredits: null })).toBeUndefined();
+    expect(followUpBudget(120)).toBe(60);
+    expect(followUpBudget(3)).toBe(4);
+  });
+
   it('never pushes on while checks are queued or deferred', () => {
     expect(decide({ ...base, checksQueued: 268 })).toMatchObject({
       escalate: false,
@@ -186,7 +212,7 @@ describe('decide', () => {
 
 describe('never short', () => {
   it('holds a short icp search instead of ending it, then starts a fresh round', async () => {
-    const id = await shortSearch('alice', 100, { validEmails: 3 });
+    const id = await shortSearch('alice', 333, { validEmails: 3 });
     expect(await maybeFinishSearch(db.sql, id)).toBe(false);
     expect(await row(id)).toMatchObject({ status: 'running', stage: STAGES.hold, stage_note: 'Found 3 verified so far, short of 100. Working out where else to look' });
 
@@ -198,8 +224,8 @@ describe('never short', () => {
     expect(after.stage).toBe(STAGES.round);
     expect(after.stage_note).toBe('Found 3 verified so far. Looking in 1 more country, 3 new niches and 3 more list page searches');
     expect(after.runs).toHaveLength(2);
-    expect(after.runs[1]).toMatchObject({ trigger: 'escalate', limit: 100, foundBefore: 3 });
-    expect(after.limit).toBe(103);
+    expect(after.runs[1]).toMatchObject({ trigger: 'escalate', limit: 333, foundBefore: 3, braveBudget: 60 });
+    expect(after.limit).toBe(336);
     const plan = IcpPlan.parse(after.plan);
     expect(plan.round).toBe(1);
     expect(planQueryCount(plan)).toBe(10);
@@ -213,7 +239,7 @@ describe('never short', () => {
     await db.sql`update searches set status = 'running' where id = ${local.id}`;
     expect(await maybeFinishSearch(db.sql, local.id)).toBe(true);
 
-    const full = await shortSearch('bob', 100, { validEmails: 100 });
+    const full = await shortSearch('bob', 333, { validEmails: 100 });
     expect(await maybeFinishSearch(db.sql, full)).toBe(true);
     expect(await row(full)).toMatchObject({ status: 'done', stage: 'done', stage_note: 'Found 100 verified emails, enough for this search.' });
   });
@@ -230,16 +256,16 @@ describe('never short', () => {
 
     const now = Date.now();
     const runs: RunRecord[] = [
-      { params, limit: 100, foundBefore: 0, createdAt: new Date(now - 5 * 3_600_000).toISOString() },
-      ...[1, 2, 3].map((h) => ({ params, limit: 100, foundBefore: 0, createdAt: new Date(now - h * 3_600_000).toISOString(), trigger: 'escalate' as const })),
+      { params, limit: 333, foundBefore: 0, createdAt: new Date(now - 5 * 3_600_000).toISOString() },
+      ...[1, 2, 3].map((h) => ({ params, limit: 333, foundBefore: 0, createdAt: new Date(now - h * 3_600_000).toISOString(), trigger: 'escalate' as const })),
     ];
-    const capped = await shortSearch('carol', 100, { runs });
+    const capped = await shortSearch('carol', 333, { runs });
     expect(await maybeFinishSearch(db.sql, capped)).toBe(true);
     expect((await row(capped)).stage_note).toContain('short of 100. Looked further 3 times in the last 24 hours');
   });
 
   it('starts the next round early once the checks are done and what is left cannot close the gap', async () => {
-    const id = await shortSearch('dave', 100, { validEmails: 2 });
+    const id = await shortSearch('dave', 333, { validEmails: 2 });
     await db.sql`update searches set stage = 'deeper' where id = ${id}`;
     const [c] = await db.sql<{ id: string }[]>`select id from companies where search_id = ${id} limit 1`;
     await db.sql`insert into jobs (type, payload, search_id) values ('people', ${db.sql.json({ companyId: c!.id })}, ${id})`;
@@ -258,7 +284,7 @@ describe('never short', () => {
   });
 
   it('counts a company waiting for fit after its crawl as checks to come, and holds no round for it', async () => {
-    const id = await shortSearch('fay', 100, { validEmails: 2 });
+    const id = await shortSearch('fay', 333, { validEmails: 2 });
     await db.sql`update searches set stage = 'deeper' where id = ${id}`;
     const [c] = await db.sql<{ id: string }[]>`
       insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status, fit_state)
@@ -278,7 +304,7 @@ describe('never short', () => {
   });
 
   it('judges a search early once, then waits before looking again', async () => {
-    const id = await shortSearch('ivan', 100, { validEmails: 2 });
+    const id = await shortSearch('ivan', 333, { validEmails: 2 });
     await db.sql`update searches set stage = 'deeper' where id = ${id}`;
     // 120 unchecked addresses could still close the gap.
     for (let i = 0; i < 120; i++) {
@@ -415,6 +441,56 @@ describe('ongoing', () => {
   });
 });
 
+describe('round credits', () => {
+  /** A web search that bills two credits a page, like Serper, each page one fresh company. */
+  const serperLike = (): BraveClient & { pages: number } => {
+    const brave = {
+      pages: 0,
+      configured: true,
+      async page(_req: unknown, ctx: { onUsage?: (e: 'request' | 'cache_hit') => void }) {
+        brave.pages++;
+        ctx.onUsage?.('request');
+        ctx.onUsage?.('request');
+        return { companies: [{ name: 'x', website: `https://fresh${brave.pages}.test`, source: 'brave' }], more: false };
+      },
+    };
+    return brave as BraveClient & { pages: number };
+  };
+  const fitAi: Ai = {
+    ready: async () => true,
+    structured: async (req) => {
+      const domains = [...req.prompt.matchAll(/^\d+\. \[([^\]]+)\]/gm)].map((m) => m[1]!);
+      const data = { scores: domains.map((domain) => ({ domain, fit: 80, reason: 'fits' })) };
+      return { data: data as never, model: 'm', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 }, costUsd: 0 };
+    },
+  };
+  const find = async (id: string, brave: BraveClient) => {
+    const adapter = icpAdapter({ brave, ai: fitAi, sql: db.sql, index: false });
+    const ctx = { limit: 50, signal: new AbortController().signal, log: silentLog, userId: 'quinn', searchId: id };
+    for await (const _ of adapter.find(params, ctx)) void _;
+  };
+  const paid = async (id: string) =>
+    (await db.sql<{ paid: unknown }[]>`select plan->'paid' as paid from searches where id = ${id}`)[0]!.paid;
+
+  it('keeps what a round paid on the plan, adding up a retried find, and starts no round after one that found too little', async () => {
+    const id = await shortSearch('quinn', 333, { validEmails: 3 });
+    const brave = serperLike();
+    await find(id, brave);
+    // One credit per billed request: firstPlan's one core query is two.
+    expect(brave.pages).toBe(1);
+    expect(await paid(id)).toEqual({ run: 1, credits: 2 });
+    await find(id, serperLike());
+    expect(await paid(id)).toEqual({ run: 1, credits: 4 });
+
+    // 3 verified for 4 credits passes; for 40 it does not.
+    await db.sql`update searches set plan = jsonb_set(plan, '{paid,credits}', '40') where id = ${id}`;
+    await db.sql`delete from jobs where search_id = ${id}`;
+    expect(await maybeFinishSearch(db.sql, id)).toBe(true);
+    expect(await row(id)).toMatchObject({ status: 'done', stage: STAGES.exhausted });
+    expect((await row(id)).stage_note).toContain('The last round found 3 for 40 paid web searches, too few to pay for another');
+  });
+});
+
 describe('projectVerified', () => {
   it('counts unchecked addresses at the valid rate seen so far, and one per people job', () => {
     // 200 checks back, half valid: 60 unchecked bring about 30.
@@ -436,7 +512,7 @@ describe('escalation while checks and people probes are left', () => {
 
   it('holds a search whose open addresses cannot close the gap at the rate seen so far, even with people jobs queued', async () => {
     // Target 100: 40 valid of 100 checked, 80 open (about 32 more) and 3 people jobs: 75, short.
-    const id = await shortSearch('erin', 100, { validEmails: 40 });
+    const id = await shortSearch('erin', 333, { validEmails: 40 });
     await withAddresses(id, 60, 'invalid');
     await withAddresses(id, 80, null);
     const [c] = await db.sql<{ id: string }[]>`select id from companies where search_id = ${id} limit 1`;
@@ -455,7 +531,7 @@ describe('escalation while checks and people probes are left', () => {
 
   it('leaves a search alone while its open checks can still reach the target', async () => {
     // 40 valid of 50 checked: 80 open at that rate bring 64, enough for 100.
-    const id = await shortSearch('frank', 100, { validEmails: 40 });
+    const id = await shortSearch('frank', 333, { validEmails: 40 });
     await withAddresses(id, 10, 'invalid');
     await withAddresses(id, 80, null);
     expect(await markShortSearches(db.sql)).toBe(0);
@@ -463,7 +539,7 @@ describe('escalation while checks and people probes are left', () => {
   });
 
   it('does not count role inboxes that will be left unchecked, or ones already left out', async () => {
-    const id = await shortSearch('gina', 100, { validEmails: 2 });
+    const id = await shortSearch('gina', 333, { validEmails: 2 });
     const [c] = await db.sql<{ id: string; clerk_user_id: string }[]>`select id, clerk_user_id from companies where search_id = ${id} limit 1`;
     await db.sql`
       insert into emails (company_id, search_id, clerk_user_id, address, kind, verification)
@@ -488,14 +564,14 @@ describe('escalation within the allowance', () => {
   });
 
   it('starts no round when the allowance has no room left', async () => {
-    const id = await shortSearch('mona', 100, { validEmails: 3, plan: 'free' });
+    const id = await shortSearch('mona', 333, { validEmails: 3, plan: 'free' });
     await used('mona', 49);
     expect(await maybeFinishSearch(db.sql, id)).toBe(true);
     expect(await row(id)).toMatchObject({ status: 'done', stage: 'paused', stage_note: 'Found 3 verified emails. This month’s allowance is used up' });
     expect(replans).toBe(0);
 
     // A held search whose allowance ran out meanwhile ends without asking Claude.
-    const held = await shortSearch('mona', 100, { validEmails: 3, plan: 'free' });
+    const held = await shortSearch('mona', 333, { validEmails: 3, plan: 'free' });
     await db.sql`update searches set stage = ${STAGES.hold} where id = ${held}`;
     await runOngoing(deps(), { daily: false });
     expect(await row(held)).toMatchObject({ status: 'done', stage: 'paused' });
@@ -505,7 +581,7 @@ describe('escalation within the allowance', () => {
 
   it('does not hold early when the open addresses fill what the allowance can take', async () => {
     // Free plan, 30 of 50 used: room for 10 more. 10 found and 20 open aim past that, so no round.
-    const id = await shortSearch('nina', 100, { validEmails: 10, plan: 'free' });
+    const id = await shortSearch('nina', 333, { validEmails: 10, plan: 'free' });
     await used('nina', 30);
     const [c] = await db.sql<{ id: string }[]>`select id from companies where search_id = ${id} limit 1`;
     for (let i = 0; i < 20; i++) {
@@ -522,7 +598,7 @@ describe('escalation within the allowance', () => {
   it('asks the planner for no more than the allowance can take', async () => {
     let prompt = '';
     const spy: Ai = { ready: ai.ready, structured: (req) => ((prompt = req.prompt), ai.structured(req)) };
-    const id = await shortSearch('olga', 100, { validEmails: 3, plan: 'free' });
+    const id = await shortSearch('olga', 333, { validEmails: 3, plan: 'free' });
     await used('olga', 20);
     await maybeFinishSearch(db.sql, id);
     await runOngoing(deps({ ai: spy }), { daily: false });
@@ -532,7 +608,7 @@ describe('escalation within the allowance', () => {
   });
 
   it('sends a held search back to running when checks were queued after the hold', async () => {
-    const id = await shortSearch('pia', 100, { validEmails: 3 });
+    const id = await shortSearch('pia', 333, { validEmails: 3 });
     await db.sql`update searches set stage = ${STAGES.hold} where id = ${id}`;
     await verifyJob(id);
     await runOngoing(deps(), { daily: false });

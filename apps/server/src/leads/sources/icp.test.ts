@@ -8,7 +8,7 @@ import type { Sql } from 'postgres';
 import { toPlan, type ClaudePlan } from '../planner.js';
 import type { CachedWebPage } from '../web-cache.js';
 import { GATE_FLOOR } from '../fit.js';
-import { DEEP_ABOVE_AVERAGE, brandOf, deepWorth, icpAdapter, interleave, spreadByCountry } from './icp.js';
+import { DEEP_ABOVE_AVERAGE, DEFAULT_VALID_PER_COMPANY, brandOf, deepWorth, icpAdapter, interleave, quotaCovered, spreadByCountry, validPerCompany, type QuotaRead } from './icp.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import type { BraveClient, BravePageRequest } from './web.js';
 
@@ -306,7 +306,7 @@ describe('icp adapter limits', () => {
     expect(stages.at(-1)?.[1]).toMatch(/^This search used its 2 web searches: found 2 fitting candidates, short of 50\./);
   });
 
-  it('counts a page against the budget once, however many requests its provider billed for it', async () => {
+  it('counts every credit its provider billed against the budget', async () => {
     // Serper bills two requests for a page of 20 results.
     const asked: BravePageRequest[] = [];
     const brave: BraveClient = {
@@ -320,9 +320,9 @@ describe('icp adapter limits', () => {
     };
     const events: string[] = [];
     const { stages } = await run(icpAdapter({ brave, ai: fakeAi(), braveBudget: 3 }), 50, { onUsage: (e) => void events.push(e) });
-    expect(asked).toHaveLength(3);
-    // Every billed request still reaches the search's source_requests.
-    expect(events).toEqual(Array(6).fill('request'));
+    // Two pages are four credits: the second one starts with one credit left and takes the run past it.
+    expect(asked).toHaveLength(2);
+    expect(events).toEqual(Array(4).fill('request'));
     expect(stages.find(([s]) => s === 'budget')?.[1]).toContain("Used this search's 3 web searches");
   });
 
@@ -360,6 +360,8 @@ describe('icp adapter limits', () => {
     expect(learned.yields['earlier query|us']).toEqual({ pages: 2, kept: 5 });
     // A query that fell out of the capped ran list leaves the record too.
     expect(learned.yields['long gone|us']).toBeUndefined();
+    // The credits this round paid, for ongoing.ts to weigh against its valid emails.
+    expect(saved?.values[1]).toBe(brave.asked.length);
   });
 
   it('skips a place the map cannot find instead of failing the search', async () => {
@@ -394,6 +396,61 @@ describe('icp adapter limits', () => {
     expect(out[0]).toMatchObject({ website: 'https://alpha.com' });
     expect(out[0]!.fit).toBeUndefined();
     expect(stages.some(([, n]) => n.includes('Claude is out of reach'))).toBe(true);
+  });
+});
+
+describe('icp adapter allowance cap', () => {
+  const many = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => result(`${prefix}-${i}.com`));
+
+  it("expects the search's own valid rate once enough companies settled, never below the floor", () => {
+    expect(validPerCompany({ settled: 10, valid: 9 })).toBe(DEFAULT_VALID_PER_COMPANY);
+    expect(validPerCompany({ settled: 100, valid: 30 })).toBe(0.3);
+    expect(validPerCompany({ settled: 100, valid: 0 })).toBe(0.02);
+    // 20 open companies at 0.1 cover 2 emails, not 3; settled ones bring nothing more.
+    expect(quotaCovered(20, { room: 2, settled: 0, valid: 0 })).toBe(true);
+    expect(quotaCovered(20, { room: 3, settled: 0, valid: 0 })).toBe(false);
+    expect(quotaCovered(50, { room: 2, settled: 40, valid: 4 })).toBe(false);
+    expect(quotaCovered(0, { room: 0, settled: 0, valid: 0 })).toBe(true);
+  });
+
+  it('pays for no further tier once the companies found cover what the allowance can still take', async () => {
+    const brave = fakeBrave({ 'cold email agency|0': { companies: many('fit', 25) } });
+    const reads: number[] = [];
+    const quota = async (): Promise<QuotaRead> => (reads.push(1), { room: 2, settled: 0, valid: 0 });
+    const sql = fakeSql({ plan: toPlan(PLAN, { description: 'Outbound agencies' }) });
+    const { out, stages } = await run(icpAdapter({ brave, ai: fakeAi(), sql, quota, index: false }), 100, { searchId: 'search_1' });
+    expect(out).toHaveLength(25);
+    // Tier 1 ran whole; the read before tier 2 found 25 companies enough for 2 emails at 0.1 each.
+    expect(brave.asked.map((r) => r.q)).not.toContain('sdr outsourcing');
+    expect(reads).toHaveLength(2);
+    expect(stages.find(([s]) => s === 'allowance')?.[1]).toBe(
+      'Found 25 so far. The companies found can fill the 2 verified emails this month’s allowance still takes, so nvoke pays for no more searches',
+    );
+    expect(stages.map(([s]) => s)).not.toContain('exhausted');
+  });
+
+  it("pays for nothing, the index's first looks included, when the allowance is used up", async () => {
+    const brave = fakeBrave({ 'cold email agency|0': { companies: many('fit', 5) } });
+    const asks: IndexAsk[] = [];
+    const index = async (ask: IndexAsk) => (asks.push(ask), [] as IndexCandidate[]);
+    const sql = fakeSql({ plan: toPlan(PLAN, { description: 'Outbound agencies' }) });
+    const ai = fakeAi();
+    const { out, stages } = await run(icpAdapter({ brave, ai, sql, index, quota: async () => ({ room: 0, settled: 0, valid: 0 }) }), 50, { searchId: 'search_1' });
+    expect(out).toHaveLength(0);
+    expect(brave.asked).toHaveLength(0);
+    expect(asks).toHaveLength(0);
+    expect(ai.tasks).toEqual([]);
+    expect(stages.at(-1)?.[1]).toBe('This month’s allowance is used up, so nvoke pays for no more searches');
+  });
+
+  it('goes on when the allowance cannot be read', async () => {
+    const brave = fakeBrave({ 'cold email agency|0': { companies: many('fit', 3) } });
+    const sql = fakeSql({ plan: toPlan(PLAN, { description: 'Outbound agencies' }) });
+    const quota = async (): Promise<QuotaRead> => {
+      throw new Error('db down');
+    };
+    const { out } = await run(icpAdapter({ brave, ai: fakeAi(), sql, quota, index: false }), 3, { searchId: 'search_1' });
+    expect(out).toHaveLength(3);
   });
 });
 
@@ -555,6 +612,7 @@ describe('icp adapter company index', () => {
     website: `https://${domain}`,
     snippet: `About ${domain}`,
     head,
+    matched: 2,
     rank: 1,
     from: head ? 'pages' : 'feed',
   });
@@ -595,6 +653,22 @@ describe('icp adapter company index', () => {
     expect(out.map((c) => c.website)).toEqual(['https://kept-one.com', 'https://alpha.com']);
     // The index left one short, so tier 1 ran, directories first; its gap closed there, so no wider tier did.
     expect(brave.asked.map((r) => r.q).slice(0, 2)).toEqual(['top cold email agencies', 'cold email agency']);
+    expect(brave.asked.some((r) => r.q === 'sdr outsourcing')).toBe(false);
+  });
+
+  it('asks again before each paid tier, leaving out every site seen, until an ask comes back short', async () => {
+    const asks: { limit: number; exclude: string[] }[] = [];
+    const answers = [[indexed('bad-one.com'), indexed('bad-two.com'), indexed('bad-three.com')], [indexed('kept-late.com')]];
+    const index = async (ask: IndexAsk) => {
+      asks.push({ limit: ask.limit, exclude: [...(ask.exclude ?? [])] });
+      return answers[asks.length - 1] ?? [];
+    };
+    const brave = fakeBrave({ 'cold email agency|0': { companies: [result('bad-web.com')] } });
+    const { out } = await run(icpAdapter({ brave, ai: fakeAi(), index }), 1);
+    expect(out.map((c) => c.website)).toEqual(['https://kept-late.com']);
+    // The first ask came back full, so tier 2 asked again; the second came back short, so it was the last.
+    expect(asks).toHaveLength(2);
+    expect(asks[1]!.exclude).toEqual(expect.arrayContaining(['bad-one.com', 'bad-two.com', 'bad-three.com', 'bad-web.com']));
     expect(brave.asked.some((r) => r.q === 'sdr outsourcing')).toBe(false);
   });
 

@@ -4,9 +4,13 @@
 // (holdForEscalation, called from maybeFinishSearch), or a tick spots it once
 // only checks are left (markShortSearches). The tick then asks the planner for
 // a fresh round (planner.ts replan) and starts another run into the same list,
-// at most MAX_ESCALATIONS_PER_DAY in 24 hours. An ongoing search gets one
-// round a day at its own time of day, within a daily Brave budget per search
-// and one for all ongoing searches together (reserved in `ongoing_budget`),
+// at most MAX_ESCALATIONS_PER_DAY in 24 hours, and only while the round
+// before it found at least MIN_VALID_PER_CREDIT verified emails per paid web
+// search credit (the icp adapter keeps the round's credits in plan.paid). A
+// fresh round gets FOLLOW_UP_BUDGET_SHARE of the first run's credits. An
+// ongoing search gets one round a day at its own time of day, within a daily
+// credit budget per search and one for all ongoing searches together
+// (reserved in `ongoing_budget`),
 // and pauses while the account's allowance is used up. A round never buys
 // what the allowance cannot take: the verified target is capped at what the
 // account's allowance still has room for (an icp email counts as
@@ -29,8 +33,8 @@ import { queuedChecks } from '../worker/queue.js';
 
 type Db = Sql | TransactionSql;
 
-/** Verified emails a search aims for: this share of the companies the user asked for, never below the floor. */
-export const VERIFIED_TARGET = { share: 0.3, min: 100 } as const;
+/** Verified emails a search aims for: this share of the companies the user asked for (allowanceRoom caps it). */
+export const VERIFIED_TARGET = { share: 0.3 } as const;
 /** Fresh rounds one search may start on its own in 24 hours. */
 export const MAX_ESCALATIONS_PER_DAY = 3;
 /**
@@ -42,8 +46,19 @@ export const REPLAN_STALE_MS = 10 * 60_000;
 export const MAX_CLAIM_ATTEMPTS = 3;
 /** A search judged early and left alone is not judged early again for this long. */
 export const EARLY_RECHECK_MS = 2 * 60_000;
-/** The smallest daily round worth planning, in paid Brave requests. */
+/** The smallest daily round worth planning, in paid web search credits. */
 export const MIN_ROUND_BUDGET = 4;
+/**
+ * Verified emails per paid web search credit the last round must have found
+ * for another to start. A credit costs $0.001 (Serper) to $0.005 (Brave) and
+ * an icp email earns $0.01 to $0.027 (three of the allowance, $199 to $9
+ * plans), so below 0.2 search alone costs $0.005 to $0.025 per verified email,
+ * half or more of what it earns, before Claude. Measured 2026-10: 232 verified
+ * for 507 paid requests over all rounds (0.46), most of them escalations.
+ */
+export const MIN_VALID_PER_CREDIT = 0.2;
+/** A fresh round's share of the first run's credits (ICP_BRAVE_BUDGET): it searches what the first left over. */
+export const FOLLOW_UP_BUDGET_SHARE = 0.5;
 /** How often the worker looks for searches to push on. */
 export const ONGOING_TICK_MS = 15_000;
 
@@ -56,12 +71,12 @@ export interface RunRecord {
   foundBefore: number;
   createdAt: string;
   trigger?: 'escalate' | 'ongoing';
-  /** Paid Brave requests an ongoing round reserved; the icp adapter holds the run to it. */
+  /** Paid web search credits the round was given (an ongoing round's reservation, a fresh round's share); the icp adapter holds the run to it. */
   braveBudget?: number;
 }
 
 export function verifiedTarget(userLimit: number): number {
-  return Math.max(VERIFIED_TARGET.min, Math.ceil(VERIFIED_TARGET.share * userLimit));
+  return Math.ceil(VERIFIED_TARGET.share * userLimit);
 }
 
 /**
@@ -175,6 +190,14 @@ interface SearchState {
   ongoing: boolean;
   limit: number;
   runs: RunRecord[] | null;
+  /** plan.paid: the credits the icp adapter counted for the run with this many records (`runs` length). */
+  paidRun: number | null;
+  paidCredits: number | null;
+}
+
+/** Credits the latest run paid, when the plan counted them for it. */
+export function roundCredits(s: Pick<SearchState, 'runs' | 'paidRun' | 'paidCredits'>): number | undefined {
+  return s.paidRun !== null && s.paidRun === (s.runs ?? []).length ? (s.paidCredits ?? undefined) : undefined;
 }
 
 export type Verdict = { escalate: true; note: string } | { escalate: false; stage: string; note: string };
@@ -185,7 +208,10 @@ export type Verdict = { escalate: true; note: string } | { escalate: false; stag
  * addresses still being checked when judging early. `room` is how many more
  * verified emails the allowance can take (allowanceRoom): the target never
  * asks for more than that, and with none left nothing pushes on. While
- * `checksQueued` is above zero it never pushes on either.
+ * `checksQueued` is above zero it never pushes on either. `roundCredits` is
+ * what the latest run paid for web search: a run that paid and found fewer
+ * than MIN_VALID_PER_CREDIT verified emails per credit (those it verified
+ * since it started, or would at `projected`) starts no other.
  */
 export function decide(input: {
   runs: RunRecord[];
@@ -196,6 +222,7 @@ export function decide(input: {
   verifiedSince: number;
   room: number;
   checksQueued?: number;
+  roundCredits?: number;
   now: Date;
 }): Verdict {
   const { runs, verified, ongoing } = input;
@@ -224,6 +251,20 @@ export function decide(input: {
   if (checks > 0) {
     return { escalate: false, stage: STAGES.round, note: `Found ${verified} verified so far. Checking ${addresses(checks)} before looking further` };
   }
+  const credits = input.roundCredits ?? 0;
+  if (credits > 0) {
+    // What the latest run found: verified since it started, plus what its open checks may still bring.
+    const found = input.verifiedSince + Math.max(0, (input.projected ?? verified) - verified);
+    if (found / credits < MIN_VALID_PER_CREDIT) {
+      return {
+        escalate: false,
+        stage: STAGES.exhausted,
+        note: `Found ${verifiedEmails(verified)}, short of ${target}. The last round found ${found} for ${plural(credits, 'paid web search', 'paid web searches')}, too few to pay for another.${
+          ongoing ? ' Next daily round tomorrow' : ' Describe your customer more broadly or add countries to find more'
+        }`,
+      };
+    }
+  }
   const recent = escalationsSince(runs, new Date(input.now.getTime() - 24 * 3_600_000));
   if (recent >= MAX_ESCALATIONS_PER_DAY) {
     return {
@@ -239,7 +280,9 @@ export function decide(input: {
 
 async function stateOf(db: Db, searchId: string): Promise<SearchState | null> {
   const [row] = await db<SearchState[]>`
-    select id, clerk_user_id, status, stage, ongoing, "limit", runs from searches where id = ${searchId} and kind = 'icp' for update
+    select id, clerk_user_id, status, stage, ongoing, "limit", runs,
+      (plan->'paid'->>'run')::int as "paidRun", (plan->'paid'->>'credits')::int as "paidCredits"
+    from searches where id = ${searchId} and kind = 'icp' for update
   `;
   return row ?? null;
 }
@@ -257,6 +300,7 @@ async function verdictFor(db: Db, s: SearchState, now: Date, early: boolean): Pr
     verifiedSince: counts.verifiedSince,
     room: await allowanceRoom(db, s.clerk_user_id, now),
     checksQueued: (await queuedChecks(db, s.id)).queued,
+    roundCredits: roundCredits(s),
     now,
   });
 }
@@ -327,11 +371,11 @@ export interface OngoingDeps {
   ai?: Ai;
   log: Logger;
   now?: () => Date;
-  /** Paid Brave requests one round may make (ICP_BRAVE_BUDGET; the icp adapter enforces it). */
+  /** Paid web search credits the first run may spend (ICP_BRAVE_BUDGET; the icp adapter enforces it); a fresh round gets FOLLOW_UP_BUDGET_SHARE of it. */
   runBraveBudget: number;
-  /** Paid Brave requests an ongoing search's daily round may make (ICP_DAILY_BRAVE_BUDGET). */
+  /** Paid web search credits an ongoing search's daily round may spend (ICP_DAILY_BRAVE_BUDGET). */
   dailyBraveBudget: number;
-  /** Paid Brave requests all daily rounds together may reserve a UTC day (ONGOING_DAILY_BRAVE_BUDGET). */
+  /** Paid web search credits all daily rounds together may reserve a UTC day (ONGOING_DAILY_BRAVE_BUDGET). */
   globalDailyBraveBudget: number;
 }
 
@@ -353,7 +397,7 @@ interface Claimed {
 /** The UTC day a reservation counts against, `yyyy-mm-dd`. */
 export const utcDay = (d: Date): string => d.toISOString().slice(0, 10);
 
-/** Paid Brave requests daily rounds reserved on a UTC day. */
+/** Paid web search credits daily rounds reserved on a UTC day. */
 export async function ongoingReserved(sql: Db, day: string): Promise<number> {
   const [row] = await sql<{ reserved: number }[]>`select reserved from ongoing_budget where day = ${day}::date`;
   return row?.reserved ?? 0;
@@ -388,6 +432,11 @@ async function finishHeld(sql: Sql, c: Claimed, stage: string, note: string): Pr
     `;
     if (rows.length > 0) await searchFinished(tx, c.id);
   });
+}
+
+/** Credits a fresh round may spend: FOLLOW_UP_BUDGET_SHARE of the first run's, never below MIN_ROUND_BUDGET. */
+export function followUpBudget(runBudget: number): number {
+  return Math.max(MIN_ROUND_BUDGET, Math.floor(runBudget * FOLLOW_UP_BUDGET_SHARE));
 }
 
 /** Plans and starts the fresh round of a claimed search, or ends it saying why not. */
@@ -432,7 +481,7 @@ async function startRound(deps: OngoingDeps, c: Claimed): Promise<void> {
   const runs = c.runs ?? [];
   // Never aim past what the allowance can still take.
   const target = Math.min(verifiedTarget(userLimit(runs, c.limit)), counts.verified + room);
-  const budget = ongoing ? (c.braveBudget ?? 0) : deps.runBraveBudget;
+  const budget = ongoing ? (c.braveBudget ?? 0) : followUpBudget(deps.runBraveBudget);
   const maxQueries = Math.min(PLAN_CAPS.directories + PLAN_CAPS.adjacent + PLAN_CAPS.wider, budget);
   let plan: IcpPlan | null;
   try {
@@ -453,14 +502,14 @@ async function startRound(deps: OngoingDeps, c: Claimed): Promise<void> {
     );
     return;
   }
-  // The icp adapter holds the run to the reservation.
-  if (ongoing) plan = { ...plan, braveBudget: budget };
+  // The icp adapter holds the run to the reservation or the fresh round's share.
+  plan = { ...plan, braveBudget: budget };
   const note = `${ongoing ? 'Daily round. ' : ''}Found ${counts.verified} verified so far. ${roundNote(previous.data, plan)}`;
   await savePlan(sql, c.id, plan);
   const started = await startAutoRun(sql, c.id, {
     limit: Math.min(userLimit(runs, c.limit), maxSearchLimit(await planOf(sql, c.clerk_user_id))),
     trigger: c.trigger,
-    braveBudget: ongoing ? budget : undefined,
+    braveBudget: budget,
     stage: STAGES.round,
     note,
   });
@@ -521,7 +570,7 @@ const DUE_SQL = `(
  * failed, or canceled and switched back on) before its daily time came
  * round. Searches waiting longest go first. One whose account's allowance is
  * used up is noted as paused and looked at again on later ticks, so it
- * resumes once the allowance renews. The round's Brave budget is reserved in
+ * resumes once the allowance renews. The round's credit budget is reserved in
  * `ongoing_budget` before Claude is asked, so concurrent claims never pass the
  * global cap.
  */
@@ -550,7 +599,7 @@ export async function claimOngoing(deps: OngoingDeps, now: Date): Promise<Claime
     }
     const budget = Math.min(deps.dailyBraveBudget, deps.globalDailyBraveBudget - (await ongoingReserved(sql, day)));
     if (budget < MIN_ROUND_BUDGET || !(await reserve(sql, day, budget, deps.globalDailyBraveBudget))) {
-      deps.log.info({ day, budget }, 'ongoing: daily Brave budget spent, the rest wait for tomorrow');
+      deps.log.info({ day, budget }, 'ongoing: daily search budget spent, the rest wait for tomorrow');
       return null;
     }
     const [c] = await sql<Claimed[]>`

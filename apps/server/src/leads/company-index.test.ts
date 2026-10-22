@@ -66,9 +66,9 @@ describe('company index words', () => {
     expect(nameFromTitle('', 'www.acme.com')).toBe('acme.com');
   });
 
-  it('asks every query with all its words, in the simple and the English form', async () => {
-    const q = await planQuery(db.sql, plan(['cold email agencies', 'Kaltakquise Agentur']));
-    expect(q).toBe("('cold' & 'email' & ('agencies' | 'agenc')) | (('kaltakquise' | 'kaltakquis') & 'agentur')");
+  it('asks for any of the plan words, each once, in the simple and the English form', async () => {
+    const q = await planQuery(db.sql, plan(['cold email agencies', 'Kaltakquise Agentur', 'email agentur']));
+    expect(q).toBe("'cold' | 'email' | ('agencies' | 'agenc') | ('kaltakquise' | 'kaltakquis') | 'agentur'");
     expect(await planQuery(db.sql, plan(['the for']))).toBeNull();
   });
 });
@@ -97,6 +97,18 @@ describe('company index search', () => {
     expect(found[1]!.head).toBeUndefined();
     const vectors = await db.sql<{ v: string }[]>`select search::text as v from domain_pages union all select search::text from feed_items`;
     expect(vectors.some((r) => r.v.includes('@') || r.v.includes('jane'))).toBe(false);
+  });
+
+  it('ranks pages holding more of the plan words first, without needing every word of a query', async () => {
+    await crawled('two.com', [{ title: 'Two', text: 'We are an agency for cold outreach' }]);
+    await crawled('three.com', [{ title: 'Three', text: 'Cold email agency' }]);
+    await crawled('one.com', [{ title: 'One', text: 'A creative agency' }]);
+    const found = await searchCompanyIndex(db.sql, { plan: plan(['cold email agencies']), limit: 10 });
+    // One word in common is not enough to be a candidate.
+    expect(found.map((c) => [c.domain, c.matched])).toEqual([
+      ['three.com', 3],
+      ['two.com', 2],
+    ]);
   });
 
   it('matches words in the language a site uses', async () => {

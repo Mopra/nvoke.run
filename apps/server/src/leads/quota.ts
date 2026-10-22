@@ -8,7 +8,7 @@
 // same user never overshoot the plan's allowance.
 
 import type { Sql, TransactionSql } from 'postgres';
-import type { AccountSummary, Plan } from '@nvoke/shared';
+import { ICP_EMAIL_WEIGHT, type AccountSummary, type Plan } from '@nvoke/shared';
 import { asPlan, emailsPerMonth, maxDropDailyLimit, maxSearchLimit, periodOf } from './plans.js';
 
 type Db = Sql | TransactionSql;
@@ -106,4 +106,34 @@ export async function chargeVerified(
 export async function quotaExhausted(sql: Db, userId: string, now: Date = new Date()): Promise<boolean> {
   const plan = await planOf(sql, userId);
   return (await emailsVerified(sql, userId, periodOf(now))) >= emailsPerMonth(plan);
+}
+
+/**
+ * What a Sonar (`icp`) search may still be billed for, and what it yields so
+ * far: `room` is the verified emails of the search the account's allowance can
+ * still take this month (what is left, each counting ICP_EMAIL_WEIGHT);
+ * `settled` the search's companies whose crawl ended and whose addresses came
+ * back from their checks (or that have none to check), `valid` the valid
+ * addresses among them. A company still waiting for fit after its crawl is
+ * not settled: it may yet be dropped.
+ */
+export async function searchQuota(
+  sql: Db,
+  userId: string,
+  searchId: string,
+  now: Date = new Date(),
+): Promise<{ room: number; settled: number; valid: number }> {
+  const left = emailsPerMonth(await planOf(sql, userId)) - (await emailsVerified(sql, userId, periodOf(now)));
+  const [row] = await sql<{ settled: number; valid: number }[]>`
+    select count(*)::int as settled, coalesce(sum(s.valid), 0)::int as valid from (
+      select (select count(*) from emails e where e.company_id = c.id and e.verification = 'valid') as valid
+      from companies c
+      where c.search_id = ${searchId} and c.crawl_status <> 'pending' and c.fit_state is distinct from 'pending'
+        and (
+          exists (select 1 from emails e where e.company_id = c.id and e.verification is not null)
+          or not exists (select 1 from emails e where e.company_id = c.id and e.verification is null and e.skipped is null)
+        )
+    ) s
+  `;
+  return { room: Math.max(0, Math.floor(left / ICP_EMAIL_WEIGHT)), settled: row?.settled ?? 0, valid: row?.valid ?? 0 };
 }

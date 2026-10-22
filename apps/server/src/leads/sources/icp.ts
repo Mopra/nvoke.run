@@ -19,11 +19,21 @@
 // mapped to the company's own site (hiring.ts): that company is building an
 // outbound team now. Every step says what it does through ctx.onStage.
 //
-// Before any of that, each round asks our own company index
-// (company-index.ts): companies an earlier crawl or the launch feed already
-// knows, matched on the plan's words. They get the same first look as Brave's
-// results, with the homepage title and description the crawl kept, so Brave
-// pays only for the gap.
+// Before each paid tier the run asks our own company index
+// (company-index.ts) again: companies an earlier crawl or the launch feed
+// already knows, matched on the plan's words, leaving out every site the
+// search has seen. They get the same first look as web results, with the
+// homepage title and description the crawl kept, so web search pays only for
+// the gap.
+//
+// Paid web search is counted in credits, the provider's billed requests (a
+// Brave request is one, a Serper page of 20 results two), against the run's
+// budget. Nor does a run pay for what the buyer cannot be billed: before the
+// index, before each paid tier and every QUOTA_RECHECK_CREDITS inside one, it
+// reads what the account's allowance still takes (quota.ts searchQuota) and
+// stops once the companies found and not yet settled, at the valid addresses
+// per company the search shows so far (DEFAULT_VALID_PER_COMPANY until it
+// can tell), cover it.
 
 import type { Sql, TransactionSql } from 'postgres';
 import type { IcpSearchParams, LocalSearchParams } from '@nvoke/shared';
@@ -36,6 +46,7 @@ import type { FetchLike } from '../http.js';
 import { RateLimiter } from '../limits.js';
 import { isDirectoryDomain, isListPage, listPageDeps, mineListPage, type MineResult } from '../listicle.js';
 import { keptYields, makePlan, ranKeys, savePlan, storedPlan, wantsJobPosts, type IcpPlan, type LocalPair, type PlanQuery, type QueryYield } from '../planner.js';
+import { searchQuota } from '../quota.js';
 import { PermanentError, type FoundCompany, type SourceAdapter } from './types.js';
 import { braveQuery, type BraveClient, type BravePageRequest } from './web.js';
 
@@ -71,12 +82,49 @@ export const DEEP_MIN_FITS = 3;
  * the paid requests of a search for far fewer valid emails than first pages.
  */
 export const DEEP_ABOVE_AVERAGE = 2;
-/** Paid pages of web results per search when the server sets none (ICP_BRAVE_BUDGET). */
-export const DEFAULT_BRAVE_BUDGET = 120;
+/** Paid web search credits per run when the server sets none (ICP_BRAVE_BUDGET): a Brave request is one, a Serper page of 20 results two. */
+export const DEFAULT_CREDIT_BUDGET = 120;
 /** Sites turned down that a plan remembers, newest kept: about 100 KB of plan at most. */
 export const MAX_REJECTED = 5_000;
 /** Index candidates asked per company the run still wants: a first look call scores 100 for about a tenth of a cent. */
 export const INDEX_PER_WANTED = 3;
+/**
+ * Valid addresses a company of the search is expected to give while too few
+ * have settled to tell. Production, last 30 days: 232 valid from 1,864
+ * companies found, about 0.12.
+ */
+export const DEFAULT_VALID_PER_COMPANY = 0.1;
+/** Settled companies the search's own valid rate needs before it replaces the default. */
+export const MIN_SETTLED_FOR_YIELD = 30;
+/** The lowest rate assumed, so a search whose checks all come back unknown still stops paying somewhere. */
+export const MIN_VALID_PER_COMPANY = 0.02;
+/** Credits paid inside a tier between two reads of the allowance. */
+export const QUOTA_RECHECK_CREDITS = 10;
+
+/** What the account can still be billed for a search, and what the search yields so far (quota.ts searchQuota). */
+export interface QuotaRead {
+  /** Verified emails of this search the allowance can still take. */
+  room: number;
+  /** Companies whose crawl and checks are done, and the valid addresses among them. */
+  settled: number;
+  valid: number;
+}
+
+/** Valid addresses per company: the search's own rate once MIN_SETTLED_FOR_YIELD settled, else the default. */
+export function validPerCompany(q: Pick<QuotaRead, 'settled' | 'valid'>): number {
+  if (q.settled < MIN_SETTLED_FOR_YIELD) return DEFAULT_VALID_PER_COMPANY;
+  return Math.max(MIN_VALID_PER_COMPANY, q.valid / q.settled);
+}
+
+/**
+ * Whether the search's companies not yet settled are expected to bring as
+ * many valid addresses as the allowance can still take: then more candidates
+ * would be paid for and never billed. Always true with no room left.
+ */
+export function quotaCovered(companies: number, q: QuotaRead): boolean {
+  if (q.room <= 0) return true;
+  return Math.max(0, companies - q.settled) * validPerCompany(q) >= q.room;
+}
 
 export interface IcpAdapterOptions {
   brave: BraveClient;
@@ -90,10 +138,12 @@ export interface IcpAdapterOptions {
   crawl?: { limiter: RateLimiter };
   /** Fetch for list pages. Default: one that connects to public addresses only, on every hop. */
   listFetch?: FetchLike;
-  /** Paid pages of web results one search may read (one page however many requests it billed); cache hits are free. Default DEFAULT_BRAVE_BUDGET. */
+  /** Paid web search credits (billed requests, whichever provider answered) one run may spend; cache hits are free. Default DEFAULT_CREDIT_BUDGET. */
   braveBudget?: number;
-  /** Our own company index, asked before Brave each round. Default: searchCompanyIndex on `sql`; false turns it off. */
+  /** Our own company index, asked before each paid tier. Default: searchCompanyIndex on `sql`; false turns it off. */
   index?: ((ask: IndexAsk) => Promise<IndexCandidate[]>) | false;
+  /** What the account can still be billed for a search. Default: searchQuota on `sql`; false turns the cap off. */
+  quota?: ((userId: string, searchId: string) => Promise<QuotaRead>) | false;
 }
 
 type Unit =
@@ -181,9 +231,10 @@ function plural(n: number, one: string, many: string): string {
 
 export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchParams> {
   const crawl = listPageDeps(opts.crawl?.limiter ?? new RateLimiter(1_000), opts.listFetch);
-  const runBudget = opts.braveBudget ?? DEFAULT_BRAVE_BUDGET;
+  const runBudget = opts.braveBudget ?? DEFAULT_CREDIT_BUDGET;
   const sql = opts.sql;
   const index = opts.index === false ? null : (opts.index ?? (sql ? (ask: IndexAsk) => searchCompanyIndex(sql, ask) : null));
+  const quota = opts.quota === false ? null : (opts.quota ?? (sql ? (userId: string, searchId: string) => searchQuota(sql, userId, searchId) : null));
 
   return {
     kind: 'icp',
@@ -222,27 +273,20 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       ctx.log.info({ plan }, 'icp: plan');
       if (ctx.signal.aborted) return;
 
-      // Paid pages of web results (cache misses) of this run, against the
-      // search's budget, or the smaller one an ongoing round reserved
-      // (leads/ongoing.ts). A page counts once however many requests its
-      // provider billed for it (Serper asks twice for a page of 20), so every
-      // budget is in pages; searches.source_requests still counts each request.
+      // Paid web search credits of this run (each billed request, whichever
+      // provider answered: Serper bills two for a page of 20), against the
+      // search's budget, or the smaller one an ongoing or follow-up round was
+      // given (leads/ongoing.ts). A page may take the run one credit past it.
       const budget = Math.min(runBudget, plan.braveBudget ?? runBudget);
       let paid = 0;
-      const readPage = async (req: BravePageRequest) => {
-        let billed = false;
-        try {
-          return await opts.brave.page(req, {
-            ...ctx,
-            onUsage: (event) => {
-              if (event === 'request') billed = true;
-              ctx.onUsage?.(event);
-            },
-          });
-        } finally {
-          if (billed) paid++;
-        }
-      };
+      const readPage = (req: BravePageRequest) =>
+        opts.brave.page(req, {
+          ...ctx,
+          onUsage: (event) => {
+            if (event === 'request') paid++;
+            ctx.onUsage?.(event);
+          },
+        });
       const budgetSpent = () => paid >= budget;
       let budgetNoted = false;
       // Claude could not be asked (no key, budget spent): candidates go on unscored.
@@ -253,10 +297,13 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       const seen = new Set<string>();
       // The same company under another country's domain ("acme.de" and "acme.com") is one company.
       const brands = new Set<string>();
+      // Companies the search held when this run started, for the allowance cap.
+      let heldBefore = 0;
       // Sites this search already holds, and sites the fit score turned down in an earlier round, are never
       // scored again: a fresh round's results overlap the last one's, and every score is a paid call.
       if (opts.sql && ctx.searchId) {
         const held = await opts.sql<{ domain: string }[]>`select domain from companies where search_id = ${ctx.searchId}`;
+        heldBefore = held.length;
         for (const { domain } of held) {
           const site = registrableDomain(domain);
           seen.add(site);
@@ -280,6 +327,8 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       // Candidates the company index offered this round, and how many of them were handed on.
       let indexOffered = 0;
       let indexKept = 0;
+      // Set once an ask came back with fewer than it asked for: the index holds no more for this plan.
+      let indexDone = false;
       const stats = new Map<string, QueryStats>();
       // Web result pages read this run and the candidates they gave that fit, for tier 4's average.
       let webPages = 0;
@@ -301,6 +350,37 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         phraseStage = name;
         noted = yielded;
         await stage(name, note(text));
+      };
+
+      // Set once the companies found cover what the allowance can still take: nothing more is paid for.
+      let covered = false;
+      // Credits paid when the allowance was last read.
+      let paidAtQuota = 0;
+      /** Reads the allowance and the search's yield; true once the companies found cover it (quotaCovered). */
+      const checkQuota = async (): Promise<boolean> => {
+        if (covered || !quota || !ctx.searchId || ctx.signal.aborted) return covered;
+        paidAtQuota = paid;
+        let read: QuotaRead;
+        try {
+          read = await quota(userId, ctx.searchId);
+        } catch (err) {
+          // The cap is a saving, never a reason to fail the search.
+          ctx.log.warn({ err }, 'icp: could not read the allowance, going on');
+          return false;
+        }
+        const companies = heldBefore + yielded - (ctx.dropped?.() ?? 0);
+        if (!quotaCovered(companies, read)) return false;
+        covered = true;
+        ctx.log.info({ companies, ...read, rate: validPerCompany(read), paid }, 'icp: allowance covered');
+        await stage(
+          'allowance',
+          note(
+            read.room > 0
+              ? `The companies found can fill the ${plural(read.room, 'verified email', 'verified emails')} this month’s allowance still takes, so nvoke pays for no more searches`
+              : 'This month’s allowance is used up, so nvoke pays for no more searches',
+          ),
+        );
+        return true;
       };
 
       /** A new candidate, or null when its site was seen or is plainly not a company. */
@@ -580,6 +660,9 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
       async function* run(units: Unit[]): AsyncGenerator<FoundCompany> {
         for (const unit of units) {
           if (enough() || ctx.signal.aborted) return;
+          // Free units stop too: every candidate still costs a first look.
+          if (paid - paidAtQuota >= QUOTA_RECHECK_CREDITS) await checkQuota();
+          if (covered) break;
           if (unit.type === 'web' && budgetSpent()) {
             if (!budgetNoted) {
               budgetNoted = true;
@@ -612,56 +695,88 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         flush(true);
         yield* drain(true);
       }
-      /** Whether the next tier may run: short of the limit, not canceled, paid searches left. */
-      const more = () => !enough() && !ctx.signal.aborted && !budgetSpent();
+      /** Whether the next tier may run: short of the limit, not canceled, credits left, the allowance not covered. */
+      const more = () => !enough() && !ctx.signal.aborted && !budgetSpent() && !covered;
 
-      /** Writes what this run learned to the plan, for the next round: per query yields and the sites turned down. */
+      /**
+       * Writes what this run learned to the plan, for the next round: per
+       * query yields, the sites turned down, and the credits the round paid
+       * (`paid`, keyed by the search's run count so a retried find adds to
+       * its round and a new round starts at zero), which ongoing.ts weighs
+       * against the round's valid emails before it starts another.
+       */
       const persist = async () => {
         if (!opts.sql || !ctx.searchId) return;
         const searchId = ctx.searchId;
         const learned = { yields: keptYields(Object.fromEntries(yields), ranKeys(plan)) };
         await opts.sql.begin(async (tx) => {
           const [same] = await tx`
-            update searches set plan = plan || ${tx.json(learned as never)} where id = ${searchId} and plan->>'key' = ${plan.key} returning id
+            update searches set plan = plan || ${tx.json(learned as never)} || jsonb_build_object('paid', jsonb_build_object(
+              'run', coalesce(jsonb_array_length(runs), 0),
+              'credits', ${paid}::int + case when (plan->'paid'->>'run')::int = coalesce(jsonb_array_length(runs), 0)
+                then coalesce((plan->'paid'->>'credits')::int, 0) else 0 end
+            ))
+            where id = ${searchId} and plan->>'key' = ${plan.key} returning id
           `;
           if (same) await rememberRejected(tx, searchId, rejectedNow);
         });
       };
 
       /**
-       * Tier 0: our own company index. Free, so it goes first, and its
-       * candidates are scored before any query runs: Brave pays only for
-       * what the index left short.
+       * Our own company index, asked before each paid tier. Free, so it goes
+       * first, and its candidates are scored before the tier's queries run:
+       * web search pays only for what the index left short. Every site the
+       * search has seen is left out, so each ask brings only new ones, and
+       * once an ask comes back short it is not asked again.
        */
       async function* fromIndex(): AsyncGenerator<FoundCompany> {
-        if (!index || ctx.signal.aborted) return;
+        if (!index || indexDone || ctx.signal.aborted || enough()) return;
+        const wanted = ctx.limit - (yielded - (ctx.dropped?.() ?? 0));
+        const limit = Math.min(INDEX_MAX, wanted * INDEX_PER_WANTED);
         let found: IndexCandidate[];
         try {
-          found = await index({ plan: runPlan, exclude: seen, limit: Math.min(INDEX_MAX, ctx.limit * INDEX_PER_WANTED) });
+          found = await index({ plan: runPlan, exclude: seen, limit });
         } catch (err) {
           // The index is a saving, never a reason to fail the search.
           if (ctx.signal.aborted) return;
+          indexDone = true;
           ctx.log.warn({ err }, 'icp: company index failed, going on with web search');
           return;
         }
+        if (found.length < limit) indexDone = true;
+        let offered = 0;
         for (const c of found) {
           const company = admit({ name: c.name, website: c.website, source: 'index', sourceRef: c.domain, snippet: c.snippet || undefined });
-          if (company) pending.push({ company, head: c.head });
+          if (!company) continue;
+          pending.push({ company, head: c.head });
+          offered++;
         }
-        indexOffered = pending.length;
-        ctx.log.info({ found: found.length, offered: indexOffered }, 'icp: company index');
-        if (indexOffered === 0) return;
-        await setPhrase('index', `Checking ${plural(indexOffered, 'company', 'companies')} nvoke already knows`);
+        indexOffered += offered;
+        ctx.log.info({ found: found.length, offered }, 'icp: company index');
+        if (offered === 0) return;
+        await setPhrase('index', `Checking ${plural(offered, 'company', 'companies')} nvoke already knows`);
         flush(true);
         yield* drain(true);
         ctx.log.info({ offered: indexOffered, kept: indexKept }, 'icp: company index scored');
       }
 
+      /**
+       * Before a paid tier: false when the tier is not wanted (enough found,
+       * canceled, credits spent, the allowance covered), else asks the index
+       * first and says whether the tier is still wanted after it.
+       */
+      async function* beforeTier(): AsyncGenerator<FoundCompany, boolean> {
+        if (!more() || (await checkQuota())) return false;
+        yield* fromIndex();
+        return more();
+      }
+
       const runPlan: IcpPlan = plan;
       async function* tiers(): AsyncGenerator<FoundCompany> {
         const plan = runPlan;
-        yield* fromIndex();
-        if (enough() || ctx.signal.aborted) return;
+        // Tier 1 runs even with no credits left: its places on the map and list pages are free.
+        yield* beforeTier();
+        if (enough() || ctx.signal.aborted || covered) return void (await finished());
         // Tier 1: directories first, core queries and local pairs, interleaved.
         const tier1 = interleave<Unit>([webUnits(plan.directories), webUnits(plan.core), plan.local.map((pair) => ({ type: 'local', pair }))]);
         const countries = new Set([...plan.core, ...plan.directories].map((q) => q.country).filter(Boolean));
@@ -674,13 +789,13 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         yield* run(tier1);
 
         // Tier 2: synonyms and adjacent niches.
-        if (more() && plan.adjacent.length) {
+        if (plan.adjacent.length && (yield* beforeTier())) {
           await setPhrase('adjacent', 'Widening to adjacent niches');
           yield* run(webUnits(plan.adjacent));
         }
 
         // Tier 3: further countries or cities.
-        if (more() && plan.wider.length) {
+        if (plan.wider.length && (yield* beforeTier())) {
           const fresh = new Set(plan.wider.map((q) => q.country).filter((c): c is string => !!c && !countries.has(c)));
           await setPhrase('widen_geo', fresh.size ? `Looking in ${plural(fresh.size, 'more country', 'more countries')}` : 'Looking in more cities');
           yield* run(webUnits(plan.wider));
@@ -688,7 +803,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
 
         // Tier 3b: job posts for sales roles. Many companies a request, but most are larger or out of reach of a
         // homepage check, so they come after the queries that land on fitting companies' own words.
-        if (more() && plan.hiring?.length && wantsJobPosts(plan, params)) {
+        if (plan.hiring?.length && wantsJobPosts(plan, params) && (yield* beforeTier())) {
           await setPhrase('hiring', 'Looking for companies hiring salespeople');
           yield* run(webUnits(plan.hiring));
         }
@@ -699,17 +814,22 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
           const worth = [...stats.entries()]
             .filter(([, s]) => s.page === page - 1 && s.more && deepWorth(s, average))
             .sort(([, a], [, b]) => b.fits - a.fits);
-          if (worth.length === 0) break;
+          if (worth.length === 0 || !(yield* beforeTier())) break;
           await setPhrase('deeper', `Reading further results of the ${plural(worth.length, 'search', 'searches')} that paid off`);
           yield* run(worth.map(([key, s]) => ({ type: 'web', query: s.query, page, key })));
         }
+        await finished();
+      }
 
+      /** Logs the run and, when it ends short of the limit with nothing stopping it on purpose, says why. */
+      async function finished(): Promise<void> {
         if (ctx.signal.aborted) return;
         ctx.log.info(
           { yielded, paid, indexOffered, indexKept, candidates: seen.size, listPagesRead, listPagesTried, listBytes, listMs, postingsRead, boards: boards.size, deadHosts: [...deadHosts] },
           'icp: finished',
         );
-        if (!enough()) {
+        // A run the allowance stopped already said so.
+        if (!enough() && !covered) {
           const why = budgetSpent() ? `This search used its ${budget} web searches` : 'Every planned search is done';
           await stage(
             'exhausted',

@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { DROP_DAILY_LIMIT_MAX, PLAN_ORDER, PLANS, SEARCH_LIMIT_MAX, emailWeight } from '@nvoke/shared';
 import { emailsPerMonth, maxSearchLimit, periodOf } from './plans.js';
-import { accountSummary, chargeVerified, emailsVerified, ensureAccount, quotaExhausted } from './quota.js';
+import { accountSummary, chargeVerified, emailsVerified, ensureAccount, quotaExhausted, searchQuota } from './quota.js';
+import { createSearch } from './repo.js';
 
 let db: TestDb;
 
@@ -116,5 +117,32 @@ describe('quota', () => {
       maxDropDailyLimit: 2_500,
       account: { createdBy: 'human', agentName: null, claimedAt: expect.any(String) },
     });
+  });
+
+  it('reads what an icp search may still be billed for and what its settled companies gave', async () => {
+    const now = new Date('2026-10-13T00:00:00Z');
+    await ensureAccount(db.sql, 'u6');
+    for (let i = 0; i < 20; i++) await charge('u6', `q${i}@x.dk`, now);
+    const search = await createSearch(db.sql, 'u6', { kind: 'icp', params: { description: 'Outbound agencies' } }, 50);
+    const company = async (domain: string, crawl: string, fit: string | null, emails: [string | null, string | null][]) => {
+      const [c] = await db.sql<{ id: string }[]>`
+        insert into companies (search_id, clerk_user_id, name, domain, website, source, crawl_status, fit_state)
+        values (${search.id}, 'u6', ${domain}, ${domain}, ${`https://${domain}/`}, 'test', ${crawl}, ${fit}) returning id`;
+      for (const [i, [verification, skipped]] of emails.entries()) {
+        await db.sql`
+          insert into emails (company_id, search_id, clerk_user_id, address, kind, verification, skipped)
+          values (${c!.id}, ${search.id}, 'u6', ${`a${i}@${domain}`}, 'generic', ${verification}, ${skipped})`;
+      }
+    };
+    await company('valid.test', 'done', 'kept', [['valid', null], ['valid', null]]);
+    await company('none.test', 'done', null, []);
+    await company('skipped.test', 'done', null, [[null, 'role_inbox']]);
+    // A company with one settled address counts, its open ones aside.
+    await company('half.test', 'done', null, [['invalid', null], [null, null]]);
+    await company('open.test', 'done', null, [[null, null]]);
+    await company('crawling.test', 'pending', null, []);
+    await company('waiting.test', 'done', 'pending', [['valid', null]]);
+    // 50 free, 20 used: room for 10 icp emails at three each.
+    expect(await searchQuota(db.sql, 'u6', search.id, now)).toEqual({ room: 10, settled: 4, valid: 2 });
   });
 });
