@@ -309,6 +309,8 @@ export function followUpPrompt(
     if (l.opener) parts.push(`<opener>${inner(l.opener.line)}</opener>`);
     if (l.latest) parts.push(pageBlock({ ...l.latest, text: l.latest.text.slice(0, FOLLOW_LATEST_MAX) }, 'latest'));
     parts.push(`<first_email subject="${attr(l.subject)}">\n${inner(l.body)}\n</first_email>`);
+    const avoid = avoidBlock(l.avoid);
+    if (avoid) parts.push(avoid);
     return `<lead ${leadMeta(l)}>\n${parts.join('\n')}\n</lead>`;
   });
   const head = [
@@ -654,38 +656,60 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
 
     const follow = leads.filter((l) => written.has(l.id));
     if (steps.length > 1 && follow.length > 0) {
-      const res = await deps.ai.structured({
-        userId,
-        task: 'write',
-        tier: 'bulk',
-        system: systemFollow(ownDomain),
-        prompt: followUpPrompt(
-          profile,
-          steps,
-          follow.map((l) => ({ ...l, subject: written.get(l.id)!.subject, body: written.get(l.id)!.bodies[0]! })),
-          { prices, product },
-        ),
-        schema: ClaudeFollowUps,
-        toolName: 'save_follow_ups',
-        toolDescription: 'Saves the follow up bodies per lead key.',
-        effort: 'low',
-        maxTokens: 400 * follow.length * (steps.length - 1) + 2000,
-      });
-      const byLead = new Map(res.data.leads.map((e) => [e.lead.trim(), e]));
-      for (const l of follow) {
-        const answer = byLead.get(l.key);
-        const w = written.get(l.id)!;
+      const askFollow = (batch: Array<WriteLead & { id: string }>) =>
+        deps.ai.structured({
+          userId,
+          task: 'write',
+          tier: 'bulk',
+          system: systemFollow(ownDomain),
+          prompt: followUpPrompt(
+            profile,
+            steps,
+            batch.map((l) => ({ ...l, subject: written.get(l.id)!.subject, body: written.get(l.id)!.bodies[0]! })),
+            { prices, product },
+          ),
+          schema: ClaudeFollowUps,
+          toolName: 'save_follow_ups',
+          toolDescription: 'Saves the follow up bodies per lead key.',
+          effort: 'low',
+          maxTokens: 400 * batch.length * (steps.length - 1) + 2000,
+        });
+      // The follow ups of one answer, or what was wrong with them.
+      const judgeFollow = (answer: ClaudeFollowUps['leads'][number] | undefined, l: WriteLead & { id: string }): string[] | string => {
+        const thread = [written.get(l.id)!.bodies[0]!];
         for (let step = 2; step <= steps.length; step++) {
-          const body = checkBody(answer?.steps.find((s) => s.step === step)?.body, FOLLOW_WORDS, ownDomain ? l.domain : null);
+          const raw = answer?.steps.find((s) => s.step === step)?.body;
+          if (!raw) return `Step ${step} was missing.`;
+          const body = checkBody(raw, FOLLOW_WORDS, ownDomain ? l.domain : null);
+          if (!body) return `Step ${step} broke the rules: 25 to 60 words, no links or web addresses, no placeholders, no flattery.`;
           // A follow up takes a new angle: it may not repeat the thread so far.
-          const repeats = body ? conflictWith({ subject: '', body }, w.bodies.map((b) => ({ subject: '', body: b }))) : null;
-          if (!body || repeats) {
-            written.delete(l.id);
-            break;
+          if (conflictWith({ subject: '', body }, thread.map((b) => ({ subject: '', body: b })))) {
+            return `Step ${step} repeated words from the thread. Take a new angle in new words.`;
           }
-          w.bodies.push(body);
+          thread.push(body);
         }
+        return thread.slice(1);
+      };
+      // One more ask for the leads whose follow ups were not kept, naming why.
+      let pending: Array<WriteLead & { id: string }> = follow;
+      for (let attempt = 0; attempt < 2 && pending.length > 0; attempt++) {
+        const res = await askFollow(pending);
+        const byLead = new Map(res.data.leads.map((e) => [e.lead.trim(), e]));
+        const again: Array<WriteLead & { id: string }> = [];
+        for (const l of pending) {
+          const v = judgeFollow(byLead.get(l.key), l);
+          if (typeof v === 'string') again.push({ ...l, avoid: [v] });
+          else written.get(l.id)!.bodies.push(...v);
+        }
+        if (again.length > 0) {
+          deps.log.info(
+            { campaignId: campaign.id, attempt: attempt + 1, failed: again.length, reasons: again.slice(0, 5).map((a) => a.avoid![0]) },
+            'write: follow ups not kept',
+          );
+        }
+        pending = again;
       }
+      for (const l of pending) written.delete(l.id);
     }
   } catch (err) {
     // Claude declined, gave nothing usable, or the budget is spent: retrying would not help.
