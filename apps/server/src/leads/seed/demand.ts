@@ -25,8 +25,8 @@ const WORD_FACTOR = 2;
  * full and "book" (3,847) for about a twentieth.
  */
 export const SPECIFIC_MATCHES = 200;
-/** Every word against every queued name takes a minute or two on a million rows: past Supabase's default timeout. */
-const RESCORE_TIMEOUT = '10min';
+/** Changed scores written at once. */
+const WRITE_BATCH = 5_000;
 
 /** Words of a plan that say nothing about the company a domain name stands for. */
 const STOP = new Set([
@@ -98,42 +98,78 @@ export function demandKey(d: SeedDemand): string {
   return JSON.stringify([sorted(d.words), sorted(d.tlds)]);
 }
 
+/** The part of a domain its words are read in: the name before the first dot. */
+function nameOf(domain: string): string {
+  const dot = domain.indexOf('.');
+  return dot < 0 ? domain : domain.slice(0, dot);
+}
+
+/** The TLD a domain ends in when it is two letters: "uk" for acme.co.uk. */
+function tldOf(domain: string): string | null {
+  const m = /\.([a-z]{2})$/.exec(domain);
+  return m ? m[1]! : null;
+}
+
 /**
- * Scores every queued seed domain against the demand: the matched words'
- * weights in the name before the first dot, each shrunk when the word is in
- * more than `specific` queued names, up to MAX_WORD_WEIGHT, times
- * WORD_FACTOR, plus the weight of its TLD. Writes only scores that change.
- * How many rows it rescored.
+ * Word weights for scoring `names`: each shrunk by the share past `specific`
+ * names that hold the word.
+ */
+export function specificWeights(demand: SeedDemand, names: string[], specific = SPECIFIC_MATCHES): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [word, weight] of demand.words) {
+    let n = 0;
+    for (const name of names) if (name.includes(word)) n++;
+    out.set(word, weight * Math.min(1, specific / Math.max(1, n)));
+  }
+  return out;
+}
+
+/**
+ * A domain's score: the weights of the words its name holds, up to
+ * MAX_WORD_WEIGHT, times WORD_FACTOR, plus the weight of its TLD. Rounded to
+ * three decimals, so an unchanged score compares equal to the stored one.
+ */
+export function scoreDomain(domain: string, weights: Map<string, number>, tlds: Map<string, number>): number {
+  const name = nameOf(domain);
+  let words = 0;
+  for (const [word, weight] of weights) if (name.includes(word)) words += weight;
+  const tld = tldOf(domain);
+  const score = WORD_FACTOR * Math.min(MAX_WORD_WEIGHT, words) + (tld ? (tlds.get(tld) ?? 0) : 0);
+  return Math.round(score * 1000) / 1000;
+}
+
+/**
+ * Scores every queued seed domain against the demand (scoreDomain, with
+ * specificWeights over the queue). Matching runs here rather than in
+ * Postgres, where every word against a million names outlasts any sane
+ * statement timeout. Writes only scores that change. How many it rescored.
  */
 export async function rescoreSeed(sql: Sql, demand: SeedDemand, specific = SPECIFIC_MATCHES): Promise<number> {
-  const [words, wordWeights] = [[...demand.words.keys()], [...demand.words.values()]];
-  const [tlds, tldWeights] = [[...demand.tlds.keys()], [...demand.tlds.values()]];
-  return sql.begin(async (tx) => {
-    await tx`select set_config('statement_timeout', ${RESCORE_TIMEOUT}, true)`;
-    const [r] = await tx<{ n: number }[]>`
-    with given as (select * from unnest(${words}::text[], ${wordWeights}::real[]) as g(word, weight)),
-         w as (
-           select g.word, g.weight * least(1, ${specific}::real / greatest(1, count(s.domain))) as weight
-           from given g
-           left join seed_domains s on s.status = 'queued' and position(g.word in split_part(s.domain, '.', 1)) > 0
-           group by g.word, g.weight
-         ),
-         t as (select * from unnest(${tlds}::text[], ${tldWeights}::real[]) as t(tld, weight)),
-         scored as (
-           select s.domain,
-                  (${WORD_FACTOR}::real * least(${MAX_WORD_WEIGHT}::real, coalesce(
-                     (select sum(w.weight) from w where position(w.word in split_part(s.domain, '.', 1)) > 0), 0))
-                   + coalesce((select t.weight from t where t.tld = substring(s.domain from '\\.([a-z]{2})$')), 0))::real as score
-           from seed_domains s where s.status = 'queued'
-         ),
-         changed as (
-           update seed_domains s set score = scored.score
-           from scored
-           where s.domain = scored.domain and s.score is distinct from scored.score
-           returning 1
-         )
-    select count(*)::int as n from changed
-  `;
-    return r!.n;
-  });
+  const rows = await sql<{ domain: string; score: number }[]>`select domain, score from seed_domains where status = 'queued'`;
+  const weights = specificWeights(
+    demand,
+    rows.map((r) => nameOf(r.domain)),
+    specific,
+  );
+  let changed: { domain: string; score: number }[] = [];
+  let n = 0;
+  const flush = async () => {
+    if (changed.length === 0) return;
+    await sql`
+      update seed_domains s set score = v.score
+      from unnest(${changed.map((c) => c.domain)}::text[], ${changed.map((c) => c.score)}::real[]) as v(domain, score)
+      where s.domain = v.domain and s.status = 'queued'
+    `;
+    n += changed.length;
+    changed = [];
+  };
+  for (const [i, r] of rows.entries()) {
+    const score = scoreDomain(r.domain, weights, demand.tlds);
+    if (Math.abs(score - r.score) > 0.0005) changed.push({ domain: r.domain, score });
+    if (changed.length >= WRITE_BATCH) await flush();
+    // Let the worker's jobs run between chunks of a million names.
+    if (i % 50_000 === 0) await new Promise((resolve) => setImmediate(resolve));
+  }
+  await flush();
+  return n;
 }
