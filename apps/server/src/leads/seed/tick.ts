@@ -11,14 +11,20 @@
 // - No email is verified: SMTP pacing is untouched.
 // - The domain stays due for a recrawl, so a search that picks it crawls it
 //   in full (more pages, the people step) rather than reading the seed's.
+//
+// What users search for goes first: every SEED_RESCORE_MS the loop reads the
+// recent Sonar plans and, when they changed, rescores the queue (demand.ts).
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { crawlSite, type CrawlDeps, type CrawlResult } from '../crawl.js';
 import { isCacheable, recordCrawl } from '../domain-cache.js';
 import { isDomainSuppressed, suppressedAddresses } from '../suppression.js';
+import { demandKey, rescoreSeed, seedDemand } from './demand.js';
 
 export const SEED_TICK_MS = 60_000;
+/** How often the loop looks for new Sonar plans to rescore the queue by. */
+export const SEED_RESCORE_MS = 60 * 60_000;
 /** Crawls one tick makes at most, whatever the daily rate. */
 const MAX_PER_TICK = 12;
 /** Crawls at once within a tick. */
@@ -81,7 +87,7 @@ export async function seedTick(deps: SeedDeps): Promise<SeedTick> {
     update seed_domains set status = 'running', claimed_at = ${now}
     where domain in (
       select domain from seed_domains where status = 'queued'
-      order by rank nulls last, domain
+      order by score desc, rank nulls last, domain
       limit ${size}
       for update skip locked
     )
@@ -154,10 +160,24 @@ async function seedOne(deps: SeedDeps, domain: string): Promise<CrawlResult['sta
 export function startSeedLoop(deps: SeedDeps): () => void {
   if (deps.dailyDomains <= 0) return () => {};
   let busy = false;
+  let lastDemand: string | undefined;
+  let demandAt = 0;
   const timer = setInterval(() => {
     if (busy) return;
     busy = true;
-    seedTick(deps)
+    const rescore = async () => {
+      if (Date.now() - demandAt < SEED_RESCORE_MS) return;
+      demandAt = Date.now();
+      const demand = await seedDemand(deps.sql);
+      const key = demandKey(demand);
+      if (key === lastDemand) return;
+      const rescored = await rescoreSeed(deps.sql, demand);
+      lastDemand = key;
+      deps.log.info({ plans: demand.plans, words: demand.words.size, tlds: demand.tlds.size, rescored }, 'seed: rescored by demand');
+    };
+    rescore()
+      .catch((err: unknown) => deps.log.error({ err }, 'seed rescore failed'))
+      .then(() => seedTick(deps))
       .catch((err: unknown) => deps.log.error({ err }, 'seed tick failed'))
       .finally(() => {
         busy = false;

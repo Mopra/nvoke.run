@@ -63,12 +63,33 @@ It stays out of users' way:
   step, rather than reading the seed's 4 pages from the cache. The pages
   stay in the index for 12 months (the retention of `domains` rows).
 
+## Demand
+
+The queue is crawled by what users search for, not by popularity alone
+(`seed/demand.ts`, migration `1840_seed_demand`). Before its crawl a seed
+domain is only a name, so its `score` reads the name:
+
+- A word of a Sonar plan of the last 30 days inside the name before the
+  first dot ("church" in `gracechurch.org`, "agency" in
+  `outboundagency.co.uk`). Words come from the plan's segments, core and
+  adjacent queries, stemmed, without generic ones ("company", "small") and
+  shorter than 4 letters. Each matched word weighs the share of recent plans
+  that hold it, up to 2 in all, times 2.
+- The TLD of a plan's country (.nl, .uk for gb), weighed the same way.
+  Countries whose ccTLD is used as a generic one (.io, .co) count nothing.
+
+Each plan counts the same, however many queries it holds. Every hour the
+loop reads the recent plans and, when they changed, rescores the queued
+domains. The claim takes the highest score first and the list's rank after
+it, so without recent plans the order is the rank, as before. Import deep
+(the whole list): the score can only pick from what is queued.
+
 ## Turn it on
 
 ```bash
 pnpm --filter @nvoke/server cli seed majestic --limit 20000 --prod
 # then in /opt/nvoke/.env, and restart nvoke-worker
-SEED_DAILY_DOMAINS=2000
+SEED_DAILY_DOMAINS=10000
 ```
 
 `cli seed` prints what it read, filtered and added, and the queue. Run it
