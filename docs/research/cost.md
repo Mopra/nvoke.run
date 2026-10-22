@@ -12,16 +12,16 @@ per verified email yet. Measuring it is step one (see "Measure first").
 
 Only `valid` results are charged (`packages/shared/src/plans.ts`).
 
-A valid email from a Describe your customer (`icp`) search counts as two
-(`ICP_EMAIL_WEIGHT`), so ICP earns twice the price per 1,000 below.
+A valid email from a Sonar (`icp`) search counts as three
+(`ICP_EMAIL_WEIGHT`), so Sonar earns three times the price per 1,000 below.
 
 | Plan | Price per 1,000 verified | Per 1,000 ICP valid |
 | --- | --- | --- |
-| `emails_1000` | $9.00 | $18.00 |
-| `emails_2500` | $7.60 | $15.20 |
-| `emails_10000` | $4.90 | $9.80 |
-| `emails_25000` | $3.96 | $7.92 |
-| `emails_60000` | $3.32 | $6.64 |
+| `emails_1000` | $9.00 | $27.00 |
+| `emails_2500` | $7.60 | $22.80 |
+| `emails_10000` | $4.90 | $14.70 |
+| `emails_25000` | $3.96 | $11.88 |
+| `emails_60000` | $3.32 | $9.96 |
 
 ## Where the money goes
 

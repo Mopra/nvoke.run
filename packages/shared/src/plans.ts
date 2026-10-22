@@ -64,11 +64,14 @@ export const TOP_PLAN: Plan = 'emails_60000';
 
 /**
  * How many verified emails one valid address counts as, by the kind of search
- * that found it. Describe your customer (`icp`) plans the search and scores
- * every company with Claude and pays for web search, so its emails count as
- * two. Every other kind counts one.
+ * that found it. Sonar (`icp`) plans the search and scores every company with
+ * Claude and pays for web search, so its emails count as three. Every other
+ * kind counts one.
  */
-export const ICP_EMAIL_WEIGHT = 2;
+export const ICP_EMAIL_WEIGHT = 3;
+
+/** The product name of the `icp` search kind, on every screen and page. */
+export const ICP_NAME = 'Sonar';
 
 export function emailWeight(kind: string): number {
   return kind === 'icp' ? ICP_EMAIL_WEIGHT : 1;

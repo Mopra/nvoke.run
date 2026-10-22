@@ -1,7 +1,7 @@
 // Accounts, monthly usage and the verified email quota.
 //
 // The meter counts verified emails: addresses whose check came back valid.
-// An address found by a Describe your customer search counts as two
+// An address found by a Sonar (`icp`) search counts as three
 // (`emailWeight` in @nvoke/shared/plans), every other one as one.
 // Each address is charged once per user per 12 months (billed_emails, see retention.ts), and
 // the usage row is locked while charging, so concurrent verifications of the

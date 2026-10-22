@@ -109,7 +109,7 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before calling work done.
   the web app at `/app/billing`); the server
   reads the held plan from Clerk (`src/billing/clerk.ts`) and charges a
   verified email in the verify job (`chargeVerified` in `src/leads/quota.ts`),
-  two for an email a Describe your customer search found (`emailWeight`).
+  three for an email a Sonar (`icp`) search found (`emailWeight`).
   Change a price or allowance in `plans.ts` and in the Clerk dashboard
   together. Details in `docs/SPEC.md`, "Plans".
 - Desktop data flow: the renderer calls `window.nvoke.request(method, path,

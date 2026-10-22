@@ -11,7 +11,7 @@ nvoke is a lead finder sold to paying customers. A web app at nvoke.run/app is t
 | `launches` | optional keyword filter, time window | Product Hunt and Hacker News "Show HN" (port from `../probe/apps/worker/src/sources`). |
 | `domains` | a list: domains, URLs, email addresses or company names, up to the search limit, optional country | The list itself. Domains (and the domain of an email address) go straight to the crawl, at no cost; webmail addresses are skipped. Each name costs one Brave request (the first result page, through the same cache, rate limit and refusal rules as `web`, see "Source costs"); platform and webmail domains are dropped and the result whose domain looks most like the name wins (legal words such as ApS and Inc ignored, æ ø å folded), else the first usable one of the top 3, else the name is skipped. `splitList` in `packages/shared/src/lists.ts` turns pasted text into items. |
 | `drop` | nothing: a drop makes it (see "Drops") | The feed the worker collects around the clock. |
-| `icp` | "Describe your customer": who they sell to in plain words (`description`), optionally what they sell (`product`), `countries` and `locations` | A plan Claude makes from the words, run on Brave, on the list pages it finds and on OpenStreetMap, each candidate given a first look for fit and, when its crawl found someone to check, a second look after the crawl. See "Describe your customer". |
+| `icp` | Sonar ("Describe your customer"): who they sell to in plain words (`description`), optionally what they sell (`product`), `countries` and `locations` | A plan Claude makes from the words, run on Brave, on the list pages it finds and on OpenStreetMap, each candidate given a first look for fit and, when its crawl found someone to check, a second look after the crawl. See "Describe your customer". |
 
 Each source is an adapter with the same interface, so more can be added later:
 
@@ -165,14 +165,17 @@ One product for everyone. Every feature is on every plan; a plan is only a month
 - Capacity: verification is the ceiling, not these limits. Mail servers without IPv6 (Microsoft 365, most shared hosting) are probed over IPv4, held to `SMTP_PROBES_PER_MINUTE` (5) sessions a minute from the one VPS, of which the free tools take 1. That is about 5,760 worker sessions a day, roughly 86,000 verified emails a month for every user together, while the top plan alone allows 60,000. IPv6 sessions are far less limited. That is a good problem (it only bites once people pay), and the plan to raise it is `docs/research/smtp-throughput.md`.
 
 - A verified email is an address whose check came back `valid`, generic or personal. Invalid, risky, catch-all and unknown results are free.
-- A valid email found by a Describe your customer (`icp`) search counts as two against the allowance (`ICP_EMAIL_WEIGHT`, `emailWeight(kind)` in `plans.ts`). That search pays for Claude on every company and for web search, so its leads cost more to make. Every other kind counts one. The site's pricing page, billing and the ICP forms say so in one line.
+- A valid email found by a Sonar (`icp`) search counts as three against the allowance (`ICP_EMAIL_WEIGHT`, `emailWeight(kind)` in `plans.ts`). That search pays for Claude on every company and for web search, so its leads cost more to make. Every other kind counts one. The site's pricing page, billing and the ICP forms say so in one line.
 - An address the user was charged for is not charged again while its `billed_emails` row exists, which is 12 months (see "Privacy", retention).
 - Crawling stores addresses for free, but an address is only returned by the API and the CSV once its check has run. A valid address that no longer fits the allowance stays unchecked and hidden.
 - When the allowance is used up, the search stops with status `failed` and error `quota_exceeded`, and new searches are refused with 403 `{ error: 'quota_exceeded', billingUrl }`. No overage is ever charged. Usage resets each calendar month (UTC); nothing rolls over.
 - Plans are Clerk Billing user plans. Checkout and cancel happen on the site at `/desktop/billing`, which the desktop app opens in the browser, and at `/app/billing` inside the web app (the same component). The server reads the held plan with the Clerk Backend API (`billing.getUserBillingSubscription`): on `GET /v1/me` when the stored plan is older than 5 minutes, on `?sync=1`, and on every billing webhook. Active and past due items count, a canceled item counts until its period ends, and the most generous plan wins. A slug Clerk reports that the catalog does not know is logged as an error and never drops the user to Free.
 - A plan can be granted by hand: set `publicMetadata.plan` to a plan key on the user in the Clerk dashboard. It counts like an active subscription, so a paid plan above it still wins.
 
-## Describe your customer
+## Sonar (Describe your customer)
+
+Sonar is the product name of the `icp` kind (`ICP_NAME` in `plans.ts`) and nvoke's premium search. Both apps give it the display strip's black material, a lit LED and a ×3 badge wherever it appears, so it reads as the one black key on the panel.
+
 
 Kind `icp` (`apps/server/src/leads/sources/icp.ts`). The user says who they sell to in plain words; nvoke works out where those companies are, keeps pushing until the search holds `limit` companies and, past that, until it holds enough verified emails, and says what it does in `searches.stage` and `stage_note` (shown as the live progress line). A search that comes up short never just ends.
 

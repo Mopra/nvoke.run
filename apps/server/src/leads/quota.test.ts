@@ -66,12 +66,12 @@ describe('quota', () => {
     expect(await quotaExhausted(db.sql, 'u1')).toBe(true);
   });
 
-  it('counts a Describe your customer email as two, and refuses one that does not fit', async () => {
+  it('counts a Sonar email as three, and refuses one that does not fit', async () => {
     await ensureAccount(db.sql, 'u6');
     const icp = emailWeight('icp');
-    expect(icp).toBe(2);
+    expect(icp).toBe(3);
     expect(emailWeight('domains')).toBe(1);
-    for (let i = 0; i < 24; i++) expect(await charge('u6', `i${i}@x.dk`, undefined, icp)).toBe('charged');
+    for (let i = 0; i < 16; i++) expect(await charge('u6', `i${i}@x.dk`, undefined, icp)).toBe('charged');
     expect(await charge('u6', 'one@x.dk')).toBe('charged');
     expect(await emailsVerified(db.sql, 'u6')).toBe(49);
     expect(await charge('u6', 'two@x.dk', undefined, icp)).toBe('over_limit');

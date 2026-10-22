@@ -1,11 +1,14 @@
-import { FREE_PLAN, ICP_EMAIL_WEIGHT, PLANS, isPlan, planLabel } from '@nvoke/shared';
+import { FREE_PLAN, ICP_EMAIL_WEIGHT, ICP_NAME, PLANS, isPlan, planLabel } from '@nvoke/shared';
 import type { Drop, FeedSource, Me, Search, SearchKind, SearchStatus, Verification } from './types';
 
-/** "twice", or "3 times": how often one valid email from Describe your customer counts (`ICP_EMAIL_WEIGHT`). */
-export const ICP_WEIGHT_TIMES = ICP_EMAIL_WEIGHT === 2 ? 'twice' : `${ICP_EMAIL_WEIGHT} times`;
+/** "twice", or "3 times": how often one valid email from Sonar counts (`ICP_EMAIL_WEIGHT`). */
+export const ICP_WEIGHT_TIMES = (ICP_EMAIL_WEIGHT as number) === 2 ? 'twice' : `${ICP_EMAIL_WEIGHT} times`;
+
+/** "×3": the weight as the badge on Sonar's keys and tags. */
+export const ICP_WEIGHT_BADGE = `×${ICP_EMAIL_WEIGHT}`;
 
 /** The ICP rule in one line, for the plan and billing hints. */
-export const ICP_WEIGHT_NOTE = `Describe your customer emails count ${ICP_WEIGHT_TIMES}.`;
+export const ICP_WEIGHT_NOTE = `${ICP_NAME} emails count ${ICP_WEIGHT_TIMES}.`;
 
 export const KIND_LABEL: Record<SearchKind, string> = {
   local: 'Local businesses',
@@ -13,7 +16,7 @@ export const KIND_LABEL: Record<SearchKind, string> = {
   launches: 'New launches',
   domains: 'Your list',
   drop: 'Daily drop',
-  icp: 'Describe your customer',
+  icp: ICP_NAME,
 };
 
 export const FEED_SOURCE_LABEL: Record<FeedSource, string> = {

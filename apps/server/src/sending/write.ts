@@ -170,7 +170,7 @@ export function pricesBlock(): string {
 One plan for everyone, priced by verified emails a month (an address whose mailbox check came back valid; invalid, risky and unknown results are free). Every feature on every plan.
 Free: ${usd.format(PLANS.free.emailsPerMonth)} verified emails a month, no card.
 Paid: ${plans.join('; ')}.
-An email found by a Describe your customer search counts as ${ICP_EMAIL_WEIGHT}; every other search counts one.
+An email found by a Sonar search (nvoke's premium search: it plans the queries, scores every company with Claude and reads the web) counts as ${ICP_EMAIL_WEIGHT}; every other search counts one.
 A working month is about 21 sending days; round up to the plan that covers the need.
 </prices>`;
 }

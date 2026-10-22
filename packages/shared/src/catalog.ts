@@ -595,7 +595,7 @@ export const ERROR_CODES: Record<string, string> = {
   not_cancelable: 'The search already finished.',
   search_running: 'The search is still running. Wait for it to finish, or cancel it, then search again.',
   kind_mismatch: 'A search runs again with its own kind. Start a new search for another kind.',
-  ongoing_not_supported: 'Only Describe your customer (`icp`) searches can be ongoing.',
+  ongoing_not_supported: 'Only Sonar (`icp`) searches can be ongoing.',
   search_canceled: 'The search was canceled, so it checks nothing more. Search again into it first.',
   not_claimed: 'The company is not claimed for a local crawl right now. Claim it again with `POST /v1/local-crawl/claim`.',
   api_key_limit: 'The account holds 20 live keys. Revoke one first.',
@@ -746,7 +746,7 @@ export const MCP_TOOLS: McpTool[] = [
       'Runs a finished search again with new arguments of the same kind (a wider location, another keyword, more items) and adds only the companies it does not hold yet. limit caps the new companies. Then call wait_for_search.',
     input: z.object({
       searchId,
-      kind: z.enum(['local', 'web', 'launches', 'domains']).describe('The kind the search already has. Describe your customer searches keep pushing on their own and take no second run here.'),
+      kind: z.enum(['local', 'web', 'launches', 'domains']).describe('The kind the search already has. Sonar searches keep pushing on their own and take no second run here.'),
       niche: z.string().optional().describe('local: the trade, e.g. "dentists".'),
       location: z.string().optional().describe('local: a city, region or country, e.g. "Odense".'),
       keyword: z.string().optional().describe('web: required. launches: optional filter.'),
@@ -762,7 +762,7 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'set_search_ongoing',
     title: 'Keep a search going',
     description:
-      'Switches ongoing on or off for a Describe your customer (icp) search. Ongoing searches run a fresh round every day, so new leads arrive over days; they pause while the month’s allowance is used up. Only icp searches.',
+      'Switches ongoing on or off for a Sonar (icp) search. Ongoing searches run a fresh round every day, so new leads arrive over days; they pause while the month’s allowance is used up. Only icp searches.',
     input: z.object({ searchId, ongoing: z.boolean().describe('true keeps it going every day, false stops that.') }),
     readOnly: false,
     destructive: false,

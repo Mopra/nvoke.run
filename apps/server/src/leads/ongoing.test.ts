@@ -389,7 +389,7 @@ describe('ongoing', () => {
   it('pauses while the allowance is used up and resumes when it renews', async () => {
     const id = await endedOngoing('frank');
     await db.sql`update accounts set plan = 'free' where clerk_user_id = 'frank'`;
-    // One email left of 50 is less than one Describe your customer email.
+    // One email left of 50 is less than one Sonar email.
     await used('frank', 49);
     await runOngoing(deps());
     expect(await row(id)).toMatchObject({ status: 'done', stage: 'paused', stage_note: 'Found 0 verified emails. Paused until your allowance renews' });
@@ -478,11 +478,11 @@ describe('escalation while checks and people probes are left', () => {
 });
 
 describe('escalation within the allowance', () => {
-  it('counts the room left in icp emails, two of the allowance each', async () => {
+  it('counts the room left in icp emails, three of the allowance each', async () => {
     await ensureAccount(db.sql, 'lena');
-    expect(await allowanceRoom(db.sql, 'lena')).toBe(25);
+    expect(await allowanceRoom(db.sql, 'lena')).toBe(16);
     await used('lena', 45);
-    expect(await allowanceRoom(db.sql, 'lena')).toBe(2);
+    expect(await allowanceRoom(db.sql, 'lena')).toBe(1);
     await used('lena', 49);
     expect(await allowanceRoom(db.sql, 'lena')).toBe(0);
   });
@@ -526,8 +526,8 @@ describe('escalation within the allowance', () => {
     await used('olga', 20);
     await maybeFinishSearch(db.sql, id);
     await runOngoing(deps({ ai: spy }), { daily: false });
-    // 30 of 50 left is 15 icp emails: 3 found, aiming for 18.
-    expect(prompt).toContain('3 verified email addresses, aiming for 18');
+    // 30 of 50 left is 10 icp emails: 3 found, aiming for 13.
+    expect(prompt).toContain('3 verified email addresses, aiming for 13');
     expect((await row(id)).stage).toBe(STAGES.round);
   });
 
