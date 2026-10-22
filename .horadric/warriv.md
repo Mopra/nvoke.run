@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-22 Round as the human left: the human committed Sonar (22ff7aa), its black key on desktop and site (67bfdcb, a6b68d9), a cost per lead plan and sending fixes past green 2f2c5ad, tree clean, so filed 'Checks on main after Sonar and the black key' (sonnet, with build). Clips still wait on the owner, no aim.
 - 2026-10-22 Round as the human left: unchanged (only memory commits past green 2f2c5ad, clips wait on the owner, no aim). Nothing to do.
 - 2026-10-22 Hourly round: unchanged (only memory commits past green 2f2c5ad, clips wait on the owner, no aim). Nothing to do.
 - 2026-10-22 Round as the human left: unchanged (only a memory commit past green 2f2c5ad, clips wait on the owner, no aim). Nothing to do.
@@ -71,7 +72,7 @@
 ## Open
 
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
-- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; main green at 2f2c5ad.
+- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; main green at 2f2c5ad. Checks quest for Sonar and later commits up to a6b68d9 filed 2026-10-22.
 - Production OpenRouter out of credits since 2026-10-21: Describe your customer and the people step fail until the owner tops up.
 
 - Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
