@@ -104,6 +104,7 @@ export async function enrollCampaign(
   const userId = c.clerk_user_id;
   const since = new Date(now.getTime() - CONTACTED_DAYS * 86_400_000);
   // Only settled addresses: one still being checked comes in on a later tick.
+  // So does an imported address whose site is not crawled yet (the write job reads its pages).
   const rows = await tx<Candidate[]>`
     select e.id as email_id, e.company_id, e.address, e.verification, e.first_name, e.last_name, e.title,
       e.seniority, e.confidence, co.name as company_name, co.domain, co.location,
@@ -116,7 +117,9 @@ export async function enrollCampaign(
       ) as contacted
     from emails e
     join companies co on co.id = e.company_id
-    where e.clerk_user_id = ${userId} and e.verification is not null and ${sourceFilter(tx, c, opts.emailIds)}
+    where e.clerk_user_id = ${userId} and e.verification is not null
+      and not (co.source = 'import' and co.crawl_status = 'pending')
+      and ${sourceFilter(tx, c, opts.emailIds)}
       and not exists (select 1 from campaign_leads l where l.campaign_id = ${c.id} and l.address = e.address)
     order by e.created_at, e.id
   `;
