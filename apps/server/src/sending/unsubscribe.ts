@@ -42,11 +42,12 @@ export function readUnsubscribe(secrets: Secrets, token: string): string | null 
 export async function unsubscribeByMessage(sql: Sql, messageRowId: string): Promise<boolean> {
   if (!UUID.test(messageRowId)) return false;
   return sql.begin(async (tx) => {
-    const [m] = await tx<{ clerk_user_id: string; to_address: string; campaign_lead_id: string | null }[]>`
-      select clerk_user_id, to_address, campaign_lead_id from messages
-      where id = ${messageRowId} and direction = 'out'`;
+    const [m] = await tx<{ clerk_user_id: string; to_address: string; campaign_lead_id: string | null; sender: string }[]>`
+      select m.clerk_user_id, m.to_address, m.campaign_lead_id, coalesce(c.product ->> 'domain', '') as sender
+      from messages m left join campaigns c on c.id = m.campaign_id
+      where m.id = ${messageRowId} and m.direction = 'out'`;
     if (!m) return false;
-    await suppressForSender(tx, m.clerk_user_id, m.to_address, 'unsubscribe');
+    await suppressForSender(tx, m.clerk_user_id, m.to_address, 'unsubscribe', m.sender);
     if (m.campaign_lead_id) await endLead(tx, m.campaign_lead_id, 'opted_out');
     return true;
   });

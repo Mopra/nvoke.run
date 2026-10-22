@@ -160,7 +160,14 @@ function CampaignDisplay({ campaign, className }: { campaign: Campaign; classNam
   const scale = Math.max(1, campaign.leads);
   const lit = Math.round(((writing ? campaign.leads - campaign.writing : campaign.sent) / scale) * METER_SEGMENTS);
   const skipped = skippedLines(campaign.skipped);
-  const summary = [sourceLabel(campaign, searches.data, drops.data?.drops), scheduleLabel(campaign.schedule), `${campaign.steps.length} emails`].join(' · ');
+  const summary = [
+    campaign.product && `For ${campaign.product.name}`,
+    sourceLabel(campaign, searches.data, drops.data?.drops),
+    scheduleLabel(campaign.schedule),
+    `${campaign.steps.length} emails`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <section aria-label={campaign.name} className={cn('screen screen-hero relative overflow-hidden p-5 sm:p-8', className)}>
@@ -394,7 +401,7 @@ function LeadRow({ campaign, lead, open, onToggle }: { campaign: Campaign; lead:
   const when =
     lead.nextSendAt && canEditLead(lead.status)
       ? `${lead.nextStep > 1 ? `Email ${lead.nextStep}` : 'First email'} ${relativeOrClock(lead.nextSendAt)}`
-      : lead.skipReason && (lead.status === 'skipped' || lead.status === 'failed')
+      : lead.skipReason && (lead.status === 'skipped' || lead.status === 'failed' || lead.status === 'stopped')
         ? skipReasonLabel(lead.skipReason)
         : null;
   return (

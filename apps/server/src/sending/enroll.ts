@@ -3,10 +3,11 @@
 // applies the rules: valid only (catch_all when the campaign allows it),
 // named people only when asked, at most per_company per company (highest
 // seniority, then confidence), nobody this user contacted in the last 90
-// days, nothing suppressed (globally or for this sender), no blocked
-// country, and at most daily_new a UTC day. An address that breaks a rule is
-// kept as a 'skipped' row with its reason, so the counts show and it is not
-// looked at again; one held back by daily_new is left for the next day.
+// days, nothing suppressed (globally, for the account or for the campaign's
+// product), no blocked country, and at most daily_new a UTC day. An address
+// that breaks a rule is kept as a 'skipped' row with its reason, so the
+// counts show and it is not looked at again; one held back by daily_new is
+// left for the next day.
 
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
@@ -107,7 +108,7 @@ export async function enrollCampaign(
     select e.id as email_id, e.company_id, e.address, e.verification, e.first_name, e.last_name, e.title,
       e.seniority, e.confidence, co.name as company_name, co.domain, co.location,
       (${suppressedSql(tx, 'e.address')} or ${domainSuppressedSql(tx, 'co.domain')}
-        or ${sendSuppressedSql(tx, 'e.clerk_user_id', 'e.address', 'co.domain')}) as suppressed,
+        or ${sendSuppressedSql(tx, 'e.clerk_user_id', 'e.address', 'co.domain', tx`${c.product?.domain ?? ''}`)}) as suppressed,
       exists (
         select 1 from campaign_leads o
         where o.clerk_user_id = ${userId} and o.address = e.address and o.campaign_id <> ${c.id}

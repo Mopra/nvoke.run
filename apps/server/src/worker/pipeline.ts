@@ -362,11 +362,19 @@ interface CompanyRow {
   fit_state: string | null;
 }
 
+/** runCrawl's row: an imported company (sending/import.ts) keeps no people, so Claude never reads its people pages. */
+interface CrawlCompanyRow extends CompanyRow {
+  imported: boolean;
+}
+
 export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal): Promise<void> {
   const { sql } = deps;
   const companyId = str(job.payload, 'companyId');
-  const [company] = await sql<CompanyRow[]>`
-    select id, search_id, clerk_user_id, name, domain, website, crawl_status, fit_state from companies where id = ${companyId}
+  const [company] = await sql<CrawlCompanyRow[]>`
+    select c.id, c.search_id, c.clerk_user_id, c.name, c.domain, c.website, c.crawl_status, c.fit_state,
+      coalesce(s.params -> 'import' = 'true'::jsonb, false) as imported
+    from companies c join searches s on s.id = c.search_id
+    where c.id = ${companyId}
   `;
   if (!company || company.crawl_status !== 'pending') return;
   if ((await searchStatus(sql, company.search_id)) !== 'running') return;
@@ -401,7 +409,7 @@ export async function runCrawl(deps: PipelineDeps, job: Job, signal: AbortSignal
   let peopleRead = false;
   // No decision maker among the names the pages gave away: Claude reads the
   // people pages, once per domain in 90 days (the cache keeps what it found).
-  if (deps.ai && needsPeopleLlm(people, result.peopleTexts)) {
+  if (deps.ai && !company.imported && needsPeopleLlm(people, result.peopleTexts)) {
     const recent = await recentPeopleRead(sql, company.domain, now);
     const read =
       recent ??
@@ -472,8 +480,10 @@ async function finishCrawl(
       returning id
     `;
     if (claimed.length === 0) return 0;
-    const [search] = await tx<{ check_inboxes: boolean }[]>`
-      select coalesce((to_jsonb(s) ->> 'check_inboxes')::boolean, false) as check_inboxes from searches s where s.id = ${company.search_id}
+    const [search] = await tx<{ check_inboxes: boolean; import: boolean }[]>`
+      select coalesce((to_jsonb(s) ->> 'check_inboxes')::boolean, false) as check_inboxes,
+        coalesce(s.params -> 'import' = 'true'::jsonb, false) as import
+      from searches s where s.id = ${company.search_id}
     `;
 
     if (crawledAt) {
@@ -490,6 +500,13 @@ async function finishCrawl(
         },
         crawledAt,
       );
+    }
+    // An imported lead (sending/import.ts) is written to at its own address only: the crawl fills the page cache,
+    // and the imported address's check, which waited for the crawl, runs now.
+    if (search?.import) {
+      emails = [];
+      people = [];
+      await wakeDeferredChecks(tx, company.id);
     }
 
     let named: PersonRow[] = [];

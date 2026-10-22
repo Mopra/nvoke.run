@@ -46,6 +46,8 @@ export interface MailboxRow {
   daily_cap: number;
   warm: boolean;
   ramp_started_at: Date;
+  /** The send_pools row it shares a daily cap with (one provider organization), or null. */
+  pool: string | null;
   status: Mailbox['status'];
   status_reason: string | null;
   signature: string;
