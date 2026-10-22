@@ -4,8 +4,9 @@
 // both carry a full text vector. A "Describe your customer" search asks the
 // index with its plan's own words before each tier it pays web search for
 // (sources/icp.ts), and the candidates go through the same fit scoring as
-// web results. A page need not hold every word of a query: any MIN_MATCHED of
-// the plan's words make a candidate, and more words rank higher. A candidate
+// web results. A page need not hold every word of a query: any two words of
+// one plan query make a candidate, and more of the plan's words rank higher.
+// An ask that takes longer than INDEX_TIMEOUT_MS returns nothing. A candidate
 // whose homepage is kept comes with its title and meta description, so fit
 // scoring never fetches it again.
 //
@@ -14,6 +15,7 @@
 // domains and domains whose last crawl failed, was blocked or was refused
 // never come back.
 
+import { pino, type Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { registrableDomain } from './domain.js';
 import type { FitHead } from './fit.js';
@@ -33,6 +35,14 @@ const OVERFETCH = 2;
  * has fewer): one shared word ("agency") says nothing, two start to.
  */
 export const MIN_MATCHED = 2;
+/** Matching rows of each source read at most before they are ranked, so a common pair cannot rank the whole index. */
+const CANDIDATE_ROWS = 5_000;
+/** How long one ask may take before it gives up and returns no candidates. */
+export const INDEX_TIMEOUT_MS = 3_000;
+/** Postgres' code for a statement canceled by statement_timeout. */
+const QUERY_CANCELED = '57014';
+/** Where a timed out ask is logged when the caller gives no logger. */
+const fallbackLog = pino({ name: 'company-index', level: 'warn' });
 
 export interface IndexCandidate {
   /** The domain as stored: the host the crawl read, or the launch's registrable domain. */
@@ -56,6 +66,10 @@ export interface IndexAsk {
   /** Registrable domains to leave out: the search's companies and the sites turned down. */
   exclude?: Iterable<string>;
   limit: number;
+  /** Statement timeout of the ask. Default INDEX_TIMEOUT_MS. */
+  timeoutMs?: number;
+  /** Where a timed out ask is logged. */
+  log?: Pick<Logger, 'warn'>;
 }
 
 /** Anything shaped like an email address. */
@@ -106,13 +120,20 @@ export function nameFromTitle(title: string, domain: string): string {
   return named ?? parts[0] ?? registrableDomain(domain);
 }
 
+interface PlanForms {
+  /** Every word of the plan, once. */
+  words: string[];
+  /** The words of each plan query, once each. */
+  queries: string[][];
+}
+
 /**
  * The words a plan asks the index for, each as tsquery text in both forms
  * the index holds, 'simple' and 'english', so "agencies" matches "agency"
  * and "Agentur" matches itself: the words of every query and segment, once
- * each. Empty when the plan has no words.
+ * each, and per query. Empty when the plan has no words.
  */
-export async function planWords(sql: Sql, plan: IndexAsk['plan']): Promise<string[]> {
+async function planForms(sql: Sql, plan: IndexAsk['plan']): Promise<PlanForms> {
   const phrases = [...plan.core, ...(plan.segments ?? []).map((q): PlanQuery => ({ q })), ...plan.adjacent, ...plan.wider]
     .map((q) => queryWords(q.q))
     .filter((w) => w.length > 0);
@@ -124,29 +145,55 @@ export async function planWords(sql: Sql, plan: IndexAsk['plan']): Promise<strin
     return true;
   }).slice(0, MAX_QUERIES);
   const words = [...new Set(unique.flat())];
-  if (words.length === 0) return [];
+  if (words.length === 0) return { words: [], queries: [] };
   // Postgres makes the lexemes, quoted as tsquery text, so the query is built from its own output.
   const rows = await sql<{ w: string; s: string; e: string }[]>`
     select w, plainto_tsquery('simple', w)::text as s, plainto_tsquery('english', w)::text as e
     from unnest(${words}::text[]) as w
   `;
-  const forms: string[] = [];
+  const form = new Map<string, string>();
   for (const r of rows) {
     // An English stop word ("the", "for") matches every page: it is left out of the query.
     if (!r.s || !r.e) continue;
-    forms.push(r.s === r.e ? r.s : `(${r.s} | ${r.e})`);
+    form.set(r.w, r.s === r.e ? r.s : `(${r.s} | ${r.e})`);
   }
-  return [...new Set(forms)];
+  const queries = unique.map((ws) => [...new Set(ws.flatMap((w) => form.get(w) ?? []))]).filter((q) => q.length > 0);
+  return { words: [...new Set(queries.flat())], queries };
+}
+
+/** The words a plan asks the index for (planForms), once each. */
+export async function planWords(sql: Sql, plan: IndexAsk['plan']): Promise<string[]> {
+  return (await planForms(sql, plan)).words;
 }
 
 /**
- * The tsquery text for a plan: any of its words (planWords). A page need not
- * hold every word of a query; the search ranks pages by how many of the
- * plan's words they hold. Null when the plan has no words.
+ * The tsquery a page must match: two words of one plan query (MIN_MATCHED),
+ * any pair of any query, so the GIN index does the "at least two words"
+ * filter. A plan of one word asks for that word. Null when no query has two.
+ */
+function pairQuery({ words, queries }: PlanForms): string | null {
+  if (words.length === 0) return null;
+  if (words.length < MIN_MATCHED) return words.join(' | ');
+  const pairs = new Map<string, string>();
+  for (const q of queries) {
+    for (let i = 0; i < q.length; i++) {
+      for (let j = i + 1; j < q.length; j++) {
+        const key = [q[i]!, q[j]!].sort().join('\n');
+        if (!pairs.has(key)) pairs.set(key, `${q[i]} & ${q[j]}`);
+      }
+    }
+  }
+  return pairs.size > 0 ? [...pairs.values()].join(' | ') : null;
+}
+
+/**
+ * The tsquery text for a plan: any two words of one of its queries
+ * (pairQuery). A page need not hold every word of a query; the search ranks
+ * pages by how many of the plan's words they hold. Null when the plan has no
+ * words, or no query with two.
  */
 export async function planQuery(sql: Sql, plan: IndexAsk['plan']): Promise<string | null> {
-  const forms = await planWords(sql, plan);
-  return forms.length ? forms.join(' | ') : null;
+  return pairQuery(await planForms(sql, plan));
 }
 
 /** The registrable domains of `domains` that are suppressed. */
@@ -176,7 +223,8 @@ interface Row {
 /**
  * Companies the index holds for a plan, those whose best page holds the most
  * of the plan's words first, then by text rank: crawled pages and launches
- * holding at least MIN_MATCHED of its words. Leaves out the
+ * holding two words of one of its queries (pairQuery), CANDIDATE_ROWS of
+ * each at most. None when the ask times out (logged). Leaves out the
  * excluded sites, suppressed domains, domains whose last crawl failed, was
  * blocked or refused us, and domains whose TLD names a country the plan does
  * not search (a generic TLD passes). One company per registrable domain.
@@ -184,30 +232,48 @@ interface Row {
 export async function searchCompanyIndex(sql: Sql, ask: IndexAsk): Promise<IndexCandidate[]> {
   const limit = Math.min(ask.limit, INDEX_MAX);
   if (limit <= 0) return [];
-  const forms = await planWords(sql, ask.plan);
-  if (forms.length === 0) return [];
-  const query = forms.join(' | ');
-  const least = Math.min(MIN_MATCHED, forms.length);
+  const forms = await planForms(sql, ask.plan);
+  const filter = pairQuery(forms);
+  if (!filter) return [];
+  const any = forms.words.join(' | ');
+  const least = Math.min(MIN_MATCHED, forms.words.length);
   const exclude = new Set(ask.exclude ?? []);
   const countries = new Set([...ask.plan.countries, ...[...ask.plan.core, ...ask.plan.adjacent, ...ask.plan.wider].flatMap((q) => q.country ?? [])]);
 
-  const rows = await sql<Row[]>`
-    with q as (select ${query}::tsquery as q, array(select w::tsquery from unnest(${forms}::text[]) as w) as words),
-    -- Any word matches (the GIN index finds those), then each row counts the words it holds.
+  let rows: Row[];
+  try {
+    rows = await sql.begin(async (tx) => {
+      // The index is asked before every paid tier: a slow ask gives up rather than hold the search.
+      await tx`select set_config('statement_timeout', ${String(ask.timeoutMs ?? INDEX_TIMEOUT_MS)}, true)`;
+      return tx<Row[]>`
+    with q as (
+      select ${filter}::tsquery as filter, ${any}::tsquery as q,
+        array(select w::tsquery from unnest(${forms.words}::text[]) as w) as words
+    ),
+    -- Two words of one plan query match (the GIN index finds those), at most
+    -- CANDIDATE_ROWS of them; then each row is ranked and counts the words it holds.
+    page_rows as (
+      select p.domain, p.search from domain_pages p cross join q
+      join domains d on d.domain = p.domain
+      where p.search @@ q.filter and d.crawl_status not in ('failed', 'blocked', 'refused')
+        and p.domain <> all(${[...exclude]}::text[])
+      limit ${CANDIDATE_ROWS}
+    ),
     pages as (
       select p.domain, ts_rank_cd(p.search, q.q) as rank,
         (select count(*)::int from unnest(q.words) as w where p.search @@ w) as matched
-      from domain_pages p cross join q
-      join domains d on d.domain = p.domain
-      where p.search @@ q.q and d.crawl_status not in ('failed', 'blocked', 'refused')
-        and p.domain <> all(${[...exclude]}::text[])
+      from page_rows p cross join q
+    ),
+    feed_rows as (
+      select f.domain, f.search from feed_items f cross join q
+      where f.search @@ q.filter and f.domain <> all(${[...exclude]}::text[])
+        and not exists (select 1 from domains d where d.domain = f.domain and d.crawl_status in ('failed', 'blocked', 'refused'))
+      limit ${CANDIDATE_ROWS}
     ),
     feed as (
       select f.domain, ts_rank_cd(f.search, q.q) as rank,
         (select count(*)::int from unnest(q.words) as w where f.search @@ w) as matched
-      from feed_items f cross join q
-      where f.search @@ q.q and f.domain <> all(${[...exclude]}::text[])
-        and not exists (select 1 from domains d where d.domain = f.domain and d.crawl_status in ('failed', 'blocked', 'refused'))
+      from feed_rows f cross join q
     ),
     hits as (
       select domain, max(matched) as matched, max(rank) as rank, true as from_pages, false as from_feed
@@ -239,6 +305,12 @@ export async function searchCompanyIndex(sql: Sql, ask: IndexAsk): Promise<Index
     ) f on true
     order by r.matched desc, r.rank desc, r.domain
   `;
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code !== QUERY_CANCELED) throw err;
+    (ask.log ?? fallbackLog).warn({ err, timeoutMs: ask.timeoutMs ?? INDEX_TIMEOUT_MS }, 'company index: ask timed out, no index candidates');
+    return [];
+  }
 
   const suppressed = await suppressedSites(sql, rows.map((r) => r.domain));
   const out: IndexCandidate[] = [];

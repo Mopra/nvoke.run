@@ -66,9 +66,12 @@ describe('company index words', () => {
     expect(nameFromTitle('', 'www.acme.com')).toBe('acme.com');
   });
 
-  it('asks for any of the plan words, each once, in the simple and the English form', async () => {
-    const q = await planQuery(db.sql, plan(['cold email agencies', 'Kaltakquise Agentur', 'email agentur']));
-    expect(q).toBe("'cold' | 'email' | ('agencies' | 'agenc') | ('kaltakquise' | 'kaltakquis') | 'agentur'");
+  it('asks for any two words of one plan query, each pair once, in the simple and the English form', async () => {
+    const q = await planQuery(db.sql, plan(['cold email agencies', 'Kaltakquise Agentur', 'email agentur', 'agentur email cold']));
+    expect(q).toBe(
+      "'cold' & 'email' | 'cold' & ('agencies' | 'agenc') | 'email' & ('agencies' | 'agenc') | ('kaltakquise' | 'kaltakquis') & 'agentur' | 'email' & 'agentur' | 'agentur' & 'cold'",
+    );
+    expect(await planQuery(db.sql, plan(['agency']))).toBe("('agency' | 'agenc')");
     expect(await planQuery(db.sql, plan(['the for']))).toBeNull();
   });
 });
@@ -135,6 +138,27 @@ describe('company index search', () => {
     // Without countries every TLD passes.
     const anywhere = await searchCompanyIndex(db.sql, { plan: plan(['cold email agency']), limit: 10 });
     expect(anywhere.map((c) => c.domain).sort()).toEqual(['agency.de', 'agency.fr', 'generic.io', 'held.com']);
+  });
+
+  it('needs two words of one query, not one word each of two', async () => {
+    await crawled('split.com', [{ title: 'Split', text: 'cold outreach for a bakery' }]);
+    await crawled('pair.com', [{ title: 'Pair', text: 'cold email' }]);
+    const found = await searchCompanyIndex(db.sql, { plan: plan(['cold email', 'bakery supplies']), limit: 10 });
+    expect(found.map((c) => c.domain)).toEqual(['pair.com']);
+  });
+
+  it('gives up on a slow ask with no candidates, and logs it', async () => {
+    await crawled('acme.com', [{ title: 'Acme', text: 'cold email agency' }]);
+    const warned: string[] = [];
+    const log = { warn: (_obj: unknown, msg?: string) => void warned.push(msg ?? '') };
+    let found: unknown[] = ['not asked'];
+    // A held lock keeps the ask waiting past its timeout.
+    await db.sql.begin(async (tx) => {
+      await tx`lock table domain_pages in access exclusive mode`;
+      found = await searchCompanyIndex(db.sql, { plan: plan(['cold email agency']), limit: 10, timeoutMs: 200, log: log as never });
+    });
+    expect(found).toEqual([]);
+    expect(warned).toEqual(['company index: ask timed out, no index candidates']);
   });
 
   it('keeps one company per site and stops at the limit', async () => {
