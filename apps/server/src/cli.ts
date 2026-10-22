@@ -11,6 +11,7 @@
  *   pnpm --filter @nvoke/server cli privacy erase example.dk
  *   pnpm --filter @nvoke/server cli privacy suppress-domain example.dk
  *   pnpm --filter @nvoke/server cli stats --days 30
+ *   pnpm --filter @nvoke/server cli seed majestic --limit 5000
  *   pnpm --filter @nvoke/server cli sources resume brave
  *   pnpm --filter @nvoke/server cli alert test
  *   pnpm --filter @nvoke/server cli feed collect
@@ -53,8 +54,17 @@
  *
  * `stats` picks its database the same way. It prints, over the last --days
  * (default 30), Brave requests, cache hits, valid emails and Brave dollars per
- * search kind, Claude dollars per task, and the cost per 1,000 valid emails.
- * It only reads the database.
+ * search kind, companies found, companies with a valid email and the share
+ * the company index served per kind, Claude dollars per task (sending's
+ * write tasks as one, outside the pipeline), and the cost per 1,000 valid
+ * emails. It only reads the database.
+ * `seed <source>` imports a batch of a free domain list into the company
+ * seed (src/leads/seed, docs/research/company-seed.md) for the worker to
+ * crawl at SEED_DAILY_DOMAINS a day. `majestic` downloads the Majestic
+ * Million; `file <path>` reads a list on disk (a Common Crawl ranks file, a
+ * CSV with a Domain column, or one domain per line). --limit N domains to
+ * add (default 5000), --skip N ranks to pass over (majestic: 10000). It
+ * picks its database like stats.
  * `sources resume <source>` ends a source pause early once its cause is
  * fixed. `alert test` emails a test alert through Day3 (needs DAY3_API_KEY,
  * ALERT_EMAIL_TO and ALERT_EMAIL_FROM). Both pick the database like stats.
@@ -113,8 +123,11 @@
  *   sending pool <name> --cap N --user U <mailbox addresses...>
  *       a mailbox pool with a shared daily cap, and those mailboxes in it.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
+import { Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { fileURLToPath } from 'node:url';
 import postgres, { type Sql } from 'postgres';
 import { pino } from 'pino';
@@ -144,6 +157,8 @@ import { feedSourceStatus } from './feed/drops.js';
 import { loadEnv } from './env.js';
 import { costPer1000 } from './leads/sources/paid-search.js';
 import { costReport, formatCostReport } from './leads/cost-report.js';
+import { importSeed, seedQueue } from './leads/seed/import.js';
+import { SEED_SOURCES, seedEntries } from './leads/seed/sources.js';
 import { toCsv } from './leads/csv.js';
 import { sleep } from './leads/limits.js';
 import { startOngoingLoop } from './leads/ongoing.js';
@@ -202,6 +217,7 @@ function usage(): never {
       '  cli privacy erase <address|domain> [--source S] [--prod]',
       '  cli privacy suppress-domain <domain> [--source S] [--prod]',
       '  cli stats [--days N] [--prod]',
+      '  cli seed majestic | file <path> [--limit N] [--skip N] [--prod]',
       '  cli sources resume <source> [--prod]',
       '  cli alert test [--prod]',
       '  cli feed [collect] [--prod]',
@@ -216,7 +232,7 @@ function usage(): never {
       '  cli sending campaign <spec.json> --user U [--search ID] [--prod]',
       '  cli sending pool <name> --cap N --user U <mailbox addresses...> [--prod]',
       'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
-      'privacy, stats, sources, alert, feed and sending act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+      'privacy, stats, seed, sources, alert, feed and sending act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
       'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
     ].join('\n'),
   );
@@ -362,6 +378,41 @@ async function stats(args: Args): Promise<void> {
     const prices = { brave: costPer1000(env, 'brave'), serper: costPer1000(env, 'serper') };
     console.log(formatCostReport(await costReport(sql, days, prices)));
   } finally {
+    await close();
+  }
+}
+
+/** `cli seed <source>`: imports a batch of a free domain list for the seed tick (src/leads/seed). */
+async function seed(args: Args): Promise<void> {
+  const [, name, path] = args.positional;
+  const flag = (n: string) => {
+    const v = args.flags.get(n);
+    return typeof v === 'string' ? Number(v) : undefined;
+  };
+  const known = name ? SEED_SOURCES[name] : undefined;
+  if (!name || (!known && !(name === 'file' && path))) usage();
+  const limit = flag('limit') ?? 5_000;
+  const skipTop = flag('skip') ?? known?.skipTop ?? 0;
+  if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(skipTop) || skipTop < 0) usage();
+
+  let lines: AsyncIterable<string>;
+  if (known) {
+    console.error(`downloading ${known.url} (${known.licence})`);
+    const res = await fetch(known.url);
+    if (!res.ok || !res.body) throw new Error(`${known.url} answered ${res.status}`);
+    lines = createInterface({ input: Readable.fromWeb(res.body as WebReadableStream), crlfDelay: Infinity });
+  } else {
+    lines = createInterface({ input: createReadStream(resolve(path!)), crlfDelay: Infinity });
+  }
+  const { sql, close } = await opsDatabase(args);
+  try {
+    const source = known ? name : `file:${path}`;
+    const r = await importSeed(sql, seedEntries(lines), { source, limit, skipTop });
+    console.log(`read ${r.read}  filtered ${r.filtered}  known ${r.known}  added ${r.added}  (ranks 1 to ${skipTop} passed over)`);
+    const q = await seedQueue(sql);
+    console.log(`seed queue: queued ${q.queued}  running ${q.running}  done ${q.done}  skipped ${q.skipped}  crawled in the last 24 hours ${q.lastDay}`);
+  } finally {
+    (lines as { close?: () => void }).close?.();
     await close();
   }
 }
@@ -708,6 +759,7 @@ async function main(): Promise<void> {
   if (args.positional[0] === 'db') return serveDb();
   if (args.positional[0] === 'privacy') return privacy(args);
   if (args.positional[0] === 'stats') return stats(args);
+  if (args.positional[0] === 'seed') return seed(args);
   if (args.positional[0] === 'sources') return sources(args);
   if (args.positional[0] === 'alert') return alertTest(args);
   if (args.positional[0] === 'feed') return feed(args);

@@ -17,6 +17,7 @@ import { createClerkClient } from '@clerk/backend';
 import { purgeAgentSignups } from '../agents/purge.js';
 import { startOngoingLoop } from '../leads/ongoing.js';
 import { purge, RETENTION } from '../leads/retention.js';
+import { startSeedLoop } from '../leads/seed/tick.js';
 import { webSearchConfigured } from '../leads/sources/paid-search.js';
 import { createSecrets } from '../crypto/secrets.js';
 import { enrollTick } from '../sending/enroll.js';
@@ -60,6 +61,9 @@ const stopOngoing = startOngoingLoop({
   dailyBraveBudget: env.ICP_DAILY_BRAVE_BUDGET,
   globalDailyBraveBudget: env.ONGOING_DAILY_BRAVE_BUDGET,
 });
+
+// The company seed: a few homepages a minute for the company index, off at SEED_DAILY_DOMAINS=0 (leads/seed/tick.ts).
+startSeedLoop({ sql, crawl: deps.crawl, log: log.child({ part: 'seed' }), dailyDomains: env.SEED_DAILY_DOMAINS });
 
 // Retention purge: once at start, then hourly. Idempotent, so several
 // workers running it at once is harmless.
