@@ -106,3 +106,10 @@ a seeded candidate (its homepage title and description are kept). How many
 of them match a given Sonar plan depends on the niche: popular domains skew
 to larger companies, so the seed helps most for broad B2B plans (agencies,
 SaaS, consultancies) and least for local trades.
+
+## Next: Common Crawl
+
+At 2,000 a day the seed adds about 730,000 companies a year. One Common
+Crawl crawl holds about 11 million businesses with a readable homepage,
+loadable on the VPS in weeks: measured in `common-crawl-index.md`, verdict
+go for a homepage only load.
