@@ -387,8 +387,9 @@ describe('runWriteJob', () => {
     expect(calls.filter((r) => r.toolName === 'save_emails')).toHaveLength(2);
     expect(calls[0]!.prompt).not.toContain('domain="acme.io"');
     // Claude is told the subject and closing question Anna's email used.
-    expect(calls[0]!.cachedPrefix).toContain('<recent>');
-    expect(calls[0]!.cachedPrefix).toContain('- Who books the demos for you today, you or a sales hire?');
+    expect(calls[0]!.cachedPrefix).not.toContain('<recent>');
+    expect(calls[0]!.prompt).toContain('<recent>');
+    expect(calls[0]!.prompt).toContain('- Who books the demos for you today, you or a sales hire?');
     const [ben] = await db.sql<{ subject: string; body: string }[]>`
       select w.subject, w.body from campaign_leads l join campaign_steps_written w on w.campaign_lead_id = l.id and w.step = 1
       where l.address = 'ben@beta.io'`;

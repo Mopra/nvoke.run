@@ -735,7 +735,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         const limit = Math.min(INDEX_MAX, wanted * INDEX_PER_WANTED);
         let found: IndexCandidate[];
         try {
-          found = await index({ plan: runPlan, exclude: seen, limit });
+          found = await index({ plan: runPlan, exclude: seen, limit, log: ctx.log });
         } catch (err) {
           // The index is a saving, never a reason to fail the search.
           if (ctx.signal.aborted) return;
