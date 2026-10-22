@@ -27,6 +27,45 @@ outreach is recorded as its own processing (`docs/legal/ropa.md`,
 Activity 3). Customers send through their own tool (CSV, webhooks, a later
 push to Instantly or Smartlead). Steps 2 to 4 below are shelved.
 
+## Own products: Day3 and exit1 (owner, 2026-10-22)
+
+The owner's personal cold email for Day3 and exit1 (run by hand from Zoho
+in the mrr project) moves onto this engine. Still internal: the same
+`SENDING_USERS`, the owner's own products, no customer feature.
+
+- **Product profile.** `campaigns.product` (`CampaignProduct` in
+  `packages/shared/src/sending.ts`): name, domain, what it is, the offer,
+  who it is for, the real prices in plain words, the pitch (why these
+  recipients, why now) and an optional `recheck`. Set, `write.ts` writes
+  from it instead of the site profile and nvoke's `plans.ts` prices, may
+  name the company's own bare domain (an exit1 email is about their site),
+  and the signature falls back to the product's domain. The two campaigns
+  are `docs/sending/campaigns/day3.json` and `exit1.json`.
+- **Opt-outs per sender.** `send_suppressions.sender` is the product domain
+  an opt-out holds for, or '' for every campaign of the account. An opt-out
+  reply or unsubscribe from a product campaign holds for that product; a
+  bounce, and an opt-out from a campaign without a product, hold for all.
+  The mrr history (`outreach/sent.csv`, `do-not-contact.txt` and every
+  address in `leads/drafts-*.json`) is in for day3.app and exit1.dev
+  (`cli sending opt-outs`); Endress+Hauser (an exit1 customer) is blocked
+  for every sender.
+- **Pools.** Mailboxes in one provider organization share its limit:
+  `send_pools (name, daily_cap)` and `mailboxes.pool`. A send needs room
+  under the mailbox's own cap and under the pool's, counted over the last
+  24 hours across the pool (`cli sending pool`). All Zoho mailboxes of the
+  pradsgaardlabs org are one pool.
+- **List import.** `cli sending import` takes JSON or CSV leads (domain,
+  the published address, name, location, and a checked `fit_reason`) into
+  a `domains` search marked `import`: the crawl reads the pages for the
+  write job but stores no addresses of its own, and only the imported
+  address is verified and enrolled. An autopilot campaign on that search
+  picks up every later import into it.
+- **Recheck.** `recheck: 'ssl'` (exit1): just before each step the sender
+  shakes hands with the lead's apex and www host (`sending/recheck.ts`).
+  Still expired, running out within 30 days, self-signed or for another
+  host: it sends. Fixed: the lead stops with skip_reason `resolved`.
+  Neither host answers: `unreachable`.
+
 ## Owner decisions, 2026-10-20 (earlier the same day)
 
 - **First goal: nvoke sells nvoke.** Ongoing searches and drops find

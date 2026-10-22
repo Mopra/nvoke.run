@@ -154,6 +154,8 @@ export const SKIP_REASON_LABEL: Record<string, string> = {
   daily_limit: 'Over the daily limit',
   write_failed: 'Claude could not write it',
   too_similar: 'Too like another email in the campaign',
+  resolved: 'Fixed before it went out',
+  unreachable: 'Site did not answer the last check',
 };
 
 export function skipReasonLabel(reason: string): string {

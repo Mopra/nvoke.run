@@ -141,6 +141,41 @@ export type CampaignStatus = z.infer<typeof CampaignStatus>;
 export const CampaignSource = z.enum(['list', 'search', 'drop']);
 export type CampaignSource = z.infer<typeof CampaignSource>;
 
+/**
+ * What a campaign sells, when it is not the account's own site (the owner's
+ * other products, Day3 and exit1). Set, it replaces the site profile and
+ * nvoke's prices in the write prompt, names the signature's site, and
+ * scopes the campaign's opt-outs to `domain`.
+ */
+export const CampaignProduct = z.object({
+  name: z.string().trim().min(1).max(60),
+  /** The product's site, lowercase, e.g. "day3.app". Opt-outs from this campaign hold for this sender. */
+  domain: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .transform((d) => d.replace(/^www\./, ''))
+    .pipe(z.string().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, 'a bare domain such as day3.app')),
+  /** What it is, in a sentence or two. */
+  summary: z.string().trim().min(1).max(600),
+  /** What a recipient gets, and the free part. */
+  offer: z.string().trim().min(1).max(600),
+  /** Who it is for. */
+  audience: z.string().trim().min(1).max(400),
+  /** The real prices, in plain words. Claude may work one number out of these and of nothing else. */
+  prices: z.string().trim().min(1).max(1500),
+  /** The angle: why these recipients, why now. */
+  pitch: z.string().trim().min(1).max(1500),
+  proof: z.array(z.string().trim().min(1).max(200)).max(6).default([]),
+  /**
+   * A fact to check again just before each send. `ssl`: the certificate
+   * problem the lead was found for must still be there on the lead's
+   * domain; once it is fixed the lead stops with skip_reason `resolved`.
+   */
+  recheck: z.enum(['ssl']).nullable().default(null),
+});
+export type CampaignProduct = z.infer<typeof CampaignProduct>;
+
 export const Campaign = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -156,6 +191,8 @@ export const Campaign = z.object({
   holdHours: z.number().int(),
   steps: z.array(CampaignStep),
   schedule: CampaignSchedule,
+  /** Null: the account's own site and, for nvoke, its plans. */
+  product: CampaignProduct.nullable(),
   mailboxIds: z.array(z.uuid()),
   reviewUntil: datetime.nullable(),
   leads: z.number().int().nonnegative(),
@@ -191,6 +228,7 @@ export const CreateCampaignRequest = z
     perCompany: z.number().int().min(1).max(5).optional(),
     dailyNew: z.number().int().min(1).max(500).optional(),
     holdHours: z.number().int().min(0).max(72).optional(),
+    product: CampaignProduct.optional(),
   })
   .refine((v) => v.source !== 'search' || v.searchId, { message: 'source search needs searchId', path: ['searchId'] })
   .refine((v) => v.source !== 'drop' || v.dropId, { message: 'source drop needs dropId', path: ['dropId'] })
@@ -209,6 +247,8 @@ export const UpdateCampaignRequest = z
     perCompany: z.number().int().min(1).max(5).optional(),
     dailyNew: z.number().int().min(1).max(500).optional(),
     holdHours: z.number().int().min(0).max(72).optional(),
+    /** Null goes back to the account's own site. */
+    product: CampaignProduct.nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to update' });
 export type UpdateCampaignRequest = z.infer<typeof UpdateCampaignRequest>;

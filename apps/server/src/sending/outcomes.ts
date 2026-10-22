@@ -27,15 +27,19 @@ export const AUTO_REPLY_DELAY_MS = 3 * 86_400_000;
  * moves to `end` and its campaign counter goes up once. An opt-out and a
  * hard bounce also stop the sender writing to the address again, even when
  * the lead had already ended (say it replied, then clicked unsubscribe).
- * A hard bounce marks the address invalid in the user's emails and in the
+ * An opt-out holds for the campaign's product (CampaignProduct) when it has
+ * one. A hard bounce marks the address invalid in the user's emails and in the
  * verification cache. Returns whether the lead moved.
  */
 export async function endLead(tx: Db, leadId: string, end: LeadEnd, now: Date = new Date()): Promise<boolean> {
-  const [lead] = await tx<{ campaign_id: string; clerk_user_id: string; address: string; status: string }[]>`
-    select campaign_id, clerk_user_id, address, status from campaign_leads where id = ${leadId}`;
+  const [lead] = await tx<{ campaign_id: string; clerk_user_id: string; address: string; status: string; sender: string }[]>`
+    select l.campaign_id, l.clerk_user_id, l.address, l.status, coalesce(c.product ->> 'domain', '') as sender
+    from campaign_leads l join campaigns c on c.id = l.campaign_id
+    where l.id = ${leadId}`;
   if (!lead) return false;
 
-  if (end === 'opted_out') await suppressForSender(tx, lead.clerk_user_id, lead.address, 'unsubscribe');
+  // An opt-out is an objection to the product that wrote; a bounce holds for every sender.
+  if (end === 'opted_out') await suppressForSender(tx, lead.clerk_user_id, lead.address, 'unsubscribe', lead.sender);
   if (end === 'bounced') {
     await suppressForSender(tx, lead.clerk_user_id, lead.address, 'bounce');
     await tx`

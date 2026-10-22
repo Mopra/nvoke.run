@@ -11,7 +11,10 @@
 // skip_reason 'unconfirmed' for the user to look at. Step 1 starts the
 // thread; later steps answer it with In-Reply-To, References and `Re:`.
 // Plain text, the footer (footer.ts), and the one click List-Unsubscribe header on
-// every email.
+// every email. Mailboxes in one pool (one provider organization) also stay
+// under the pool's daily cap. A campaign whose product asks for a recheck
+// (exit1: the lead's broken certificate) checks it live before each step
+// and stops the lead once it is fixed (recheck.ts).
 
 import { randomUUID } from 'node:crypto';
 import type { Logger } from 'pino';
@@ -25,6 +28,7 @@ import { isBlockedCountry } from './gate.js';
 import { authFailed, checkHealth, pauseMailbox } from './health.js';
 import { credentialsFor, type MailboxRow } from './mailboxes.js';
 import { endLead, finishIfDone, recordIncoming } from './outcomes.js';
+import { recheckSsl, type RecheckResult } from './recheck.js';
 import { inWindow, mailboxCapacity, MIN_GAP_MS, nextSendAt, pickDue, stepSendAt, type DueLead, type MailboxSlot } from './schedule.js';
 import type { MailboxCredentials, OutgoingMail, SendResult, TransportFactory } from './types.js';
 import { signUnsubscribe } from './unsubscribe.js';
@@ -42,13 +46,15 @@ export interface SendDeps {
   users: readonly string[];
   /** True once the worker shuts down: the tick claims nothing more. */
   stopping?: () => boolean;
+  /** The live certificate check for a `recheck: 'ssl'` product. recheckSsl when left out. */
+  recheckSsl?: (domain: string, now: Date) => Promise<RecheckResult>;
 }
 
 export interface SendTickResult {
   sent: number;
   bounced: number;
   retried: number;
-  /** Leads ended at send time: suppressed, blocked country, nothing written. */
+  /** Leads ended at send time: suppressed, blocked country, nothing written, fixed since (recheck). */
   stopped: number;
   /** Picked but taken by another worker, or the mailbox changed in between. */
   skipped: number;
@@ -122,9 +128,24 @@ export async function sendTick(deps: SendDeps, now: Date = new Date()): Promise<
     result.deferred += moved.count;
   }
 
-  for (const pick of pickDue(leads, slots, now)) {
+  const picks = pickDue(leads, slots, now);
+  const rechecks = picks.length
+    ? await sql<RecheckLead[]>`
+        select l.id, l.domain, l.timezone, l.written_at, c.schedule from campaign_leads l join campaigns c on c.id = l.campaign_id
+        where l.id in ${sql(picks.map((p) => p.id))} and c.product ->> 'recheck' = 'ssl'`
+    : [];
+  const recheckLead = new Map(rechecks.map((r) => [r.id, r]));
+  for (const pick of picks) {
     if (deps.stopping?.()) break;
     try {
+      const check = recheckLead.get(pick.id);
+      if (check) {
+        const seen = await (deps.recheckSsl ?? recheckSsl)(check.domain, now);
+        if (seen !== 'problem') {
+          result[await afterRecheck(deps.sql, check, seen, now)] += 1;
+          continue;
+        }
+      }
       result[await sendOne(deps, pick.id, pick.mailboxId, now)] += 1;
     } catch (err) {
       deps.log.error({ err, leadId: pick.id }, 'send failed');
@@ -154,10 +175,13 @@ async function expireClaims(deps: SendDeps, now: Date): Promise<number> {
 
 async function mailboxSlots(sql: Sql, ids: string[], now: Date): Promise<MailboxSlot[]> {
   const since = new Date(now.getTime() - DAY_MS);
-  const rows = await sql<{ id: string; daily_cap: number; warm: boolean; ramp_started_at: Date; last_send_at: Date | null; sent: number }[]>`
+  const rows = await sql<
+    { id: string; daily_cap: number; warm: boolean; ramp_started_at: Date; last_send_at: Date | null; sent: number; pool_left: number | null }[]
+  >`
     select m.id, m.daily_cap, m.warm, m.ramp_started_at, m.last_send_at,
       (select count(*)::int from messages g
-        where g.mailbox_id = m.id and g.direction = 'out' and g.at > ${since}) as sent
+        where g.mailbox_id = m.id and g.direction = 'out' and g.at > ${since}) as sent,
+      ${poolLeftSql(sql, since)} as pool_left
     from mailboxes m where m.id in ${sql(ids)}`;
   const domains = await sql<{ mailbox_id: string; domain: string; n: number }[]>`
     select g.mailbox_id, l.domain, count(*)::int as n
@@ -166,7 +190,7 @@ async function mailboxSlots(sql: Sql, ids: string[], now: Date): Promise<Mailbox
     group by g.mailbox_id, l.domain`;
   return rows.map((r) => ({
     id: r.id,
-    capacity: mailboxCapacity({ dailyCap: r.daily_cap, warm: r.warm, rampStartedAt: r.ramp_started_at }, r.sent, now),
+    capacity: Math.min(mailboxCapacity({ dailyCap: r.daily_cap, warm: r.warm, rampStartedAt: r.ramp_started_at }, r.sent, now), r.pool_left ?? Infinity),
     lastSendAt: r.last_send_at,
     sentToDomainToday: Object.fromEntries(domains.filter((d) => d.mailbox_id === r.id).map((d) => [d.domain, d.n])),
   }));
@@ -186,7 +210,7 @@ interface LockedLead {
   schedule: CampaignSchedule;
   global_suppressed: boolean;
   own_suppressed: boolean;
-  /** The sender's site domain from the site profile, for a signature the mailbox does not set. */
+  /** The campaign product's domain, else the site profile's, for a signature the mailbox does not set. */
   site_domain: string | null;
 }
 
@@ -229,13 +253,25 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
     where mailbox_id = ${mailboxId} and direction = 'out' and at > ${new Date(now.getTime() - DAY_MS)}`;
   const ramp = { dailyCap: mailbox.daily_cap, warm: mailbox.warm, rampStartedAt: mailbox.ramp_started_at };
   if (mailboxCapacity(ramp, count?.sent ?? 0, now) <= 0) return 'skipped';
+  if (mailbox.pool) {
+    // The pool row is the lock that keeps two mailboxes of one organization from both taking its last send.
+    const [pool] = await tx<{ daily_cap: number }[]>`
+      select daily_cap from send_pools where clerk_user_id = ${mailbox.clerk_user_id} and name = ${mailbox.pool} for update`;
+    if (pool) {
+      const [used] = await tx<{ n: number }[]>`
+        select count(*)::int as n from messages g join mailboxes o on o.id = g.mailbox_id
+        where o.clerk_user_id = ${mailbox.clerk_user_id} and o.pool = ${mailbox.pool} and g.direction = 'out'
+          and g.at > ${new Date(now.getTime() - DAY_MS)}`;
+      if ((used?.n ?? 0) >= pool.daily_cap) return 'skipped';
+    }
+  }
 
   const [lead] = await tx<LockedLead[]>`
     select l.id, l.campaign_id, l.clerk_user_id, l.address, l.domain, l.country, l.timezone,
       l.next_step, l.next_send_at, c.steps, c.schedule,
       ${suppressedSql(tx, 'l.address')} as global_suppressed,
-      ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address', 'l.domain')} as own_suppressed,
-      (select sp.domain from site_profiles sp where sp.clerk_user_id = l.clerk_user_id) as site_domain
+      ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address', 'l.domain', tx`coalesce(c.product ->> 'domain', '')`)} as own_suppressed,
+      coalesce(c.product ->> 'domain', (select sp.domain from site_profiles sp where sp.clerk_user_id = l.clerk_user_id)) as site_domain
     from campaign_leads l join campaigns c on c.id = l.campaign_id
     where l.id = ${leadId} and l.mailbox_id = ${mailboxId}
       and l.status in ('queued', 'active') and l.claimed_at is null and l.next_send_at <= ${now}
@@ -410,6 +446,55 @@ async function release(tx: Db, leadId: string, nextAt: Date | null): Promise<voi
 export function retryAt(now: Date, timezone: string, schedule: CampaignSchedule): Date {
   const at = new Date(now.getTime() + RETRY_MS);
   return inWindow(at, timezone, schedule) ? at : nextSendAt({ after: at, timezone, schedule });
+}
+
+/** Sends a pool still has in the 24 hours since `since`, per mailbox row `m`. Null when `m` is in no pool. */
+function poolLeftSql(sql: Sql, since: Date) {
+  return sql`(
+    select p.daily_cap - (
+      select count(*)::int from messages g join mailboxes o on o.id = g.mailbox_id
+      where o.clerk_user_id = p.clerk_user_id and o.pool = p.name and g.direction = 'out' and g.at > ${since}
+    )
+    from send_pools p where p.clerk_user_id = m.clerk_user_id and p.name = m.pool
+  )`;
+}
+
+interface RecheckLead {
+  id: string;
+  domain: string;
+  timezone: string;
+  written_at: Date | null;
+  schedule: CampaignSchedule;
+}
+
+/** A site that did not answer is asked again this much later, inside working hours. */
+export const UNREACHABLE_RETRY_MS = 6 * 3_600_000;
+/** A site still silent this long after the lead was written stops it. */
+export const UNREACHABLE_GIVE_UP_MS = 3 * DAY_MS;
+
+/**
+ * What a recheck that found no problem does to a lead not claimed yet. Fixed
+ * ('resolved'): it stops. No answer: tried again later, and stopped as
+ * 'unreachable' only once the site has been silent for a while after the
+ * lead was written, since one network blip should not end it. A lead
+ * claimed or ended meanwhile stays as it is.
+ */
+async function afterRecheck(sql: Sql, lead: RecheckLead, seen: Exclude<RecheckResult, 'problem'>, now: Date): Promise<Outcome> {
+  const writtenAt = lead.written_at?.getTime() ?? now.getTime();
+  if (seen === 'unreachable' && now.getTime() - writtenAt < UNREACHABLE_GIVE_UP_MS) {
+    const at = nextSendAt({ after: new Date(now.getTime() + UNREACHABLE_RETRY_MS), timezone: lead.timezone, schedule: lead.schedule });
+    const moved = await sql`
+      update campaign_leads set next_send_at = ${at}
+      where id = ${lead.id} and status in ('queued', 'active') and claimed_at is null`;
+    return moved.count > 0 ? 'deferred' : 'skipped';
+  }
+  const [row] = await sql<{ campaign_id: string }[]>`
+    update campaign_leads set status = 'stopped', skip_reason = ${seen}, next_send_at = null
+    where id = ${lead.id} and status in ('queued', 'active') and claimed_at is null
+    returning campaign_id`;
+  if (!row) return 'skipped';
+  await finishIfDone(sql, row.campaign_id, now);
+  return 'stopped';
 }
 
 /** Ends a lead that may not get its next step, with the reason shown in the campaign. */

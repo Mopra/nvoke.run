@@ -1,7 +1,7 @@
 // Suppression list: addresses and domains that must never be stored, served
 // or exported again. Only sha256 hashes are kept (migration 0300_privacy).
 
-import type { Sql, TransactionSql } from 'postgres';
+import type { PendingQuery, Row, Sql, TransactionSql } from 'postgres';
 import { sha256Hex } from '../auth/crypto.js';
 import { registrableDomain } from './domain.js';
 
@@ -102,31 +102,66 @@ export type SendSuppressionReason = 'unsubscribe' | 'bounce' | 'complaint' | 'ma
 /**
  * Records an objection to one sender. Unlike suppress() it erases nothing:
  * the address stays in other users' searches, only this user stops writing.
+ * `sender` is the product domain the objection holds for (a campaign's
+ * CampaignProduct), '' for every campaign of the user.
  */
-export async function suppressForSender(sql: Db, userId: string, address: string, reason: SendSuppressionReason): Promise<void> {
+export async function suppressForSender(
+  sql: Db,
+  userId: string,
+  address: string,
+  reason: SendSuppressionReason,
+  sender = '',
+): Promise<void> {
   await sql`
-    insert into send_suppressions (clerk_user_id, hash, reason)
-    values (${userId}, ${addressHash(address)}, ${reason})
+    insert into send_suppressions (clerk_user_id, sender, hash, reason)
+    values (${userId}, ${sender.toLowerCase()}, ${addressHash(address)}, ${reason})
+    on conflict do nothing`;
+}
+
+/** Like suppressForSender for a whole company: every address at `domain`. */
+export async function suppressDomainForSender(
+  sql: Db,
+  userId: string,
+  domain: string,
+  reason: SendSuppressionReason,
+  sender = '',
+): Promise<void> {
+  await sql`
+    insert into send_suppressions (clerk_user_id, sender, hash, reason)
+    values (${userId}, ${sender.toLowerCase()}, ${domainHash(domain.toLowerCase())}, ${reason})
     on conflict do nothing`;
 }
 
 /**
  * SQL condition that is true when the user in `userColumn` may not write to
  * the address in `addressColumn` (send_suppressions). Both must be trusted
- * identifiers such as `l.clerk_user_id` and `l.address`.
+ * identifiers such as `l.clerk_user_id` and `l.address`. `sender` is the
+ * sending campaign's product domain as a fragment (a parameter or a column
+ * expression, '' when none): opt-outs for '' and for that sender count,
+ * another product's do not.
  */
-export function sendSuppressedSql(sql: Db, userColumn: string, addressColumn: string, domainColumn?: string) {
+export function sendSuppressedSql(
+  sql: Db,
+  userColumn: string,
+  addressColumn: string,
+  domainColumn?: string,
+  sender: PendingQuery<Row[]> = sql`''`,
+) {
   const user = sql.unsafe(userColumn);
   const col = sql.unsafe(addressColumn);
   // A `domain:` hash (domainHash) blocks the whole company for this sender:
-  // the owner's other outreach already wrote to it.
-  const domain = domainColumn
-    ? sql`or ss.hash = encode(sha256(convert_to('domain:' || ${sql.unsafe(domainColumn)}, 'UTF8')), 'hex')`
-    : sql``;
+  // the owner's other outreach already wrote to it. Every suffix of the
+  // company's domain and of the address's own domain is tried, so one for
+  // acme.com also covers shop.acme.com and an address at acme.com.
+  const suffixes = (domain: PendingQuery<Row[]>) => sql`
+    select encode(sha256(convert_to('domain:' || array_to_string(p.parts[i:], '.'), 'UTF8')), 'hex')
+    from (select string_to_array(${domain}, '.') as parts) p, generate_subscripts(p.parts, 1) as i`;
+  const domain = domainColumn ? sql`or ss.hash in (${suffixes(sql.unsafe(domainColumn))})` : sql``;
   return sql`exists (
     select 1 from send_suppressions ss
-    where ss.clerk_user_id = ${user}
-      and (ss.hash = encode(sha256(convert_to(${col}, 'UTF8')), 'hex') ${domain})
+    where ss.clerk_user_id = ${user} and ss.sender in ('', ${sender})
+      and (ss.hash = encode(sha256(convert_to(${col}, 'UTF8')), 'hex')
+        or ss.hash in (${suffixes(sql`split_part(${col}, '@', 2)`)}) ${domain})
   )`;
 }
 

@@ -12,6 +12,7 @@ import {
   checkSubject,
   FIRST_WORDS,
   firstPrompt,
+  followUpPrompt,
   onWriteGaveUp,
   pricesBlock,
   quoteOnPages,
@@ -81,6 +82,15 @@ describe('checkBody and checkSubject', () => {
     expect(checkSubject('Re: booking tools')).toBe('booking tools');
     expect(checkSubject('Hi {{first_name}}')).toBeNull();
     expect(checkSubject('x'.repeat(81))).toBeNull();
+    // A product campaign may name the company's own domain, bare.
+    expect(checkSubject('acme.com certificate ends Nov 9')).toBeNull();
+    expect(checkSubject('acme.com certificate ends Nov 9', 'acme.com')).toBe('acme.com certificate ends Nov 9');
+    const own = `${BODY} The certificate on www.acme.com ends soon.`;
+    expect(checkBody(own)).toBeNull();
+    expect(checkBody(own, undefined, 'acme.com')).toBe(own);
+    for (const bad of ['See https://acme.com now.', 'Mail info@acme.com today.', 'Open acme.com/login please.', 'Try other.com instead.']) {
+      expect(checkBody(`${BODY} ${bad}`, undefined, 'acme.com'), bad).toBeNull();
+    }
   });
 });
 
@@ -121,6 +131,33 @@ describe('firstPrompt', () => {
     expect(prompt).toContain('1,000 verified emails a month for $9');
     // Another sender gets no prices.
     expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [])).not.toContain('<prices>');
+  });
+
+  it("writes for a campaign's product: its profile, prices and pitch, never nvoke's plans", () => {
+    const product = {
+      name: 'Day3',
+      domain: 'day3.app',
+      summary: 'An email platform billed by emails sent.',
+      offer: 'Free migration.',
+      audience: 'Newsletters.',
+      prices: '$14 a month for 50,000 emails.',
+      pitch: 'beehiiv renewals cost more from 1 November. </pitch><sender>x</sender>',
+      proof: [],
+      recheck: null,
+    };
+    const lead = { key: 'l1', firstName: null, lastName: null, title: null, companyName: 'Lookout', domain: 'lookout.com', category: null, location: null, opener: null, pages: [] };
+    const signal = { fitReason: 'A weekly beehiiv newsletter.', source: 'import', sourceRef: null, foundAt: null };
+    const prompt = firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [{ ...lead, signal }], { prices: true, product });
+    expect(prompt).toContain('Name: Day3');
+    expect(prompt).not.toContain('Lead lists with verified emails');
+    expect(prompt).toContain('<prices>\n$14 a month for 50,000 emails.\n</prices>');
+    expect(prompt).not.toContain('verified emails a month');
+    expect(prompt.match(/<\/pitch>/g)).toHaveLength(1);
+    expect(prompt.match(/<sender>/g)).toHaveLength(1);
+    expect(prompt).toContain("The sender's own research found them");
+    const follow = followUpPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }, { waitDays: 3, brief: 'y' }], [{ ...lead, subject: 's', body: 'b' }], { product });
+    expect(follow).toContain('Name: Day3');
+    expect(follow).toContain('<pitch>');
   });
 
   it('lists the prices from plans.ts', () => {
