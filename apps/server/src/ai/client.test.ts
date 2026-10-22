@@ -81,6 +81,18 @@ describe('createAi().structured', () => {
     expect(format.schema).toMatchObject({ properties: { searches: { description: 'At most 3 items.' } } });
   });
 
+  it('sends a cached prefix as its own part, marked for the cache, before the prompt', async () => {
+    const { client, requests } = fakeClient(reply({ sells: 'x', searches: [] }));
+    const ai = createAi({ sql: db.sql, log: silentLog, budget, client, now: () => NOW });
+    await ai.structured({ ...ask, cachedPrefix: 'the brief' });
+    expect(requests[0]!.messages[1]!.content).toEqual([
+      { type: 'text', text: 'the brief', cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: ask.prompt },
+    ]);
+    await ai.structured(ask);
+    expect(requests[1]!.messages[1]!.content).toBe(ask.prompt);
+  });
+
   it('uses Haiku for bulk calls', async () => {
     const { client, requests } = fakeClient(reply({ sells: 'x', searches: [] }, { model: MODELS.bulk }));
     const ai = createAi({ sql: db.sql, log: silentLog, budget, client, now: () => NOW });

@@ -24,12 +24,19 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export interface ChatRequest {
   model: string;
   max_tokens: number;
-  messages: { role: 'system' | 'user'; content: string }[];
+  messages: { role: 'system' | 'user'; content: string | ContentPart[] }[];
   response_format: {
     type: 'json_schema';
     json_schema: { name: string; description: string; strict: boolean; schema: Record<string, unknown> };
   };
   reasoning?: { effort: 'low' | 'medium' | 'high' };
+}
+
+/** A text part; `cache_control` marks the end of a prefix Anthropic caches (OpenRouter passes it through). */
+export interface ContentPart {
+  type: 'text';
+  text: string;
+  cache_control?: { type: 'ephemeral' };
 }
 
 /** The parts of OpenRouter's answer nvoke reads. */
@@ -83,6 +90,14 @@ export interface StructuredRequest<S extends z.ZodType> {
   tier: ModelTier;
   system: string;
   prompt: string;
+  /**
+   * Text the same for many calls in a row (a search's brief, a campaign's
+   * sender and offer), sent before `prompt` and cached with the system prompt.
+   * A cache read costs a tenth of input, a write a quarter more, and a prefix
+   * under 512 tokens is not cached, so give it only to calls that repeat it
+   * within five minutes.
+   */
+  cachedPrefix?: string;
   /** The answer's shape. Must be an object schema. */
   schema: S;
   /** Names the answer's schema, for example "save_profile". */
@@ -207,7 +222,15 @@ export function createAi(opts: AiOptions): Ai {
         max_tokens: req.maxTokens ?? 4096,
         messages: [
           { role: 'system', content: `${req.system}\n\nAnswer only with JSON that matches the ${req.toolName} schema.` },
-          { role: 'user', content: req.prompt },
+          {
+            role: 'user',
+            content: req.cachedPrefix
+              ? [
+                  { type: 'text', text: req.cachedPrefix, cache_control: { type: 'ephemeral' } },
+                  { type: 'text', text: req.prompt },
+                ]
+              : req.prompt,
+          },
         ],
         response_format: {
           type: 'json_schema',
