@@ -97,4 +97,12 @@ describe('rescoreSeed and the claim order', () => {
     });
     expect(crawled).toEqual(['outboundagency.co.uk']);
   });
+
+  it('weighs a word found in many names down', async () => {
+    await db.sql`insert into seed_domains (domain, source, rank) values ('agencyhub.com', 'majestic', 30), ('agencyworks.com', 'majestic', 31)`;
+    // "agency" is in two queued names now: with one name as the bar, it counts half.
+    await rescoreSeed(db.sql, await seedDemand(db.sql, NOW), 1);
+    const [r] = await db.sql<{ score: number }[]>`select score from seed_domains where domain = 'agencyhub.com'`;
+    expect(r!.score).toBe(0.5);
+  });
 });

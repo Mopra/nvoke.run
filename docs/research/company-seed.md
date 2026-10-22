@@ -74,7 +74,8 @@ domain is only a name, so its `score` reads the name:
   `outboundagency.co.uk`). Words come from the plan's segments, core and
   adjacent queries, stemmed, without generic ones ("company", "small") and
   shorter than 4 letters. Each matched word weighs the share of recent plans
-  that hold it, up to 2 in all, times 2.
+  that hold it, shrunk when the word is in more than 200 queued names
+  ("book" is in 3,847, "baptist" in 80), up to 2 in all, times 2.
 - The TLD of a plan's country (.nl, .uk for gb), weighed the same way.
   Countries whose ccTLD is used as a generic one (.io, .co) count nothing.
 

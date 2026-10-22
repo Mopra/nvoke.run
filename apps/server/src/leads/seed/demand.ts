@@ -3,8 +3,9 @@
 // domain is only a name, so the score reads the name: a word of a recent
 // Sonar plan inside it ("church" in gracechurch.org) and a TLD of one of the
 // plan's countries (.nl for a plan in the Netherlands). Each plan of the last
-// SEED_DEMAND_DAYS counts the same, however many queries it holds. Without
-// recent plans every score is 0 and the list's rank decides, as before.
+// SEED_DEMAND_DAYS counts the same, however many queries it holds, and a word
+// found in many names counts less (SPECIFIC_MATCHES). Without recent plans
+// every score is 0 and the list's rank decides, as before.
 
 import type { Sql } from 'postgres';
 import { tldCountry } from '../company-index.js';
@@ -18,6 +19,12 @@ const MIN_WORD = 4;
 const MAX_WORD_WEIGHT = 2;
 /** A matched word weighs this much more than a matched country: words say what the company is. */
 const WORD_FACTOR = 2;
+/**
+ * A word inside more queued names than this is generic there ("book", "live",
+ * "sale"): its weight shrinks by the share, so "baptist" (80 names) counts in
+ * full and "book" (3,847) for about a twentieth.
+ */
+export const SPECIFIC_MATCHES = 200;
 
 /** Words of a plan that say nothing about the company a domain name stands for. */
 const STOP = new Set([
@@ -91,15 +98,22 @@ export function demandKey(d: SeedDemand): string {
 
 /**
  * Scores every queued seed domain against the demand: the matched words'
- * weights in the name before the first dot, up to MAX_WORD_WEIGHT, times
+ * weights in the name before the first dot, each shrunk when the word is in
+ * more than `specific` queued names, up to MAX_WORD_WEIGHT, times
  * WORD_FACTOR, plus the weight of its TLD. Writes only scores that change.
  * How many rows it rescored.
  */
-export async function rescoreSeed(sql: Sql, demand: SeedDemand): Promise<number> {
+export async function rescoreSeed(sql: Sql, demand: SeedDemand, specific = SPECIFIC_MATCHES): Promise<number> {
   const [words, wordWeights] = [[...demand.words.keys()], [...demand.words.values()]];
   const [tlds, tldWeights] = [[...demand.tlds.keys()], [...demand.tlds.values()]];
   const [r] = await sql<{ n: number }[]>`
-    with w as (select * from unnest(${words}::text[], ${wordWeights}::real[]) as w(word, weight)),
+    with given as (select * from unnest(${words}::text[], ${wordWeights}::real[]) as g(word, weight)),
+         w as (
+           select g.word, g.weight * least(1, ${specific}::real / greatest(1, count(s.domain))) as weight
+           from given g
+           left join seed_domains s on s.status = 'queued' and position(g.word in split_part(s.domain, '.', 1)) > 0
+           group by g.word, g.weight
+         ),
          t as (select * from unnest(${tlds}::text[], ${tldWeights}::real[]) as t(tld, weight)),
          scored as (
            select s.domain,
