@@ -25,6 +25,8 @@ const WORD_FACTOR = 2;
  * full and "book" (3,847) for about a twentieth.
  */
 export const SPECIFIC_MATCHES = 200;
+/** Every word against every queued name takes a minute or two on a million rows: past Supabase's default timeout. */
+const RESCORE_TIMEOUT = '10min';
 
 /** Words of a plan that say nothing about the company a domain name stands for. */
 const STOP = new Set([
@@ -106,7 +108,9 @@ export function demandKey(d: SeedDemand): string {
 export async function rescoreSeed(sql: Sql, demand: SeedDemand, specific = SPECIFIC_MATCHES): Promise<number> {
   const [words, wordWeights] = [[...demand.words.keys()], [...demand.words.values()]];
   const [tlds, tldWeights] = [[...demand.tlds.keys()], [...demand.tlds.values()]];
-  const [r] = await sql<{ n: number }[]>`
+  return sql.begin(async (tx) => {
+    await tx`select set_config('statement_timeout', ${RESCORE_TIMEOUT}, true)`;
+    const [r] = await tx<{ n: number }[]>`
     with given as (select * from unnest(${words}::text[], ${wordWeights}::real[]) as g(word, weight)),
          w as (
            select g.word, g.weight * least(1, ${specific}::real / greatest(1, count(s.domain))) as weight
@@ -130,5 +134,6 @@ export async function rescoreSeed(sql: Sql, demand: SeedDemand, specific = SPECI
          )
     select count(*)::int as n from changed
   `;
-  return r!.n;
+    return r!.n;
+  });
 }
