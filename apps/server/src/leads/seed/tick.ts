@@ -13,7 +13,8 @@
 //   in full (more pages, the people step) rather than reading the seed's.
 //
 // What users search for goes first: every SEED_RESCORE_MS the loop reads the
-// recent Sonar plans and, when they changed, rescores the queue (demand.ts).
+// recent Sonar plans and, when they or the queue's imports changed, rescores
+// the queue (demand.ts).
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
@@ -169,7 +170,9 @@ export function startSeedLoop(deps: SeedDeps): () => void {
       if (Date.now() - demandAt < SEED_RESCORE_MS) return;
       demandAt = Date.now();
       const demand = await seedDemand(deps.sql);
-      const key = demandKey(demand);
+      // A new import is unscored: the newest row in the queue is part of the key.
+      const [last] = await deps.sql<{ at: Date | null }[]>`select max(added_at) as at from seed_domains`;
+      const key = `${demandKey(demand)}@${last?.at?.toISOString() ?? ''}`;
       if (key === lastDemand) return;
       const rescored = await rescoreSeed(deps.sql, demand);
       lastDemand = key;

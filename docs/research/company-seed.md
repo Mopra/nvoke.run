@@ -79,7 +79,7 @@ domain is only a name, so its `score` reads the name:
   Countries whose ccTLD is used as a generic one (.io, .co) count nothing.
 
 Each plan counts the same, however many queries it holds. Every hour the
-loop reads the recent plans and, when they changed, rescores the queued
+loop reads the recent plans and, when they or the imports changed, rescores the queued
 domains. The claim takes the highest score first and the list's rank after
 it, so without recent plans the order is the rank, as before. Import deep
 (the whole list): the score can only pick from what is queued.
