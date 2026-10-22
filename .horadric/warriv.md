@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-22 Round after 'Checks on main after the pipeline, recheck and Majestic seed work' landed: no fix commits, so main green at 753f866. The human is mid stream (5 server commits e905a08 to 8b0a870, the last 14s before), so held a new checks quest back. Clips wait on the owner, Common Crawl in progress, no aim.
 - 2026-10-22 Hourly round: the human committed 9 server commits (0131638 to 753f866: AI cache prefix, verify rechecks, pipeline, write batches, Majestic seed, Sonar cap) past green a5d760c, tree clean, so filed 'Checks on main after the pipeline, recheck and Majestic seed work' (sonnet, with build). Common Crawl quest in progress, clips wait on the owner, no aim.
 - 2026-10-22 Round as the human left: unchanged (only a memory commit past green a5d760c, clips wait on the owner, no aim). Nothing to do.
 - 2026-10-22 Round after 'Checks on main after Sonar and the black key' landed: one test fix (a5d760c, Sonar email charged three), main green at a5d760c. Clips wait on the owner, no aim. Nothing to file; shipping is the human's.
@@ -75,7 +76,7 @@
 ## Open
 
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
-- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c (2026-10-22).
+- Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866 (2026-10-22). Next round: if the human's commits past 753f866 have settled, file checks.
 - Production OpenRouter out of credits since 2026-10-21: Describe your customer and the people step fail until the owner tops up.
 
 - Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
