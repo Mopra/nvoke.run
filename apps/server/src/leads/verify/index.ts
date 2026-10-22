@@ -16,6 +16,14 @@
 // only that lane pauses. A check no lane can take now says so (smtp_paced,
 // mx_only_port25_blocked, smtp_throttled; isCapacityDeferral) and the
 // pipeline asks again later instead of settling it as unknown.
+//
+// Second chances before unknown: an IPv4 lane that cannot reach the MX host
+// hands the session to the next lane with a free slot (the Hostinger
+// throttle shows up as connect timeouts on this machine's lane only). A host
+// that greylisted us is asked again from the same route it saw (greylisting
+// remembers the sending IP), with the same decoys (fresh random decoys would
+// be greylisted anew on every retry). recheck.ts asks settled unknowns again
+// hours later.
 
 import * as net from 'node:net';
 import { networkInterfaces } from 'node:os';
@@ -108,6 +116,13 @@ interface Ipv4Lane {
 
 /** How long a relay that is down is left alone. */
 const RELAY_DOWN_MS = 60_000;
+/**
+ * How long a host that greylisted us keeps its route (IPv6 or one IPv4
+ * lane) and a domain its decoys: long enough for the pipeline's retries and
+ * a capacity wait or two, so the retry looks like the same sender.
+ */
+const GREYLIST_ROUTE_MS = 6 * 60 * 60_000;
+const DECOY_TTL_MS = 6 * 60 * 60_000;
 
 export const CACHE_TTL_MS = 30 * 24 * 60 * 60_000;
 export const VALID_TTL_MS = 30 * 24 * 60 * 60_000;
@@ -293,6 +308,16 @@ export function classifyRcpt(reply: SmtpReply): { verification: Verification; re
   return { verification: 'unknown', reason: `rcpt_${reply.code}` };
 }
 
+/** Sets a key as the newest entry of a map kept to 20,000 entries, dropping the oldest. */
+function remember<V>(map: Map<string, V>, key: string, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size > 20_000) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) map.delete(oldest);
+  }
+}
+
 function randomLocal(): string {
   return `nvoke-${randomBytes(6).toString('hex')}-nx`;
 }
@@ -368,6 +393,10 @@ export class Verifier {
   /** MX hosts whose IPv6 address failed us, and when. */
   private readonly ipv6Failed = new Map<string, number>();
   private ipv6FailStreak = 0;
+  /** Per MX host that greylisted us: the route it saw us on ('ipv6' or an IPv4 lane key), and when. */
+  private readonly greylistRoutes = new Map<string, { route: string; at: number }>();
+  /** Per domain, the random decoys its sessions ask about, kept so a greylisted retry asks the same ones. */
+  private readonly decoys = new Map<string, { at: number; locals: string[] }>();
   private ipv6OffUntil = 0;
   private readonly now: () => number;
   /** Whether this machine can reach the IPv6 internet, decided once at start. */
@@ -407,9 +436,9 @@ export class Verifier {
    * with port 25 blocked, or throws PacedError with the shortest wait
    * (marked port25Blocked when every lane is paused).
    */
-  private takeIpv4(extra: Limit[]): Ipv4Lane {
+  private takeIpv4(extra: Limit[], pick: { only?: string; skip?: Set<string> } = {}): Ipv4Lane {
     let wait = Infinity;
-    const lanes = this.ipv4Lanes();
+    const lanes = this.ipv4Lanes().filter((l) => (pick.only ? l.limit.key === pick.only : !pick.skip?.has(l.limit.key)));
     let blocked = 0;
     for (const lane of lanes) {
       const until = this.laneBlockedUntil.get(lane.limit.key) ?? 0;
@@ -426,7 +455,7 @@ export class Verifier {
         wait = Math.min(wait, err.retryAfterMs);
       }
     }
-    throw new PacedError(wait, blocked === lanes.length);
+    throw new PacedError(wait, lanes.length > 0 && blocked === lanes.length);
   }
 
   /** True while every IPv4 lane is paused because its port 25 looks blocked. IPv6 may still work. */
@@ -556,7 +585,7 @@ export class Verifier {
 
     const makePlan = (): Pick<SmtpProbeOptions, 'recipients' | 'nextRecipient'> => {
       work = groupsToAsk.map((g) => g.slice());
-      decoy = this.fresh(this.notCatchAll, domain) ? null : `${randomLocal()}@${domain}`;
+      decoy = this.fresh(this.notCatchAll, domain) ? null : this.decoysFor(domain)[0]!;
       asked = [];
       answered = [];
       seen = 0;
@@ -616,6 +645,31 @@ export class Verifier {
     // resolver hiccup) are not worth remembering.
     // A greylisted answer is retried by the pipeline, so it is not cached either.
     if (!UNCACHED_REASONS.has(result.reason) && !isTempfail(result)) await this.opts.cache?.set(result);
+  }
+
+  /** Two random decoys for the domain, the same ones for DECOY_TTL_MS. */
+  private decoysFor(domain: string): string[] {
+    const hit = this.decoys.get(domain);
+    if (hit && this.now() - hit.at < DECOY_TTL_MS) return hit.locals.map((l) => `${l}@${domain}`);
+    const locals = [randomLocal(), randomLocal()];
+    remember(this.decoys, domain, { at: this.now(), locals });
+    return locals.map((l) => `${l}@${domain}`);
+  }
+
+  /** The route a host that greylisted us saw us on, while it is worth keeping. */
+  private greylistRoute(host: string): string | null {
+    const hit = this.greylistRoutes.get(host);
+    if (!hit) return null;
+    if (this.now() - hit.at < GREYLIST_ROUTE_MS) return hit.route;
+    this.greylistRoutes.delete(host);
+    return null;
+  }
+
+  /** Remembers the route of a session the host greylisted: a 4xx to a recipient, other than a 421 hang up. */
+  private noteRoute(host: string, route: string, res: SmtpProbeResult): void {
+    if (res.recipients.some(({ reply }) => reply.code >= 400 && reply.code < 500 && reply.code !== 421)) {
+      remember(this.greylistRoutes, host, { route, at: this.now() });
+    }
   }
 
   private fresh(map: Map<string, number>, domain: string): boolean {
@@ -738,7 +792,7 @@ export class Verifier {
     signal: AbortSignal,
   ): Promise<void> {
     const freshNotCatchAll = this.fresh(this.notCatchAll, domain);
-    const decoys = freshNotCatchAll ? [] : [`${randomLocal()}@${domain}`, `${randomLocal()}@${domain}`];
+    const decoys = freshNotCatchAll ? [] : this.decoysFor(domain);
     let answered: SmtpProbeResult['recipients'] = [];
     // A fresh plan per attempt, so an IPv4 retry after an IPv6 policy block asks every address again.
     const makePlan = (): Pick<SmtpProbeOptions, 'recipients' | 'nextRecipient'> => {
@@ -864,26 +918,49 @@ export class Verifier {
       );
 
     // Over IPv4 on a lane with a free slot. A relay that is down is cooled and the next lane tried.
-    // A connect failure counts against the lane it happened on, so a blocked lane pauses alone.
-    const runIpv4 = async (extra: Limit[]): Promise<SmtpProbeResult> => {
+    // A connect failure counts against the lane it happened on, so a blocked lane pauses alone,
+    // and the session moves to the next lane with a slot free now: the server never saw us, so
+    // to it this is still one session. Each lane is tried once and pays its own slot. `only`
+    // keeps a host that greylisted us on the lane it saw; that lane at its budget means a wait.
+    const runIpv4 = async (extra: Limit[], only?: string): Promise<SmtpProbeResult> => {
+      const tried = new Set<string>();
+      let unreachable: unknown = null;
       for (;;) {
-        const lane = this.takeIpv4(extra);
+        let lane: Ipv4Lane;
+        try {
+          lane = this.takeIpv4(extra, tried.size === 0 && only ? { only } : { skip: tried });
+        } catch (err) {
+          // No other lane free right now: the connect failure stands, and the pipeline retries it.
+          if (unreachable && err instanceof PacedError) throw unreachable;
+          throw err;
+        }
+        extra = [];
+        tried.add(lane.limit.key);
         try {
           const res = await run(host, lane);
           this.connectFailures.delete(lane.limit.key);
+          this.noteRoute(host, lane.limit.key, res);
           return res;
         } catch (err) {
           if (err instanceof RelayDownError) {
             this.pacer.cool(lane.limit.key, RELAY_DOWN_MS);
-            extra = [];
             continue;
           }
-          if (err instanceof SmtpProbeError && err.stage === 'connect' && !signal?.aborted) await this.noteConnectFailure(host, lane);
+          if (err instanceof SmtpProbeError && err.stage === 'connect' && !signal?.aborted) {
+            await this.noteConnectFailure(host, lane);
+            unreachable = err;
+            continue;
+          }
           throw err;
         }
       }
     };
 
+    // A host that greylisted us over IPv4 is asked from the same lane, so the retry passes its greylist.
+    const sticky = this.greylistRoute(host);
+    // A lane gone from the config or paused with port 25 blocked cannot keep it.
+    const stickyLane = sticky && sticky !== 'ipv6' && (this.laneBlockedUntil.get(sticky) ?? 0) <= this.now() ? sticky : null;
+    if (stickyLane && this.ipv4Lanes().some((l) => l.limit.key === stickyLane)) return runIpv4(shared, stickyLane);
     const v6 = await this.ipv6Of(host);
     if (!v6) return runIpv4(shared);
     this.pacer.take(shared);
@@ -907,6 +984,7 @@ export class Verifier {
     // not the mailbox. The configured egress is IPv4, so retry there rather than cache a false unknown.
     if (isPolicyBlocked(res)) return overIpv4(false);
     this.ipv6FailStreak = 0;
+    this.noteRoute(host, 'ipv6', res);
     return res;
   }
 

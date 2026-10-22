@@ -476,14 +476,87 @@ describe('Verifier', () => {
       },
       onPort25Blocked: (lane) => void alerts.push(lane),
     });
-    for (let i = 1; i <= 5; i++) expect(await v.verify(`a@d${i}.dk`)).toMatchObject({ reason: 'smtp_unreachable' });
+    // Each session this machine could not open moves to the relay.
+    for (let i = 1; i <= 5; i++) expect(await v.verify(`a@d${i}.dk`)).toMatchObject({ verification: 'valid' });
     expect(asked).toEqual(['ipv4']);
     expect(alerts).toEqual(['ipv4']);
-    // Some lane still works, so probing goes on: through the relay, with its HELO name.
+    // Some lane still works, so probing goes on: through the relay, with its HELO name, without trying here first.
     expect(v.smtpBlocked).toBe(false);
     expect(await v.verify('a@d6.dk')).toMatchObject({ verification: 'valid' });
-    expect(socks.targets).toEqual(['127.0.6.16:25']);
-    expect(smtp.sessions.map((s) => s[0])).toEqual(['EHLO relay.example']);
+    expect(socks.targets).toEqual(ips.map((ip) => `${ip}:25`));
+    expect(smtp.sessions.map((s) => s[0])).toEqual(ips.map(() => 'EHLO relay.example'));
+  });
+
+  it('moves a session this machine cannot open to a relay with a free slot, paying that slot', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const socks = await fakeSocks(smtp.port);
+    const v = new Verifier({
+      ...base,
+      probesPerMinute: 1,
+      now: () => 1_000_000,
+      relays: [{ socks: { host: '127.0.0.1', port: socks.port }, heloName: 'relay.example' }],
+      dns: fakeDns({ 'a.dk': ['127.0.0.11'], 'b.dk': ['127.0.0.12'] }),
+      connect: connectTo(smtp.port, ['127.0.0.11']),
+    });
+    expect(await v.verify('x@a.dk')).toMatchObject({ verification: 'valid' });
+    expect(socks.targets).toEqual(['127.0.0.11:25']);
+    // Both lanes spent their slot for the minute: the next check waits instead of hammering anyone.
+    expect(await v.verify('x@b.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced' });
+  });
+
+  it('keeps a session it could not open unreachable when no other lane has a slot', async () => {
+    const v = new Verifier({
+      ...base,
+      now: () => 1_000_000,
+      dns: fakeDns({ 'a.dk': ['mx.a.test'] }),
+      connect: connectTo(1, ['mx.a.test']),
+    });
+    expect(await v.verify('x@a.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_unreachable' });
+  });
+
+  it('asks a host that greylisted us again from the same lane, waiting for its slot', async () => {
+    let sessions = 0;
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : sessions === 1 ? '451 4.7.1 Greylisted' : '250 ok') });
+    const socks = await fakeSocks(smtp.port);
+    let t = 1_000_000;
+    const v = new Verifier({
+      ...base,
+      probesPerMinute: 1,
+      now: () => t,
+      relays: [{ socks: { host: '127.0.0.1', port: socks.port }, heloName: 'relay.example' }],
+      dns: fakeDns({ 'grey.dk': ['127.0.0.11'] }),
+      connect: (port, host) => {
+        sessions++;
+        return connectTo(smtp.port)(port, host);
+      },
+    });
+    expect(await v.verify('x@grey.dk')).toMatchObject({ verification: 'unknown', reason: 'rcpt_tempfail_451' });
+    // The relay has a slot, but the greylist knows this machine's address: wait for this machine's slot.
+    t += 10_000;
+    expect(await v.verify('x@grey.dk')).toMatchObject({ verification: 'unknown', reason: 'smtp_paced' });
+    t += 60_000;
+    expect(await v.verify('x@grey.dk')).toMatchObject({ verification: 'valid' });
+    expect(socks.targets).toEqual([]);
+    expect(smtp.sessions.map((s) => s[0])).toEqual(['EHLO nvoke.run', 'EHLO nvoke.run']);
+  });
+
+  it('asks the same decoys again, so a retry passes a greylist on them', async () => {
+    const seen = new Set<string>();
+    // Greylists every address the first time it sees it, then answers.
+    const smtp = await fakeSmtp({
+      rcpt: (a) => {
+        if (!seen.has(a)) {
+          seen.add(a);
+          return '450 4.2.0 Greylisted, try again later';
+        }
+        return a.startsWith('nvoke-') ? '550 5.1.1 no such user' : '250 ok';
+      },
+    });
+    const v = new Verifier({ ...base, dns: fakeDns({ 'grey.dk': ['mx.grey.dk'] }), connect: connectTo(smtp.port) });
+    expect(await v.verify('anna@grey.dk')).toMatchObject({ verification: 'unknown', reason: 'rcpt_tempfail_450' });
+    expect(await v.verify('anna@grey.dk')).toMatchObject({ verification: 'valid', reason: 'rcpt_accepted' });
+    const rcpts = smtp.sessions.map((s) => s.filter((l) => l.startsWith('RCPT')));
+    expect(rcpts[1]).toEqual(rcpts[0]);
   });
 
   it('prefers IPv6, then this machine over IPv4, then the relay', async () => {
