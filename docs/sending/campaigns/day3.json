@@ -1,28 +1,40 @@
 {
   "name": "Day3: newsletters billed by list size",
   "source": "search",
-  "mailboxes": ["morten@day3.app"],
+  "mailboxes": [
+    "morten@day3.app"
+  ],
   "peopleOnly": false,
   "allowCatchAll": true,
   "perCompany": 1,
   "dailyNew": 30,
   "holdHours": 2,
-  "schedule": { "days": [1, 2, 3, 4, 5], "startHour": 9, "endHour": 17 },
+  "schedule": {
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "startHour": 9,
+    "endHour": 17
+  },
   "product": {
     "name": "Day3",
     "domain": "day3.app",
     "summary": "Day3 is an email platform that only does the email part of a newsletter: their own domain, a signup form, the newsletter itself and good inbox placement. It bills by emails sent, never by list size.",
-    "offer": "Unlimited subscribers on every plan, priced by the emails sent each month. The move is free and done for them by Morten, who builds Day3: their export or a one click import from beehiiv, Kit, Mailchimp or MailerLite comes over with unsubscribes kept unsubscribed, the sending domain is set up and the template rebuilt.",
+    "offer": "Unlimited subscribers on every plan, priced by the emails sent each month. The sender does the move for them by hand, at no cost: their export or a one click import from beehiiv, Kit, Mailchimp or MailerLite comes over with unsubscribes kept unsubscribed, the sending domain is set up and the template rebuilt.",
     "audience": "Independent newsletters that mostly just send email and sell their own sponsors: local news digests, niche and hobby newsletters, small businesses and creators with a list.",
     "prices": "Billed by emails sent a month, with unlimited subscribers on every plan:\n1,000 emails a month for $1; 5,000 for $3; 10,000 for $5; 25,000 for $8; 50,000 for $14; 100,000 for $25; 250,000 for $60; 500,000 for $115; 1,000,000 for $220.\nEmails a month are the list size times the issues a month (weekly is about 4.3 issues a month): 10,000 readers weekly is about 43,000 emails, the $14 plan; 5,000 readers twice a month is 10,000 emails, the $5 plan. Round up to the plan that covers it.\nThe move to Day3 costs nothing.",
-    "pitch": "beehiiv raised its prices in October 2026. Existing paid accounts pay the new price from their first renewal after 1 November 2026, often 30 to 50% more, with the biggest jumps between 10,000 and 50,000 subscribers. Kit, Mailchimp and MailerLite charge by list size, so the bill grows with the list even when the sending does not. Name their platform only when the signal names it, and never guess their list size: use a number they publish, or frame the price as an example. Day3 fits a newsletter that only needs to send. It has no ad network, referral program, paid subscriptions or web archive, so never claim it replaces those.",
+    "pitch": "beehiiv raised its prices in October 2026. Existing paid accounts pay the new price from their first renewal after 1 November 2026, often 30 to 50% more, with the biggest jumps between 10,000 and 50,000 subscribers. Kit, Mailchimp and MailerLite charge by list size, so the bill grows with the list even when the sending does not. Name their platform only when the signal names it, and never guess their list size: use a number they publish, or frame the price as an example. Day3 fits a newsletter that only needs to send. It has no ad network, referral program, paid subscriptions or web archive, so never claim it replaces those. The sender is Morten, who builds Day3: write as him, in the first person (I build Day3, I move the list), never about Morten in the third person.",
     "proof": [],
     "recheck": null
   },
   "steps": [
     {
       "waitDays": 0,
-      "brief": "A short personal note to whoever runs this newsletter. Open with one specific, recent detail from their newsletter or site in your own words: an issue, a story, a number, a person they wrote about. Then the reason to write, from the signal: for beehiiv, the renewal price rise after 1 November; for Kit, Mailchimp or MailerLite, that they pay by list size. Then Day3 in one or two sentences with one worked price for a list like theirs, and the free move of their list. Close with one question about their own situation: when their plan renews, roughly how many readers they have, or how often they send."
+      "brief": "A short personal note to whoever runs this newsletter. Open with one specific, recent detail from their newsletter or site in your own words: an issue, a story, a number, a person they wrote about. Then the reason to write, from the signal: for beehiiv, the renewal price rise after 1 November; for Kit, Mailchimp or MailerLite, that they pay by list size. Then Day3 in one or two sentences with one worked price for a list like theirs, and the free move of their list. Close with one question about their own situation: when their plan renews, roughly how many readers they have, or how often they send. Short paragraphs of one to three sentences, with a blank line between them, the closing question on its own line."
     },
     {
       "waitDays": 4,
