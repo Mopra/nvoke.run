@@ -4,12 +4,14 @@
 // paid for (found, crawled, scored), so a worker tick asks a few of them
 // again hours later, while no search waits for verify slots. The verifier
 // paces the sessions as it paces any other, and a cached verdict (another
-// search checked the address since) costs none.
+// search checked the address since) costs none; a cached unknown is asked
+// past (refreshUnknown), since it stays cached longer than the first look waits.
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
-import { emailWeight, type Verification } from '@nvoke/shared';
-import { chargeVerified } from '../quota.js';
+import type { Verification } from '@nvoke/shared';
+import { leadSettled } from '../../webhooks/events.js';
+import { recordVerdict, skipAfterCheck, type CheckedEmail } from '../../worker/pipeline.js';
 import { isCapacityDeferral, type Verifier } from './index.js';
 
 /** Unknowns asked per tick at most. */
@@ -38,20 +40,21 @@ export interface RecheckOutcome {
   stillUnknown: number;
   /** Valid, but the owner's allowance is spent: left unknown, uncharged. */
   overLimit: number;
+  /** No longer needed by the policy (a colleague came back valid): recorded skipped, uncharged. */
+  skipped: number;
   /** Stopped early because every lane was at its budget; the rest wait for the next tick. */
   paced: boolean;
 }
 
 /**
  * Asks up to `batch` recent unknowns again, newest first. A verdict is
- * recorded like the pipeline records one (a valid address is charged, in
- * the same transaction); an answer that is unknown again counts a look. A
+ * recorded with the pipeline's steps (recordRecheck); an answer that is unknown again counts a look. A
  * check no lane could take now counts nothing and ends the tick.
  */
 export async function recheckUnknown(deps: RecheckDeps): Promise<RecheckOutcome> {
   const { sql } = deps;
   const now = deps.now?.() ?? new Date();
-  const out: RecheckOutcome = { busy: false, asked: 0, settled: {}, stillUnknown: 0, overLimit: 0, paced: false };
+  const out: RecheckOutcome = { busy: false, asked: 0, settled: {}, stillUnknown: 0, overLimit: 0, skipped: 0, paced: false };
 
   // Live searches first: their checks need the same slots.
   const [due] = await sql`
@@ -64,7 +67,7 @@ export async function recheckUnknown(deps: RecheckDeps): Promise<RecheckOutcome>
   const rows = await sql<{ id: string; address: string }[]>`
     select e.id::text, e.address from emails e
     join searches s on s.id = e.search_id
-    where e.verification = 'unknown' and s.status <> 'canceled'
+    where e.verification = 'unknown' and e.skipped is null and s.status <> 'canceled'
       and e.unknown_rechecks < ${RECHECK_MAX}
       and e.created_at > ${now.toISOString()}::timestamptz - make_interval(secs => ${RECHECK_WITHIN_MS / 1000})
       and coalesce(e.rechecked_at, e.checked_at, e.created_at)
@@ -75,7 +78,8 @@ export async function recheckUnknown(deps: RecheckDeps): Promise<RecheckOutcome>
 
   for (const row of rows) {
     if (deps.signal?.aborted) break;
-    const result = await deps.verifier.verify(row.address, deps.signal);
+    // A cached unknown is what this look is for: the server is asked again.
+    const result = await deps.verifier.verify(row.address, deps.signal, { refreshUnknown: true });
     if (deps.signal?.aborted) break;
     if (isCapacityDeferral(result)) {
       out.paced = true;
@@ -85,51 +89,51 @@ export async function recheckUnknown(deps: RecheckDeps): Promise<RecheckOutcome>
     const recorded = await recordRecheck(sql, row.id, result.verification, now);
     if (recorded === 'unknown') out.stillUnknown++;
     else if (recorded === 'over_limit') out.overLimit++;
+    else if (recorded === 'skipped') out.skipped++;
     else if (recorded) out.settled[recorded] = (out.settled[recorded] ?? 0) + 1;
-    if (recorded && recorded !== 'unknown') deps.log?.info({ emailId: row.id, verification: result.verification, reason: result.reason }, 'recheck: settled');
+    if (recorded && recorded !== 'unknown' && recorded !== 'skipped') deps.log?.info({ emailId: row.id, verification: result.verification, reason: result.reason }, 'recheck: settled');
   }
   return out;
 }
 
 /**
- * Records one look under the email's lock: a verdict (charging a valid one),
- * or one more look at an unknown. Null when the row is no longer unknown.
+ * Records one look under the email's lock, through the pipeline's own steps
+ * (worker/pipeline.ts): an address the policy no longer needs (a colleague
+ * came back valid meanwhile) is recorded skipped and not charged, a verdict
+ * is recorded like any check (a valid one charged, the lead settled), and
+ * an unknown counts one more look. Null when the row is no longer unknown.
  */
 async function recordRecheck(
   sql: Sql,
   emailId: string,
   verification: Verification,
   now: Date,
-): Promise<Verification | 'over_limit' | null> {
+): Promise<Verification | 'over_limit' | 'skipped' | null> {
   return sql.begin(async (tx) => {
-    const [email] = await tx<{ clerk_user_id: string; address: string; search_id: string; kind: string }[]>`
-      select e.clerk_user_id, e.address, e.search_id, s.kind from emails e
-      join searches s on s.id = e.search_id
-      where e.id = ${emailId} and e.verification = 'unknown'
-      for update of e
+    const [email] = await tx<CheckedEmail[]>`
+      select search_id, company_id, clerk_user_id, address, kind, first_name, last_name, seniority, title from emails
+      where id = ${emailId} and verification = 'unknown' and skipped is null
+      for update
     `;
     if (!email) return null;
     const look = () => tx`
       update emails set unknown_rechecks = unknown_rechecks + 1, rechecked_at = ${now.toISOString()}::timestamptz
       where id = ${emailId}
     `;
+    const skip = await skipAfterCheck(tx, emailId, email);
+    if (skip) {
+      // It stays the unknown the owner saw; skipped ends its looks.
+      await tx`update emails set skipped = ${skip} where id = ${emailId}`;
+      await look();
+      await leadSettled(tx, email.company_id);
+      return 'skipped';
+    }
     if (verification === 'unknown') {
       await look();
       return 'unknown';
     }
-    if (verification === 'valid') {
-      const charge = await chargeVerified(tx, email.clerk_user_id, email.address, now, emailWeight(email.kind));
-      if (charge === 'over_limit') {
-        await look();
-        return 'over_limit';
-      }
-      await tx`update searches set emails_valid = emails_valid + 1 where id = ${email.search_id}`;
-    }
-    await tx`
-      update emails set verification = ${verification}, checked_at = ${now.toISOString()}::timestamptz,
-        unknown_rechecks = unknown_rechecks + 1, rechecked_at = ${now.toISOString()}::timestamptz
-      where id = ${emailId}
-    `;
-    return verification;
+    const recorded = await recordVerdict(tx, emailId, email, verification, { now, at: now });
+    await look();
+    return recorded === 'over_limit' ? 'over_limit' : verification;
   });
 }

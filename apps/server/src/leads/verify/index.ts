@@ -468,12 +468,18 @@ export class Verifier {
     return this.fresh(this.catchAll, domain);
   }
 
-  async verify(rawAddress: string, signal?: AbortSignal): Promise<VerifyResult> {
+  /**
+   * Checks one address, from the cache when it holds a fresh answer. With
+   * `refreshUnknown` a cached unknown is not trusted and the server is asked
+   * again (the recheck of settled unknowns, leads/verify/recheck.ts); a cached
+   * verdict is still used.
+   */
+  async verify(rawAddress: string, signal?: AbortSignal, opts: { refreshUnknown?: boolean } = {}): Promise<VerifyResult> {
     const address = normalizeEmail(rawAddress);
     if (!address) return { address: rawAddress.toLowerCase(), verification: 'invalid', mxHost: null, reason: 'syntax' };
 
     const cached = await this.opts.cache?.get(address);
-    if (cached) return cached;
+    if (cached && !(opts.refreshUnknown && cached.verification === 'unknown')) return cached;
 
     const result = await this.check(address, signal);
     await this.remember(result);

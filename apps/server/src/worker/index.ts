@@ -64,7 +64,7 @@ const stopOngoing = startOngoingLoop({
 });
 
 // The company seed: a few homepages a minute for the company index, off at SEED_DAILY_DOMAINS=0 (leads/seed/tick.ts).
-startSeedLoop({ sql, crawl: deps.crawl, log: log.child({ part: 'seed' }), dailyDomains: env.SEED_DAILY_DOMAINS });
+const stopSeed = startSeedLoop({ sql, crawl: deps.crawl, log: log.child({ part: 'seed' }), dailyDomains: env.SEED_DAILY_DOMAINS });
 
 // Retention purge: once at start, then hourly. Idempotent, so several
 // workers running it at once is harmless.
@@ -126,12 +126,14 @@ webhookTimer.unref();
 
 // Unknown SMTP results get asked again hours later: those emails are already paid for.
 const RECHECK_TICK_MS = 15 * 60_000;
+// Shutdown aborts a running tick between looks (and the SMTP session it is in).
+const recheckStop = new AbortController();
 let recheckBusy = false;
 async function runRecheck(): Promise<void> {
   if (recheckBusy || stopping) return;
   recheckBusy = true;
   try {
-    const out = await recheckUnknown({ sql, verifier: deps.verifier, log: log.child({ part: 'recheck' }) });
+    const out = await recheckUnknown({ sql, verifier: deps.verifier, log: log.child({ part: 'recheck' }), signal: recheckStop.signal });
     if (out.asked > 0) log.info(out, 'recheck tick done');
   } catch (err) {
     log.error({ err }, 'recheck tick failed');
@@ -212,6 +214,8 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(feedTimer);
   clearInterval(webhookTimer);
   clearInterval(recheckTimer);
+  recheckStop.abort();
+  stopSeed();
   for (const t of sendingTimers) clearInterval(t);
   stopOngoing();
   try {

@@ -34,8 +34,11 @@ function scriptedVerifier(answers: Record<string, Partial<VerifyResult> & { veri
   };
 }
 
+/** An address of the seeded company: a named, titled person unless told otherwise. */
+type SeedEmail = string | { address: string; kind?: string; first?: string | null; last?: string | null; title?: string | null; verification?: string };
+
 /** One search with one company and its emails, each settled unknown `settledAgoMs` before NOW. */
-async function seed(opts: { kind?: string; status?: string; plan?: string; emails: string[]; settledAgoMs?: number; createdAgoMs?: number }) {
+async function seed(opts: { kind?: string; status?: string; plan?: string; emails: SeedEmail[]; settledAgoMs?: number; createdAgoMs?: number }) {
   await db.sql`insert into accounts (clerk_user_id, plan) values ('u1', ${opts.plan ?? 'emails_1000'}) on conflict do nothing`;
   const [search] = await db.sql<{ id: string }[]>`
     insert into searches (clerk_user_id, kind, "limit", status) values ('u1', ${opts.kind ?? 'local'}, 10, ${opts.status ?? 'done'}) returning id
@@ -46,13 +49,17 @@ async function seed(opts: { kind?: string; status?: string; plan?: string; email
   `;
   const settled = new Date(NOW.getTime() - (opts.settledAgoMs ?? 3 * HOUR));
   const created = new Date(NOW.getTime() - (opts.createdAgoMs ?? 4 * HOUR));
-  for (const address of opts.emails) {
+  for (const e of opts.emails) {
+    const m = typeof e === 'string' ? { address: e } : e;
+    const local = m.address.split('@')[0]!;
     await db.sql`
-      insert into emails (company_id, search_id, clerk_user_id, address, kind, verification, checked_at, created_at)
-      values (${company!.id}, ${search!.id}, 'u1', ${address}, 'generic', 'unknown', ${settled}, ${created})
+      insert into emails (company_id, search_id, clerk_user_id, address, kind, first_name, last_name, title, verification, checked_at, created_at)
+      values (${company!.id}, ${search!.id}, 'u1', ${m.address}, ${m.kind ?? 'personal'},
+        ${m.first === undefined ? local : m.first}, ${m.last === undefined ? 'Hansen' : m.last}, ${m.title === undefined ? 'CEO' : m.title},
+        ${m.verification ?? 'unknown'}, ${settled}, ${created})
     `;
   }
-  return search!.id;
+  return { searchId: search!.id, companyId: company!.id };
 }
 
 const row = async (address: string) =>
@@ -62,17 +69,17 @@ const row = async (address: string) =>
 
 describe('recheckUnknown', () => {
   it('asks settled unknowns again, records verdicts and charges a valid one', async () => {
-    const searchId = await seed({ kind: 'icp', emails: ['anna@acme.dk', 'bo@acme.dk', 'info@acme.dk'] });
+    const { searchId } = await seed({ kind: 'icp', emails: ['anna@acme.dk', 'bo@acme.dk', 'carl@acme.dk'] });
     const { verifier, asked } = scriptedVerifier({
       'anna@acme.dk': { verification: 'valid' },
       'bo@acme.dk': { verification: 'invalid', reason: 'rcpt_rejected_550' },
     });
     const out = await recheckUnknown({ sql: db.sql, verifier, now: () => NOW });
-    expect(asked.sort()).toEqual(['anna@acme.dk', 'bo@acme.dk', 'info@acme.dk']);
+    expect(asked.sort()).toEqual(['anna@acme.dk', 'bo@acme.dk', 'carl@acme.dk']);
     expect(out).toMatchObject({ busy: false, asked: 3, settled: { valid: 1, invalid: 1 }, stillUnknown: 1, paced: false });
     expect(await row('anna@acme.dk')).toMatchObject({ verification: 'valid', unknown_rechecks: 1 });
     expect(await row('bo@acme.dk')).toMatchObject({ verification: 'invalid' });
-    expect(await row('info@acme.dk')).toMatchObject({ verification: 'unknown', unknown_rechecks: 1 });
+    expect(await row('carl@acme.dk')).toMatchObject({ verification: 'unknown', unknown_rechecks: 1 });
     // A Sonar email counts three, and the search shows one more valid.
     const [usage] = await db.sql<{ emails_verified: number }[]>`select emails_verified from usage where clerk_user_id = 'u1'`;
     expect(usage?.emails_verified).toBe(3);
@@ -80,8 +87,57 @@ describe('recheckUnknown', () => {
     expect(search?.emails_valid).toBe(1);
   });
 
+  it('asks past a cached unknown and announces the lead it settles', async () => {
+    const { companyId } = await seed({ emails: ['anna@acme.dk'] });
+    const [hook] = await db.sql<{ id: string }[]>`
+      insert into webhooks (clerk_user_id, url, secret, events)
+      values ('u1', 'https://hooks.example.com/x', 'whsec_eA==', '{lead.ready}')
+      returning id`;
+    const asks: unknown[] = [];
+    const verifier = {
+      async verify(address: string, _signal?: AbortSignal, opts?: { refreshUnknown?: boolean }): Promise<VerifyResult> {
+        asks.push(opts);
+        return { address, verification: 'valid', mxHost: 'mx.test', reason: 'rcpt_accepted' };
+      },
+    };
+    await recheckUnknown({ sql: db.sql, verifier, now: () => NOW });
+    expect(asks).toEqual([{ refreshUnknown: true }]);
+    const deliveries = await db.sql`select event from webhook_deliveries where webhook_id = ${hook!.id} and company_id = ${companyId}`;
+    expect(deliveries).toEqual([{ event: 'lead.ready' }]);
+  });
+
+  it('records an address the policy no longer needs as skipped, uncharged', async () => {
+    // A named colleague came back valid, so the unnamed max@ is not needed any more.
+    await seed({ emails: [{ address: 'anna@acme.dk', verification: 'valid' }, { address: 'max@acme.dk', first: null, last: null, title: null }] });
+    const { verifier } = scriptedVerifier({ 'max@acme.dk': { verification: 'valid' } });
+    const out = await recheckUnknown({ sql: db.sql, verifier, now: () => NOW });
+    expect(out).toMatchObject({ asked: 1, skipped: 1, settled: {} });
+    const [max] = await db.sql<{ verification: string; skipped: string | null; unknown_rechecks: number }[]>`
+      select verification, skipped, unknown_rechecks from emails where address = 'max@acme.dk'`;
+    expect(max).toEqual({ verification: 'unknown', skipped: 'unnamed', unknown_rechecks: 1 });
+    expect(await db.sql`select 1 from usage where clerk_user_id = 'u1' and emails_verified > 0`).toHaveLength(0);
+    // Skipped ends its looks.
+    expect((await recheckUnknown({ sql: db.sql, verifier, now: () => new Date(NOW.getTime() + 100 * RECHECK_FIRST_MS) })).asked).toBe(0);
+  });
+
+  it('stops between looks when its signal is aborted', async () => {
+    await seed({ emails: ['a@acme.dk', 'b@acme.dk'] });
+    const stop = new AbortController();
+    const asked: string[] = [];
+    const verifier = {
+      async verify(address: string): Promise<VerifyResult> {
+        asked.push(address);
+        stop.abort();
+        return { address, verification: 'valid', mxHost: 'mx.test', reason: 'rcpt_accepted' };
+      },
+    };
+    const out = await recheckUnknown({ sql: db.sql, verifier, now: () => NOW, signal: stop.signal });
+    expect(asked).toHaveLength(1);
+    expect(out.asked).toBe(0);
+  });
+
   it('waits longer after each look and stops after the last one', async () => {
-    await seed({ emails: ['info@acme.dk'] });
+    await seed({ emails: ['carl@acme.dk'] });
     const { verifier, asked } = scriptedVerifier({});
     let t = NOW.getTime();
     const tick = () => recheckUnknown({ sql: db.sql, verifier, now: () => new Date(t) });

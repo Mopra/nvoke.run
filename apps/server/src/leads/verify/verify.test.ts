@@ -631,6 +631,20 @@ describe('Verifier', () => {
     expect(cache.store.get('fresh@acme.dk')?.verification).toBe('valid');
   });
 
+  it('asks the server past a cached unknown with refreshUnknown, and still uses a cached verdict', async () => {
+    const smtp = await fakeSmtp({ rcpt: (a) => (a.startsWith('nvoke-') ? '550 5.1.1 no' : '250 ok') });
+    const cache = memoryCache();
+    cache.store.set('unsure@acme.dk', { address: 'unsure@acme.dk', verification: 'unknown', mxHost: null, reason: 'cached' });
+    cache.store.set('gone@acme.dk', { address: 'gone@acme.dk', verification: 'invalid', mxHost: null, reason: 'cached' });
+    const v = new Verifier({ ...base, cache, dns: fakeDns({ 'acme.dk': ['mx.acme.dk'] }), connect: connectTo(smtp.port) });
+    expect((await v.verify('unsure@acme.dk')).verification).toBe('unknown');
+    expect((await v.verify('gone@acme.dk', undefined, { refreshUnknown: true })).verification).toBe('invalid');
+    expect(smtp.sessions).toHaveLength(0);
+    expect((await v.verify('unsure@acme.dk', undefined, { refreshUnknown: true })).verification).toBe('valid');
+    expect(smtp.sessions.length).toBeGreaterThan(0);
+    expect(cache.store.get('unsure@acme.dk')?.verification).toBe('valid');
+  });
+
   it('keeps valid results for a week, unknown for a day and the rest for 30 days', () => {
     expect(ttlFor('unknown')).toBe(24 * 60 * 60_000);
     expect(ttlFor('valid')).toBe(30 * 24 * 60 * 60_000);

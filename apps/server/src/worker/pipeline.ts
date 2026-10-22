@@ -21,7 +21,7 @@ import { DropRunInternal } from '../feed/drops.js';
 import { crawlSite, type CrawlDeps } from '../leads/crawl.js';
 import { cachedCrawl, domainPages, isCacheable, recentPeopleRead, recordCrawl, type CrawlOutcome } from '../leads/domain-cache.js';
 import { isPlatformDomain, normalizeDomain, normalizeWebsite, registrableDomain } from '../leads/domain.js';
-import { checkPolicy, checkTier, needsFit, type Decision, type PolicyContext, type PolicyEmail, type PolicySelf } from '../leads/check-policy.js';
+import { checkPolicy, checkTier, needsFit, type Decision, type PolicyContext, type PolicyEmail, type PolicySelf, type SkipReason } from '../leads/check-policy.js';
 import { FIT_THRESHOLD, scoreCandidates, type FitCandidate, type FitVerdict } from '../leads/fit.js';
 import { IcpPlan } from '../leads/planner.js';
 import { rememberRejected } from '../leads/sources/icp.js';
@@ -918,43 +918,77 @@ async function waitForCapacity(
   deps.log.info({ ...at, reason: result.reason, defers: defers + 1, delayMs }, 'verify: requeued');
 }
 
+/** The email row recordVerification and the recheck of unknowns lock before they record a check. */
+export type CheckedEmail = PolicySelf & { search_id: string; company_id: string; clerk_user_id: string; address: string };
+
+/**
+ * Takes the company's lock and applies the policy once more, for a check
+ * that came back: the reason to record it skipped when a role inbox, untitled or
+ * unnamed address became unnecessary while it was checked (a colleague came
+ * back valid), else null. Call it holding the email's lock.
+ */
+export async function skipAfterCheck(tx: TransactionSql, emailId: string, email: CheckedEmail): Promise<SkipReason | null> {
+  // Checks of one company finishing together queue behind this lock, so
+  // the last one sees every other result and announces the lead.
+  const around = await policyContext(tx, emailId, email.company_id, email.search_id);
+  const tier = checkTier(email);
+  if (!around || tier === 'primary' || checkPolicy(email, around.others, { ...around.ctx, force: true }) !== 'skip') return null;
+  return tier;
+}
+
+/**
+ * Records a verdict on a locked email: a valid address is charged first and
+ * nothing is written when the allowance ran out ('over_limit'). Then the
+ * search counts it, the lead may settle and the company's deferred checks
+ * wake. `at` defaults to the database clock.
+ */
+export async function recordVerdict(
+  tx: TransactionSql,
+  emailId: string,
+  email: CheckedEmail,
+  verification: Verification,
+  opts: { now?: Date; at?: Date } = {},
+): Promise<'recorded' | 'over_limit'> {
+  if (verification === 'valid') {
+    const [search] = await tx<{ kind: string }[]>`select kind from searches where id = ${email.search_id}`;
+    const charge = await chargeVerified(tx, email.clerk_user_id, email.address, opts.now, emailWeight(search?.kind ?? ''));
+    if (charge === 'over_limit') return 'over_limit';
+  }
+  await tx`
+    update emails set verification = ${verification}, checked_at = coalesce(${opts.at?.toISOString() ?? null}::timestamptz, now())
+    where id = ${emailId}
+  `;
+  if (verification === 'valid') {
+    await tx`update searches set emails_valid = emails_valid + 1 where id = ${email.search_id}`;
+  }
+  await leadSettled(tx, email.company_id);
+  await wakeDeferredChecks(tx, email.company_id);
+  return 'recorded';
+}
+
 /**
  * Records a check. A valid address is charged in the same transaction; when
  * the allowance ran out meanwhile, it stays unchecked (and hidden) and the
- * search stops with quota_exceeded. The policy is applied once more under
- * the company's lock: a role inbox, untitled or unnamed address that
- * became unnecessary while it was checked (a colleague came back valid) is
- * recorded skipped and not charged.
+ * search stops with quota_exceeded. An address the policy no longer needs
+ * (skipAfterCheck) is recorded skipped and not charged.
  */
 async function recordVerification(deps: PipelineDeps, emailId: string, verification: Verification): Promise<void> {
   const { sql } = deps;
   const outcome = await sql.begin(async (tx) => {
-    const [email] = await tx<(PolicySelf & { search_id: string; company_id: string; clerk_user_id: string; address: string })[]>`
+    const [email] = await tx<CheckedEmail[]>`
       select search_id, company_id, clerk_user_id, address, kind, first_name, last_name, seniority, title from emails
       where id = ${emailId} and verification is null and skipped is null
       for update
     `;
     if (!email) return null;
-    // Checks of one company finishing together queue behind this lock, so
-    // the last one sees every other result and announces the lead.
-    const around = await policyContext(tx, emailId, email.company_id, email.search_id);
-    if (around && checkTier(email) !== 'primary' && checkPolicy(email, around.others, { ...around.ctx, force: true }) === 'skip') {
-      await tx`update emails set skipped = ${checkTier(email)} where id = ${emailId}`;
+    const skip = await skipAfterCheck(tx, emailId, email);
+    if (skip) {
+      await tx`update emails set skipped = ${skip} where id = ${emailId}`;
       await leadSettled(tx, email.company_id);
       return { searchId: email.search_id, overLimit: false };
     }
-    if (verification === 'valid') {
-      const [search] = await tx<{ kind: string }[]>`select kind from searches where id = ${email.search_id}`;
-      const charge = await chargeVerified(tx, email.clerk_user_id, email.address, deps.now?.(), emailWeight(search?.kind ?? ''));
-      if (charge === 'over_limit') return { searchId: email.search_id, overLimit: true };
-    }
-    await tx`update emails set verification = ${verification}, checked_at = now() where id = ${emailId}`;
-    if (verification === 'valid') {
-      await tx`update searches set emails_valid = emails_valid + 1 where id = ${email.search_id}`;
-    }
-    await leadSettled(tx, email.company_id);
-    await wakeDeferredChecks(tx, email.company_id);
-    return { searchId: email.search_id, overLimit: false };
+    const recorded = await recordVerdict(tx, emailId, email, verification, { now: deps.now?.() });
+    return { searchId: email.search_id, overLimit: recorded === 'over_limit' };
   });
   if (outcome?.overLimit) {
     deps.log.info({ searchId: outcome.searchId }, 'verify: quota exceeded, failing search');
