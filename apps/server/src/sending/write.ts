@@ -333,6 +333,19 @@ function undash(s: string): string {
   return s.replace(/[ \t]*[\u2013\u2014][ \t]*/g, ', ').replace(/ -{1,2} /g, ', ');
 }
 
+/** Why checkBody would not keep a body, in words Claude can act on and the log can show. */
+export function bodyProblem(raw: string, bounds: WordBounds, ownDomain?: string | null): string {
+  const text = undash(raw);
+  const link = withoutDomain(text, ownDomain).match(LINK)?.[0];
+  if (link) return `it named a web or email address ("${link}"), which is not allowed`;
+  const tag = text.match(MERGE_TAG)?.[0];
+  if (tag) return `it held a placeholder or bracket ("${tag}")`;
+  const flattery = text.match(FLATTERY)?.[0];
+  if (flattery) return `it used flattery ("${flattery}")`;
+  const words = text.split(/\s+/).filter(Boolean).length;
+  return `it was ${words} words, outside ${bounds.min} to ${bounds.max}`;
+}
+
 /**
  * Cleans a written body and keeps it only when it holds to the rules: no
  * links, no placeholders, no flattery, within the word bounds. A sign-off
@@ -543,7 +556,9 @@ export function judgeFirst(
     return {
       ok: false,
       reason: 'invalid',
-      avoid: ['It broke the rules: 60 to 110 words, a plain subject, no links or web addresses, no placeholders, no flattery.'],
+      avoid: [
+        `It broke the rules${body ? '' : ` (${bodyProblem(answer.body, FIRST_WORDS, domain)})`}: 60 to 110 words, a plain subject, no links or web addresses, no placeholders, no flattery.`,
+      ],
     };
   }
   if (!quoteOnPages(answer.quote, lead)) {
@@ -681,7 +696,7 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
           const raw = answer?.steps.find((s) => s.step === step)?.body;
           if (!raw) return `Step ${step} was missing.`;
           const body = checkBody(raw, FOLLOW_WORDS, ownDomain ? l.domain : null);
-          if (!body) return `Step ${step} broke the rules: 25 to 60 words, no links or web addresses, no placeholders, no flattery.`;
+          if (!body) return `Step ${step} was not kept: ${bodyProblem(raw, FOLLOW_WORDS, ownDomain ? l.domain : null)}. Write 25 to 60 words.`;
           // A follow up takes a new angle: it may not repeat the thread so far.
           if (conflictWith({ subject: '', body }, thread.map((b) => ({ subject: '', body: b })))) {
             return `Step ${step} repeated words from the thread. Take a new angle in new words.`;
