@@ -18,6 +18,8 @@ const buttonVariants = cva(
         glass: 'key bg-secondary text-secondary-foreground hover:brightness-[0.97]',
         // Dark keycaps, as on the ports: navigation and the quiet strong action.
         dark: 'key bg-foreground text-background hover:brightness-110',
+        // The black key: the display strip's material, black in both finishes. Sonar's key.
+        screen: 'key bg-screen text-screen-foreground hover:brightness-150',
         // Flat: printed on the chassis, no cap.
         ghost: 'text-foreground/75 hover:bg-foreground/[0.06] hover:text-foreground',
         link: 'font-sans text-sm normal-case tracking-normal text-primary underline-offset-4 hover:underline',

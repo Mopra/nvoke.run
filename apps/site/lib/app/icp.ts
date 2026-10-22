@@ -13,13 +13,13 @@ import {
 import { formatNumber } from './desktop';
 
 /**
- * Describe your customer (`icp`), as data: the plain words form, the request
+ * Sonar (`icp`), as data: the plain words form, the request
  * it makes, and the people first view of a search's results (who to show,
  * how each address was found, the live counts). The screens are
  * components/app/icp-search-screen.tsx and components/app/people-list.tsx.
  */
 
-/** A plain words search asks for the most a search may hold, and keeps filling after that when ongoing. */
+/** A Sonar search asks for the most a search may hold, and keeps filling after that when ongoing. */
 export const ICP_LIMIT = 1000;
 
 export const DESCRIPTION_MAX = 2000;
@@ -110,7 +110,7 @@ export function icpProblem(form: IcpForm): string | null {
   return null;
 }
 
-/** Only plain words searches can keep filling (UpdateSearchRequest). */
+/** Only Sonar searches can keep filling (UpdateSearchRequest). */
 export function canBeOngoing(search: Pick<Search, 'kind'>): boolean {
   return search.kind === 'icp';
 }

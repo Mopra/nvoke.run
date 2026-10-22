@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Search } from '@nvoke/shared';
 import { progressCaption } from '@/components/app/search-progress';
+import { SonarMark } from '@/components/app/sonar-mark';
 import { useTweened } from '@/components/app/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { duration, formatNumber, isActive, percent, relativeTime, searchSubtitle, searchTitle } from '@/lib/app/desktop';
@@ -17,6 +18,7 @@ const SEGMENTS = 16;
  * pipeline is doing, the 16 segment meter and the four figures over their
  * ghost digits. Polling drives it: while the search runs the LED blinks, the
  * next segment flickers and every figure glides up with a `+n` as it grows.
+ * A Sonar search carries its tag, with the ×3, at the top left.
  */
 export function SearchDisplay({ search }: { search: Search }) {
   const active = isActive(search.status);
@@ -52,6 +54,7 @@ export function SearchDisplay({ search }: { search: Search }) {
       className="screen screen-hero relative overflow-hidden p-5 sm:p-8"
     >
       <div className="flex min-w-0 items-center gap-3">
+        {search.kind === 'icp' && <SonarMark weight onScreen live={running} className="mr-1" />}
         <span
           aria-hidden
           className={cn(

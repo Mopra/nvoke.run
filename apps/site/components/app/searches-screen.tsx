@@ -4,7 +4,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ArrowUpRight, Ban, ClipboardList, Globe, MapPin, MoreHorizontal, Rocket, Sparkles, Trash2, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Search, SiteProfile } from '@nvoke/shared';
+import { ICP_NAME, type Search, type SiteProfile } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { DeleteSiteProfileDialog } from '@/components/app/delete-site-profile-dialog';
 import { StatusDot } from '@/components/app/indicators';
@@ -12,6 +12,7 @@ import { Figure, useArrivals } from '@/components/app/motion';
 import { progressCaption, SearchProgress } from '@/components/app/search-progress';
 import { MonthDisplay } from '@/components/app/searches/month-display';
 import { APP_FRAME, APP_INSET, KeyGroup, LedKey } from '@/components/app/shell';
+import { SonarMark } from '@/components/app/sonar-mark';
 import { EmptyState, ErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { errorMessage, formatNumber, isActive, percent, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
+import { errorMessage, formatNumber, ICP_WEIGHT_BADGE, ICP_WEIGHT_TIMES, isActive, percent, relativeTime, searchSubtitle, searchTitle, STATUS_LABEL } from '@/lib/app/desktop';
 import { useCancelSearch, useLatestProfileBuild, useMe, useRefreshWhenFinished, useSearches, useSiteProfile } from '@/lib/app/queries';
 import { displayDomain, PROFILE_PATH, WEBSITE_PATH } from '@/lib/app/site-profile';
 import { cn } from '@/lib/utils';
@@ -111,10 +112,12 @@ const KIND_WORD: Record<string, string> = {
   launches: 'Launches',
   domains: 'List',
   drop: 'Drop',
-  icp: 'Describe',
+  icp: ICP_NAME,
 };
 
+/** Sonar wears its black tag; every other kind is printed on the chassis. */
 function KindTag({ kind }: { kind: string }) {
+  if (kind === 'icp') return <SonarMark size="sm" />;
   return <span className="cap text-muted-foreground">{KIND_WORD[kind] ?? 'Search'}</span>;
 }
 
@@ -344,7 +347,7 @@ function Section({ searches, offset = 0, arrive }: { searches: Search[]; offset?
   );
 }
 
-/** The two ways to start, under a bracket: describe your customer in plain words, or start from your website. */
+/** The two ways to start, under a bracket: start from your website, or run Sonar on the black key with its LED lit. */
 function StartKeys() {
   return (
     <KeyGroup label="Start">
@@ -353,9 +356,14 @@ function StartKeys() {
           <Link href={WEBSITE_PATH}>Website</Link>
         </Button>
       </LedKey>
-      <LedKey>
-        <Button asChild variant="dark">
-          <Link href="/app/new">Describe</Link>
+      <LedKey on>
+        <Button asChild variant="screen">
+          <Link href="/app/new">
+            <span className="lcd text-[14px] tracking-[0.08em]">{ICP_NAME}</span>
+            <span aria-hidden className="lcd text-[12px] text-primary">
+              {ICP_WEIGHT_BADGE}
+            </span>
+          </Link>
         </Button>
       </LedKey>
     </KeyGroup>
@@ -369,7 +377,7 @@ const BY_HAND = [
   { kind: 'domains', icon: ClipboardList, title: 'List' },
 ] as const;
 
-/** The first visit: one dark key, Describe your customer, and light keys for the other ways to search. */
+/** The first visit: one black key, Sonar, and light keys for the other ways to search. */
 function FirstSearch() {
   return (
     <EmptyState
@@ -377,10 +385,15 @@ function FirstSearch() {
       title="Who do you sell to?"
       action={
         <div className="flex flex-col items-center gap-8">
-          <Button asChild size="lg" variant="dark">
+          <Button asChild size="xl" variant="screen" className="gap-2.5">
             <Link href="/app/new">
-              Describe your customer
-              <ArrowRight />
+              <span aria-hidden className="led led-on" />
+              Run
+              <span className="lcd text-[18px] tracking-[0.08em]">{ICP_NAME}</span>
+              <span aria-hidden className="lcd text-[14px] text-primary">
+                {ICP_WEIGHT_BADGE}
+              </span>
+              <ArrowRight className="opacity-70" />
             </Link>
           </Button>
           <nav aria-label="Other ways to search" className="flex flex-wrap items-center justify-center gap-2">
@@ -403,7 +416,8 @@ function FirstSearch() {
         </div>
       }
     >
-      Say it in plain words. nvoke plans the searches, reads every site and finds the people who decide.
+      Say it in plain words. {ICP_NAME} plans the searches, reads every site and finds the people who decide. Each verified
+      email it finds counts {ICP_WEIGHT_TIMES}.
     </EmptyState>
   );
 }

@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: 'New search' };
 type Params = { kind?: string | string[]; manual?: string | string[]; site?: string | string[] };
 
 /**
- * `/app/new` asks who you sell to, in plain words (Describe your customer).
+ * `/app/new` is Sonar: it asks who you sell to, in plain words (kind `icp`).
  * The other ways to search hang off it: `?site=1` opens a blank website field
  * (a read already on file lives at `/app/website`), `?manual=1` the form by
  * hand, and `?kind=local` (and the other kinds) the form on that tab.

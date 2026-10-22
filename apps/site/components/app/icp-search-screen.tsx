@@ -3,12 +3,13 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ArrowUpRight, ClipboardList, CornerDownLeft, Globe, Loader2, MapPin, Rocket, Sparkles, X } from 'lucide-react';
-import { SEARCH_LIMIT_MAX } from '@nvoke/shared';
+import { ICP_NAME, SEARCH_LIMIT_MAX } from '@nvoke/shared';
 import { CountryPicker } from '@/components/app/country-picker';
 import { Readback } from '@/components/app/new/readback';
 import { useStartSearch } from '@/components/app/new-search-screen';
 import { Pill } from '@/components/app/sentence';
 import { APP_FRAME, APP_INSET, BackLink } from '@/components/app/shell';
+import { SonarMark } from '@/components/app/sonar-mark';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { countryName, formatNumber, ICP_WEIGHT_TIMES } from '@/lib/app/desktop';
@@ -39,8 +40,9 @@ const OTHER_WAYS = [
 ] as const;
 
 /**
- * New search: say who you sell to in plain words, and nvoke plans the
- * queries (kind `icp`). One big field, a few optional ones, and Find leads.
+ * Sonar (kind `icp`): say who you sell to in plain words, and Sonar plans the
+ * queries. A black plate names it, one big field, a few optional ones, and
+ * the black key runs it. Each verified email it finds counts 3 times.
  * The search asks for up to 1,000 companies and, with Keep finding new leads
  * on, is switched to ongoing right after it starts.
  */
@@ -95,11 +97,12 @@ export function IcpSearchScreen() {
         <BackLink />
       </div>
       <form onSubmit={submit} noValidate className={cn(APP_INSET, 'mx-auto flex w-full max-w-[760px] flex-col pt-8 sm:pt-[4vh]')}>
-        <h1 className="font-display text-3xl font-light text-balance sm:text-4xl">
+        <SonarPlate />
+        <h1 className="mt-8 font-display text-3xl font-light text-balance sm:text-4xl">
           <label htmlFor={ids.description}>Who do you sell to?</label>
         </h1>
         <p className={cn('mt-2 max-w-xl text-pretty', NOTE)}>
-          Say it like you would to a new hire. nvoke plans the searches and finds the people who decide.
+          Say it like you would to a new hire. {ICP_NAME} plans the searches, reads every site and finds the people who decide.
         </p>
 
         <div className="group/line relative mt-7 pb-2">
@@ -217,7 +220,7 @@ export function IcpSearchScreen() {
 
         <Readback
           className="mt-10"
-          kind="Describe"
+          kind={ICP_NAME}
           title={form.description.trim()}
           placeholder="Who you sell to"
           detail={[
@@ -233,9 +236,9 @@ export function IcpSearchScreen() {
         />
 
         <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <Button type="submit" size="lg" variant="dark" disabled={pending} className="min-w-40">
-            {pending ? <Loader2 className="motion-safe:animate-spin" /> : null}
-            Find leads
+          <Button type="submit" size="lg" variant="screen" disabled={pending} className="min-w-44">
+            {pending ? <Loader2 className="motion-safe:animate-spin" /> : <span aria-hidden className="led led-on" />}
+            Run {ICP_NAME}
             {!pending && <CornerDownLeft className="size-3.5 opacity-70" />}
           </Button>
           {problem ? (
@@ -254,7 +257,9 @@ export function IcpSearchScreen() {
               </Link>
             </p>
           ) : (
-            <p className="cap text-muted-foreground">Only verified emails count, each one {ICP_WEIGHT_TIMES}</p>
+            <p className="text-sm text-pretty text-muted-foreground">
+              Each verified email {ICP_NAME} finds counts {ICP_WEIGHT_TIMES}. Invalid ones are free.
+            </p>
           )}
         </div>
 
@@ -276,6 +281,19 @@ export function IcpSearchScreen() {
         </nav>
       </form>
     </main>
+  );
+}
+
+/**
+ * The black plate over the form: Sonar's LED and name in dot matrix, the ×3
+ * it costs, and what it does in one line. The one black key on the page.
+ */
+function SonarPlate() {
+  return (
+    <div className="screen flex flex-wrap items-center gap-x-4 gap-y-2 self-start px-4 py-3">
+      <SonarMark size="lg" weight onScreen className="border-0 px-0" />
+      <span className="cap text-screen-foreground/60">Plans · reads · scores with Claude</span>
+    </div>
   );
 }
 

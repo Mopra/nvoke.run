@@ -70,7 +70,7 @@
   /* Signal orange as text on the light plate, deepened to pass 4.5:1. */
   --primary-ink: oklch(0.56 0.19 38);
 }
-:root:not(.dark) .text-primary:not(.screen *) {
+:root:not(.dark) .text-primary:not(.screen *, .bg-screen *) {
   color: var(--primary-ink);
 }
 :root.dark {

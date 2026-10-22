@@ -2,6 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
+import { SonarMark } from '@/components/app/sonar-mark';
 import { Figure, METER_SEGMENTS, ScreenMeter } from '@/components/mockups/parts';
 import { useInView } from '@/components/site/home/motion';
 import { useRunTo, useTween } from '@/components/site/pricing/motion';
@@ -118,7 +119,7 @@ export function PricingSlider({ initial = 'emails_2500' }: { initial?: string })
 
       <div className="mt-12 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-sm text-[15px] text-pretty text-muted-foreground">
-          {pricing.vatNote} {pricing.icpNote} Need more than {formatCount(pricing.top.emailsPerMonth)}?{' '}
+          {pricing.vatNote} <SonarMark size="sm" /> emails count {pricing.icpTimes}. Need more than {formatCount(pricing.top.emailsPerMonth)}?{' '}
           <a href={`mailto:${site.email.hello}`} className="text-foreground underline underline-offset-4">
             Talk to us
           </a>

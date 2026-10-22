@@ -101,8 +101,7 @@ export default function DocsIndex() {
         <Prose>
           <p>
             Same as the app. You pay for verified emails and nothing else: {pricing.free.emailsPerMonth} a month free, then plans from{' '}
-            {formatPrice(pricing.cheapest.price)}. Invalid, risky, catch-all and unknown results are free. Emails from an{' '}
-            <code>icp</code> search count {pricing.icpTimes}. When the month runs out, searches fail with{' '}
+            {formatPrice(pricing.cheapest.price)}. Invalid, risky, catch-all and unknown results are free. Emails from a {pricing.icpName} (<code>icp</code>) search count {pricing.icpTimes}. When the month runs out, searches fail with{' '}
             <code>quota_exceeded</code> and <code>GET /v1/me</code> gives a <code>billingUrl</code> where a human
             upgrades. <Link href="/pricing">Pricing</Link>.
           </p>

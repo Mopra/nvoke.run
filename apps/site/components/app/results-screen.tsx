@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Company, CreateSearchInput, DraftOpenersInput, Email, Opener, Search } from '@nvoke/shared';
+import { ICP_NAME, type Company, type CreateSearchInput, type DraftOpenersInput, type Email, type Opener, type Search } from '@nvoke/shared';
 import { DeleteSearchDialog } from '@/components/app/delete-search-dialog';
 import { ExportNoticeDialog } from '@/components/app/export-notice-dialog';
 import { VerificationBadge } from '@/components/app/indicators';
@@ -35,6 +35,7 @@ import { SearchDisplay, SearchDisplaySkeleton } from '@/components/app/results/s
 import { copy, PEOPLE_COLUMNS, PeopleSkeleton, PersonRowView } from '@/components/app/people-list';
 import { FoundFewNote, RunsLine, SearchMorePanel } from '@/components/app/search-more';
 import { APP_FRAME, APP_INSET, BackLink, PageHeader } from '@/components/app/shell';
+import { SonarMark } from '@/components/app/sonar-mark';
 import { EmptyState, ErrorState } from '@/components/app/states';
 import { LogoMark } from '@/components/site/logo';
 import { Button } from '@/components/ui/button';
@@ -878,7 +879,16 @@ export function ResultsScreen({ id }: { id: string }) {
 
   const header = (
     <PageHeader
-      leading={<BackLink />}
+      leading={
+        search?.kind === 'icp' ? (
+          <div className="flex items-center gap-4">
+            <BackLink />
+            <SonarMark />
+          </div>
+        ) : (
+          <BackLink />
+        )
+      }
       actions={
         search && (
           <>
@@ -1069,7 +1079,7 @@ export function ResultsScreen({ id }: { id: string }) {
               }
             >
               {search.kind === 'icp'
-                ? 'Describe your customer in other words, wider or in another country, and start again.'
+                ? `Tell ${ICP_NAME} in other words, wider or in another country, and run it again.`
                 : search.status === 'failed'
                   ? 'It stopped before finding any. Search again into this list, wider or with other words.'
                   : 'Widen it: another place, keyword or window adds to this list.'}

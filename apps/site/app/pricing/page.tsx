@@ -25,8 +25,8 @@ const FAQ: FaqItem[] = [
     a: 'An address whose mailbox check came back valid. Invalid, risky, catch-all and unknown are free. A valid info@ counts too: at most companies that is the inbox someone reads. An address you paid for never counts again.',
   },
   {
-    q: 'Why do Describe your customer emails count more?',
-    a: `Each one counts ${pricing.icpTimes}. Claude plans that search, scores every company it finds and pays for web search, so a lead costs us more to make. Every other search counts one.`,
+    q: `Why does a ${pricing.icpName} email count ${pricing.icpTimes}?`,
+    a: `Because ${pricing.icpName} does the work a person would. You say who you sell to; it plans the searches, pays for web search, reads every site and has Claude score every company before it looks for the people who decide. That costs us more per lead, so each verified email it finds counts ${pricing.icpTimes}. Every other search counts one.`,
   },
   {
     q: 'What happens when I reach my limit?',
