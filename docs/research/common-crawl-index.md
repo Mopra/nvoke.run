@@ -70,6 +70,12 @@ seconds. Loading 200 of them: 162 requests at 15 a second, no 403, 150
 added; 2 parked, 3 walled, 4 empty, 1 not HTML. A row is about 2.3 KB with
 its vector before the GIN index.
 
+One whole shard (`cdx-00150.gz`, 827 MB) streamed from home in 206
+seconds: 153,745 domains, 61 filtered, 66,251 listed (43%). The list is
+4 MB gzipped per shard, so the whole crawl's list is about 1.2 GB
+and 20M domains, in line with the estimate above. At the measured 15 to 20
+requests a second the 100k trial load takes under two hours.
+
 ## Method
 
 `apps/server/src/bench/common-crawl.ts`, three commands, no database:
