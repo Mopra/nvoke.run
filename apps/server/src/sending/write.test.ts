@@ -46,6 +46,8 @@ describe('checkBody and checkSubject', () => {
     expect(checkBody(BODY)).toBe(BODY);
     expect(checkBody(`${BODY}\n\nBest,\nMo`)).toBe(BODY);
     expect(checkBody(`${BODY}\nReply stop to unsubscribe.`)).toBe(BODY);
+    // Talk of unsubscribes is not a line about stopping.
+    expect(checkBody(`${BODY} Your unsubscribes stay unsubscribed.`)).toBe(`${BODY} Your unsubscribes stay unsubscribed.`);
   });
 
   it('turns dashes used as punctuation into commas', () => {
