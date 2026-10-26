@@ -32,6 +32,7 @@ import { createAiFromEnv, type Ai } from '../ai/client.js';
 import { siteProfileRoutes, siteShotRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
 import { sendingRoutes } from './routes/sending.js';
 import { aiKeyRoutes, type AiKeyRoutesOptions } from './routes/ai-key.js';
+import { searchKeyRoutes } from './routes/search-key.js';
 import { unsubscribeRoutes } from './routes/unsubscribe.js';
 import { createSecrets, type Secrets } from '../crypto/secrets.js';
 import { smtpImapTransport } from '../sending/mailbox-transport.js';
@@ -181,6 +182,7 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
   });
   const secrets = overrides.secrets !== undefined ? overrides.secrets : env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null;
   await app.register(aiKeyRoutes, { prefix: '/v1/ai-key', getSql, authenticate: app.requireAuth, secrets, sdk: overrides.anthropicSdk });
+  await app.register(searchKeyRoutes, { prefix: '/v1/search-key', getSql, authenticate: app.requireAuth, secrets });
   await app.register(sendingRoutes, {
     prefix: '/v1',
     getSql,

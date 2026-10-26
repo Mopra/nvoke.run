@@ -2,10 +2,12 @@ import type { Sql } from 'postgres';
 import type { SearchKind } from '@nvoke/shared';
 import type { Ai } from '../../ai/client.js';
 import type { Alerter } from '../../alerts.js';
+import { SecretsError, type Secrets } from '../../crypto/secrets.js';
 import type { Env } from '../../env.js';
 import { dropAdapter } from '../../feed/drops.js';
 import type { CrawlDeps } from '../crawl.js';
 import type { FetchLike } from '../http.js';
+import { hasSearchKey, openSearchKey } from '../search-keys.js';
 import { pauseSource, SOURCE_PAUSE_MS } from '../source-pause.js';
 import { dbWebSearchCache } from '../web-cache.js';
 import { domainsAdapter } from './domains.js';
@@ -13,9 +15,10 @@ import { FREE_BLOCK_MS, freeClient, freeSearchMode, mwmblProvider, searchClient,
 import { icpAdapter } from './icp.js';
 import { launchesAdapter } from './launches.js';
 import { localAdapter } from './local.js';
+import { ownSearchClient } from './own-search.js';
 import { nameResolver, type NameResolver, type NameResolverOptions } from './resolve-name.js';
 import { paidSearchChain, paidSearchFromEnv, SEARCH_DASHBOARDS, type PaidSearchEnv } from './paid-search.js';
-import type { SourceAdapter, SourceUnavailableError } from './types.js';
+import { PermanentError, type SourceAdapter, type SourceUnavailableError } from './types.js';
 import { webAdapter } from './web.js';
 
 export type AdapterRegistry = { [K in SearchKind]: SourceAdapter<unknown> };
@@ -33,6 +36,10 @@ export type AdapterRegistry = { [K in SearchKind]: SourceAdapter<unknown> };
  * WEB_SEARCH_PROVIDER and WEB_SEARCH_FALLBACK put Serper ahead of or behind
  * Brave (paid-search.ts); Mwmbl stays the last fallback behind both.
  *
+ * An account with its own Serper or Brave key (search_keys) runs its paid
+ * pages on that key instead, in front of all of the above (own-search.ts).
+ * Opening the key needs `secrets`.
+ *
  * Names are tried on the free routes of resolve-name.ts before a paid lookup:
  * real DNS and Wikidata by default. Tests pass `resolveName` (a resolver,
  * or null for none) or `nameResolver` (its DNS lookup and Wikidata switch)
@@ -48,6 +55,8 @@ export function createAdapters(
     ai?: Ai;
     crawl?: CrawlDeps;
     alert?: Alerter;
+    /** Opens accounts' own search keys (SECRETS_KEY). */
+    secrets?: Secrets | null;
     /** The free name resolver to use, or null for none. Default: one built from `nameResolver`. */
     resolveName?: NameResolver | null;
     /** For the default resolver: a DNS lookup and the Wikidata switch to use instead of the real ones. */
@@ -90,7 +99,7 @@ export function createAdapters(
   });
   const mode: FreeSearchMode = env.FREE_SEARCH ?? freeSearchMode();
   // One client, so web, domains, local and icp searches share one rate limit and cache per provider.
-  const brave = searchClient({
+  const shared = searchClient({
     brave: paid,
     free: freeClient({
       provider: mwmblProvider({ fetch: fetchImpl, intervalMs: env.FREE_SEARCH_INTERVAL_MS }),
@@ -104,6 +113,26 @@ export function createAdapters(
     onUnavailable: chain.length === 1 && chain[0] === 'brave' ? (err: SourceUnavailableError) => unavailable(err, FREE) : undefined,
     braveDownMs: SOURCE_PAUSE_MS,
   });
+  const secrets = opts.secrets;
+  const brave = sql
+    ? ownSearchClient(shared, {
+        cache,
+        fetch: fetchImpl,
+        ownKey: async (userId) => {
+          // A stored key that cannot be opened fails the search; it never falls back to ours.
+          if (!secrets) {
+            if (await hasSearchKey(sql, userId)) throw new PermanentError('your own search key cannot be opened on this server (SECRETS_KEY is not set)');
+            return null;
+          }
+          try {
+            return await openSearchKey(sql, secrets, userId);
+          } catch (err) {
+            if (err instanceof SecretsError) throw new PermanentError('your own search key cannot be opened on this server. Save it again on Account.');
+            throw err;
+          }
+        },
+      })
+    : shared;
   const web = webAdapter(brave);
   // Free routes from a company name to its website, tried before a paid lookup.
   const resolveName =

@@ -11,6 +11,7 @@ import {
   CreateApiKeyResponse,
 } from './agents.ts';
 import { AiKey, SaveAiKeyRequest } from './ai-key.ts';
+import { SaveSearchKeyRequest, SearchKey } from './search-key.ts';
 import { HealthResponse, MeResponse } from './api.ts';
 import {
   CompaniesPage,
@@ -199,6 +200,45 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Account',
     summary: 'Stop using your own Claude key',
     description: 'Deletes the stored key. Claude calls run on ours again.',
+    auth: 'key',
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
+    id: 'getSearchKey',
+    method: 'GET',
+    path: '/v1/search-key',
+    group: 'Account',
+    summary: 'Your own search key',
+    description: 'The Serper or Brave key the account runs its paid web searches on, shown by its last 4 characters. `not_found` while the account runs on ours.',
+    auth: 'key',
+    status: 200,
+    response: SearchKey,
+    errors: ['not_found'],
+  },
+  {
+    id: 'saveSearchKey',
+    method: 'POST',
+    path: '/v1/search-key',
+    group: 'Account',
+    summary: 'Use your own search key',
+    description:
+      'Stores a Serper or Brave Search API key, sealed, and runs every paid web search of the account on it. Replaces a stored key. The key is tried with one search before it is kept, billed to it. Results are cached and shared like ours. When the key is refused later, the search fails; it never falls back to our key.',
+    auth: 'key',
+    body: SaveSearchKeyRequest,
+    status: 200,
+    response: SearchKey,
+    errors: ['invalid_request', 'search_key_rejected', 'source_unavailable'],
+    example: { provider: 'serper', apiKey: 'your-serper-key' },
+  },
+  {
+    id: 'deleteSearchKey',
+    method: 'DELETE',
+    path: '/v1/search-key',
+    group: 'Account',
+    summary: 'Stop using your own search key',
+    description: 'Deletes the stored key. Web searches run on ours again.',
     auth: 'key',
     status: 204,
     response: null,
@@ -649,6 +689,7 @@ export const ERROR_CODES: Record<string, string> = {
   ai_unavailable: 'Claude could not answer right now, or the account spent its monthly Claude budget. Try again later.',
   ai_key_rejected: 'Anthropic refused the API key. Check it in the Claude Console.',
   ai_model_unknown: 'Anthropic does not offer that model to this key. `detail` names it.',
+  search_key_rejected: 'Serper or Brave refused the key, or its plan has no credit left. `detail` says what it answered.',
   signup_unavailable: 'Agent sign-up is switched off right now.',
   too_many_webhooks: 'The account holds 10 webhooks. Delete one first.',
   webhook_url_not_allowed: 'Webhook URLs must be HTTPS on a public address that resolves.',

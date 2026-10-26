@@ -447,7 +447,7 @@ describe('round credits', () => {
     const brave = {
       pages: 0,
       configured: true,
-      async page(_req: unknown, ctx: { onUsage?: (e: 'request' | 'cache_hit') => void }) {
+      async page(_req: unknown, ctx: { onUsage?: (e: 'request' | 'own_request' | 'cache_hit') => void }) {
         brave.pages++;
         ctx.onUsage?.('request');
         ctx.onUsage?.('request');

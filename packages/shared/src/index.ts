@@ -8,6 +8,7 @@ export * from './lists.ts';
 export * from './local-crawl.ts';
 export * from './plans.ts';
 export * from './privacy.ts';
+export * from './search-key.ts';
 export * from './site-profile.ts';
 export * from './webhooks.ts';
 export * from './mcp.ts';

@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { createAiFromEnv } from '../ai/client.js';
 import { createAlerter } from '../alerts.js';
+import { createSecrets } from '../crypto/secrets.js';
 import type { Env } from '../env.js';
 import { RateLimiter } from '../leads/limits.js';
 import { RobotsCache } from '../leads/robots.js';
@@ -20,14 +21,15 @@ export const CRAWL_INTERVAL_MS = 1_000;
 export function createPipelineDeps(sql: Sql, env: Env, log: Logger): PipelineDeps {
   const limiter = new RateLimiter(CRAWL_INTERVAL_MS);
   const alert = createAlerter({ sql, log, apiKey: env.DAY3_API_KEY, to: env.ALERT_EMAIL_TO, from: env.ALERT_EMAIL_FROM });
-  const ai = createAiFromEnv(sql, log);
+  const secrets = env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null;
+  const ai = createAiFromEnv(sql, log, secrets);
   // One limiter and robots cache, so list pages read by plain-words searches and crawls share the per host rate.
   const crawl = { limiter, robots: new RobotsCache({ limiter }) };
   return {
     sql,
     log,
     ai,
-    adapters: createAdapters(env, { sql, ai, crawl, alert }),
+    adapters: createAdapters(env, { sql, ai, crawl, alert, secrets }),
     alert,
     // With Serper as primary or fallback, each provider's budget is checked by paid-search.ts instead.
     braveBudget:

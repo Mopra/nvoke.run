@@ -53,7 +53,7 @@ export async function runPlaceBench(
   // Without a key, a re-run reads the cached pages and Brave refuses any page it has not seen.
   const brave = braveClient({ apiKey: opts.apiKey ?? 'none', cache: fileWebCache(opts.braveDir), requestsPerSecond: 1 });
   const usage = { request: 0, cache_hit: 0 };
-  const ctx = { limit: 1, signal: AbortSignal.timeout(60 * 60_000), log: pino({ level: 'warn' }), onUsage: (e: 'request' | 'cache_hit') => void usage[e]++ };
+  const ctx = { limit: 1, signal: AbortSignal.timeout(60 * 60_000), log: pino({ level: 'warn' }), onUsage: (e: 'request' | 'own_request' | 'cache_hit') => void (e !== 'own_request' && usage[e]++) };
   const places: PlaceResult[] = [];
   for (const place of sample) {
     const { q, country } = braveQuery({ keyword: `${place.name} ${place.city}`, country: place.country });

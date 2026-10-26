@@ -102,7 +102,7 @@ function fakeSql(rows: { plan: unknown; domains?: string[] }): Sql & { queries: 
 async function run(
   adapter: SourceAdapter<IcpSearchParams>,
   limit: number,
-  opts: { abortAfter?: number; params?: IcpSearchParams; searchId?: string; onUsage?: (event: 'request' | 'cache_hit') => void } = {},
+  opts: { abortAfter?: number; params?: IcpSearchParams; searchId?: string; onUsage?: (event: 'request' | 'own_request' | 'cache_hit') => void } = {},
 ) {
   const stages: [string, string][] = [];
   const out: FoundCompany[] = [];

@@ -280,7 +280,8 @@ export async function runFind(deps: PipelineDeps, job: Job, signal: AbortSignal)
   let settleLeft = FIND_SETTLE_TOTAL_MS;
 
   // Paid source calls, recorded even when the find fails, so cost per valid email can be measured.
-  const usage = { request: 0, cache_hit: 0 };
+  // own_request (the account's own search key) is counted but not stored: it is not our cost.
+  const usage = { request: 0, own_request: 0, cache_hit: 0 };
   const onUsage = (event: keyof typeof usage) => void usage[event]++;
   // The whole limit, not what is left: a later run skips the companies the search holds, so it may need to see them all.
   const onStage = async (stage: string, note: string): Promise<void> => {

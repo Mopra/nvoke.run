@@ -25,8 +25,13 @@ export interface SourceContext {
   limit: number;
   signal: AbortSignal;
   log: Logger;
-  /** Called for each request to a paid source, and for each page a cache served instead. */
-  onUsage?: (event: 'request' | 'cache_hit') => void;
+  /**
+   * Called for each request to a paid source, and for each page a cache
+   * served instead. `own_request` is a request billed to the account's own
+   * search key (own-search.ts): it counts toward a search's request budget
+   * but is not our cost.
+   */
+  onUsage?: (event: 'request' | 'own_request' | 'cache_hit') => void;
   /** The account the search belongs to, for metered calls such as Claude. */
   userId?: string;
   /** The search, for adapters that keep state on it. */

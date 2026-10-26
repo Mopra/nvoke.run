@@ -283,7 +283,7 @@ export function icpAdapter(opts: IcpAdapterOptions): SourceAdapter<IcpSearchPara
         opts.brave.page(req, {
           ...ctx,
           onUsage: (event) => {
-            if (event === 'request') paid++;
+            if (event === 'request' || event === 'own_request') paid++;
             ctx.onUsage?.(event);
           },
         });
