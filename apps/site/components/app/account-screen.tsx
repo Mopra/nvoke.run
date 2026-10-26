@@ -6,6 +6,7 @@ import { useClerk } from '@clerk/nextjs';
 import { ArrowUpRight, Check, Copy, Download, Loader2, LogOut, Monitor, Moon, Plus, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { FREE_PLAN, PLANS, type ApiKey, type MeResponse } from '@nvoke/shared';
+import { AiKeySetting } from '@/components/app/account/ai-key-setting';
 import { UsageDisplay } from '@/components/app/account/usage-display';
 import { Avatar } from '@/components/app/avatar';
 import { LogoLoader, useArrivals } from '@/components/app/motion';
@@ -510,6 +511,12 @@ export function AccountScreen() {
             <div className="mt-20">
               <ApiKeys />
             </div>
+            <section className="mt-20">
+              <SectionHeading label="Claude" title="Your own Claude key" description="Run nvoke’s Claude calls on your Anthropic key, with the models you pick." />
+              <div className="mt-4">
+                <AiKeySetting />
+              </div>
+            </section>
             <div className="mt-20">
               <ConnectAgent />
             </div>

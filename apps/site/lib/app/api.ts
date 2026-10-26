@@ -1,4 +1,5 @@
 import type {
+  AiKey,
   ApiKey,
   Campaign,
   CampaignLeadDetail,
@@ -9,6 +10,7 @@ import type {
   Mailbox,
   MailboxListResponse,
   ReplyListResponse,
+  SaveAiKeyRequest,
   SendingSummary,
   UpdateCampaignRequest,
   UpdateMailboxRequest,
@@ -74,6 +76,8 @@ export function describeError(status: number, code: string): string {
   if (code === 'too_many_drops') return 'You have 20 drops. Delete one first.';
   if (code === 'site_unreadable') return 'We couldn’t read that website.';
   if (code === 'ai_unavailable') return 'Claude isn’t answering right now. Try again in a few minutes.';
+  if (code === 'ai_key_rejected') return 'Anthropic refused that key. Check it in the Claude Console.';
+  if (code === 'ai_model_unknown') return 'That model isn’t available on your key. Pick another one.';
   if (code === 'cancelled') return 'Stopped.';
   if (code === 'search_running') return 'This search is still running. Search more once it finishes.';
   if (code === 'kind_mismatch') return 'A search runs again with its own kind. Start a new search for another kind.';
@@ -193,6 +197,20 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     createApiKey: (name: string): Promise<CreateApiKeyResponse> => call('POST', '/v1/api-keys', { name }),
     revokeApiKey: async (id: string): Promise<void> => {
       await call<null>('DELETE', `/v1/api-keys/${enc(id)}`);
+    },
+    /** The account's own Anthropic key (last 4 and models only), or null when it runs on nvoke's. */
+    getAiKey: async (): Promise<AiKey | null> => {
+      try {
+        return await call<AiKey>('GET', '/v1/ai-key');
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    /** Checks the key and both models with Anthropic before storing. Without `apiKey` it changes only the models. */
+    saveAiKey: (body: SaveAiKeyRequest): Promise<AiKey> => call('POST', '/v1/ai-key', body),
+    deleteAiKey: async (): Promise<void> => {
+      await call<null>('DELETE', '/v1/ai-key');
     },
     /** The account's site profile, or null before the first one is built. */
     getSiteProfile: async (): Promise<SiteProfile | null> => {

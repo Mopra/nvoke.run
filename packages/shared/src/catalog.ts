@@ -189,7 +189,7 @@ export const ENDPOINTS: Endpoint[] = [
     body: SaveAiKeyRequest,
     status: 200,
     response: AiKey,
-    errors: ['invalid_request', 'ai_key_rejected', 'ai_model_unknown', 'not_found'],
+    errors: ['invalid_request', 'ai_key_rejected', 'ai_model_unknown', 'not_found', 'ai_unavailable'],
     example: { apiKey: 'sk-ant-...', bulkModel: 'claude-haiku-5-5', qualityModel: 'claude-sonnet-5-5' },
   },
   {

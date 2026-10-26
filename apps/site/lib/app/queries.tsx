@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useInfiniteQuery, useMutation, useMutationState, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import type {
+  AiKey,
   ApiKey,
   Campaign,
   CampaignListResponse,
@@ -11,6 +12,7 @@ import type {
   CreateCampaignRequest,
   MailboxListResponse,
   ReplyListResponse,
+  SaveAiKeyRequest,
   SendingSummary,
   UpdateCampaignRequest,
   UpdateMailboxRequest,
@@ -70,6 +72,7 @@ export const keys = {
   companies: (id: string, filters: Omit<CompaniesQuery, 'cursor'>) => ['searches', id, 'companies', filters] as const,
   me: ['me'] as const,
   apiKeys: ['api-keys'] as const,
+  aiKey: ['ai-key'] as const,
   siteProfile: ['site-profile'] as const,
   siteProfileBuild: ['site-profile', 'build'] as const,
   drops: ['drops'] as const,
@@ -374,6 +377,30 @@ export function useRevokeApiKey() {
     onSuccess: (_void, id) => {
       client.setQueryData<ApiKey[]>(keys.apiKeys, (list) => list?.filter((k) => k.id !== id));
     },
+  });
+}
+
+/** The account's own Claude key: null when it runs on nvoke's. Changes only when the user acts, so no polling. */
+export function useAiKey() {
+  const api = useApi();
+  return useQuery({ queryKey: keys.aiKey, queryFn: api.getAiKey, staleTime: 5 * 60_000 });
+}
+
+export function useSaveAiKey() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SaveAiKeyRequest) => api.saveAiKey(body),
+    onSuccess: (saved) => client.setQueryData<AiKey | null>(keys.aiKey, saved),
+  });
+}
+
+export function useDeleteAiKey() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAiKey(),
+    onSuccess: () => client.setQueryData<AiKey | null>(keys.aiKey, null),
   });
 }
 

@@ -215,6 +215,17 @@ Features that need judgment on text (the site profile, openers) call Claude thro
 - **Structured output.** `createAi(...).structured({ userId, task, tier, system, prompt, schema, toolName, toolDescription })` asks for a JSON answer (structured outputs) whose schema comes from the zod schema, trimmed to shape, types and enums, and validates the answer with the full zod schema. Errors are `AiError` with a code: `unavailable` (no `OPENROUTER_API_KEY`), `budget_exceeded`, `refusal`, `no_output`, `invalid_output`.
 - **Cost.** Every call is a row in `ai_usage` (user, task, model, tokens, `cost_usd`, no prompt or response text) and a log line with the user id. Before a call, the account's spend this calendar month (UTC) is checked against its budget: `AI_MONTHLY_BUDGET_PRICE_SHARE` (default 0.25) of the plan's price, never below `AI_MONTHLY_BUDGET_FLOOR_USD` (default 1). The check is not locked, so calls running at once may overshoot by their own cost.
 
+### Your own Claude key
+
+An account can run every Claude call on its own Anthropic API key instead of ours. Code in `src/ai/keys.ts` (store), `src/ai/anthropic.ts` (client) and `src/api/routes/ai-key.ts`, schemas in `packages/shared/src/ai-key.ts`.
+
+- **Routes.** `GET /v1/ai-key` shows the stored key by its last 4 characters with both models (404 while the account runs on ours). `POST` with `apiKey`, `bulkModel` and `qualityModel` stores it; without `apiKey` it changes only the models of the stored key (404 when there is none). `DELETE` removes it (204, then 404). The key never comes back in a response or a log line.
+- **Sealed.** The key is sealed with `SECRETS_KEY` (AES-256-GCM, `src/crypto/secrets.ts`) in `ai_keys`, one per account, and only `createAi` opens it. Without `SECRETS_KEY` no key can be stored (503 `ai_unavailable`) and none is used.
+- **Models per tier.** The account picks the Anthropic model for each tier: `bulkModel` (default `claude-haiku-5-5`) for the many small calls, `qualityModel` (default `claude-sonnet-5-5`) for the few that matter. Any `claude-...` id is accepted; the screens offer `ANTHROPIC_MODELS`.
+- **Checked first.** Before a key or a model change is kept, the key reads both models from Anthropic's Models API, which costs no tokens. A refused key is 400 `ai_key_rejected`, a model the key does not offer is 400 `ai_model_unknown` with the model in `detail`, and nothing is stored.
+- **No fallback.** With a key stored, every call goes straight to Anthropic's Messages API on that key (structured output through `output_config.format`) and never to OpenRouter. A key Anthropic later refuses fails the call as `AiError` `unavailable`; the call is not retried on ours.
+- **Own budget.** Calls on the account's key are billed by Anthropic, so they skip the monthly budget check. They are still rows in `ai_usage`, priced from the table, with `own_key` true, and `spentThisMonth` leaves them out.
+
 ## Site profile
 
 Start from your website: the user pastes their own site and nvoke plans the searches. Code in `apps/server/src/profile`, route in `src/api/routes/site-profile.ts`, schemas in `packages/shared/src/site-profile.ts`.

@@ -18,7 +18,7 @@
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
-import { createSecrets, type Secrets } from '../crypto/secrets.js';
+import { createSecrets, SecretsError, type Secrets } from '../crypto/secrets.js';
 import { loadEnv } from '../env.js';
 import { anthropicClient, anthropicSdk } from './anthropic.js';
 import { openOwnKey, type OwnKey } from './keys.js';
@@ -313,7 +313,19 @@ export function createAiFromEnv(sql: Sql, log: Logger, secrets?: Secrets | null)
     sql,
     log,
     apiKey: env.OPENROUTER_API_KEY,
-    ...(sealer ? { ownKey: (userId: string) => openOwnKey(sql, sealer, userId) } : {}),
+    ...(sealer
+      ? {
+          ownKey: async (userId: string) => {
+            try {
+              return await openOwnKey(sql, sealer, userId);
+            } catch (err) {
+              // SECRETS_KEY changed since the key was sealed: fail like a missing key, never fall back to ours.
+              if (err instanceof SecretsError) throw new AiError('unavailable', "The account's own API key does not open with SECRETS_KEY");
+              throw err;
+            }
+          },
+        }
+      : {}),
     budget: { floorUsd: env.AI_MONTHLY_BUDGET_FLOOR_USD, priceShare: env.AI_MONTHLY_BUDGET_PRICE_SHARE },
   });
 }
