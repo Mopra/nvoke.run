@@ -38,6 +38,8 @@ import type {
   CreateWebhookRequest,
   CreateWebhookResponse,
   SaveAiKeyRequest,
+  SaveSearchKeyRequest,
+  SearchKey,
   SearchListResponse,
   SiteProfile,
   UpdateSearchRequest,
@@ -80,6 +82,7 @@ function describeError(status: number, code: string): string {
   if (code === 'too_many_webhooks') return 'You have 10 webhooks. Delete one first.';
   if (code === 'ai_key_rejected') return 'Anthropic turned that key down. Check it and paste it again.';
   if (code === 'ai_model_unknown') return 'Anthropic doesn’t offer one of those models on this key. Pick another.';
+  if (code === 'search_key_rejected') return 'Serper or Brave refused that key, or its plan has no credit left. Check it and paste it again.';
   if (code === 'webhook_url_not_allowed') return 'Use an https URL on a public address.';
   if (status === 404) return 'That search is gone.';
   if (status >= 500) return 'Our server broke. Try again in a minute.';
@@ -225,6 +228,20 @@ export function createApi(transport: Transport) {
     saveAiKey: (input: SaveAiKeyRequest): Promise<AiKey> => call('POST', '/v1/ai-key', input),
     deleteAiKey: async (): Promise<void> => {
       await call<null>('DELETE', '/v1/ai-key');
+    },
+    /** The account's own Serper or Brave key, or null while it searches on nvoke's. */
+    getSearchKey: async (): Promise<SearchKey | null> => {
+      try {
+        return await call<SearchKey>('GET', '/v1/search-key');
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    /** Stores a key after one search on it; replaces a stored one. */
+    saveSearchKey: (input: SaveSearchKeyRequest): Promise<SearchKey> => call('POST', '/v1/search-key', input),
+    deleteSearchKey: async (): Promise<void> => {
+      await call<null>('DELETE', '/v1/search-key');
     },
     listWebhooks: async (): Promise<Webhook[]> => (await call<WebhookListResponse>('GET', '/v1/webhooks')).webhooks,
     createWebhook: (input: CreateWebhookRequest): Promise<CreateWebhookResponse> => call('POST', '/v1/webhooks', input),

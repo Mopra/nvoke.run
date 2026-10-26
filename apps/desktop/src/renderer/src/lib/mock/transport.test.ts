@@ -323,4 +323,18 @@ describe('openers', () => {
     await api.deleteAiKey();
     expect(await api.getAiKey()).toBeNull();
   });
+
+  it('keeps your own search key: none, refused, saved, replaced, removed', async () => {
+    const { api } = setup();
+    expect(await api.getSearchKey()).toBeNull();
+    await expect(api.saveSearchKey({ provider: 'serper', apiKey: 'short' })).rejects.toMatchObject({ code: 'invalid_request' });
+    await expect(api.saveSearchKey({ provider: 'serper', apiKey: 'bad-serper-key-0000000' })).rejects.toMatchObject({ code: 'search_key_rejected' });
+
+    expect(await api.saveSearchKey({ provider: 'serper', apiKey: 'serper-key-abcdefgh-WXYZ' })).toMatchObject({ provider: 'serper', last4: 'WXYZ' });
+    await api.saveSearchKey({ provider: 'brave', apiKey: 'brave-key-abcdefghijk-QRST' });
+    expect(await api.getSearchKey()).toMatchObject({ provider: 'brave', last4: 'QRST' });
+
+    await api.deleteSearchKey();
+    expect(await api.getSearchKey()).toBeNull();
+  });
 });

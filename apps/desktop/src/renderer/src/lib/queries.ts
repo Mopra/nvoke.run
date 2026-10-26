@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { api, ApiError } from './api';
 import { isActive } from './format';
 import { inboxPollMs } from './people';
-import type { AiKey, ApiKey, CreateWebhookRequest, SaveAiKeyRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
+import type { AiKey, ApiKey, CreateWebhookRequest, SaveAiKeyRequest, SaveSearchKeyRequest, SearchKey, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
 import type { CompaniesPage, CompaniesQuery, DraftOpenersInput, Drop,DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
@@ -24,6 +24,7 @@ export const keys = {
   findLeads: (q: string) => ['local-find', q] as const,
   siteProfile: ['site-profile'] as const,
   aiKey: ['ai-key'] as const,
+  searchKey: ['search-key'] as const,
 };
 
 /** The build mutation's key, so any screen can see a build that is still running. */
@@ -564,5 +565,26 @@ export function useDeleteAiKey() {
   return useMutation({
     mutationFn: () => api.deleteAiKey(),
     onSuccess: () => client.setQueryData<AiKey | null>(keys.aiKey, null),
+  });
+}
+
+/** The account's own Serper or Brave key, or null while it searches on nvoke's. */
+export function useSearchKey() {
+  return useQuery({ queryKey: keys.searchKey, queryFn: api.getSearchKey, staleTime: 5 * 60_000 });
+}
+
+export function useSaveSearchKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveSearchKeyRequest) => api.saveSearchKey(input),
+    onSuccess: (key) => client.setQueryData<SearchKey | null>(keys.searchKey, key),
+  });
+}
+
+export function useDeleteSearchKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteSearchKey(),
+    onSuccess: () => client.setQueryData<SearchKey | null>(keys.searchKey, null),
   });
 }

@@ -45,7 +45,9 @@ import {
   WEBHOOK_SECRET_PREFIX,
   WEBHOOKS_MAX,
   SaveAiKeyRequest,
+  SaveSearchKeyRequest,
   type AiKey,
+  type SearchKey,
   type ApiKey,
   type SiteProfile,
   type Webhook,
@@ -64,6 +66,8 @@ const SITE_PROFILE_MS = 5200;
 const SITE_PROFILE_KEY = 'nvoke.mock.site-profile';
 /** The account's own Claude key, kept like the site profile. */
 const AI_KEY_KEY = 'nvoke.mock.ai-key';
+/** The account's own search key, kept the same way. */
+const SEARCH_KEY_KEY = 'nvoke.mock.search-key';
 const PAGE_SIZE = 100;
 /** The mock user is on the 2,500 plan: see PLANS in @nvoke/shared. */
 const MAX_LIMIT = SEARCH_LIMIT_MAX;
@@ -570,6 +574,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
 
     if (parts[1] === 'site-profile' && parts.length === 2) return siteProfileRoute(method, body);
     if (parts[1] === 'ai-key' && parts.length === 2) return aiKeyRoute(method, body);
+    if (parts[1] === 'search-key' && parts.length === 2) return searchKeyRoute(method, body);
     if (parts[1] === 'api-keys') return apiKeyRoute(method, parts[2], body);
     if (parts[1] === 'drops') return dropRoute(method, parts[2], parts[3], body);
     if (parts[1] === 'webhooks') return webhookRoute(method, parts[2], parts[3], body);
@@ -707,6 +712,39 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (method === 'DELETE') {
       if (!current) return fail(404, 'not_found');
       storage.setItem(AI_KEY_KEY, '');
+      return json(204, null);
+    }
+    return fail(404, 'not_found');
+  }
+
+  function storedSearchKey(): SearchKey | null {
+    try {
+      const raw = storage.getItem(SEARCH_KEY_KEY);
+      return raw ? (JSON.parse(raw) as SearchKey) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * GET, POST and DELETE /v1/search-key. A key containing `bad` is refused
+   * without a `detail`, as main's bridge drops a real engine's free text one.
+   */
+  function searchKeyRoute(method: HttpMethod, body: unknown): BridgeResponse {
+    const current = storedSearchKey();
+    if (method === 'GET') return current ? json(200, current) : fail(404, 'not_found');
+    if (method === 'POST') {
+      const req = SaveSearchKeyRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      const { provider, apiKey } = req.data;
+      if (apiKey.includes('bad')) return fail(400, 'search_key_rejected');
+      const next: SearchKey = { provider, last4: apiKey.slice(-4), updatedAt: new Date(now()).toISOString() };
+      storage.setItem(SEARCH_KEY_KEY, JSON.stringify(next));
+      return json(200, next);
+    }
+    if (method === 'DELETE') {
+      if (!current) return fail(404, 'not_found');
+      storage.setItem(SEARCH_KEY_KEY, '');
       return json(204, null);
     }
     return fail(404, 'not_found');

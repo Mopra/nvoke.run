@@ -14,6 +14,7 @@ import { LocalMcpSection } from './account/LocalMcpSection';
 import { OpenAtLogin } from './account/OpenAtLogin';
 import { PlanSetting } from './account/PlanSetting';
 import { QuickHotkey } from './account/QuickHotkey';
+import { SearchKey } from './account/SearchKey';
 import { ThisComputer } from './account/ThisComputer';
 import { Updates } from './account/Updates';
 import { Usage } from './account/Usage';
@@ -79,6 +80,7 @@ export function AccountScreen() {
               <div className="mt-14 flex flex-col divide-y divide-border">
                 <PlanSetting me={me} />
                 <ClaudeKey />
+                <SearchKey />
                 <AppearanceSetting />
                 <OpenAtLogin />
                 <QuickHotkey />
