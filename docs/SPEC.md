@@ -226,6 +226,18 @@ An account can run every Claude call on its own Anthropic API key instead of our
 - **No fallback.** With a key stored, every call goes straight to Anthropic's Messages API on that key (structured output through `output_config.format`) and never to OpenRouter. A key Anthropic later refuses fails the call as `AiError` `unavailable`; the call is not retried on ours.
 - **Own budget.** Calls on the account's key are billed by Anthropic, so they skip the monthly budget check. They are still rows in `ai_usage`, priced from the table, with `own_key` true, and `spentThisMonth` leaves them out.
 
+### Your own search key
+
+An account can run its paid web searches on its own Serper or Brave Search key instead of ours. Code in `src/leads/search-keys.ts` (store), `src/leads/sources/own-search.ts` (client) and `src/api/routes/search-key.ts`, schemas in `packages/shared/src/search-key.ts`.
+
+- **Routes.** `GET /v1/search-key` shows the stored key by its provider and last 4 characters (404 while the account runs on ours). `POST` with `provider` (`serper` or `brave`) and `apiKey` stores it, replacing any key before it. `DELETE` removes it (204, then 404). The key never comes back in a response or a log line.
+- **Sealed.** The key is sealed with `SECRETS_KEY` (AES-256-GCM, `src/crypto/secrets.ts`) in `search_keys`, one per account, and only the search client opens it. Without `SECRETS_KEY` no key can be stored (503 `source_unavailable`).
+- **Checked first.** Before a key is kept, it runs one search, billed to it. A refused key is 400 `search_key_rejected` with the provider's answer in `detail`; any other failure is 503 `source_unavailable`. Nothing is stored either way.
+- **Every paid page.** `ownSearchClient` sits in front of the whole search client, so web, domains, local, place lookups and Sonar (`icp`) searches of the account all run their paid pages on its key. One client per key keeps the key's rate limit across the searches of the process.
+- **Shared cache.** Pages go through the same result cache as ours: a cached page is served free with `cache_hit`, and a page fetched on the account's key is cached for everyone.
+- **No fallback.** A search with a key never touches our providers: no fallback to our key or to Mwmbl. A key the provider refuses fails the search with a permanent error that names the provider and points to Account; it does not pause or alert ours. A stored key that cannot be opened (no `SECRETS_KEY`, or a different one) fails the search the same way.
+- **Own cost.** Requests on the account's key are reported as `own_request`: they count toward the search's request budget (a Sonar run stops at the same number of pages), but not toward `source_requests`, our monthly provider budgets or the cost per email.
+
 ## Site profile
 
 Start from your website: the user pastes their own site and nvoke plans the searches. Code in `apps/server/src/profile`, route in `src/api/routes/site-profile.ts`, schemas in `packages/shared/src/site-profile.ts`.
