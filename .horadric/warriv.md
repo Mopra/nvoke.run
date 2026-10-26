@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-26 Round after 'Checks on main after the own Claude key and own search key work' landed: no fix commits, so main green at b7277ed. Clips and the Common Crawl trial wait on the owner, no aim. Nothing to file; shipping is the human's.
 - 2026-10-26 Hourly round: the human's own Claude key and own search key stream (1d00d96 to b7277ed) stopped an hour ago, tree clean, so filed 'Checks on main after the own Claude key and own search key work' (sonnet, with build). Clips and the Common Crawl trial wait on the owner, no aim.
 - 2026-10-26 Hourly round: the human committed own Claude key (1d00d96 to 00300e9) and own search key (f1a9f2f to b7277ed) past green 013e55f, the last 2 minutes before, so held checks back while they are mid stream. Clips and the Common Crawl trial wait on the owner, no aim.
 - 2026-10-26 First round after 04:00 (the human left): unchanged (only memory commits past green 013e55f, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do. Day was clean.
@@ -102,7 +103,7 @@
 
 ## Open
 
-- Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checks quest filed; see it land green.
+- Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed; never seen on screen.
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
 - Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866; seed and Common Crawl index green at 8f58c67 (2026-10-22); Postgres 18 move green at 013e55f.
 - Common Crawl: 100k trial load stopped by the owner at 554 rows (403s from Common Crawl), resumable from /opt/nvoke/cc on the VPS; resume or undo is the owner's; the measure quest waits a week after it, and the full 20M load spend (VPS Postgres disk now, since 013e55f) goes to the owner.
