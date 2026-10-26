@@ -133,8 +133,17 @@ describe('anthropicClient', () => {
     expect((err as AiError).code).toBe('unavailable');
   });
 
-  it('passes other errors through', async () => {
-    const boom = new Anthropic.InternalServerError(500, undefined, 'overloaded', headers);
+  it('fails as unavailable on a rate limit or an outage', async () => {
+    const { sdk } = fakeSdk({
+      create: () => {
+        throw new Anthropic.InternalServerError(500, undefined, 'overloaded', headers);
+      },
+    });
+    await expect(anthropicClient(sdk).complete(request)).rejects.toMatchObject({ code: 'unavailable' });
+  });
+
+  it('passes errors that are not from the API through', async () => {
+    const boom = new TypeError('bug');
     const { sdk } = fakeSdk({
       create: () => {
         throw boom;
@@ -158,6 +167,15 @@ describe('checkKey', () => {
       },
     });
     expect(await checkKey(sdk, ['claude-haiku-5-5'])).toEqual({ ok: false, code: 'ai_key_rejected' });
+  });
+
+  it('is unavailable when Anthropic cannot be asked right now', async () => {
+    const { sdk } = fakeSdk({
+      retrieve: () => {
+        throw new Anthropic.InternalServerError(500, undefined, 'overloaded', headers);
+      },
+    });
+    expect(await checkKey(sdk, ['claude-haiku-5-5'])).toEqual({ ok: false, code: 'ai_unavailable' });
   });
 
   it('names the model the key does not offer', async () => {

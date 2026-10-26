@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { createSecrets, SecretsError, type Secrets } from '../crypto/secrets.js';
 import { loadEnv } from '../env.js';
 import { anthropicClient, anthropicSdk } from './anthropic.js';
-import { openOwnKey, type OwnKey } from './keys.js';
+import { hasOwnKey, openOwnKey, type OwnKey } from './keys.js';
 import { MODELS, costUsd, type ModelTier, type TokenCounts } from './models.js';
 import { monthlyBudgetUsd, recordUsage, spentThisMonth, type BudgetRule } from './usage.js';
 
@@ -211,7 +211,13 @@ export function createAi(opts: AiOptions): Ai {
 
   return {
     async ready(userId) {
-      if (await opts.ownKey?.(userId)) return true;
+      try {
+        if (await opts.ownKey?.(userId)) return true;
+      } catch (err) {
+        // An own key that cannot be used is never replaced by ours.
+        if (err instanceof AiError) return false;
+        throw err;
+      }
       if (!client) return false;
       const [spent, budget] = await Promise.all([spentThisMonth(opts.sql, userId, now()), monthlyBudgetUsd(opts.sql, userId, opts.budget)]);
       return spent < budget;
@@ -313,19 +319,20 @@ export function createAiFromEnv(sql: Sql, log: Logger, secrets?: Secrets | null)
     sql,
     log,
     apiKey: env.OPENROUTER_API_KEY,
-    ...(sealer
-      ? {
-          ownKey: async (userId: string) => {
-            try {
-              return await openOwnKey(sql, sealer, userId);
-            } catch (err) {
-              // SECRETS_KEY changed since the key was sealed: fail like a missing key, never fall back to ours.
-              if (err instanceof SecretsError) throw new AiError('unavailable', "The account's own API key does not open with SECRETS_KEY");
-              throw err;
-            }
-          },
-        }
-      : {}),
+    // A stored key that cannot be opened (no SECRETS_KEY, or a different one)
+    // fails the call as unavailable; it never falls back to ours.
+    ownKey: async (userId: string) => {
+      if (!sealer) {
+        if (await hasOwnKey(sql, userId)) throw new AiError('unavailable', "The account's own API key needs SECRETS_KEY to open");
+        return null;
+      }
+      try {
+        return await openOwnKey(sql, sealer, userId);
+      } catch (err) {
+        if (err instanceof SecretsError) throw new AiError('unavailable', "The account's own API key does not open with SECRETS_KEY");
+        throw err;
+      }
+    },
     budget: { floorUsd: env.AI_MONTHLY_BUDGET_FLOOR_USD, priceShare: env.AI_MONTHLY_BUDGET_PRICE_SHARE },
   });
 }

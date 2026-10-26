@@ -36,6 +36,11 @@ export async function getAiKey(sql: Sql, userId: string): Promise<AiKey | null> 
   return row ? toAiKey(row) : null;
 }
 
+export async function hasOwnKey(sql: Sql, userId: string): Promise<boolean> {
+  const rows = await sql`select 1 from ai_keys where clerk_user_id = ${userId}`;
+  return rows.length > 0;
+}
+
 export async function openOwnKey(sql: Sql, secrets: Secrets, userId: string): Promise<OwnKey | null> {
   const [row] = await sql<Row[]>`select * from ai_keys where clerk_user_id = ${userId}`;
   if (!row) return null;

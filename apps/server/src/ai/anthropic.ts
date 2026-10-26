@@ -69,7 +69,7 @@ export function fromMessage(message: Anthropic.Message): ChatResponse {
   };
 }
 
-/** A ChatClient on the account's own Anthropic key. A refused key fails as `unavailable`. */
+/** A ChatClient on the account's own Anthropic key. Any API failure (refused key, rate limit, outage) fails as `unavailable`. */
 export function anthropicClient(sdk: AnthropicSdk): ChatClient {
   return {
     async complete(body) {
@@ -79,13 +79,23 @@ export function anthropicClient(sdk: AnthropicSdk): ChatClient {
         if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
           throw new AiError('unavailable', `Anthropic refused the account's own API key (${err.status})`);
         }
+        // Own keys often sit on low rate limit tiers: a 429 or an outage is
+        // Claude out of reach for this call, not a failed job.
+        if (err instanceof Anthropic.APIError) {
+          throw new AiError('unavailable', `Anthropic answered ${err.status ?? 'no status'} on the account's own key: ${err.message.slice(0, 200)}`);
+        }
         throw err;
       }
     },
   };
 }
 
-export type KeyCheck = { ok: true } | { ok: false; code: 'ai_key_rejected' } | { ok: false; code: 'ai_model_unknown'; model: string };
+export type KeyCheck =
+  | { ok: true }
+  | { ok: false; code: 'ai_key_rejected' }
+  | { ok: false; code: 'ai_model_unknown'; model: string }
+  /** Anthropic could not be asked right now (rate limit, outage). */
+  | { ok: false; code: 'ai_unavailable' };
 
 /** Whether the key works and offers both models. Free: it reads the Models API, no tokens. */
 export async function checkKey(sdk: AnthropicSdk, models: string[]): Promise<KeyCheck> {
@@ -97,6 +107,7 @@ export async function checkKey(sdk: AnthropicSdk, models: string[]): Promise<Key
         return { ok: false, code: 'ai_key_rejected' };
       }
       if (err instanceof Anthropic.NotFoundError) return { ok: false, code: 'ai_model_unknown', model };
+      if (err instanceof Anthropic.APIError) return { ok: false, code: 'ai_unavailable' };
       throw err;
     }
   }

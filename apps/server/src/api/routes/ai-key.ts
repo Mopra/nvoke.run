@@ -8,7 +8,7 @@ import type { Sql } from 'postgres';
 import { SaveAiKeyRequest } from '@nvoke/shared';
 import { anthropicSdk, checkKey, type AnthropicSdk } from '../../ai/anthropic.js';
 import { deleteAiKey, getAiKey, saveAiKey } from '../../ai/keys.js';
-import type { Secrets } from '../../crypto/secrets.js';
+import { SecretsError, type Secrets } from '../../crypto/secrets.js';
 import { requireUser } from '../user.js';
 
 export interface AiKeyRoutesOptions {
@@ -51,10 +51,17 @@ export async function aiKeyRoutes(app: FastifyInstance, opts: AiKeyRoutesOptions
     if (!checkWith) {
       const [row] = await sql<{ sealed_key: string }[]>`select sealed_key from ai_keys where clerk_user_id = ${req.userId!}`;
       if (!row) return reply.code(404).send({ error: 'not_found' });
-      checkWith = opts.secrets.open(row.sealed_key);
+      try {
+        checkWith = opts.secrets.open(row.sealed_key);
+      } catch (err) {
+        // Sealed under another SECRETS_KEY: only a new key can be saved.
+        if (err instanceof SecretsError) return reply.code(503).send({ error: 'ai_unavailable' });
+        throw err;
+      }
     }
     const check = await checkKey(sdk(checkWith), [bulkModel, qualityModel]);
     if (!check.ok) {
+      if (check.code === 'ai_unavailable') return reply.code(503).send({ error: check.code });
       return reply
         .code(400)
         .send(check.code === 'ai_model_unknown' ? { error: check.code, detail: check.model } : { error: check.code });

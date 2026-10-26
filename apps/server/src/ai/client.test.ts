@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { silentLog } from '../testing/fakes.js';
 import { createSecrets } from '../crypto/secrets.js';
-import { AiError, createAi, type ChatClient, type ChatRequest, type ChatResponse } from './client.js';
+import { AiError, createAi, createAiFromEnv, type ChatClient, type ChatRequest, type ChatResponse } from './client.js';
 import { openOwnKey, saveAiKey } from './keys.js';
 import { MODELS, costUsd } from './models.js';
 import { monthlyBudgetUsd, recordUsage, spentThisMonth } from './usage.js';
@@ -226,6 +226,30 @@ describe('createAi() on an own key', () => {
     });
     await expect(failing.structured(ask)).rejects.toMatchObject({ code: 'unavailable' });
     expect(ours.requests).toHaveLength(0);
+  });
+
+  it('is not ready, and never uses ours, when the own key cannot be opened', async () => {
+    const { ours } = await setup();
+    const locked = createAi({
+      sql: db.sql,
+      log: silentLog,
+      budget,
+      client: ours.client,
+      ownKey: (userId) => openOwnKey(db.sql, createSecrets(randomBytes(32).toString('base64')), userId).catch(() => {
+        throw new AiError('unavailable', 'does not open');
+      }),
+      now: () => NOW,
+    });
+    expect(await locked.ready('u1')).toBe(false);
+    await expect(locked.structured(ask)).rejects.toMatchObject({ code: 'unavailable' });
+    expect(ours.requests).toHaveLength(0);
+  });
+
+  it('fails a stored key as unavailable when SECRETS_KEY is missing', async () => {
+    await setup();
+    const ai = createAiFromEnv(db.sql, silentLog, null);
+    await expect(ai.structured(ask)).rejects.toThrow(/SECRETS_KEY/);
+    expect(await ai.ready('u1')).toBe(false);
   });
 
   it('uses our key for accounts without one', async () => {
