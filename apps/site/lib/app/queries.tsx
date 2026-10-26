@@ -13,6 +13,8 @@ import type {
   MailboxListResponse,
   ReplyListResponse,
   SaveAiKeyRequest,
+  SaveSearchKeyRequest,
+  SearchKey,
   SendingSummary,
   UpdateCampaignRequest,
   UpdateMailboxRequest,
@@ -73,6 +75,7 @@ export const keys = {
   me: ['me'] as const,
   apiKeys: ['api-keys'] as const,
   aiKey: ['ai-key'] as const,
+  searchKey: ['search-key'] as const,
   siteProfile: ['site-profile'] as const,
   siteProfileBuild: ['site-profile', 'build'] as const,
   drops: ['drops'] as const,
@@ -401,6 +404,30 @@ export function useDeleteAiKey() {
   return useMutation({
     mutationFn: () => api.deleteAiKey(),
     onSuccess: () => client.setQueryData<AiKey | null>(keys.aiKey, null),
+  });
+}
+
+/** The account's own search key: null when it searches on nvoke's. Changes only when the user acts, so no polling. */
+export function useSearchKey() {
+  const api = useApi();
+  return useQuery({ queryKey: keys.searchKey, queryFn: api.getSearchKey, staleTime: 5 * 60_000 });
+}
+
+export function useSaveSearchKey() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SaveSearchKeyRequest) => api.saveSearchKey(body),
+    onSuccess: (saved) => client.setQueryData<SearchKey | null>(keys.searchKey, saved),
+  });
+}
+
+export function useDeleteSearchKey() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteSearchKey(),
+    onSuccess: () => client.setQueryData<SearchKey | null>(keys.searchKey, null),
   });
 }
 

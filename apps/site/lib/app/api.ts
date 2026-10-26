@@ -11,6 +11,8 @@ import type {
   MailboxListResponse,
   ReplyListResponse,
   SaveAiKeyRequest,
+  SaveSearchKeyRequest,
+  SearchKey,
   SendingSummary,
   UpdateCampaignRequest,
   UpdateMailboxRequest,
@@ -78,6 +80,7 @@ export function describeError(status: number, code: string): string {
   if (code === 'ai_unavailable') return 'Claude isn’t answering right now. Try again in a few minutes.';
   if (code === 'ai_key_rejected') return 'Anthropic refused that key. Check it in the Claude Console.';
   if (code === 'ai_model_unknown') return 'That model isn’t available on your key. Pick another one.';
+  if (code === 'search_key_rejected') return 'Serper or Brave refused that key.';
   if (code === 'cancelled') return 'Stopped.';
   if (code === 'search_running') return 'This search is still running. Search more once it finishes.';
   if (code === 'kind_mismatch') return 'A search runs again with its own kind. Start a new search for another kind.';
@@ -211,6 +214,20 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     saveAiKey: (body: SaveAiKeyRequest): Promise<AiKey> => call('POST', '/v1/ai-key', body),
     deleteAiKey: async (): Promise<void> => {
       await call<null>('DELETE', '/v1/ai-key');
+    },
+    /** The account's own Serper or Brave key (provider and last 4 only), or null when it searches on nvoke's. */
+    getSearchKey: async (): Promise<SearchKey | null> => {
+      try {
+        return await call<SearchKey>('GET', '/v1/search-key');
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    /** Tries the key with one search, billed to it, before storing. Replaces any stored key. */
+    saveSearchKey: (body: SaveSearchKeyRequest): Promise<SearchKey> => call('POST', '/v1/search-key', body),
+    deleteSearchKey: async (): Promise<void> => {
+      await call<null>('DELETE', '/v1/search-key');
     },
     /** The account's site profile, or null before the first one is built. */
     getSiteProfile: async (): Promise<SiteProfile | null> => {

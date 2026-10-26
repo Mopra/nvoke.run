@@ -7,6 +7,7 @@ import { ArrowUpRight, Check, Copy, Download, Loader2, LogOut, Monitor, Moon, Pl
 import { toast } from 'sonner';
 import { FREE_PLAN, PLANS, type ApiKey, type MeResponse } from '@nvoke/shared';
 import { AiKeySetting } from '@/components/app/account/ai-key-setting';
+import { SearchKeySetting } from '@/components/app/account/search-key-setting';
 import { UsageDisplay } from '@/components/app/account/usage-display';
 import { Avatar } from '@/components/app/avatar';
 import { LogoLoader, useArrivals } from '@/components/app/motion';
@@ -515,6 +516,12 @@ export function AccountScreen() {
               <SectionHeading label="Claude" title="Your own Claude key" description="Run nvoke’s Claude calls on your Anthropic key, with the models you pick." />
               <div className="mt-4">
                 <AiKeySetting />
+              </div>
+            </section>
+            <section className="mt-20">
+              <SectionHeading label="Search" title="Your own search key" description="Run nvoke’s web searches on your Serper or Brave key." />
+              <div className="mt-4">
+                <SearchKeySetting />
               </div>
             </section>
             <div className="mt-20">
