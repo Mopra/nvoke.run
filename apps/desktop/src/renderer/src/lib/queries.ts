@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { api, ApiError } from './api';
 import { isActive } from './format';
 import { inboxPollMs } from './people';
-import type { ApiKey, CreateWebhookRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
+import type { AiKey, ApiKey, CreateWebhookRequest, SaveAiKeyRequest, SiteProfile, UpdateSiteProfileRequest, UpdateWebhookRequest, Webhook } from '@nvoke/shared';
 import type { CompaniesPage, CompaniesQuery, DraftOpenersInput, Drop,DropInput, DropListResponse, DropUpdate, Search, SearchInput } from './types';
 
 /** Running searches are polled at this interval, as the spec asks. */
@@ -23,6 +23,7 @@ export const keys = {
   local: ['local'] as const,
   findLeads: (q: string) => ['local-find', q] as const,
   siteProfile: ['site-profile'] as const,
+  aiKey: ['ai-key'] as const,
 };
 
 /** The build mutation's key, so any screen can see a build that is still running. */
@@ -542,5 +543,26 @@ export function useDeleteSiteProfile() {
   return useMutation({
     mutationFn: () => api.deleteSiteProfile(),
     onSuccess: () => client.setQueryData<SiteProfile | null>(keys.siteProfile, null),
+  });
+}
+
+/** The account's own Anthropic key, or null while it runs on nvoke's. */
+export function useAiKey() {
+  return useQuery({ queryKey: keys.aiKey, queryFn: api.getAiKey, staleTime: 5 * 60_000 });
+}
+
+export function useSaveAiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveAiKeyRequest) => api.saveAiKey(input),
+    onSuccess: (key) => client.setQueryData<AiKey | null>(keys.aiKey, key),
+  });
+}
+
+export function useDeleteAiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAiKey(),
+    onSuccess: () => client.setQueryData<AiKey | null>(keys.aiKey, null),
   });
 }

@@ -304,4 +304,23 @@ describe('openers', () => {
     }
     await expect(api.draftOpeners(id, { companyIds: [] })).rejects.toMatchObject({ status: 400 });
   });
+
+  it('keeps your own Claude key: none, saved, models only, removed', async () => {
+    const { api } = setup();
+    expect(await api.getAiKey()).toBeNull();
+    await expect(api.saveAiKey({ bulkModel: 'claude-haiku-5-5', qualityModel: 'claude-sonnet-5-5' })).rejects.toMatchObject({ status: 404 });
+    await expect(api.saveAiKey({ apiKey: 'not-a-claude-key-at-all-1234' })).rejects.toMatchObject({ code: 'ai_key_rejected' });
+    await expect(
+      api.saveAiKey({ apiKey: 'sk-ant-api03-abcdefghijklmnop-WXYZ', bulkModel: 'claude-nonsense-1' }),
+    ).rejects.toMatchObject({ code: 'ai_model_unknown', detail: 'claude-nonsense-1' });
+
+    const saved = await api.saveAiKey({ apiKey: 'sk-ant-api03-abcdefghijklmnop-WXYZ', bulkModel: 'claude-haiku-5-5', qualityModel: 'claude-sonnet-5-5' });
+    expect(saved).toMatchObject({ provider: 'anthropic', last4: 'WXYZ', bulkModel: 'claude-haiku-5-5' });
+    const models = await api.saveAiKey({ bulkModel: 'claude-sonnet-5-5', qualityModel: 'claude-opus-5-5' });
+    expect(models).toMatchObject({ last4: 'WXYZ', bulkModel: 'claude-sonnet-5-5', qualityModel: 'claude-opus-5-5' });
+    expect(await api.getAiKey()).toMatchObject({ qualityModel: 'claude-opus-5-5' });
+
+    await api.deleteAiKey();
+    expect(await api.getAiKey()).toBeNull();
+  });
 });

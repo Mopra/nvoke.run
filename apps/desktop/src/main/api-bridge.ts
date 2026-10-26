@@ -52,10 +52,14 @@ function errorOf(body: unknown, status: number): string {
   return `http_${status}`;
 }
 
-/** The server's `detail`, only when it is a short code like `blocked`, so free text never reaches the renderer as a code. */
+/**
+ * The server's `detail`, only when it is a short code like `blocked` or a model
+ * id like `claude-sonnet-5-5` (on `ai_model_unknown`), so free text never
+ * reaches the renderer as a code.
+ */
 function detailOf(body: unknown): string | undefined {
   const detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : undefined;
-  return typeof detail === 'string' && /^[a-z][a-z_]{0,39}$/.test(detail) ? detail : undefined;
+  return typeof detail === 'string' && /^[a-z][a-z0-9_.-]{0,79}$/.test(detail) ? detail : undefined;
 }
 
 /**

@@ -6,6 +6,7 @@ import { ErrorState } from '@/components/states';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMe, usePlanSync } from '@/lib/queries';
 import { AppearanceSetting } from './account/AppearanceSetting';
+import { ClaudeKey } from './account/ClaudeKey';
 import { DropNotifications } from './account/DropNotifications';
 import { InboxFolder } from './account/InboxFolder';
 import { LocalCrawl } from './account/LocalCrawl';
@@ -77,6 +78,7 @@ export function AccountScreen() {
 
               <div className="mt-14 flex flex-col divide-y divide-border">
                 <PlanSetting me={me} />
+                <ClaudeKey />
                 <AppearanceSetting />
                 <OpenAtLogin />
                 <QuickHotkey />

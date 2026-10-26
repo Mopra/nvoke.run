@@ -102,6 +102,16 @@ describe('bridgeRequest', () => {
     expect(await bridgeRequest(u.session, 'POST', '/v1/site-profile', {})).toEqual({ ok: false, status: 400, error: 'invalid_request' });
   });
 
+  it('passes a model id through as the detail of ai_model_unknown', async () => {
+    const t = await signedIn(() => Response.json({ error: 'ai_model_unknown', detail: 'claude-opus-5-5' }, { status: 400 }));
+    expect(await bridgeRequest(t.session, 'POST', '/v1/ai-key', { bulkModel: 'claude-opus-5-5' })).toEqual({
+      ok: false,
+      status: 400,
+      error: 'ai_model_unknown',
+      detail: 'claude-opus-5-5',
+    });
+  });
+
   it('signs out on 401', async () => {
     const t = await signedIn(() => Response.json({ error: 'invalid token' }, { status: 401 }));
     const res = await bridgeRequest(t.session, 'GET', '/v1/searches');

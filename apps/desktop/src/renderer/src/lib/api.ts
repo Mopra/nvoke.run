@@ -31,11 +31,13 @@ import type {
   SearchInput,
 } from './types';
 import type {
+  AiKey,
   ApiKey,
   ApiKeyListResponse,
   CreateApiKeyResponse,
   CreateWebhookRequest,
   CreateWebhookResponse,
+  SaveAiKeyRequest,
   SearchListResponse,
   SiteProfile,
   UpdateSearchRequest,
@@ -76,6 +78,8 @@ function describeError(status: number, code: string): string {
   if (code === 'api_key_limit') return 'You have 20 keys. Revoke one first.';
   if (code === 'too_many_drops') return 'You have 20 drops. Delete one first.';
   if (code === 'too_many_webhooks') return 'You have 10 webhooks. Delete one first.';
+  if (code === 'ai_key_rejected') return 'Anthropic turned that key down. Check it and paste it again.';
+  if (code === 'ai_model_unknown') return 'Anthropic doesn’t offer one of those models on this key. Pick another.';
   if (code === 'webhook_url_not_allowed') return 'Use an https URL on a public address.';
   if (status === 404) return 'That search is gone.';
   if (status >= 500) return 'Our server broke. Try again in a minute.';
@@ -207,6 +211,20 @@ export function createApi(transport: Transport) {
     updateSiteProfile: (update: UpdateSiteProfileRequest): Promise<SiteProfile> => call('PATCH', '/v1/site-profile', update),
     deleteSiteProfile: async (): Promise<void> => {
       await call<null>('DELETE', '/v1/site-profile');
+    },
+    /** The account's own Anthropic key, or null while it runs on nvoke's. */
+    getAiKey: async (): Promise<AiKey | null> => {
+      try {
+        return await call<AiKey>('GET', '/v1/ai-key');
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    /** Stores a key (checked with Anthropic first) or, without `apiKey`, changes only the models. */
+    saveAiKey: (input: SaveAiKeyRequest): Promise<AiKey> => call('POST', '/v1/ai-key', input),
+    deleteAiKey: async (): Promise<void> => {
+      await call<null>('DELETE', '/v1/ai-key');
     },
     listWebhooks: async (): Promise<Webhook[]> => (await call<WebhookListResponse>('GET', '/v1/webhooks')).webhooks,
     createWebhook: (input: CreateWebhookRequest): Promise<CreateWebhookResponse> => call('POST', '/v1/webhooks', input),

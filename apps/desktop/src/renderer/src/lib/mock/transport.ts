@@ -25,6 +25,7 @@ import type {
   Verification,
 } from '../types';
 import {
+  ANTHROPIC_MODELS,
   API_KEY_PREFIX,
   CreateDropRequest,
   DROP_DAILY_LIMIT_DEFAULT,
@@ -43,6 +44,8 @@ import {
   WEBHOOK_EVENTS,
   WEBHOOK_SECRET_PREFIX,
   WEBHOOKS_MAX,
+  SaveAiKeyRequest,
+  type AiKey,
   type ApiKey,
   type SiteProfile,
   type Webhook,
@@ -59,6 +62,8 @@ const INBOX_MS = 2500;
 const SITE_PROFILE_MS = 5200;
 /** The built profile survives a reload in dev, like the server keeps it. */
 const SITE_PROFILE_KEY = 'nvoke.mock.site-profile';
+/** The account's own Claude key, kept like the site profile. */
+const AI_KEY_KEY = 'nvoke.mock.ai-key';
 const PAGE_SIZE = 100;
 /** The mock user is on the 2,500 plan: see PLANS in @nvoke/shared. */
 const MAX_LIMIT = SEARCH_LIMIT_MAX;
@@ -564,6 +569,7 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     }
 
     if (parts[1] === 'site-profile' && parts.length === 2) return siteProfileRoute(method, body);
+    if (parts[1] === 'ai-key' && parts.length === 2) return aiKeyRoute(method, body);
     if (parts[1] === 'api-keys') return apiKeyRoute(method, parts[2], body);
     if (parts[1] === 'drops') return dropRoute(method, parts[2], parts[3], body);
     if (parts[1] === 'webhooks') return webhookRoute(method, parts[2], parts[3], body);
@@ -658,6 +664,49 @@ export function createMockTransport(options: MockOptions = {}): NvokeBridge {
     if (method === 'DELETE') {
       if (!current) return fail(404, 'not_found');
       storage.setItem(SITE_PROFILE_KEY, '');
+      return json(204, null);
+    }
+    return fail(404, 'not_found');
+  }
+
+  function storedAiKey(): AiKey | null {
+    try {
+      const raw = storage.getItem(AI_KEY_KEY);
+      return raw ? (JSON.parse(raw) as AiKey) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * GET, POST and DELETE /v1/ai-key. A key must start with `sk-ant-` and a
+   * model must be one of ANTHROPIC_MODELS, else it answers like Anthropic
+   * turning them down.
+   */
+  function aiKeyRoute(method: HttpMethod, body: unknown): BridgeResponse {
+    const current = storedAiKey();
+    if (method === 'GET') return current ? json(200, current) : fail(404, 'not_found');
+    if (method === 'POST') {
+      const req = SaveAiKeyRequest.safeParse(body);
+      if (!req.success) return fail(400, 'invalid_request');
+      const { apiKey, bulkModel, qualityModel } = req.data;
+      if (apiKey === undefined && !current) return fail(404, 'not_found');
+      if (apiKey !== undefined && !apiKey.startsWith('sk-ant-')) return fail(400, 'ai_key_rejected');
+      const unknown = [bulkModel, qualityModel].find((m) => !ANTHROPIC_MODELS.some((known) => known.id === m));
+      if (unknown) return { ok: false, status: 400, error: 'ai_model_unknown', detail: unknown };
+      const next: AiKey = {
+        provider: 'anthropic',
+        last4: apiKey?.slice(-4) ?? current?.last4 ?? '',
+        bulkModel,
+        qualityModel,
+        updatedAt: new Date(now()).toISOString(),
+      };
+      storage.setItem(AI_KEY_KEY, JSON.stringify(next));
+      return json(200, next);
+    }
+    if (method === 'DELETE') {
+      if (!current) return fail(404, 'not_found');
+      storage.setItem(AI_KEY_KEY, '');
       return json(204, null);
     }
     return fail(404, 'not_found');
