@@ -10,6 +10,7 @@ import {
   CreateApiKeyRequest,
   CreateApiKeyResponse,
 } from './agents.ts';
+import { AiKey, SaveAiKeyRequest } from './ai-key.ts';
 import { HealthResponse, MeResponse } from './api.ts';
 import {
   CompaniesPage,
@@ -158,6 +159,46 @@ export const ENDPOINTS: Endpoint[] = [
     group: 'Account',
     summary: 'Delete your site profile',
     description: 'Deletes the profile, its suggested searches and its screenshot. Searches you started from it stay. Openers stop using it.',
+    auth: 'key',
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
+    id: 'getAiKey',
+    method: 'GET',
+    path: '/v1/ai-key',
+    group: 'Account',
+    summary: 'Your own Claude key',
+    description:
+      'The Anthropic API key the account runs its Claude calls on, shown by its last 4 characters, and the model for each tier. `not_found` while the account runs on ours.',
+    auth: 'key',
+    status: 200,
+    response: AiKey,
+    errors: ['not_found'],
+  },
+  {
+    id: 'saveAiKey',
+    method: 'POST',
+    path: '/v1/ai-key',
+    group: 'Account',
+    summary: 'Use your own Claude key',
+    description:
+      'Stores an Anthropic API key, sealed, and runs every Claude call of the account on it with the models you pick: `bulkModel` for the many small calls (fit, people, openers), `qualityModel` for the few that matter (search plans, site profile). The key and both models are checked with Anthropic before they are kept. Leave out `apiKey` to change only the models. Calls on your key are billed by Anthropic and do not count against our monthly Claude budget.',
+    auth: 'key',
+    body: SaveAiKeyRequest,
+    status: 200,
+    response: AiKey,
+    errors: ['invalid_request', 'ai_key_rejected', 'ai_model_unknown', 'not_found'],
+    example: { apiKey: 'sk-ant-...', bulkModel: 'claude-haiku-5-5', qualityModel: 'claude-sonnet-5-5' },
+  },
+  {
+    id: 'deleteAiKey',
+    method: 'DELETE',
+    path: '/v1/ai-key',
+    group: 'Account',
+    summary: 'Stop using your own Claude key',
+    description: 'Deletes the stored key. Claude calls run on ours again.',
     auth: 'key',
     status: 204,
     response: null,
@@ -606,6 +647,8 @@ export const ERROR_CODES: Record<string, string> = {
   busy: 'Too many free tool checks are running or today’s free allowance is used up. Try again later, or sign up.',
   site_unreadable: 'We could not read the website: it is down, robots.txt keeps us out, it refuses our servers or it needs JavaScript. `detail` says which.',
   ai_unavailable: 'Claude could not answer right now, or the account spent its monthly Claude budget. Try again later.',
+  ai_key_rejected: 'Anthropic refused the API key. Check it in the Claude Console.',
+  ai_model_unknown: 'Anthropic does not offer that model to this key. `detail` names it.',
   signup_unavailable: 'Agent sign-up is switched off right now.',
   too_many_webhooks: 'The account holds 10 webhooks. Delete one first.',
   webhook_url_not_allowed: 'Webhook URLs must be HTTPS on a public address that resolves.',

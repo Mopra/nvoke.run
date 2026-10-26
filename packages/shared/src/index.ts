@@ -1,4 +1,5 @@
 export * from './agents.ts';
+export * from './ai-key.ts';
 export * from './api.ts';
 export * from './catalog.ts';
 export * from './drops.ts';

@@ -10,11 +10,18 @@
 // Every call is recorded with its tokens and cost (usage.ts), logged with the
 // user id, and refused before it starts when the account has spent its
 // monthly budget.
+//
+// An account with its own Anthropic key (keys.ts) runs every call on that key
+// with its chosen models, straight to Anthropic (anthropic.ts). Those calls
+// skip the budget, are recorded as own_key, and never fall back to ours.
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
+import { createSecrets, type Secrets } from '../crypto/secrets.js';
 import { loadEnv } from '../env.js';
+import { anthropicClient, anthropicSdk } from './anthropic.js';
+import { openOwnKey, type OwnKey } from './keys.js';
 import { MODELS, costUsd, type ModelTier, type TokenCounts } from './models.js';
 import { monthlyBudgetUsd, recordUsage, spentThisMonth, type BudgetRule } from './usage.js';
 
@@ -127,6 +134,10 @@ export interface AiOptions {
   apiKey?: string;
   /** Replaces the OpenRouter client built from apiKey. Tests pass a fake. */
   client?: ChatClient;
+  /** The account's own key, if it has one. Without it every call runs on ours. */
+  ownKey?: (userId: string) => Promise<OwnKey | null>;
+  /** The client for an own key. Defaults to Anthropic; tests pass a fake. */
+  ownClient?: (apiKey: string) => ChatClient;
   now?: () => Date;
 }
 
@@ -196,29 +207,40 @@ export function answerSchema(schema: z.ZodType): Record<string, unknown> {
 export function createAi(opts: AiOptions): Ai {
   const client: ChatClient | undefined = opts.client ?? (opts.apiKey ? openRouterClient(opts.apiKey) : undefined);
   const now = opts.now ?? (() => new Date());
+  const ownClient = opts.ownClient ?? ((apiKey: string) => anthropicClient(anthropicSdk(apiKey)));
 
   return {
     async ready(userId) {
+      if (await opts.ownKey?.(userId)) return true;
       if (!client) return false;
       const [spent, budget] = await Promise.all([spentThisMonth(opts.sql, userId, now()), monthlyBudgetUsd(opts.sql, userId, opts.budget)]);
       return spent < budget;
     },
 
     async structured(req) {
-      if (!client) throw new AiError('unavailable', 'Claude is not configured (OPENROUTER_API_KEY)');
-
       const at = now();
-      const [spent, budget] = await Promise.all([
-        spentThisMonth(opts.sql, req.userId, at),
-        monthlyBudgetUsd(opts.sql, req.userId, opts.budget),
-      ]);
-      if (spent >= budget) {
-        opts.log.warn({ userId: req.userId, task: req.task, spentUsd: spent, budgetUsd: budget }, 'ai: monthly budget spent');
-        throw new AiError('budget_exceeded', 'The monthly Claude budget for this account is spent');
+      const own = (await opts.ownKey?.(req.userId)) ?? null;
+      let chat: ChatClient;
+      let model: string;
+      if (own) {
+        chat = ownClient(own.apiKey);
+        model = req.tier === 'bulk' ? own.bulkModel : own.qualityModel;
+      } else {
+        if (!client) throw new AiError('unavailable', 'Claude is not configured (OPENROUTER_API_KEY)');
+        const [spent, budget] = await Promise.all([
+          spentThisMonth(opts.sql, req.userId, at),
+          monthlyBudgetUsd(opts.sql, req.userId, opts.budget),
+        ]);
+        if (spent >= budget) {
+          opts.log.warn({ userId: req.userId, task: req.task, spentUsd: spent, budgetUsd: budget }, 'ai: monthly budget spent');
+          throw new AiError('budget_exceeded', 'The monthly Claude budget for this account is spent');
+        }
+        chat = client;
+        model = MODELS[req.tier];
       }
 
-      const response = await client.complete({
-        model: MODELS[req.tier],
+      const response = await chat.complete({
+        model,
         max_tokens: req.maxTokens ?? 4096,
         messages: [
           { role: 'system', content: `${req.system}\n\nAnswer only with JSON that matches the ${req.toolName} schema.` },
@@ -247,11 +269,15 @@ export function createAi(opts: AiOptions): Ai {
       };
       // OpenRouter reports what it charged; the price table is the fallback.
       const cost = typeof response.usage?.cost === 'number' ? response.usage.cost : costUsd(response.model, usage);
-      await recordUsage(opts.sql, { userId: req.userId, task: req.task, model: response.model, costUsd: cost, ...usage }, at);
+      await recordUsage(
+        opts.sql,
+        { userId: req.userId, task: req.task, model: response.model, costUsd: cost, ownKey: Boolean(own), ...usage },
+        at,
+      );
 
       const choice = response.choices[0];
       opts.log.info(
-        { userId: req.userId, task: req.task, model: response.model, ...usage, costUsd: cost, finishReason: choice?.finish_reason },
+        { userId: req.userId, task: req.task, model: response.model, ...usage, costUsd: cost, ownKey: Boolean(own), finishReason: choice?.finish_reason },
         'ai: call',
       );
 
@@ -279,13 +305,15 @@ export function createAi(opts: AiOptions): Ai {
   };
 }
 
-/** createAi with the key and budget from the environment. */
-export function createAiFromEnv(sql: Sql, log: Logger): Ai {
+/** createAi with the key and budget from the environment. Own keys need SECRETS_KEY to open. */
+export function createAiFromEnv(sql: Sql, log: Logger, secrets?: Secrets | null): Ai {
   const env = loadEnv();
+  const sealer = secrets !== undefined ? secrets : env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null;
   return createAi({
     sql,
     log,
     apiKey: env.OPENROUTER_API_KEY,
+    ...(sealer ? { ownKey: (userId: string) => openOwnKey(sql, sealer, userId) } : {}),
     budget: { floorUsd: env.AI_MONTHLY_BUDGET_FLOOR_USD, priceShare: env.AI_MONTHLY_BUDGET_PRICE_SHARE },
   });
 }

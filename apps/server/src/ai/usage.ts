@@ -25,13 +25,15 @@ export interface UsageRow extends TokenCounts {
   task: string;
   model: string;
   costUsd: number;
+  /** Ran on the account's own Anthropic key: kept, but not counted against the budget. */
+  ownKey?: boolean;
 }
 
 export async function recordUsage(sql: Db, row: UsageRow, at: Date = new Date()): Promise<void> {
   await sql`
-    insert into ai_usage (clerk_user_id, task, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, created_at)
+    insert into ai_usage (clerk_user_id, task, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, own_key, created_at)
     values (${row.userId}, ${row.task}, ${row.model}, ${row.inputTokens}, ${row.outputTokens},
-            ${row.cacheReadTokens}, ${row.cacheWriteTokens}, ${row.costUsd}, ${at.toISOString()})
+            ${row.cacheReadTokens}, ${row.cacheWriteTokens}, ${row.costUsd}, ${row.ownKey ?? false}, ${at.toISOString()})
   `;
 }
 
@@ -39,11 +41,11 @@ function monthStart(at: Date): Date {
   return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
 }
 
-/** USD spent on Claude by the account in the calendar month (UTC) of `at`. */
+/** USD spent on Claude by the account on our key in the calendar month (UTC) of `at`. */
 export async function spentThisMonth(sql: Db, userId: string, at: Date = new Date()): Promise<number> {
   const rows = await sql<{ spent: string }[]>`
     select coalesce(sum(cost_usd), 0) as spent from ai_usage
-    where clerk_user_id = ${userId} and created_at >= ${monthStart(at).toISOString()}
+    where clerk_user_id = ${userId} and not own_key and created_at >= ${monthStart(at).toISOString()}
   `;
   return Number(rows[0]?.spent ?? 0);
 }

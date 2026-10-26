@@ -31,6 +31,7 @@ import { httpSender, type WebhookSender } from '../webhooks/send.js';
 import { createAiFromEnv, type Ai } from '../ai/client.js';
 import { siteProfileRoutes, siteShotRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
 import { sendingRoutes } from './routes/sending.js';
+import { aiKeyRoutes, type AiKeyRoutesOptions } from './routes/ai-key.js';
 import { unsubscribeRoutes } from './routes/unsubscribe.js';
 import { createSecrets, type Secrets } from '../crypto/secrets.js';
 import { smtpImapTransport } from '../sending/mailbox-transport.js';
@@ -60,6 +61,8 @@ export interface AppDeps {
   ai?: Ai;
   /** Reads the user's website for the site profile. Tests swap in a fake. */
   readSite?: SiteProfileRoutesOptions['read'];
+  /** Replaces the Anthropic SDK the own key check uses. */
+  anthropicSdk?: AiKeyRoutesOptions['sdk'];
   /** Seals mailbox passwords and signs unsubscribe links. Null switches sending off. */
   secrets?: Secrets | null;
   /** SMTP and IMAP. Tests pass the fake transport. */
@@ -177,6 +180,7 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     resolve: overrides.webhookResolve,
   });
   const secrets = overrides.secrets !== undefined ? overrides.secrets : env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null;
+  await app.register(aiKeyRoutes, { prefix: '/v1/ai-key', getSql, authenticate: app.requireAuth, secrets, sdk: overrides.anthropicSdk });
   await app.register(sendingRoutes, {
     prefix: '/v1',
     getSql,
