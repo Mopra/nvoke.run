@@ -229,7 +229,7 @@ export const ENDPOINTS: Endpoint[] = [
     body: SaveSearchKeyRequest,
     status: 200,
     response: SearchKey,
-    errors: ['invalid_request', 'search_key_rejected', 'source_unavailable'],
+    errors: ['invalid_request', 'search_key_rejected', 'source_unavailable', 'rate_limited'],
     example: { provider: 'serper', apiKey: 'your-serper-key' },
   },
   {

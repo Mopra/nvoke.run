@@ -197,7 +197,8 @@ export function braveProvider(opts: WebAdapterOptions): PaidSearchProvider {
         } catch (err) {
           if (!(err instanceof HttpError)) throw err;
           const said = `${err.status} ${(err.bodySnippet ?? '').slice(0, 300)}`.trim();
-          if (err.status === 401 || err.status === 402 || err.status === 403) {
+          // A wrong or revoked token answers 422 SUBSCRIPTION_TOKEN_INVALID.
+          if (err.status === 401 || err.status === 402 || err.status === 403 || (err.status === 422 && /TOKEN_INVALID/i.test(err.bodySnippet ?? ''))) {
             throw new SourceUnavailableError('brave', `the key or plan was refused (${said})`);
           }
           if (err.status !== 429) throw err;

@@ -10,6 +10,7 @@ import { SaveSearchKeyRequest } from '@nvoke/shared';
 import type { Secrets } from '../../crypto/secrets.js';
 import { deleteSearchKey, getSearchKey, saveSearchKey, type OwnSearchKey } from '../../leads/search-keys.js';
 import { checkSearchKey, type SearchKeyCheck } from '../../leads/sources/own-search.js';
+import { fixedWindowLimiter } from '../../privacy/rate-limit.js';
 import { requireUser } from '../user.js';
 
 export interface SearchKeyRoutesOptions {
@@ -32,6 +33,8 @@ export async function searchKeyRoutes(app: FastifyInstance, opts: SearchKeyRoute
   });
   app.addHook('preHandler', opts.authenticate);
   app.addHook('preHandler', requireUser);
+  // Each save makes a live search: a few an hour per account, so the route cannot test keys in bulk.
+  const saves = fixedWindowLimiter(10, 60 * 60_000);
 
   app.get('/', async (req, reply) => {
     const key = await getSearchKey(opts.getSql(), req.userId!);
@@ -43,6 +46,7 @@ export async function searchKeyRoutes(app: FastifyInstance, opts: SearchKeyRoute
     const body = SaveSearchKeyRequest.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_request', details: body.error.issues });
     if (!opts.secrets) return reply.code(503).send({ error: 'source_unavailable' });
+    if (!saves.take(req.userId!)) return reply.code(429).send({ error: 'rate_limited' });
     const key: OwnSearchKey = { provider: body.data.provider, apiKey: body.data.apiKey };
 
     const check = await (opts.check ?? ((k: OwnSearchKey) => checkSearchKey(k, { log: req.log as unknown as Logger })))(key);

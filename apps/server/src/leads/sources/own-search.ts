@@ -35,6 +35,8 @@ export function ownSearchClient(ours: BraveClient, opts: OwnSearchOptions): Brav
     const id = `${key.provider}:${key.apiKey}`;
     let client = clients.get(id);
     if (!client) {
+      // Replaced and deleted keys would stay here until a restart: start over past a few dozen.
+      if (clients.size >= 50) clients.clear();
       client = braveClient({ apiKey: undefined, cache: opts.cache, provider: ownProvider(key, opts.fetch) });
       clients.set(id, client);
     }
