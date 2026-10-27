@@ -170,18 +170,25 @@ describe('classifyMail: people', () => {
       'Niet geïnteresseerd, dank je.',
       'Ta bort mig från listan.',
       'Vi är inte intresserade.',
+      'Meld meg av, takk.',
+      'Ikke interessert.',
+      'Fjern meg fra listen.',
+      'En ole kiinnostunut.',
+      'Poista minut listalta.',
+      'Kan du fjerne meg fra listen?',
+      'Kan I fjerne mig fra listen?',
     ];
     for (const text of outs) expect(human(text), text).toEqual({ kind: 'human', optOut: true });
   });
 
   it('reads the replies the footer asks for: a bare no, no thanks, remove me', () => {
-    for (const text of ['No', 'No.', 'no thanks', 'No thank you, we are covered.', 'Nope!', 'remove', 'Please remove me', 'Remove me please.', 'not interested']) {
+    for (const text of ['No', 'No.', 'no thanks', 'No thank you, we are covered.', 'Nope!', 'remove', 'Please remove me', 'Remove me please.', 'not interested', 'Nej tack', 'Nein danke.', 'Nei takk', 'Nei.', 'Ei kiitos', 'Ei.', 'Lopeta']) {
       expect(human(text), text).toEqual({ kind: 'human', optOut: true });
     }
   });
 
   it('does not read a no that is part of a sentence', () => {
-    for (const text of ['No problem, send it over.', 'No, tell me more about pricing.', 'Not now, but try me in March.', 'Nobody here handles that, try Ben.', 'Remove the guesswork how?']) {
+    for (const text of ['No problem, send it over.', 'No, tell me more about pricing.', 'Not now, but try me in March.', 'Nobody here handles that, try Ben.', 'Remove the guesswork how?', 'Nej, berätta mer om priset.', 'Ei se mitään, kerro lisää.', 'Nei, takk for mailen! Høres spennende ut.', 'Nej tak for info, send gerne mere.']) {
       expect(human(text), text).toEqual({ kind: 'human', optOut: false });
     }
   });

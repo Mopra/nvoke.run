@@ -59,30 +59,35 @@ const OPT_OUT = new RegExp(
     // fr
     'd(é|e)sabonner', 'd(é|e)sinscri', 'pas int(é|e)ress(é|e)', 'ne (me|nous) (contactez|(é|e)crivez) plus', 'retirez[- ]moi',
     // da
-    'afmeld', 'ikke interesseret', 'fjern mig', 'fjern os', 'skriv ikke', 'kontakt mig ikke',
+    'afmeld', 'ikke interesseret', 'fjerne? (mig|os)\\b', 'skriv ikke', 'kontakt mig ikke',
     // nl
     'uitschrijven', 'geen interesse', 'niet ge(ï|i)nteresseerd', 'verwijder (mij|me|ons)',
     // sv
     'avregistrera', 'avsluta prenumeration', 'inte intresserad', 'ta bort mig', 'kontakta mig inte',
+    // no
+    'meld (meg|oss) av', 'avmeld', 'ikke interessert', 'fjerne? (meg|oss)', 'slett meg', 'ikke kontakt (meg|oss)',
+    // fi
+    'ei kiinnosta', 'ei kiinnostusta', 'en ole kiinnostunut', 'emme ole kiinnostuneita', 'poista minut', 'poistakaa minut',
   ].join('|'),
   'i',
 );
 
-/** A first line that is only "stop" ("Stop.", "STOP", "please stop", "stopp"). */
-const STOP_LINE = /^(please\s+)?(stop|stopp|stoppen|basta|arr(ê|e)tez)\b[\s.!]*(it|this|please|now|thanks?|thank you)?[\s.!]*$/i;
+/** A first line that is only "stop" ("Stop.", "STOP", "please stop", "stopp", "lopeta"). */
+const STOP_LINE = /^(please\s+)?(stop|stopp|stoppen|lopeta|basta|arr(ê|e)tez)\b[\s.!]*(it|this|please|now|thanks?|thank you)?[\s.!]*$/i;
 
 /**
  * A first line that says no and nothing else ("No.", "no thanks", "Nope",
  * "No thank you, we are fine"): the footers invite a one word no. "No
- * problem" and "No, tell me more" are not a no to the email.
+ * problem" and "No, tell me more" are not a no to the email. The same in
+ * the footer's other languages: "Nej tack", "Nein danke", "Nei takk", "Ei kiitos".
  */
-const NO_LINE = /^(no|nope|nah|nej|nein)\b[\s.!]*$|^(no|nope)[\s,.!]+(thanks?|thank you)\b/i;
+const NO_LINE = /^(no|nope|nah|nej|nein|nei|ei)\b[\s.!]*$|^(no|nope)[\s,.!]+(thanks?|thank you)\b|^(nej|nein|nei|ei)[\s,.!]+(tack|tak|takk|danke|kiitos)\b(?![\s,]+(for|för|für)\b)/i;
 
 /** "Remove" alone, or "please remove": the footer asks for "remove me". */
 const REMOVE_LINE = /^(please\s+)?remove(\s+(me|us|this address|my address))?(\s+please)?[\s.!]*$/i;
 
 /** The line a mail client writes above the quote, once its first word is known. */
-const QUOTE_INTRO = /(wrote|schrieb|escribi(ó|o)|a (é|e)crit|skrev|schreef)(?!\p{L})[^:]{0,120}:\s*$/iu;
+const QUOTE_INTRO = /(wrote|schrieb|escribi(ó|o)|a (é|e)crit|skrev|schreef|kirjoitti)(?!\p{L})[^:]{0,120}:\s*$/iu;
 
 function header(mail: IncomingMail, name: string): string | null {
   const v = mail.headers[name];
@@ -162,12 +167,14 @@ export function ownText(text: string): string {
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i]!.trim();
     const next = (lines[i + 1] ?? '').trim();
-    if (/^-{2,}\s*(original message|ursprüngliche nachricht|mensaje original|message d'origine|oprindelig meddelelse|oorspronkelijk bericht|ursprungligt meddelande)/i.test(t)) break;
+    if (/^-{2,}\s*(original message|ursprüngliche nachricht|mensaje original|message d'origine|oprindelig meddelelse|oorspronkelijk bericht|ursprungligt meddelande|opprinnelig melding|alkuperäinen viesti)/i.test(t)) break;
     if (/^_{8,}$/.test(t)) break;
-    if (/^(from|von|de|fra|van|från) ?:\s/i.test(t) && /^(sent|gesendet|enviado|envoyé|sendt|verzonden|skickat|date|datum|fecha|dato) ?:\s/i.test(next)) break;
+    if (/^(from|von|de|fra|van|från|lähettäjä) ?:\s/i.test(t) && /^(sent|gesendet|enviado|envoyé|sendt|verzonden|skickat|lähetetty|date|datum|fecha|dato|päivämäärä) ?:\s/i.test(next)) break;
     // "On Tue, 20 Oct 2026 at 10:00 Anna <a@b.c> wrote:", "Den tir. 20. okt. 2026 kl. 10.00 skrev Anna <a@b.c>:",
-    // either of which may wrap over two lines.
-    if (/^(on|am|el|le|den|op)\s/i.test(t) && (QUOTE_INTRO.test(t) || QUOTE_INTRO.test(`${t} ${next}`))) break;
+    // "tir. 27. okt. 2026 kl. 10:00 skrev ...", "ti 27.10.2026 klo 10.00 Matti <m@x.fi> kirjoitti:",
+    // any of which may wrap over two lines. Without a known first word, a date must be on the line.
+    const intro = QUOTE_INTRO.test(t) || QUOTE_INTRO.test(`${t} ${next}`);
+    if (intro && (/^(on|am|el|le|den|op)\s/i.test(t) || /\d/.test(t))) break;
     if (t.startsWith('>')) continue;
     kept.push(lines[i]!);
   }

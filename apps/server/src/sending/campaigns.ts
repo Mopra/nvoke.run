@@ -59,6 +59,7 @@ export interface CampaignRow {
   steps: CampaignStep[];
   schedule: CampaignSchedule;
   product: CampaignProduct | null;
+  footer: string | null;
   review_until: Date | null;
   leads: number;
   sent: number;
@@ -73,7 +74,7 @@ export interface CampaignRow {
 
 /** The campaigns columns, for a query on `campaigns c`. */
 export const CAMPAIGN_COLUMNS = `c.id, c.clerk_user_id, c.name, c.status, c.source, c.search_id, c.drop_id, c.autopilot,
-  c.people_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.review_until,
+  c.people_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.review_until,
   c.leads, c.sent, c.replied, c.bounced, c.opted_out, c.enrolled_at, c.created_at, c.started_at, c.finished_at`;
 
 interface CampaignView extends CampaignRow {
@@ -111,6 +112,7 @@ function toCampaign(r: CampaignView): Campaign {
     steps: r.steps,
     schedule: r.schedule,
     product: r.product,
+    footer: r.footer,
     mailboxIds: r.mailbox_ids,
     reviewUntil: iso(r.review_until),
     leads: r.leads,
@@ -196,6 +198,7 @@ export async function createCampaign(sql: Sql, userId: string, req: CreateCampai
         steps: tx.json(req.steps),
         schedule: tx.json(req.schedule ?? DEFAULT_SCHEDULE),
         product: req.product ? tx.json(req.product) : null,
+        footer: req.footer ?? null,
         created_at: now,
       })}
       returning ${tx.unsafe(CAMPAIGN_COLUMNS.replace(/\bc\./g, ''))}
@@ -230,6 +233,7 @@ export async function updateCampaign(sql: Sql, userId: string, id: string, req: 
     if (req.dailyNew !== undefined) patch.daily_new = req.dailyNew;
     if (req.holdHours !== undefined) patch.hold_hours = req.holdHours;
     if (req.product !== undefined) patch.product = req.product ? tx.json(req.product) : null;
+    if (req.footer !== undefined) patch.footer = req.footer;
     if (Object.keys(patch).length) await tx`update campaigns set ${tx(patch)} where id = ${id}`;
     if (req.mailboxIds) {
       const ids = await checkMailboxes(tx, userId, req.mailboxIds);

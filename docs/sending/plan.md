@@ -169,9 +169,16 @@ made them work:
 - **Footer** (`footer.ts`). The signature is the mailbox's, else the
   display name's first name and the sender's site domain. The "why you" line
   and the opt-out line are each one of 10 hand-written variants, picked by
-  the lead so a thread stays the same. Every opt-out variant asks for a
-  reply `classify.ts` reads as an opt-out ("no", "stop", "not interested",
-  "remove me").
+  the lead so a thread stays the same. The lines follow the language of the
+  email they sit under (`detectLanguage` reads the body: English, Swedish,
+  Danish, Norwegian, German or Finnish, English when unsure), so a Swedish
+  email gets a Swedish footer. Every opt-out variant asks for a reply
+  `classify.ts` reads as an opt-out in that language ("no", "stop", "nej
+  tack", "nein danke"). A campaign may set its own `footer` (create or
+  `PATCH /v1/campaigns/{id}`, at most 500 characters, holding `{domain}` for
+  the recipient's domain): it replaces both lines under the signature and must
+  still say where the address was found and how to stop. The
+  List-Unsubscribe header is the same either way.
 
 ## Principles
 

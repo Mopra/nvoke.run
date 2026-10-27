@@ -77,6 +77,26 @@ describe('sendTick', () => {
     expect(done!.status).toBe('done');
   });
 
+  it("writes the footer in the email's language, or the campaign's own footer when it has one", async () => {
+    const mb = await seedMailbox(db.sql, secrets);
+    const c = await seedCampaign(db.sql, [mb]);
+    const sv = await seedLead(db.sql, c, mb, { address: 'anna@acme.se' });
+    const sentence = 'Jag såg att ni har öppnat ett nytt kontor i Göteborg och att ni söker fler säljare. Är det något ni vill prata om?';
+    await db.sql`update campaign_steps_written set body = ${`Hej Anna,\n\n${sentence}`} where campaign_lead_id = ${sv}`;
+    expect(await sendTick(deps, NOW)).toMatchObject({ sent: 1 });
+    expect(fake.sent[0]!.text).toBe(
+      `Hej Anna,\n\n${sentence}\n\n${footer({ signature: 'Mo\nSender ApS', displayName: 'Mo', domain: 'acme.se', leadKey: sv, language: 'sv' })}`,
+    );
+    expect(fake.sent[0]!.headers['List-Unsubscribe']).toMatch(/^<https:\/\/api\.nvoke\.test\/u\/.+>$/);
+
+    await db.sql`update campaigns set footer = ${'Din adress fanns på {domain}. Svara nej så hör du inte av mig igen.'} where id = ${c}`;
+    const mb2 = await seedMailbox(db.sql, secrets, { address: 'me2@sender.io' });
+    await db.sql`insert into campaign_mailboxes (campaign_id, mailbox_id) values (${c}, ${mb2})`;
+    await seedLead(db.sql, c, mb2, { address: 'bo@beta.se' });
+    expect(await sendTick(deps, minutes(5))).toMatchObject({ sent: 1 });
+    expect(fake.sent[1]!.text).toMatch(/\n\nMo\nSender ApS\n\nDin adress fanns på beta\.se\. Svara nej så hör du inte av mig igen\.$/);
+  });
+
   it('claims with skip locked: two ticks at once never send a lead twice or a mailbox twice', async () => {
     const a = await seedMailbox(db.sql, secrets, { address: 'a@sender.io' });
     const b = await seedMailbox(db.sql, secrets, { address: 'b@sender.io' });

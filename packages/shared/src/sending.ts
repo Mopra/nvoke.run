@@ -190,6 +190,19 @@ export const CampaignProduct = z.object({
 });
 export type CampaignProduct = z.infer<typeof CampaignProduct>;
 
+/**
+ * A campaign's own footer line, under the signature in place of nvoke's
+ * "why you" and opt-out lines, which otherwise follow the email's language.
+ * It must still say where the address was found and how to stop by reply.
+ * `{domain}` becomes the recipient's company domain.
+ */
+export const CampaignFooter = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .refine((t) => t.includes('{domain}'), { message: 'say where the address was found with {domain}' });
+
 export const Campaign = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -207,6 +220,8 @@ export const Campaign = z.object({
   schedule: CampaignSchedule,
   /** Null: the account's own site and, for nvoke, its plans. */
   product: CampaignProduct.nullable(),
+  /** Null: nvoke's footer lines in the email's language. */
+  footer: z.string().nullable(),
   mailboxIds: z.array(z.uuid()),
   reviewUntil: datetime.nullable(),
   leads: z.number().int().nonnegative(),
@@ -243,6 +258,7 @@ export const CreateCampaignRequest = z
     dailyNew: z.number().int().min(1).max(500).optional(),
     holdHours: z.number().int().min(0).max(72).optional(),
     product: CampaignProduct.optional(),
+    footer: CampaignFooter.optional(),
   })
   .refine((v) => v.source !== 'search' || v.searchId, { message: 'source search needs searchId', path: ['searchId'] })
   .refine((v) => v.source !== 'drop' || v.dropId, { message: 'source drop needs dropId', path: ['dropId'] })
@@ -263,6 +279,8 @@ export const UpdateCampaignRequest = z
     holdHours: z.number().int().min(0).max(72).optional(),
     /** Null goes back to the account's own site. */
     product: CampaignProduct.nullable().optional(),
+    /** Null goes back to nvoke's footer lines. Applies to emails sent from now on. */
+    footer: CampaignFooter.nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to update' });
 export type UpdateCampaignRequest = z.infer<typeof UpdateCampaignRequest>;

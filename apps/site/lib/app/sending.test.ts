@@ -63,6 +63,7 @@ const campaign = (over: Partial<Campaign> = {}): Campaign => ({
   steps: DEFAULT_STEPS,
   schedule: { days: [1, 2, 3, 4, 5], startHour: 9, endHour: 17 },
   product: null,
+  footer: null,
   mailboxIds: ['33333333-3333-4333-8333-333333333333'],
   reviewUntil: null,
   leads: 10,

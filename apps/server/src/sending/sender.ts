@@ -215,6 +215,8 @@ interface LockedLead {
   own_suppressed: boolean;
   /** The campaign product's domain, else the site profile's, for a signature the mailbox does not set. */
   site_domain: string | null;
+  /** The campaign's own footer line, else null for nvoke's in the email's language. */
+  footer: string | null;
 }
 
 /** A lead taken off the queue with its messages row written, ready for SMTP. */
@@ -271,7 +273,7 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
 
   const [lead] = await tx<LockedLead[]>`
     select l.id, l.campaign_id, l.clerk_user_id, l.address, l.domain, l.country, l.timezone,
-      l.next_step, l.next_send_at, c.steps, c.schedule,
+      l.next_step, l.next_send_at, c.steps, c.schedule, c.footer,
       ${suppressedSql(tx, 'l.address')} as global_suppressed,
       ${sendSuppressedSql(tx, 'l.clerk_user_id', 'l.address', 'l.domain', tx`coalesce(c.product ->> 'domain', '')`)} as own_suppressed,
       coalesce(c.product ->> 'domain', (select sp.domain from site_profiles sp where sp.clerk_user_id = l.clerk_user_id)) as site_domain
@@ -323,6 +325,7 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
       siteDomain: lead.site_domain,
       domain: lead.domain,
       leadKey: lead.id,
+      text: lead.footer,
       unsubscribeUrl: url,
     }),
     messageId: `<${randomUUID()}@${senderDomain}>`,

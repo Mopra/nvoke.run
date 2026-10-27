@@ -147,6 +147,10 @@ describe('campaign reads and edits', () => {
     // The unsent lead moved to the remaining mailbox.
     const [lead] = await db.sql<{ mailbox_id: string }[]>`select mailbox_id from campaign_leads where campaign_id = ${campaign.id}`;
     expect(lead!.mailbox_id).toBe(other);
+    expect(updated!.footer).toBeNull();
+    const own = 'Your address is on {domain}. Reply no and I will stop.';
+    expect(await updateCampaign(db.sql, 'u1', campaign.id, { footer: own })).toMatchObject({ footer: own });
+    expect(await updateCampaign(db.sql, 'u1', campaign.id, { footer: null })).toMatchObject({ footer: null });
     expect((await listCampaigns(db.sql, 'u1')).map((c) => c.name)).toEqual(['Renamed']);
     expect(await listCampaigns(db.sql, 'u2')).toEqual([]);
     expect(await updateCampaign(db.sql, 'u2', campaign.id, { name: 'x' })).toBeNull();
