@@ -8,16 +8,20 @@ import type { Sql } from 'postgres';
 import type { z } from 'zod';
 import {
   CompaniesQuery,
+  CompanyParams,
   CreateSearchRequest,
   DraftOpenersRequest,
+  EmailParams,
   LeadFilters,
   LocalCrawlClaimRequest,
   LocalCrawlResultRequest,
   SEARCH_LIMIT_DEFAULT,
   SearchIdParams,
   SearchMoreRequest,
+  UpdateCompanyRequest,
   UpdateSearchRequest,
   type CompaniesPage,
+  type Company,
   type DraftOpenersResponse,
   type LeadsErrorCode,
   type LocalCrawlClaimResponse,
@@ -34,11 +38,15 @@ import {
   cancelSearch,
   createSearch,
   searchMore,
+  deleteCompany,
+  deleteEmail,
   deleteSearch,
   exportRows,
+  getCompany,
   getSearch,
   listCompanies,
   listSearches,
+  updateCompany,
   updateSearch,
 } from '../../leads/repo.js';
 import type { Ai } from '../../ai/client.js';
@@ -179,6 +187,40 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     const page = await listCompanies(sql, req.userId!, params.data.id, query.data);
     if (!page) return sendError(reply, 400, 'invalid_request', [{ message: 'invalid cursor', path: ['cursor'] }]);
     return page;
+  });
+
+  app.get('/searches/:id/companies/:companyId', async (req, reply): Promise<Company | void> => {
+    const params = parse(CompanyParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    const company = await getCompany(opts.getSql(), req.userId!, params.data.id, params.data.companyId);
+    return company ?? sendError(reply, 404, 'not_found');
+  });
+
+  // Edits and deletes are the user's own: a deleted email stays charged.
+  app.patch('/searches/:id/companies/:companyId', async (req, reply): Promise<Company | void> => {
+    const params = parse(CompanyParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    const body = parse(UpdateCompanyRequest, req.body);
+    if (!body.ok) return sendError(reply, 400, 'invalid_request', body.issues);
+    const company = await updateCompany(opts.getSql(), req.userId!, params.data.id, params.data.companyId, body.data);
+    return company ?? sendError(reply, 404, 'not_found');
+  });
+
+  app.delete('/searches/:id/companies/:companyId', async (req, reply) => {
+    const params = parse(CompanyParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    if (!(await deleteCompany(opts.getSql(), req.userId!, params.data.id, params.data.companyId))) {
+      return sendError(reply, 404, 'not_found');
+    }
+    return reply.code(204).send();
+  });
+
+  app.delete('/searches/:id/companies/:companyId/emails/:emailId', async (req, reply) => {
+    const params = parse(EmailParams, req.params);
+    if (!params.ok) return sendError(reply, 404, 'not_found');
+    const { id, companyId, emailId } = params.data;
+    if (!(await deleteEmail(opts.getSql(), req.userId!, id, companyId, emailId))) return sendError(reply, 404, 'not_found');
+    return reply.code(204).send();
   });
 
   app.get('/searches/:id/export.csv', async (req, reply) => {

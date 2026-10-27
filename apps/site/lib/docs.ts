@@ -109,8 +109,9 @@ export function fieldGroups(schema: z.ZodType, io: 'input' | 'output'): FieldGro
 
 /** URL path with example values for the parameters. */
 function examplePath(e: Endpoint): string {
-  const id = e.group === 'API keys' ? '$KEY_ID' : e.group === 'Webhooks' ? '$WEBHOOK_ID' : '$SEARCH_ID';
-  return e.path.replace(':id', id);
+  const id =
+    e.group === 'API keys' ? '$KEY_ID' : e.group === 'Webhooks' ? '$WEBHOOK_ID' : e.group === 'Drops' ? '$DROP_ID' : '$SEARCH_ID';
+  return e.path.replace(':id', id).replace(':companyId', '$COMPANY_ID').replace(':emailId', '$EMAIL_ID');
 }
 
 export function curlFor(e: Endpoint): string {

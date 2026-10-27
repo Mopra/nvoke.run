@@ -1,7 +1,7 @@
 // Read and write queries behind the /v1 lead routes. Every query is scoped
 // by clerk_user_id, so one user can never see another user's rows.
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import type {
   Company,
   CompaniesPage,
@@ -18,6 +18,7 @@ import type {
   SearchKind,
   SearchStatus,
   Seniority,
+  UpdateCompanyRequest,
   Verification,
 } from '@nvoke/shared';
 import { cancelSearchJobs, enqueue, queueFit } from '../worker/queue.js';
@@ -47,6 +48,7 @@ interface SearchRow {
   check_inboxes?: boolean;
   inboxes_skipped?: number;
   inboxes_pending?: number;
+  edited_at?: Date | null;
 }
 
 const iso = (d: Date | string | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -73,6 +75,7 @@ export function toSearch(r: SearchRow): Search {
     checkInboxes: r.check_inboxes ?? null,
     inboxesSkipped: r.inboxes_skipped ?? null,
     inboxesPending: r.inboxes_pending ?? null,
+    editedAt: iso(r.edited_at ?? null),
   } as Search;
 }
 
@@ -87,7 +90,7 @@ const INBOX_WOULD_CHECK = `e.skipped = 'role_inbox' and e.verification is null
 const INBOX_PENDING = `e.kind = 'generic' and e.verification is null and e.skipped is null`;
 
 const SEARCH_COLUMNS = `id, kind, params, "limit", runs, status, error, companies_found, companies_crawled,
-  emails_found, emails_valid, created_at, started_at, finished_at, stage, stage_note, ongoing, check_inboxes,
+  emails_found, emails_valid, created_at, started_at, finished_at, stage, stage_note, ongoing, check_inboxes, edited_at,
   (select count(*)::int from emails e where e.search_id = searches.id and ${INBOX_WOULD_CHECK}) as inboxes_skipped,
   (select count(*)::int from emails e where e.search_id = searches.id and ${INBOX_PENDING}) as inboxes_pending`;
 
@@ -448,18 +451,9 @@ function emailFilter(sql: Sql, f: LeadFilters) {
   `;
 }
 
-export async function listCompanies(
-  sql: Sql,
-  userId: string,
-  searchId: string,
-  query: CompaniesQuery,
-): Promise<CompaniesPage | null> {
-  const cursor = query.cursor ? decodeCursor(query.cursor) : null;
-  if (query.cursor && !cursor) return null;
-  const emailFiltered = Boolean(query.verification || query.kind || query.people || query.decisionMakers);
-  const like = query.q ? likePattern(query.q) : null;
-
-  const rows = await sql<CompanyRow[]>`
+/** A company with its emails, as SQL over aliases `c` and `e`; the caller adds where and group by. */
+function companySelect(sql: Sql, f: LeadFilters) {
+  return sql`
     select c.id, c.name, c.domain, c.website, c.source, c.source_ref, c.location, c.phone, c.category, c.fit,
            c.crawl_status, c.crawled_at, c.local_crawl, c.created_at::text as created_at_text,
            c.opener_status, c.opener, c.opener_source_url, c.opener_quote, c.opener_at,
@@ -475,7 +469,55 @@ export async function listCompanies(
            (select count(*)::int from emails e where e.company_id = c.id and ${sql.unsafe(INBOX_WOULD_CHECK)}) as inboxes_skipped,
            (select count(*)::int from emails e where e.company_id = c.id and ${sql.unsafe(INBOX_PENDING)}) as inboxes_pending
     from companies c
-    left join emails e on e.company_id = c.id ${emailFilter(sql, query)}
+    left join emails e on e.company_id = c.id ${emailFilter(sql, f)}
+  `;
+}
+
+function toCompany(r: CompanyRow): Company {
+  return {
+    id: r.id,
+    name: r.name,
+    domain: r.domain,
+    website: r.website,
+    source: r.source,
+    sourceRef: r.source_ref,
+    location: r.location,
+    phone: r.phone,
+    category: r.category,
+    crawlStatus: r.crawl_status,
+    crawledAt: iso(r.crawled_at),
+    localCrawl: r.local_crawl,
+    emails: r.emails.map((e) => ({
+      id: e.id,
+      address: e.address,
+      kind: e.kind,
+      sourceUrl: e.source_url,
+      verification: e.verification,
+      checkedAt: iso(e.checked_at),
+      person: e.first_name ? { firstName: e.first_name, lastName: e.last_name ?? '', title: e.title, seniority: e.seniority } : null,
+      foundVia: e.found_via,
+      confidence: e.confidence,
+    })),
+    fit: r.fit,
+    opener: toOpener(r),
+    inboxesSkipped: r.inboxes_skipped,
+    inboxesPending: r.inboxes_pending,
+  };
+}
+
+export async function listCompanies(
+  sql: Sql,
+  userId: string,
+  searchId: string,
+  query: CompaniesQuery,
+): Promise<CompaniesPage | null> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+  if (query.cursor && !cursor) return null;
+  const emailFiltered = Boolean(query.verification || query.kind || query.people || query.decisionMakers);
+  const like = query.q ? likePattern(query.q) : null;
+
+  const rows = await sql<CompanyRow[]>`
+    ${companySelect(sql, query)}
     where c.search_id = ${searchId} and c.clerk_user_id = ${userId}
       and not ${domainSuppressedSql(sql, 'c.domain')}
       ${cursor ? sql`and (c.created_at, c.id) > (${cursor.createdAt}::text::timestamptz, ${cursor.id}::uuid)` : sql``}
@@ -514,40 +556,116 @@ export async function listCompanies(
 
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
-  const companies: Company[] = page.map((r) => ({
-    id: r.id,
-    name: r.name,
-    domain: r.domain,
-    website: r.website,
-    source: r.source,
-    sourceRef: r.source_ref,
-    location: r.location,
-    phone: r.phone,
-    category: r.category,
-    crawlStatus: r.crawl_status,
-    crawledAt: iso(r.crawled_at),
-    localCrawl: r.local_crawl,
-    emails: r.emails.map((e) => ({
-      id: e.id,
-      address: e.address,
-      kind: e.kind,
-      sourceUrl: e.source_url,
-      verification: e.verification,
-      checkedAt: iso(e.checked_at),
-      person: e.first_name ? { firstName: e.first_name, lastName: e.last_name ?? '', title: e.title, seniority: e.seniority } : null,
-      foundVia: e.found_via,
-      confidence: e.confidence,
-    })),
-    fit: r.fit,
-    opener: toOpener(r),
-    inboxesSkipped: r.inboxes_skipped,
-    inboxesPending: r.inboxes_pending,
-  }));
+  const companies = page.map(toCompany);
   return {
     companies,
     nextCursor: rows.length > query.limit && last ? encodeCursor(last.created_at_text, last.id) : null,
     total: count?.total ?? 0,
   };
+}
+
+/** One company of a search with its checked emails, as get_leads shows it. Null when there is none. */
+export async function getCompany(sql: Sql, userId: string, searchId: string, companyId: string): Promise<Company | null> {
+  const [row] = await sql<CompanyRow[]>`
+    ${companySelect(sql, {})}
+    where c.id = ${companyId} and c.search_id = ${searchId} and c.clerk_user_id = ${userId}
+      and not ${domainSuppressedSql(sql, 'c.domain')}
+    group by c.id
+  `;
+  return row ? toCompany(row) : null;
+}
+
+/**
+ * Marks the search edited and counts its rows again, after a company or
+ * email went. The row is locked first, so the counts are read after any
+ * worker transaction that already added to them has committed.
+ */
+async function touchSearch(sql: TransactionSql, searchId: string, recount: boolean): Promise<void> {
+  if (recount) await sql`select id from searches where id = ${searchId} for update`;
+  await sql`
+    update searches s set edited_at = now()
+    ${
+      recount
+        ? sql`,
+      companies_found   = (select count(*)::int from companies c where c.search_id = s.id),
+      companies_crawled = (select count(*)::int from companies c where c.search_id = s.id and c.crawl_status <> 'pending'),
+      emails_found      = (select count(*)::int from emails e where e.search_id = s.id),
+      emails_valid      = (select count(*)::int from emails e where e.search_id = s.id and e.verification = 'valid')`
+        : sql``
+    }
+    where s.id = ${searchId}
+  `;
+}
+
+/**
+ * Edits a company's own fields. A string opener is the user's line and
+ * replaces the drafted one (status `done`); null removes the opener. Null
+ * when the company is not on this search.
+ */
+export async function updateCompany(
+  sql: Sql,
+  userId: string,
+  searchId: string,
+  companyId: string,
+  update: UpdateCompanyRequest,
+): Promise<Company | null> {
+  const fields: Record<string, string | Date | null> = {};
+  for (const key of ['name', 'location', 'phone', 'category'] as const) {
+    if (update[key] !== undefined) fields[key] = update[key];
+  }
+  if (update.opener !== undefined) {
+    Object.assign(
+      fields,
+      update.opener === null
+        ? { opener_status: null, opener: null, opener_source_url: null, opener_quote: null, opener_at: null }
+        : // The user's own line rests on no quote from the site.
+          { opener_status: 'done', opener: update.opener, opener_source_url: null, opener_quote: null, opener_at: new Date() },
+    );
+  }
+  const updated = await sql.begin(async (tx) => {
+    const rows = await tx`
+      update companies c set ${tx(fields)}
+      where c.id = ${companyId} and c.search_id = ${searchId} and c.clerk_user_id = ${userId}
+        and not ${domainSuppressedSql(tx, 'c.domain')}
+      returning c.id
+    `;
+    if (rows.length === 0) return false;
+    await touchSearch(tx, searchId, false);
+    return true;
+  });
+  return updated ? getCompany(sql, userId, searchId, companyId) : null;
+}
+
+/** Deletes a company and its emails from the search and counts the search again. */
+export async function deleteCompany(sql: Sql, userId: string, searchId: string, companyId: string): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const rows = await tx`
+      delete from companies where id = ${companyId} and search_id = ${searchId} and clerk_user_id = ${userId} returning id
+    `;
+    if (rows.length === 0) return false;
+    await touchSearch(tx, searchId, true);
+    return true;
+  });
+}
+
+/** Deletes one email of a company and counts the search again. A charged email stays charged. */
+export async function deleteEmail(
+  sql: Sql,
+  userId: string,
+  searchId: string,
+  companyId: string,
+  emailId: string,
+): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const rows = await tx`
+      delete from emails
+      where id = ${emailId} and company_id = ${companyId} and search_id = ${searchId} and clerk_user_id = ${userId}
+      returning id
+    `;
+    if (rows.length === 0) return false;
+    await touchSearch(tx, searchId, true);
+    return true;
+  });
 }
 
 /** The opener columns of a company row as the API shows them. */

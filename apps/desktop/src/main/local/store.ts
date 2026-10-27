@@ -49,6 +49,7 @@ export function fingerprintOf(search: Search): string {
     search.emailsFound,
     search.emailsValid,
     search.finishedAt ?? '',
+    search.editedAt ?? '',
   ].join('|');
 }
 

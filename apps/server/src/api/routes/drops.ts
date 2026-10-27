@@ -17,6 +17,7 @@ import {
   createDrop,
   deleteDrop,
   feedSourceStatus,
+  getDrop,
   listDrops,
   runDropNow,
   updateDrop,
@@ -61,6 +62,13 @@ export const dropsRoutes: FastifyPluginAsync<DropsRoutesOptions> = async (app, o
       drops: await listDrops(sql, req.userId!),
       sources: await feedSourceStatus(sql, opts.sourcesAvailable),
     };
+  });
+
+  app.get('/drops/:id', async (req, reply): Promise<Drop | void> => {
+    const params = DropIdParams.safeParse(req.params);
+    if (!params.success) return sendError(reply, 404, 'not_found');
+    const drop = await getDrop(opts.getSql(), req.userId!, params.data.id);
+    return drop ?? sendError(reply, 404, 'not_found');
   });
 
   app.post('/drops', async (req, reply): Promise<Drop | void> => {

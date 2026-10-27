@@ -421,6 +421,10 @@ describe('webhook routes', () => {
     expect(WebhookListResponse.parse((await app.inject({ method: 'GET', url: '/v1/webhooks', headers: as('bob') })).json()).webhooks).toEqual([]);
 
     const url = `/v1/webhooks/${created.id}`;
+    const one = await app.inject({ method: 'GET', url, headers: as('alice') });
+    expect(Webhook.parse(one.json()).id).toBe(created.id);
+    expect(one.body).not.toContain(created.secret);
+    expect((await app.inject({ method: 'GET', url, headers: as('bob') })).statusCode).toBe(404);
     const test = await app.inject({ method: 'POST', url: `${url}/test`, headers: as('alice') });
     expect(test.json()).toEqual({ ok: true, status: 200, error: null, durationMs: 12 });
     const ping = pings.at(-1)!;

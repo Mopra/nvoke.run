@@ -60,6 +60,25 @@ export async function listApiKeys(sql: Db, userId: string): Promise<ApiKey[]> {
   return rows.map(toApiKey);
 }
 
+/** One live key. Null when the user has no such key. */
+export async function getApiKey(sql: Db, userId: string, id: string): Promise<ApiKey | null> {
+  const [row] = await sql<ApiKeyRow[]>`
+    select id, name, prefix, origin, created_at, last_used_at from api_keys
+    where id = ${id} and clerk_user_id = ${userId} and revoked_at is null
+  `;
+  return row ? toApiKey(row) : null;
+}
+
+/** Renames one live key. Null when the user has no such key. */
+export async function renameApiKey(sql: Db, userId: string, id: string, name: string): Promise<ApiKey | null> {
+  const [row] = await sql<ApiKeyRow[]>`
+    update api_keys set name = ${name}
+    where id = ${id} and clerk_user_id = ${userId} and revoked_at is null
+    returning id, name, prefix, origin, created_at, last_used_at
+  `;
+  return row ? toApiKey(row) : null;
+}
+
 /** Revokes one key. False when the user has no such live key. */
 export async function revokeApiKey(sql: Db, userId: string, id: string): Promise<boolean> {
   const rows = await sql`

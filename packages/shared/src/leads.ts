@@ -183,6 +183,8 @@ const SearchBase = z.object({
   inboxesSkipped: z.number().int().nonnegative().nullish(),
   /** Shared inboxes queued or waiting for their check. */
   inboxesPending: z.number().int().nonnegative().nullish(),
+  /** When a company or email in it was last edited or deleted through the API. */
+  editedAt: z.iso.datetime({ offset: true }).nullish(),
 });
 
 /**
@@ -364,6 +366,35 @@ export const SearchIdParams = z.object({
   id: z.uuid(),
 });
 export type SearchIdParams = z.infer<typeof SearchIdParams>;
+
+export const CompanyParams = z.object({
+  id: z.uuid(),
+  companyId: z.uuid(),
+});
+export type CompanyParams = z.infer<typeof CompanyParams>;
+
+export const EmailParams = CompanyParams.extend({
+  emailId: z.uuid(),
+});
+export type EmailParams = z.infer<typeof EmailParams>;
+
+const editable = (max: number) => z.string().trim().min(1).max(max).nullable().optional();
+
+/**
+ * `PATCH /v1/searches/:id/companies/:companyId`, at least one field. Null
+ * clears a field (the name cannot be cleared). opener: your own first line;
+ * null removes the opener.
+ */
+export const UpdateCompanyRequest = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    location: editable(300),
+    phone: editable(60),
+    category: editable(100),
+    opener: editable(OPENER_MAX_LENGTH),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'nothing to update' });
+export type UpdateCompanyRequest = z.infer<typeof UpdateCompanyRequest>;
 
 /** Column order of `GET /v1/searches/:id/export.csv`. */
 export const CSV_COLUMNS = [

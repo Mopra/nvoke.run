@@ -50,9 +50,16 @@ function searchBody(a: McpToolArgs): unknown {
   return { kind, params, limit: a['limit'], checkInboxes: a['checkInboxes'] };
 }
 
+/** The given keys of the arguments that are not undefined, as a request body. */
+function pick(a: McpToolArgs, keys: string[]): Record<string, unknown> {
+  return Object.fromEntries(keys.filter((k) => a[k] !== undefined).map((k) => [k, a[k]]));
+}
+
 /** Maps a tool call to the REST route it stands for. */
 export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
-  const id = encodeURIComponent(String(a['searchId'] ?? ''));
+  const enc = (key: string) => encodeURIComponent(String(a[key] ?? ''));
+  const id = enc('searchId');
+  const company = `/v1/searches/${id}/companies/${enc('companyId')}`;
   switch (name) {
     case 'get_account':
       return { method: 'GET', url: '/v1/me' };
@@ -74,6 +81,14 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
         method: 'GET',
         url: `/v1/searches/${id}/companies${qs({ verification: a['verification'], kind: a['kind'], q: a['q'], cursor: a['cursor'], limit: a['limit'] })}`,
       };
+    case 'get_company':
+      return { method: 'GET', url: company };
+    case 'update_company':
+      return { method: 'PATCH', url: company, body: pick(a, ['name', 'location', 'phone', 'category', 'opener']) };
+    case 'delete_company':
+      return { method: 'DELETE', url: company };
+    case 'delete_email':
+      return { method: 'DELETE', url: `${company}/emails/${enc('emailId')}` };
     case 'export_csv':
       return { method: 'GET', url: `/v1/searches/${id}/export.csv${qs({ verification: a['verification'], kind: a['kind'], q: a['q'] })}` };
     case 'draft_openers':
@@ -86,10 +101,22 @@ export function mcpToolRequest(name: string, a: McpToolArgs): McpToolCall {
       return { method: 'GET', url: '/v1/webhooks' };
     case 'create_webhook':
       return { method: 'POST', url: '/v1/webhooks', body: { url: a['url'], events: a['events'], scope: a['scope'], dropId: a['dropId'] } };
+    case 'update_webhook':
+      return { method: 'PATCH', url: `/v1/webhooks/${enc('webhookId')}`, body: pick(a, ['url', 'events', 'scope', 'dropId', 'enabled']) };
     case 'test_webhook':
-      return { method: 'POST', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}/test` };
+      return { method: 'POST', url: `/v1/webhooks/${enc('webhookId')}/test` };
     case 'delete_webhook':
-      return { method: 'DELETE', url: `/v1/webhooks/${encodeURIComponent(String(a['webhookId'] ?? ''))}` };
+      return { method: 'DELETE', url: `/v1/webhooks/${enc('webhookId')}` };
+    case 'list_drops':
+      return { method: 'GET', url: '/v1/drops' };
+    case 'create_drop':
+      return { method: 'POST', url: '/v1/drops', body: pick(a, ['name', 'keyword', 'sources', 'dailyLimit']) };
+    case 'update_drop':
+      return { method: 'PATCH', url: `/v1/drops/${enc('dropId')}`, body: pick(a, ['name', 'keyword', 'sources', 'dailyLimit', 'enabled']) };
+    case 'run_drop':
+      return { method: 'POST', url: `/v1/drops/${enc('dropId')}/run` };
+    case 'delete_drop':
+      return { method: 'DELETE', url: `/v1/drops/${enc('dropId')}` };
     default:
       throw new Error(`unknown tool ${name}`);
   }

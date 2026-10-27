@@ -84,6 +84,8 @@ describe('drop routes', () => {
   it('updates, pauses, runs and deletes, scoped to the owner', async () => {
     const drop = Drop.parse((await create('alice', { name: 'Fintech', keyword: 'bank' })).json());
     const url = `/v1/drops/${drop.id}`;
+    expect(Drop.parse((await app.inject({ method: 'GET', url, headers: as('alice') })).json())).toMatchObject({ name: 'Fintech', keyword: 'bank' });
+    expect((await app.inject({ method: 'GET', url, headers: as('bob') })).statusCode).toBe(404);
 
     expect((await app.inject({ method: 'PATCH', url, headers: as('bob'), payload: { enabled: false } })).statusCode).toBe(404);
     const paused = await app.inject({ method: 'PATCH', url, headers: as('alice'), payload: { enabled: false, keyword: null, dailyLimit: 10 } });

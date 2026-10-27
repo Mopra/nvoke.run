@@ -19,6 +19,7 @@ import { checkUrl, WebhookUrlError, type Resolve, type UrlPolicy } from '../../w
 import {
   createWebhook,
   deleteWebhook,
+  getWebhook,
   getWebhookRow,
   listDeliveries,
   listWebhooks,
@@ -70,6 +71,13 @@ export const userWebhookRoutes: FastifyPluginAsync<UserWebhookRoutesOptions> = a
   app.get('/webhooks', async (req): Promise<WebhookListResponse> => ({
     webhooks: await listWebhooks(opts.getSql(), req.userId!),
   }));
+
+  app.get('/webhooks/:id', async (req, reply): Promise<Webhook | void> => {
+    const params = WebhookIdParams.safeParse(req.params);
+    if (!params.success) return sendError(reply, 404, 'not_found');
+    const webhook = await getWebhook(opts.getSql(), req.userId!, params.data.id);
+    return webhook ?? sendError(reply, 404, 'not_found');
+  });
 
   app.post('/webhooks', async (req, reply) => {
     const body = CreateWebhookRequest.safeParse(req.body);

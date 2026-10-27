@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { CompaniesPage, DraftOpenersResponse, MeResponse, Search, SearchListResponse } from '@nvoke/shared';
+import { CompaniesPage, Company, DraftOpenersResponse, MeResponse, Search, SearchListResponse } from '@nvoke/shared';
 import type { Ai } from '../../ai/client.js';
 import { createTestDb, type TestDb } from '../../testing/db.js';
 import { loadEnv } from '../../env.js';
@@ -430,6 +430,51 @@ describe('lead routes', () => {
       expect(lines[1]).toContain('ole@acme.dk,Ole,Berg,Founder,founder');
       const bad = await app.inject({ method: 'GET', url: `/v1/searches/${searchId}/companies?people=maybe`, headers: as('alice') });
       expect(bad.statusCode).toBe(400);
+    });
+
+    it('gets, edits and deletes one company and its emails', async () => {
+      const id = await seedCompany(searchId, 'alice', 'Epsilon', 'epsilon.dk', [
+        ['anna@epsilon.dk', 'personal', 'valid'],
+        ['info@epsilon.dk', 'generic', 'valid'],
+      ]);
+      await db.sql`update searches set companies_found = 5, emails_found = 7, emails_valid = 5 where id = ${searchId}`;
+      const url = `/v1/searches/${searchId}/companies/${id}`;
+      const get = async (user = 'alice') => app.inject({ method: 'GET', url, headers: as(user) });
+
+      const one = Company.parse((await get()).json());
+      expect(one).toMatchObject({ id, name: 'Epsilon', domain: 'epsilon.dk', phone: '+45 12 34 56 78' });
+      expect(one.emails.map((e) => e.address)).toEqual(['anna@epsilon.dk', 'info@epsilon.dk']);
+      expect((await get('mallory')).statusCode).toBe(404);
+
+      const patch = (payload: object, user = 'alice') => app.inject({ method: 'PATCH', url, headers: as(user), payload });
+      const edited = await patch({ name: 'Epsilon ApS', phone: null, category: 'Dentist', opener: 'Saw your new clinic.' });
+      expect(edited.statusCode, edited.body).toBe(200);
+      expect(Company.parse(edited.json())).toMatchObject({
+        name: 'Epsilon ApS',
+        phone: null,
+        category: 'Dentist',
+        opener: { status: 'done', line: 'Saw your new clinic.' },
+      });
+      expect(Company.parse((await patch({ opener: null })).json()).opener).toBeNull();
+      expect((await patch({})).statusCode).toBe(400);
+      expect((await patch({ name: null })).statusCode).toBe(400);
+      expect((await patch({ name: 'x' }, 'mallory')).statusCode).toBe(404);
+      const touched = Search.parse((await app.inject({ method: 'GET', url: `/v1/searches/${searchId}`, headers: as('alice') })).json());
+      expect(touched.editedAt).not.toBeNull();
+
+      const anna = one.emails.find((e) => e.address === 'anna@epsilon.dk')!;
+      const delEmail = (user = 'alice') => app.inject({ method: 'DELETE', url: `${url}/emails/${anna.id}`, headers: as(user) });
+      expect((await delEmail('mallory')).statusCode).toBe(404);
+      expect((await delEmail()).statusCode).toBe(204);
+      expect((await delEmail()).statusCode).toBe(404);
+      expect(Company.parse((await get()).json()).emails.map((e) => e.address)).toEqual(['info@epsilon.dk']);
+
+      expect((await app.inject({ method: 'DELETE', url, headers: as('mallory') })).statusCode).toBe(404);
+      expect((await app.inject({ method: 'DELETE', url, headers: as('alice') })).statusCode).toBe(204);
+      expect((await get()).statusCode).toBe(404);
+      const after = Search.parse((await app.inject({ method: 'GET', url: `/v1/searches/${searchId}`, headers: as('alice') })).json());
+      // Counted again from the rows: four companies, five emails, two valid.
+      expect(after).toMatchObject({ companiesFound: 4, emailsFound: 5, emailsValid: 2 });
     });
 
     it('404s for another user', async () => {

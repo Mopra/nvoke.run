@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   AgentSignupResponse,
+  ApiKey,
   ApiKeyListResponse,
   ClaimResponse,
   CreateApiKeyResponse,
@@ -207,6 +208,13 @@ describe('api keys', () => {
       ['Agent sign-up', 'agent_signup'],
     ]);
     expect(JSON.stringify(list)).not.toContain(key.key);
+
+    const keyUrl = `/v1/api-keys/${key.id}`;
+    expect(ApiKey.parse((await app.inject({ method: 'GET', url: keyUrl, headers: bearer(apiKey) })).json()).name).toBe('CRM sync');
+    const renamed = await app.inject({ method: 'PATCH', url: keyUrl, headers: bearer(apiKey), payload: { name: 'CRM sync (prod)' } });
+    expect(ApiKey.parse(renamed.json()).name).toBe('CRM sync (prod)');
+    expect((await app.inject({ method: 'PATCH', url: keyUrl, headers: bearer(apiKey), payload: { name: '' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: '/v1/me', headers: bearer(key.key) })).statusCode).toBe(200);
 
     const revoked = await app.inject({ method: 'DELETE', url: `/v1/api-keys/${key.id}`, headers: bearer(apiKey) });
     expect(revoked.statusCode).toBe(204);

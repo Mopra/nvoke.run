@@ -40,6 +40,10 @@ export const CreateApiKeyRequest = z.object({
 });
 export type CreateApiKeyRequest = z.infer<typeof CreateApiKeyRequest>;
 
+/** `PATCH /v1/api-keys/:id`: renames the key. The secret stays the same. */
+export const UpdateApiKeyRequest = CreateApiKeyRequest;
+export type UpdateApiKeyRequest = z.infer<typeof UpdateApiKeyRequest>;
+
 /** The new key with its secret. The secret is never returned again. */
 export const CreateApiKeyResponse = ApiKey.extend({
   key: z.string().startsWith(API_KEY_PREFIX),
