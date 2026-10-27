@@ -111,6 +111,7 @@ describe('shared inboxes', () => {
     // An import carries no kind: a role address with no name is shared.
     expect(isSharedInbox({ address: 'order@acme.se', email_kind: null, first_name: null })).toBe(true);
     expect(isSharedInbox({ address: 'order@acme.se', email_kind: null, first_name: 'Anna' })).toBe(false);
+    expect(isSharedInbox({ address: 'info@acme.se', email_kind: 'generic', first_name: 'Anna' })).toBe(false);
     expect(isSharedInbox({ address: 'anna@acme.se', email_kind: null, first_name: null })).toBe(false);
   });
 
@@ -121,6 +122,10 @@ describe('shared inboxes', () => {
     expect(singularYou('Hallo, Sie bauen Küchen in Berlin. Wer schreibt Ihre Angebote?')).toBeNull();
     expect(singularYou('Bonjour, vous fabriquez du mobilier sur mesure à Lyon.')).toBeNull();
     expect(singularYou('Hi, your team builds kitchens in Leeds.')).toBeNull();
+    expect(singularYou('We dig into your listings and find the owners to dine with.')).toBeNull();
+    // The company's own name is not an address to one person.
+    expect(singularYou('Hej, jeres værksted og Din Tømrer i Aarhus.', 'Din Tømrer')).toBeNull();
+    expect(singularYou('Hej, jeres værksted og Din Tømrer i Aarhus.')).toBe('Din');
   });
 
   it('marks a shared inbox on its lead and asks for the plural', () => {
