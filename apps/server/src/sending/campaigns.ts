@@ -20,12 +20,13 @@ import {
   type CampaignStep,
   type CreateCampaignRequest,
   type Message,
+  type RetryLeadsResponse,
   type UpdateCampaignRequest,
   type UpdateWrittenStepRequest,
   type WrittenStep,
 } from '@nvoke/shared';
 import { decodeCursor, encodeCursor } from '../leads/repo.js';
-import { enrollCampaign } from './enroll.js';
+import { enrollCampaign, queueWrites } from './enroll.js';
 import { nextSendAt } from './schedule.js';
 
 type Db = Sql | TransactionSql;
@@ -81,6 +82,8 @@ interface CampaignView extends CampaignRow {
   mailbox_ids: string[];
   writing: number;
   skipped: Record<string, number>;
+  failed: Record<string, number>;
+  write_error: string | null;
 }
 
 const VIEW_COLUMNS = `${CAMPAIGN_COLUMNS},
@@ -91,7 +94,16 @@ const VIEW_COLUMNS = `${CAMPAIGN_COLUMNS},
       select coalesce(l.skip_reason, 'other') as reason, count(*)::int as n
       from campaign_leads l where l.campaign_id = c.id and l.status = 'skipped' group by 1
     ) s
-  ), '{}'::jsonb) as skipped`;
+  ), '{}'::jsonb) as skipped,
+  coalesce((
+    select jsonb_object_agg(reason, n) from (
+      select coalesce(l.skip_reason, 'other') as reason, count(*)::int as n
+      from campaign_leads l where l.campaign_id = c.id and l.status = 'failed' group by 1
+    ) f
+  ), '{}'::jsonb) as failed,
+  (select l.write_error from campaign_leads l
+    where l.campaign_id = c.id and l.status = 'failed' and l.write_error is not null
+    order by l.created_at desc, l.id desc limit 1) as write_error`;
 
 const iso = (d: Date | null): string | null => d?.toISOString() ?? null;
 
@@ -122,6 +134,8 @@ function toCampaign(r: CampaignView): Campaign {
     optedOut: r.opted_out,
     writing: r.writing,
     skipped: r.skipped,
+    failed: r.failed,
+    writeError: r.write_error,
     createdAt: r.created_at.toISOString(),
     startedAt: iso(r.started_at),
     finishedAt: iso(r.finished_at),
@@ -352,6 +366,7 @@ interface LeadRow {
   mailbox_id: string | null;
   status: CampaignLeadStatus;
   skip_reason: string | null;
+  write_error: string | null;
   next_step: number;
   next_send_at: Date | null;
   created_at: Date;
@@ -359,7 +374,7 @@ interface LeadRow {
 }
 
 const LEAD_COLUMNS = `l.id, l.address, l.first_name, l.last_name, l.title, l.company_name, l.domain, l.country, l.timezone,
-  l.mailbox_id, l.status, l.skip_reason, l.next_step, l.next_send_at, l.created_at, l.created_at::text as created_at_text`;
+  l.mailbox_id, l.status, l.skip_reason, l.write_error, l.next_step, l.next_send_at, l.created_at, l.created_at::text as created_at_text`;
 
 function toLead(r: LeadRow): CampaignLead {
   return {
@@ -375,6 +390,7 @@ function toLead(r: LeadRow): CampaignLead {
     mailboxId: r.mailbox_id,
     status: r.status,
     skipReason: r.skip_reason,
+    writeError: r.write_error,
     nextStep: r.next_step,
     nextSendAt: iso(r.next_send_at),
     createdAt: r.created_at.toISOString(),
@@ -498,6 +514,39 @@ export async function updateWrittenStep(
     returning step, subject, body, edited
   `;
   return row ? { ...row, sentAt: null } : null;
+}
+
+/** The skip reasons of a lead Claude did not write, which a retry writes again. */
+const RETRYABLE = ['write_failed', 'too_similar'];
+
+/**
+ * Writes failed leads again in place: leads 'failed' with a write reason go
+ * back to 'writing' (all of them, or `leadIds`) and get write jobs at once.
+ * A campaign in review goes back to 'writing' until they are written; a
+ * started one keeps sending (a done one sends again) and queues them as they
+ * are written. Null when the campaign is not the user's.
+ */
+export async function retryFailedLeads(sql: Sql, userId: string, id: string, leadIds?: string[], now: Date = new Date()): Promise<RetryLeadsResponse | null> {
+  const retried = await sql.begin(async (tx) => {
+    const c = await lockCampaign(tx, userId, id);
+    if (!c) return null;
+    if (c.status === 'canceled') throw new CampaignError('bad_state', 'A canceled campaign cannot write again.');
+    const rows = await tx`
+      update campaign_leads set status = 'writing', skip_reason = null, write_error = null, write_queued_at = null
+      where campaign_id = ${id} and status = 'failed' and skip_reason in ${tx(RETRYABLE)}
+        ${leadIds ? tx`and id in ${tx(leadIds)}` : tx``}
+      returning id
+    `;
+    if (rows.length === 0) return 0;
+    if (c.status === 'review') await tx`update campaigns set status = 'writing' where id = ${id}`;
+    // A started campaign is done once no lead is left to send, failed ones aside: it sends again.
+    if (c.status === 'done') await tx`update campaigns set status = 'sending', finished_at = null where id = ${id}`;
+    await queueWrites(tx, id, now, { force: true });
+    return rows.length;
+  });
+  if (retried === null) return null;
+  const campaign = await getCampaign(sql, userId, id);
+  return campaign ? { retried, campaign } : null;
 }
 
 /** Stops one lead: nothing more goes out to it. A lead that already ended stays as it is. */

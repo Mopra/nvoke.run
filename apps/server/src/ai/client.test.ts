@@ -137,11 +137,11 @@ describe('createAi().structured', () => {
     expect(await spentThisMonth(db.sql, 'u1', NOW)).toBeGreaterThan(0);
   });
 
-  it('fails with no_output on prose or a cut off answer', async () => {
+  it('fails with no_output on prose and truncated on a cut off answer', async () => {
     const ai1 = createAi({ sql: db.sql, log: silentLog, budget, client: fakeClient(reply('Here you go')).client, now: () => NOW });
     await expect(ai1.structured(ask)).rejects.toMatchObject({ code: 'no_output' });
     const ai2 = createAi({ sql: db.sql, log: silentLog, budget, client: fakeClient(reply('{"sells":', {}, 'length')).client, now: () => NOW });
-    await expect(ai2.structured(ask)).rejects.toMatchObject({ code: 'no_output' });
+    await expect(ai2.structured(ask)).rejects.toMatchObject({ code: 'truncated' });
   });
 
   it('fails with refusal when Claude declines', async () => {

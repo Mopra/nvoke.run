@@ -25,9 +25,17 @@
 // lead whose first email fails is asked for once more, naming what to
 // avoid, and one whose follow ups fail gets one more ask for those alone;
 // still failing, it goes 'failed' with skip_reason 'write_failed' (or
-// 'too_similar') and is never sent. ai_usage names each call: write_all
-// (every step), write_retry (the second try) and write_follow (follow ups
-// asked again).
+// 'too_similar') and write_error saying why, and is never sent until it is
+// retried (retryFailedLeads in campaigns.ts). ai_usage names each call:
+// write_all (every step), write_retry (the second try) and write_follow
+// (follow ups asked again).
+//
+// Claude thinks before it answers and the thinking counts against
+// max_tokens, so each lead gets room for both (LEAD_TOKENS, STEP_TOKENS).
+// One ask takes as many leads as fit in ASK_TOKENS, and an ask cut off
+// anyway is split in halves with twice the room per lead, down to one lead
+// asked once more. A call that fails costs only its own leads: the rest of
+// the batch is still asked, and what was written is kept.
 
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
@@ -58,6 +66,18 @@ export const FOLLOW_WORDS: WordBounds = { min: 12, max: 75 };
 export const MAX_WORDS = 125;
 const MIN_WORDS = 8;
 const SUBJECT_MAX = 80;
+/** Output tokens a lead's first email may take, its thinking included. */
+export const LEAD_TOKENS = 2000;
+/** Output tokens each follow up adds, thinking included. */
+export const STEP_TOKENS = 700;
+/** Most output tokens of one ask, so it ends well inside the client's timeout. */
+export const ASK_TOKENS = 24_000;
+/** Room on top of the leads' share of an ask. */
+const ASK_SLACK = 2000;
+/** Leads Claude writes in one ask: as many as fit in ASK_TOKENS, at least one. */
+export function leadsPerAsk(steps: number): number {
+  return Math.max(1, Math.floor((ASK_TOKENS - ASK_SLACK) / (LEAD_TOKENS + STEP_TOKENS * (steps - 1))));
+}
 const QUOTE_MIN = 12;
 const QUOTE_MAX = 300;
 /** First emails of the campaign from this far back must not be echoed. */
@@ -533,6 +553,8 @@ export interface WriteDeps {
   users?: readonly string[];
   /** Reads each company's newest post (fresh.ts). Left out, no post is fetched. */
   crawl?: CrawlDeps;
+  /** The job's timeout: no new Claude call starts once it fires. */
+  signal?: AbortSignal;
 }
 
 /** Role addresses read by a team, for imports that carry no email kind. */
@@ -581,12 +603,14 @@ interface LeadRow {
 
 type Written = { subject: string; bodies: string[] };
 
-async function fail(sql: Sql, ids: string[], reason: 'write_failed' | 'too_similar' = 'write_failed'): Promise<void> {
-  if (ids.length === 0) return;
-  await sql`
-    update campaign_leads set status = 'failed', skip_reason = ${reason}
-    where id in ${sql(ids)} and status = 'writing'
-  `;
+/** Fails leads still 'writing', each with why (write_error). */
+async function fail(sql: Sql, leads: Array<{ id: string; error: string }>, reason: 'write_failed' | 'too_similar' = 'write_failed'): Promise<void> {
+  for (const l of leads) {
+    await sql`
+      update campaign_leads set status = 'failed', skip_reason = ${reason}, write_error = ${l.error.slice(0, 500)}
+      where id = ${l.id} and status = 'writing'
+    `;
+  }
 }
 
 /** A 'writing' campaign with no lead left in 'writing' is ready for review. */
@@ -773,6 +797,10 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
   const followSteps = steps.length > 1;
   const written = new Map<string, Written>();
   const similar = new Set<string>();
+  // Why a lead was not written, when Claude answered for it.
+  const why = new Map<string, string>();
+  // Why a lead was not written, when the call that asked for it last failed.
+  const callErrors = new Map<string, string>();
   type Lead = (typeof leads)[number];
 
   // The follow ups of one answer, or what was wrong with them.
@@ -794,15 +822,47 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
     return thread.slice(1);
   };
 
-  try {
-    // Emails kept so far: the campaign's recent first emails, then this batch's as they pass.
-    const kept = await recentFirstEmails(sql, campaign.id, leads.map((l) => l.id), now);
-    const headOpts = { prices, campaign: context, product, recent: kept.slice(0, 50) };
-    // The head is the same for the first ask and the second try, so the second reads it from the cache.
-    const head = firstPrompt(profile, steps, [], headOpts).head;
-    const offer = offerVocabulary(profile, steps, headOpts);
-    const askAll = (batch: WriteLead[], task: 'write_all' | 'write_retry') =>
-      deps.ai.structured({
+  // Emails kept so far: the campaign's recent first emails, then this batch's as they pass.
+  const kept = await recentFirstEmails(sql, campaign.id, leads.map((l) => l.id), now);
+  const headOpts = { prices, campaign: context, product, recent: kept.slice(0, 50) };
+  // The head is the same for the first ask and the second try, so the second reads it from the cache.
+  const head = firstPrompt(profile, steps, [], headOpts).head;
+  const offer = offerVocabulary(profile, steps, headOpts);
+  // Leads whose follow ups were not kept, with why, for one more ask of those alone.
+  const followAgain: Lead[] = [];
+  const take = (answers: ClaudeFirstEmails, batch: Lead[], last: boolean): Lead[] => {
+    const byKey = new Map(answers.emails.map((e) => [e.lead.trim(), e]));
+    const again: Lead[] = [];
+    for (const l of batch) {
+      const answer = byKey.get(l.key);
+      const v = judgeFirst(answer, l, kept, ownDomain, offer);
+      if (!v.ok) {
+        if (last && v.reason === 'similar') similar.add(l.id);
+        else if (!last && v.reason !== 'null') again.push({ ...l, avoid: v.avoid });
+        why.set(l.id, v.reason === 'null' ? 'Claude found nothing honest to write for this lead.' : (v.avoid[0] ?? v.reason));
+        continue;
+      }
+      written.set(l.id, { subject: v.subject, bodies: [v.body] });
+      kept.push({ subject: v.subject, body: v.body });
+      if (!followSteps) continue;
+      const f = judgeFollow(answer?.follow_ups, l);
+      if (typeof f === 'string') {
+        followAgain.push({ ...l, avoid: [f] });
+        why.set(l.id, f);
+      }
+      else written.get(l.id)!.bodies.push(...f);
+    }
+    return again;
+  };
+
+  // One ask for a chunk of leads, judged as it comes, so a later call that
+  // fails costs only its own leads. Cut off, it is asked again as two halves,
+  // each lead with twice the room; failing otherwise, its leads keep why.
+  const perLead = LEAD_TOKENS + STEP_TOKENS * (steps.length - 1);
+  const ask = async (batch: Lead[], task: 'write_all' | 'write_retry', last: boolean, room = perLead): Promise<Lead[]> => {
+    deps.signal?.throwIfAborted();
+    try {
+      const res = await deps.ai.structured({
         userId,
         task,
         tier: 'bulk',
@@ -813,46 +873,45 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
         toolName: 'save_emails',
         toolDescription: followSteps ? 'Saves the first email and its follow ups per lead key.' : 'Saves the first email per lead key.',
         effort: 'low',
-        maxTokens: (900 + 400 * (steps.length - 1)) * batch.length + 2000,
+        maxTokens: room * batch.length + ASK_SLACK,
       });
-
-    // Leads whose follow ups were not kept, with why, for one more ask of those alone.
-    const followAgain: Lead[] = [];
-    const take = (answers: ClaudeFirstEmails, batch: Lead[], last: boolean): Lead[] => {
-      const byKey = new Map(answers.emails.map((e) => [e.lead.trim(), e]));
-      const again: Lead[] = [];
-      for (const l of batch) {
-        const answer = byKey.get(l.key);
-        const v = judgeFirst(answer, l, kept, ownDomain, offer);
-        if (!v.ok) {
-          if (last && v.reason === 'similar') similar.add(l.id);
-          else if (!last && v.reason !== 'null') again.push({ ...l, avoid: v.avoid });
-          continue;
-        }
-        written.set(l.id, { subject: v.subject, bodies: [v.body] });
-        kept.push({ subject: v.subject, body: v.body });
-        if (!followSteps) continue;
-        const f = judgeFollow(answer?.follow_ups, l);
-        if (typeof f === 'string') followAgain.push({ ...l, avoid: [f] });
-        else written.get(l.id)!.bodies.push(...f);
+      return take(res.data, batch, last);
+    } catch (err) {
+      if (!(err instanceof AiError)) throw err;
+      if (err.code === 'truncated' && (batch.length > 1 || room === perLead)) {
+        deps.log.info({ campaignId: campaign.id, leads: batch.length, task }, 'write: answer cut off, asking again with more room');
+        const half = Math.ceil(batch.length / 2);
+        const a = await ask(batch.slice(0, half), task, last, room * 2);
+        return batch.length > 1 ? [...a, ...(await ask(batch.slice(half), task, last, room * 2))] : a;
       }
-      return again;
-    };
+      deps.log.warn({ err, userId, campaignId: campaign.id, leads: batch.length, task }, 'write: Claude failed');
+      for (const l of batch) callErrors.set(l.id, err.message);
+      return [];
+    }
+  };
+  const per = leadsPerAsk(steps.length);
+  const askAll = async (batch: Lead[], task: 'write_all' | 'write_retry', last: boolean): Promise<Lead[]> => {
+    const again: Lead[] = [];
+    for (let i = 0; i < batch.length; i += per) again.push(...(await ask(batch.slice(i, i + per), task, last)));
+    return again;
+  };
 
-    const again = take((await askAll(leads, 'write_all')).data, leads, false);
-    if (again.length > 0) take((await askAll(again, 'write_retry')).data, again, true);
+  const again = await askAll(leads, 'write_all', false);
+  if (again.length > 0) await askAll(again, 'write_retry', true);
 
-    if (followAgain.length > 0) {
-      deps.log.info(
-        { campaignId: campaign.id, failed: followAgain.length, reasons: followAgain.slice(0, 5).map((a) => a.avoid![0]) },
-        'write: follow ups not kept',
-      );
-      const follow = followUpPrompt(
-        profile,
-        steps,
-        followAgain.map((l) => ({ ...l, subject: written.get(l.id)!.subject, body: written.get(l.id)!.bodies[0]! })),
-        { prices, product },
-      );
+  if (followAgain.length > 0) {
+    deps.log.info(
+      { campaignId: campaign.id, failed: followAgain.length, reasons: followAgain.slice(0, 5).map((a) => a.avoid![0]) },
+      'write: follow ups not kept',
+    );
+    const follow = followUpPrompt(
+      profile,
+      steps,
+      followAgain.map((l) => ({ ...l, subject: written.get(l.id)!.subject, body: written.get(l.id)!.bodies[0]! })),
+      { prices, product },
+    );
+    deps.signal?.throwIfAborted();
+    try {
       const res = await deps.ai.structured({
         userId,
         task: 'write_follow',
@@ -864,22 +923,22 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
         toolName: 'save_follow_ups',
         toolDescription: 'Saves the follow up bodies per lead key.',
         effort: 'low',
-        maxTokens: 400 * followAgain.length * (steps.length - 1) + 2000,
+        maxTokens: (1000 + STEP_TOKENS * (steps.length - 1)) * followAgain.length + ASK_SLACK,
       });
       const byLead = new Map(res.data.leads.map((e) => [e.lead.trim(), e]));
       for (const l of followAgain) {
         const v = judgeFollow(byLead.get(l.key)?.steps, l);
-        if (typeof v === 'string') written.delete(l.id);
+        if (typeof v === 'string') why.set(l.id, v);
         else written.get(l.id)!.bodies.push(...v);
       }
+    } catch (err) {
+      if (!(err instanceof AiError)) throw err;
+      deps.log.warn({ err, userId, campaignId: campaign.id, leads: followAgain.length }, 'write: Claude failed on follow ups');
+      for (const l of followAgain) callErrors.set(l.id, err.message);
     }
-  } catch (err) {
-    // Claude declined, gave nothing usable, or the budget is spent: retrying would not help.
-    if (!(err instanceof AiError)) throw err;
-    deps.log.warn({ err, userId, campaignId: campaign.id, leads: leads.length }, 'write: Claude failed');
-    await fail(sql, leads.map((l) => l.id));
-    return settleCampaign(sql, campaign.id);
   }
+  // A lead is written only with every step: one whose follow ups were not kept is not.
+  for (const [id, w] of written) if (w.bodies.length < steps.length) written.delete(id);
 
   await sql.begin(async (tx) => {
     // Read again: the campaign may have been started while Claude wrote.
@@ -903,9 +962,11 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
       `;
     }
   });
-  const unwritten = leads.filter((l) => !written.has(l.id));
-  await fail(sql, unwritten.filter((l) => similar.has(l.id)).map((l) => l.id), 'too_similar');
-  await fail(sql, unwritten.filter((l) => !similar.has(l.id)).map((l) => l.id));
+  const unwritten = leads
+    .filter((l) => !written.has(l.id))
+    .map((l) => ({ id: l.id, similar: similar.has(l.id), error: callErrors.get(l.id) ?? why.get(l.id) ?? 'Claude left this lead out of its answer.' }));
+  await fail(sql, unwritten.filter((l) => l.similar), 'too_similar');
+  await fail(sql, unwritten.filter((l) => !l.similar));
   await settleCampaign(sql, campaign.id);
   deps.log.info(
     { userId, campaignId: campaign.id, leads: leads.length, written: written.size, tooSimilar: similar.size, posts: posts.size },
@@ -914,8 +975,9 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
 }
 
 /** A write job that ran out of attempts leaves its leads failed, so the campaign can still go to review. */
-export async function onWriteGaveUp(deps: Pick<WriteDeps, 'sql'>, payload: WritePayload): Promise<void> {
+export async function onWriteGaveUp(deps: Pick<WriteDeps, 'sql'>, payload: WritePayload, error?: unknown): Promise<void> {
   if (payload.leadIds.length === 0) return;
-  await fail(deps.sql, payload.leadIds);
+  const reason = `The write job gave up: ${error instanceof Error ? error.message : 'it ran out of attempts'}`;
+  await fail(deps.sql, payload.leadIds.map((id) => ({ id, error: reason })));
   if (payload.campaignId) await settleCampaign(deps.sql, payload.campaignId);
 }

@@ -42,8 +42,9 @@ const DEFAULT_TIMEOUTS: Record<JobType, number> = {
   opener: 3 * 60_000,
   // One SMTP session per company, behind the MX host's lock.
   people: 3 * 60_000,
-  // Two Claude calls for a batch of campaign leads.
-  write: 5 * 60_000,
+  // A few Claude calls for a batch of campaign leads (leadsPerAsk a call, a second try, follow ups).
+  // No new call starts after it, and one call takes at most 15 minutes (three tries of 300 s), under the stale sweep.
+  write: 15 * 60_000,
   // Haiku calls for the crawled companies of one search, 30 to a call.
   fit: 5 * 60_000,
 };
@@ -57,7 +58,7 @@ export async function onGaveUp(deps: PipelineDeps, job: Job, error: unknown): Pr
   else if (job.type === 'crawl') await onCrawlGaveUp(deps, job);
   else if (job.type === 'opener') await onOpenerGaveUp(deps, job);
   else if (job.type === 'people') await onPeopleGaveUp(deps, job);
-  else if (job.type === 'write') await onWriteGaveUp(deps, writePayload(job));
+  else if (job.type === 'write') await onWriteGaveUp(deps, writePayload(job), error);
   else if (job.type === 'fit') await onFitGaveUp(deps, job);
   else await onVerifyGaveUp(deps, job);
 }
@@ -209,11 +210,11 @@ export class Runner {
     await runOpener({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log }, job);
   }
 
-  private async write(job: Job): Promise<void> {
+  private async write(job: Job, signal: AbortSignal): Promise<void> {
     if (!this.deps.ai) throw new PermanentError('Claude is not configured for the worker');
     // The newest post of each company is read with the list page rules: public addresses only, robots.txt, the shared per host rate.
     const crawl = listPageDeps(this.deps.crawl.limiter);
-    await runWriteJob({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log, crawl }, writePayload(job));
+    await runWriteJob({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log, crawl, signal }, writePayload(job));
   }
 
   private async execute(job: Job, signal: AbortSignal): Promise<void> {
@@ -223,7 +224,7 @@ export class Runner {
       else if (job.type === 'crawl') await runCrawl(this.deps, job, signal);
       else if (job.type === 'opener') await this.opener(job);
       else if (job.type === 'people') await runPeople(this.deps, job, signal);
-      else if (job.type === 'write') await this.write(job);
+      else if (job.type === 'write') await this.write(job, signal);
       else if (job.type === 'fit') await runFit(this.deps, job, signal);
       else await runVerify(this.deps, job, signal);
       await complete(this.deps.sql, job.id);

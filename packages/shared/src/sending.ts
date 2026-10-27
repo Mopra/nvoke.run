@@ -233,6 +233,10 @@ export const Campaign = z.object({
   writing: z.number().int().nonnegative(),
   /** Leads skipped at enroll, by reason (`country`, `suppressed`, `not_valid`, `contacted`, ...). */
   skipped: z.record(z.string(), z.number().int().nonnegative()),
+  /** Failed leads, by reason (`write_failed`, `too_similar`, `unconfirmed`, `blocked`, ...). */
+  failed: z.record(z.string(), z.number().int().nonnegative()),
+  /** Why Claude failed to write a lead of the campaign (the newest such lead), null when none did. */
+  writeError: z.string().nullable(),
   createdAt: datetime,
   startedAt: datetime.nullable(),
   finishedAt: datetime.nullable(),
@@ -314,11 +318,26 @@ export const CampaignLead = z.object({
   mailboxId: z.uuid().nullable(),
   status: CampaignLeadStatus,
   skipReason: z.string().nullable(),
+  /** Why Claude did not write it (skipReason `write_failed` or `too_similar`). */
+  writeError: z.string().nullable(),
   nextStep: z.number().int(),
   nextSendAt: datetime.nullable(),
   createdAt: datetime,
 });
 export type CampaignLead = z.infer<typeof CampaignLead>;
+
+/** Writes failed leads again in place. Without leadIds, every lead that failed to be written. */
+export const RetryLeadsRequest = z.object({
+  leadIds: z.array(z.uuid()).min(1).max(1_000).optional(),
+});
+export type RetryLeadsRequest = z.infer<typeof RetryLeadsRequest>;
+
+export const RetryLeadsResponse = z.object({
+  /** Leads back in 'writing', with a write job queued. */
+  retried: z.number().int().nonnegative(),
+  campaign: Campaign,
+});
+export type RetryLeadsResponse = z.infer<typeof RetryLeadsResponse>;
 
 export const CampaignLeadListResponse = z.object({
   leads: z.array(CampaignLead),

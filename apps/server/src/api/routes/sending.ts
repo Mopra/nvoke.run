@@ -21,6 +21,7 @@ import {
   CreateCampaignRequest,
   ReplyListQuery,
   SendingIdParams,
+  RetryLeadsRequest,
   UpdateCampaignRequest,
   UpdateMailboxRequest,
   UpdateWrittenStepRequest,
@@ -39,6 +40,7 @@ import {
   pauseCampaign,
   resumeCampaign,
   startCampaign,
+  retryFailedLeads,
   stopLead,
   updateCampaign,
   updateWrittenStep,
@@ -286,6 +288,14 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     const { id, leadId, step } = params.data;
     if (await startedNeedsPerson(req, reply, id)) return reply;
     return (await updateWrittenStep(opts.getSql(), req.userId!, id, leadId, step, body.data)) ?? sendError(reply, 404, 'not_found');
+  });
+
+  app.post('/campaigns/:id/leads/retry', guarded, async (req, reply) => {
+    const id = idOf(req);
+    if (!id) return sendError(reply, 404, 'not_found');
+    const body = RetryLeadsRequest.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
+    return (await retryFailedLeads(opts.getSql(), req.userId!, id, body.data.leadIds)) ?? sendError(reply, 404, 'not_found');
   });
 
   app.post('/campaigns/:id/leads/:leadId/stop', guarded, async (req, reply) => {

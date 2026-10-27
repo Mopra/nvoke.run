@@ -6,12 +6,16 @@ import { ensureAccount } from '../leads/quota.js';
 import { RobotsCache } from '../leads/robots.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { fakeFetch, silentLog } from '../testing/fakes.js';
-import { createCampaign } from './campaigns.js';
+import { createCampaign, getCampaign, retryFailedLeads } from './campaigns.js';
 import {
+  ASK_TOKENS,
   checkBody,
   checkSubject,
   FIRST_WORDS,
   firstPrompt,
+  LEAD_TOKENS,
+  STEP_TOKENS,
+  leadsPerAsk,
   followUpPrompt,
   isSharedInbox,
   onWriteGaveUp,
@@ -259,7 +263,7 @@ describe('runWriteJob', () => {
   let db: TestDb;
   let calls: StructuredRequest<never>[];
   /** Step 1 answers; a function answers the nth step 1 call (0 the first, 1 the second try). */
-  let first: ClaudeFirstEmails | Error | ((n: number) => ClaudeFirstEmails);
+  let first: ClaudeFirstEmails | Error | ((n: number) => ClaudeFirstEmails | Error);
   let follow: ClaudeFollowUps | Error;
 
   const ai: Ai = {
@@ -341,8 +345,8 @@ describe('runWriteJob', () => {
   }
 
   const leadRows = (id: string) =>
-    db.sql<{ address: string; status: string; skip_reason: string | null; written_at: Date | null; next_send_at: Date | null }[]>`
-      select address, status, skip_reason, written_at, next_send_at from campaign_leads where campaign_id = ${id} order by address`;
+    db.sql<{ id: string; address: string; status: string; skip_reason: string | null; write_error: string | null; written_at: Date | null; next_send_at: Date | null }[]>`
+      select id, address, status, skip_reason, write_error, written_at, next_send_at from campaign_leads where campaign_id = ${id} order by address`;
   const campaignStatus = async (id: string) => (await db.sql<{ status: string }[]>`select status from campaigns where id = ${id}`)[0]!.status;
 
   it('writes every step with the bulk model, and keeps only emails that pass', async () => {
@@ -526,8 +530,77 @@ describe('runWriteJob', () => {
     const c2 = await campaign2();
     first = new AiError('budget_exceeded', 'spent');
     await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c2.payload);
-    expect((await leadRows(c2.id)).map((r) => r.skip_reason)).toEqual(['write_failed']);
+    expect((await leadRows(c2.id)).map((r) => [r.skip_reason, r.write_error])).toEqual([['write_failed', 'spent']]);
     expect(await campaignStatus(c2.id)).toBe('review');
+  });
+
+  it('gives each lead room to think, and splits an ask that was cut off anyway', () => {
+    expect(leadsPerAsk(1)).toBe(Math.floor((ASK_TOKENS - 2000) / LEAD_TOKENS));
+    expect(leadsPerAsk(5)).toBe(4);
+    expect(leadsPerAsk(50)).toBe(1);
+  });
+
+  it('splits a cut off ask in halves, keeps what was written when a later call fails, and says why on the rest', async () => {
+    const c = await campaign();
+    const answer = first as ClaudeFirstEmails;
+    first = (n) => (n === 0 ? new AiError('truncated', 'cut off') : n === 3 ? new AiError('unavailable', 'Anthropic answered 429') : answer);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
+    // The cut off ask of two leads went again as two asks of one, then Ben's second try failed.
+    expect(calls.filter((r) => r.toolName === 'save_emails').map((r) => r.task)).toEqual(['write_all', 'write_all', 'write_all', 'write_retry']);
+    // Each half gives its lead twice the room.
+    expect(calls[1]!.maxTokens).toBe(2 * (LEAD_TOKENS + 2 * STEP_TOKENS) + 2000);
+    expect(calls[1]!.prompt).toContain('domain="acme.io"');
+    expect(calls[1]!.prompt).not.toContain('domain="beta.io"');
+    const rows = await leadRows(c.id);
+    expect(rows.map((r) => [r.address, r.status, r.skip_reason, r.write_error])).toEqual([
+      ['anna@acme.io', 'queued', null, null],
+      ['ben@beta.io', 'failed', 'write_failed', 'Anthropic answered 429'],
+    ]);
+    const view = await getCampaign(db.sql, 'u1', c.id);
+    expect(view).toMatchObject({ status: 'review', failed: { write_failed: 1 }, writeError: 'Anthropic answered 429' });
+  });
+
+  it('keeps the leads one ask wrote when the next ask of the batch fails', async () => {
+    const c = await campaign();
+    const answer = first as ClaudeFirstEmails;
+    // Cut off twice: the two leads go as one ask each, and Ben's fails outright.
+    first = (n) => (n === 0 ? new AiError('truncated', 'cut off') : n === 2 ? new AiError('unavailable', 'Anthropic answered 429') : answer);
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
+    expect(calls.filter((r) => r.toolName === 'save_emails').map((r) => r.task)).toEqual(['write_all', 'write_all', 'write_all']);
+    expect((await leadRows(c.id)).map((r) => [r.status, r.write_error])).toEqual([
+      ['queued', null],
+      ['failed', 'Anthropic answered 429'],
+    ]);
+  });
+
+  it('retries failed leads in place: back to writing, a new job, and written on the next run', async () => {
+    const c = await campaign();
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
+    const ben = (await leadRows(c.id)).find((r) => r.address === 'ben@beta.io')!;
+    expect(ben.status).toBe('failed');
+    expect(ben.write_error).toContain('broke the rules');
+
+    // Someone else's campaign, or nothing to retry.
+    expect(await retryFailedLeads(db.sql, 'u2', c.id)).toBeNull();
+    expect((await retryFailedLeads(db.sql, 'u1', c.id, [(await leadRows(c.id))[0]!.id]))!.retried).toBe(0);
+
+    await db.sql`truncate jobs`;
+    const res = await retryFailedLeads(db.sql, 'u1', c.id);
+    expect(res).toMatchObject({ retried: 1, campaign: { status: 'writing', writing: 1, failed: {}, writeError: null } });
+    const [job] = await db.sql<{ payload: { campaignId: string; leadIds: string[] } }[]>`select payload from jobs where type = 'write'`;
+    expect(job!.payload).toEqual({ campaignId: c.id, leadIds: [ben.id] });
+
+    first = { emails: [{ lead: 'beta.io', subject: 'One flat fee per chair', body: OTHER, quote: 'Booking tools for clinics' }] };
+    follow = { leads: [{ lead: 'beta.io', steps: [{ step: 2, body: 'Hi Ben, one more angle: nvoke checks every address with the mail server before you see it.' }, { step: 3, body: 'Hi Ben, I will leave it here. If the pipeline ever runs thin, nvoke is around.' }] }] };
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, job!.payload);
+    expect((await leadRows(c.id)).map((r) => [r.status, r.write_error])).toEqual([
+      ['queued', null],
+      ['queued', null],
+    ]);
+    expect(await campaignStatus(c.id)).toBe('review');
+
+    await db.sql`update campaigns set status = 'canceled' where id = ${c.id}`;
+    await expect(retryFailedLeads(db.sql, 'u1', c.id)).rejects.toThrow('cannot write again');
   });
 
   /** A second campaign on a fresh address, so the first one's leads do not count as contacted. */

@@ -14,7 +14,7 @@ export interface AnthropicSdk {
 }
 
 export function anthropicSdk(apiKey: string): AnthropicSdk {
-  return new Anthropic({ apiKey, timeout: 120_000 });
+  return new Anthropic({ apiKey, timeout: 300_000 });
 }
 
 const FINISH: Partial<Record<NonNullable<Anthropic.StopReason>, string>> = {

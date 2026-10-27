@@ -74,8 +74,10 @@ export type AiErrorCode =
   | 'budget_exceeded'
   /** Claude declined the request. */
   | 'refusal'
-  /** Claude answered without JSON, or ran out of tokens. */
+  /** Claude answered without JSON. */
   | 'no_output'
+  /** Claude ran out of max_tokens before the answer ended (thinking counts too). */
+  | 'truncated'
   /** The answer failed the zod schema. */
   | 'invalid_output';
 
@@ -154,7 +156,7 @@ export function openRouterClient(apiKey: string): ChatClient {
           'x-title': 'nvoke',
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(300_000),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
@@ -290,8 +292,11 @@ export function createAi(opts: AiOptions): Ai {
       if (choice?.message.refusal || choice?.finish_reason === 'content_filter') {
         throw new AiError('refusal', `Claude declined: ${choice.message.refusal ?? 'content filter'}`);
       }
+      if (choice?.finish_reason === 'length') {
+        throw new AiError('truncated', `Claude's ${req.toolName} answer was cut off at ${req.maxTokens ?? 4096} tokens`);
+      }
       const content = choice?.message.content;
-      if (!content || choice.finish_reason === 'length') {
+      if (!content) {
         throw new AiError('no_output', `Claude gave no ${req.toolName} answer (finish: ${choice?.finish_reason ?? 'none'})`);
       }
       let json: unknown;

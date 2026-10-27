@@ -73,6 +73,8 @@ const campaign = (over: Partial<Campaign> = {}): Campaign => ({
   optedOut: 0,
   writing: 0,
   skipped: {},
+  failed: {},
+  writeError: null,
   createdAt: '2026-10-20T09:00:00Z',
   startedAt: null,
   finishedAt: null,

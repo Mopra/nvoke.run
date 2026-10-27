@@ -166,6 +166,20 @@ made them work:
   ups did not gets one ask for the follow ups alone (`write_follow`). The
   head (sender, prices, pitch, campaign, briefs, `<recent>`) goes as the
   cached prefix, so the second try reads it from the cache.
+- **Room to think.** Claude thinks before it answers and the thinking
+  counts against `max_tokens`, so each lead gets 2,000 tokens plus 700 per
+  follow up, and one ask takes as many leads as fit in 24,000 (four leads
+  of a five step campaign). An ask cut off anyway (`truncated`) is split in
+  halves with twice the room per lead, down to one lead asked once more.
+- **Failing and retrying.** A lead not written goes `failed` with
+  skip_reason `write_failed` or `too_similar` and `write_error` saying why
+  (the rule it broke, or the call that failed: a cut off answer, Anthropic's
+  answer on the account's own key, the monthly budget). A call that fails
+  costs only its own leads: the rest of the batch is still asked. The lead
+  (`writeError`) and the campaign (`failed` by reason, `writeError`) show
+  it, and `POST /v1/campaigns/:id/leads/retry` (all such leads, or
+  `leadIds`) puts them back in `writing` with write jobs queued, in the same
+  campaign (a done one sends again).
 - **Footer** (`footer.ts`). The signature is the mailbox's, else the
   display name's first name and the sender's site domain. The "why you" line
   and the opt-out line are each one of 10 hand-written variants, picked by
@@ -420,7 +434,8 @@ new group `Sending`.
 - `GET /v1/campaigns/:id/leads`, `GET /v1/campaigns/:id/leads/:leadId`
   (with written steps and messages), `PATCH
   /v1/campaigns/:id/leads/:leadId/steps/:step` (edit a written email),
-  `POST /v1/campaigns/:id/leads/:leadId/stop`.
+  `POST /v1/campaigns/:id/leads/:leadId/stop`, `POST
+  /v1/campaigns/:id/leads/retry` (write failed leads again in place).
 - `GET /v1/replies` (all replies across campaigns, newest first).
 - `GET /v1/sending` (`SendingSummary`).
 
