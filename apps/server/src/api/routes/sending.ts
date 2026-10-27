@@ -24,6 +24,7 @@ import {
   RetryLeadsRequest,
   UpdateCampaignRequest,
   UpdateMailboxRequest,
+  UpdateCampaignLeadRequest,
   UpdateWrittenStepRequest,
 } from '@nvoke/shared';
 import type { Secrets } from '../../crypto/secrets.js';
@@ -35,6 +36,7 @@ import {
   deleteCampaign,
   getCampaign,
   getCampaignLead,
+  moveLead,
   listCampaignLeads,
   listCampaigns,
   pauseCampaign,
@@ -280,6 +282,16 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     const params = CampaignLeadParams.safeParse(req.params);
     if (!params.success) return sendError(reply, 404, 'not_found');
     return (await getCampaignLead(opts.getSql(), req.userId!, params.data.id, params.data.leadId)) ?? sendError(reply, 404, 'not_found');
+  });
+
+  app.patch('/campaigns/:id/leads/:leadId', guarded, async (req, reply) => {
+    const params = CampaignLeadParams.safeParse(req.params);
+    if (!params.success) return sendError(reply, 404, 'not_found');
+    const body = UpdateCampaignLeadRequest.safeParse(req.body);
+    if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
+    const { id, leadId } = params.data;
+    if (await startedNeedsPerson(req, reply, id)) return reply;
+    return (await moveLead(opts.getSql(), req.userId!, id, leadId, body.data.mailboxId)) ?? sendError(reply, 404, 'not_found');
   });
 
   app.get('/campaigns/:id/leads/:leadId/preview', guarded, async (req, reply) => {

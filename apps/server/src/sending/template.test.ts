@@ -3,7 +3,7 @@ import { CreateCampaignRequest, renderTemplate, unknownVariables, type CampaignS
 import type { Ai } from '../ai/client.js';
 import { ensureAccount } from '../leads/quota.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
-import { CampaignError, createCampaign, getCampaign, updateCampaign, updateWrittenStep } from './campaigns.js';
+import { CampaignError, createCampaign, getCampaign, moveLead, updateCampaign, updateWrittenStep } from './campaigns.js';
 import { footer } from './footer.js';
 import { previewLead, renderSteps } from './template.js';
 import { silentLog } from './test-seed.js';
@@ -195,6 +195,24 @@ describe('template campaigns', () => {
       { step: 1, subject: 'Ny fråga', body: 'Hallå Anna.' },
       { step: 2, subject: 'Fråga till volvo', body: 'Hand written.' },
     ]);
+  });
+
+  it('moves an unsent lead to another mailbox and signs as its sender', async () => {
+    const { campaign, mailboxId } = await setup();
+    await runJobs();
+    const [other] = await db.sql<{ id: string }[]>`
+      insert into mailboxes (clerk_user_id, address, display_name, provider, smtp_host, smtp_port, smtp_secure,
+        imap_host, imap_port, username, secret, status)
+      values ('u1', 'stefan@optipeople.se', 'Stefan G', 'smtp', 'smtp.x.io', 465, true, 'imap.x.io', 993, 's', 'sealed', 'active')
+      returning id`;
+    const [anna] = await db.sql<{ id: string }[]>`select id from campaign_leads where campaign_id = ${campaign.id} and address = 'anna@volvo.se'`;
+    await expect(moveLead(db.sql, 'u1', campaign.id, anna!.id, other!.id)).rejects.toBeInstanceOf(CampaignError);
+    await updateCampaign(db.sql, 'u1', campaign.id, { mailboxIds: [mailboxId, other!.id] });
+    const moved = await moveLead(db.sql, 'u1', campaign.id, anna!.id, other!.id);
+    expect(moved!.mailboxId).toBe(other!.id);
+    const [w] = await db.sql<{ body: string }[]>`select body from campaign_steps_written where campaign_lead_id = ${anna!.id} and step = 1`;
+    expect(w!.body).toBe('Hej Anna,\n\nText.\n\n/Stefan');
+    expect(await moveLead(db.sql, 'u2', campaign.id, anna!.id, other!.id)).toBeNull();
   });
 
   it('refuses briefs on a template campaign', async () => {

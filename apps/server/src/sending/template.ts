@@ -80,13 +80,14 @@ export async function writeTemplates(sql: Sql, campaignId: string, leadIds: stri
 
 /**
  * Renders the steps not sent yet again for a template campaign's queued and
- * active leads, after its steps changed. Edited steps stay as they are.
+ * active leads (or one), after its steps or senders changed. Edited steps stay as they are.
  */
-export async function rerenderTemplates(tx: Db, c: Pick<CampaignRow, 'id' | 'steps' | 'writer'>): Promise<number> {
+export async function rerenderTemplates(tx: Db, c: Pick<CampaignRow, 'id' | 'steps' | 'writer'>, leadId?: string): Promise<number> {
   if (c.writer !== 'template') return 0;
   const leads = await tx<Array<TemplateLead & { next_step: number }>>`
     select ${tx.unsafe(TEMPLATE_LEAD_COLUMNS)}, l.next_step from campaign_leads l
     where l.campaign_id = ${c.id} and l.status in ('queued', 'active') and l.claimed_at is null
+      ${leadId ? tx`and l.id = ${leadId}` : tx``}
   `;
   for (const l of leads) {
     await saveSteps(tx, l.id, c.steps, l, l.next_step);

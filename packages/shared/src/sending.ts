@@ -474,6 +474,10 @@ export const CampaignLeadPreview = z.object({
 });
 export type CampaignLeadPreview = z.infer<typeof CampaignLeadPreview>;
 
+/** Moves a lead that has not been sent to yet to another of the campaign's mailboxes. */
+export const UpdateCampaignLeadRequest = z.object({ mailboxId: z.uuid() });
+export type UpdateCampaignLeadRequest = z.infer<typeof UpdateCampaignLeadRequest>;
+
 export const UpdateWrittenStepRequest = z
   .object({
     subject: z.string().trim().min(1).max(200).optional(),

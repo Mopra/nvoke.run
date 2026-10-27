@@ -564,6 +564,32 @@ export async function retryFailedLeads(sql: Sql, userId: string, id: string, lea
   return campaign ? { retried, campaign } : null;
 }
 
+/**
+ * Moves a lead nothing has gone out to yet to another of the campaign's
+ * mailboxes; a template campaign renders its emails again for the new
+ * sender. Null when the lead is not the user's.
+ */
+export async function moveLead(sql: Sql, userId: string, id: string, leadId: string, mailboxId: string): Promise<CampaignLead | null> {
+  return sql.begin(async (tx) => {
+    const c = await lockCampaign(tx, userId, id);
+    if (!c) return null;
+    const lead = await findLead(tx, userId, id, leadId);
+    if (!lead) return null;
+    const [own] = await tx`select 1 from campaign_mailboxes where campaign_id = ${id} and mailbox_id = ${mailboxId}`;
+    if (!own) throw new CampaignError('bad_mailbox', 'That mailbox does not send for this campaign. Add it to the campaign first.');
+    const [sent] = await tx`select 1 from messages where campaign_lead_id = ${leadId} and direction = 'out' limit 1`;
+    const [moved] = await tx`
+      update campaign_leads set mailbox_id = ${mailboxId}
+      where id = ${leadId} and status in ('writing', 'queued') and next_step = 1 and claimed_at is null
+      returning id
+    `;
+    if (sent || !moved) throw new CampaignError('bad_state', 'Only a lead nothing has gone out to yet can change mailbox.');
+    await rerenderTemplates(tx, c, leadId);
+    const after = await findLead(tx, userId, id, leadId);
+    return after ? toLead(after) : null;
+  });
+}
+
 /** Stops one lead: nothing more goes out to it. A lead that already ended stays as it is. */
 export async function stopLead(sql: Db, userId: string, id: string, leadId: string): Promise<CampaignLead | null> {
   const [row] = await sql<LeadRow[]>`

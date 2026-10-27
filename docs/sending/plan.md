@@ -212,7 +212,10 @@ step's `shared` variant when it has one.
 Leads are rendered by the write job at once (no batch wait) and go straight
 to `queued`, so every lead has step rows and can be edited by
 `PATCH .../leads/{leadId}/steps/{n}`. Changing the steps or the mailboxes
-renders the unsent, unedited steps of queued and active leads again. The
+renders the unsent, unedited steps of queued and active leads again.
+`PATCH /v1/campaigns/{id}/leads/{leadId}` with `{ mailboxId }` moves one lead
+nothing has gone out to yet to another of the campaign's mailboxes and
+renders its emails for the new sender. The
 writer is set when the campaign is made. `signed: false` (create or PATCH)
 leaves the mailbox signature out, for text that signs itself. The footer
 lines stay. `GET /v1/campaigns/{id}/leads/{leadId}/preview` returns one
