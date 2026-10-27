@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-27 Hourly round: unchanged (only memory commits past green 8637547, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
 - 2026-10-27 Round after 'Microsoft 365 mailboxes via OAuth' landed green at 8637547 (admin consent, SPF/DKIM/DMARC check). Clips and the Common Crawl trial still wait on the owner, no aim. Nothing to file.
 - 2026-10-27 Woken: 'Microsoft 365 mailboxes via OAuth' stopped to wait on its own checkEmailAuth agent (admin consent part done). Told it to wait in the same turn, finish, run checks and report completed.
 - 2026-10-27 Hourly round: unchanged (only memory commits past green 6a8a11c, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
