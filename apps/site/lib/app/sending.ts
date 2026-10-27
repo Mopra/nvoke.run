@@ -571,7 +571,7 @@ const whole = (n: number, min: number, max: number, fallback: number): number =>
 export function campaignFormProblem(form: CampaignForm, editing = false): string | null {
   if (!editing && !form.pick) return 'Pick a search or a drop to send to.';
   if (form.steps.length === 0) return 'A campaign needs at least one email.';
-  if (form.steps.some((s) => !s.brief.trim())) return 'Say what each email should do.';
+  if (form.steps.some((s) => !s.template && !s.brief?.trim())) return 'Say what each email should do.';
   if (form.steps.slice(1).some((s) => !(s.waitDays >= 1))) return 'A follow up waits at least a day.';
   if (form.schedule.days.length === 0) return 'Pick at least one sending day.';
   if (!(form.schedule.endHour > form.schedule.startHour)) return 'The sending hours end after they start.';
@@ -586,9 +586,14 @@ export function autoCampaignName(pick: SourcePick | null, searches: Search[] | u
   return search ? searchTitle(search).slice(0, 80) : 'New campaign';
 }
 
+/** A step as the API takes it: a template campaign's fixed text is kept as it is (the API edits it, not this form). */
+function stepOf(s: CampaignStep, waitDays: number): CampaignStep {
+  return s.template ? { waitDays, template: s.template } : { waitDays, brief: (s.brief ?? '').trim() };
+}
+
 function settings(form: CampaignForm) {
   return {
-    steps: form.steps.map((s, i) => ({ waitDays: i === 0 ? 0 : whole(s.waitDays, 1, 30, 3), brief: s.brief.trim() })),
+    steps: form.steps.map((s, i) => stepOf(s, i === 0 ? 0 : whole(s.waitDays, 1, 30, 3))),
     schedule: {
       days: [...new Set(form.schedule.days)].sort((a, b) => a - b),
       startHour: whole(form.schedule.startHour, 0, 23, 9),
@@ -620,7 +625,7 @@ export function buildUpdateCampaign(c: Campaign, form: CampaignForm): UpdateCamp
   const next = { name: form.name.trim() || c.name, ...settings(form) };
   const patch: UpdateCampaignRequest = {};
   if (next.name !== c.name) patch.name = next.name;
-  if (JSON.stringify(next.steps) !== JSON.stringify(c.steps.map((s) => ({ waitDays: s.waitDays, brief: s.brief })))) patch.steps = next.steps;
+  if (JSON.stringify(next.steps) !== JSON.stringify(c.steps.map((s) => stepOf(s, s.waitDays)))) patch.steps = next.steps;
   const sched = { days: [...c.schedule.days].sort((a, b) => a - b), startHour: c.schedule.startHour, endHour: c.schedule.endHour };
   if (JSON.stringify(next.schedule) !== JSON.stringify(sched)) patch.schedule = next.schedule;
   if ([...next.mailboxIds].sort().join() !== [...c.mailboxIds].sort().join()) patch.mailboxIds = next.mailboxIds;

@@ -158,8 +158,10 @@ export function CampaignFields({
               <PlateTextarea
                 id={`cf-brief-${i}`}
                 rows={4}
-                maxLength={1000}
-                value={step.brief}
+                maxLength={step.template ? undefined : 1000}
+                // A template campaign's fixed text is set through the API; the form shows it.
+                readOnly={!!step.template}
+                value={step.template ? step.template.body : (step.brief ?? '')}
                 onChange={(e) => setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, brief: e.target.value } : s)) }))}
                 placeholder="What this email should do. Claude writes it per lead from this, the company’s site and your site profile."
               />

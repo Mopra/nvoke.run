@@ -133,7 +133,8 @@ export async function enrollCampaign(
   `;
   if (rows.length === 0) {
     await tx`update campaigns set enrolled_at = ${now} where id = ${c.id}`;
-    await queueWrites(tx, c.id, now, { force: opts.force });
+    // Templates take no Claude call, so they need no batch: they are written at once.
+  await queueWrites(tx, c.id, now, { force: opts.force || c.writer === 'template' });
     return { enrolled: 0, skipped: {} };
   }
 

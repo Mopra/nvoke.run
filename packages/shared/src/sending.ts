@@ -131,13 +131,69 @@ export const MAILBOX_PRESETS: MailboxPreset[] = [
   { key: 'other', label: 'Other', smtpHost: '', smtpPort: 587, imapHost: '', imapPort: 993, help: 'Your provider lists its SMTP and IMAP servers in its help pages.' },
 ];
 
+/**
+ * Merge variables of a template campaign's text. `{first}` is the lead's
+ * first name, `{company}` and `{domain}` its company, `{sender_first}` and
+ * `{sender_name}` the mailbox's display name, `{ref}` a short lead id.
+ * `{first|there}` gives a fallback; an empty variable with none is dropped
+ * with the space before it, so "Hej {first}," reads "Hej," for nobody named.
+ */
+export const TEMPLATE_VARIABLES = ['first', 'company', 'domain', 'sender_first', 'sender_name', 'ref'] as const;
+export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
+export type TemplateValues = Record<TemplateVariable, string | null>;
+
+const TEMPLATE_TAG = /(\s*)\{([a-z_]+)(?:\|([^{}]*))?\}/g;
+
+/** The variables a text names that do not exist, so a typo never reaches a recipient. */
+export function unknownVariables(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(TEMPLATE_TAG)) {
+    if (!(TEMPLATE_VARIABLES as readonly string[]).includes(m[2]!)) out.add(m[2]!);
+  }
+  return [...out];
+}
+
+/** Fills a template's variables (see TEMPLATE_VARIABLES). */
+export function renderTemplate(text: string, values: TemplateValues): string {
+  return text.replace(TEMPLATE_TAG, (_all, space: string, name: string, fallback: string | undefined) => {
+    const v = values[name as TemplateVariable]?.trim() || fallback?.trim() || '';
+    return v ? `${space}${v}` : '';
+  });
+}
+
+const templateText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(max)
+    .superRefine((t, ctx) => {
+      const bad = unknownVariables(t);
+      if (bad.length) ctx.addIssue({ code: 'custom', message: `unknown variable ${bad.map((b) => `{${b}}`).join(', ')}; use ${TEMPLATE_VARIABLES.map((v) => `{${v}}`).join(', ')}` });
+    });
+
+/** A step's fixed text. Follow ups go out in the first email's thread, so only step 1 needs a subject. */
+export const StepTemplate = z.object({
+  subject: templateText(200).optional(),
+  body: templateText(5000),
+  /** The text for a shared inbox (info@, kontakt@ and the like, nobody named), in place of the above. Without a subject it keeps the one above. */
+  shared: z.object({ subject: templateText(200).optional(), body: templateText(5000) }).optional(),
+});
+export type StepTemplate = z.infer<typeof StepTemplate>;
+
 /** A sequence step: how many days after the previous one, and what it should say. */
 export const CampaignStep = z.object({
   waitDays: z.number().int().min(0).max(30),
-  /** What this email should do, in the user's words. Claude writes it per lead from this. */
-  brief: z.string().trim().min(1).max(1000),
+  /** What this email should do, in the user's words. Claude writes it per lead from this. Writer `claude` only. */
+  brief: z.string().trim().min(1).max(1000).optional(),
+  /** The email itself, with merge variables. Writer `template` only. */
+  template: StepTemplate.optional(),
 });
 export type CampaignStep = z.infer<typeof CampaignStep>;
+
+/** Who writes a campaign's emails: Claude per lead from the briefs, or the steps' fixed templates. */
+export const CampaignWriter = z.enum(['claude', 'template']);
+export type CampaignWriter = z.infer<typeof CampaignWriter>;
 
 export const CampaignSchedule = z.object({
   /** ISO weekdays, 1 is Monday. */
@@ -222,6 +278,9 @@ export const Campaign = z.object({
   product: CampaignProduct.nullable(),
   /** Null: nvoke's footer lines in the email's language. */
   footer: z.string().nullable(),
+  writer: CampaignWriter,
+  /** False: no signature under the text (a template signs itself); the footer lines stay. */
+  signed: z.boolean(),
   mailboxIds: z.array(z.uuid()),
   reviewUntil: datetime.nullable(),
   leads: z.number().int().nonnegative(),
@@ -245,6 +304,21 @@ export type Campaign = z.infer<typeof Campaign>;
 
 const steps = z.array(CampaignStep).min(1).max(MAX_STEPS).refine((s) => s[0]?.waitDays === 0, { message: 'the first step goes out at once (waitDays 0)' });
 
+/** What the steps lack for their writer: a brief each for Claude, a template each (and a first subject) for templates. */
+export function stepProblems(writer: CampaignWriter, list: CampaignStep[]): Array<{ path: Array<string | number>; message: string }> {
+  const out: Array<{ path: Array<string | number>; message: string }> = [];
+  list.forEach((s, i) => {
+    if (writer === 'claude' && !s.brief) out.push({ path: ['steps', i, 'brief'], message: 'say what this email should do' });
+    if (writer === 'template') {
+      if (!s.template) out.push({ path: ['steps', i, 'template'], message: 'a template campaign needs the text of every step' });
+      else if (i === 0 && !s.template.subject) {
+        out.push({ path: ['steps', i, 'template', 'subject'], message: 'the first email needs a subject' });
+      }
+    }
+  });
+  return out;
+}
+
 export const CreateCampaignRequest = z
   .object({
     name: z.string().trim().min(1).max(80),
@@ -263,6 +337,13 @@ export const CreateCampaignRequest = z
     holdHours: z.number().int().min(0).max(72).optional(),
     product: CampaignProduct.optional(),
     footer: CampaignFooter.optional(),
+    /** `template`: every lead gets the steps' fixed text, no Claude call. */
+    writer: CampaignWriter.optional(),
+    /** False leaves the signature out; the footer lines stay. */
+    signed: z.boolean().optional(),
+  })
+  .superRefine((v, ctx) => {
+    for (const p of stepProblems(v.writer ?? 'claude', v.steps)) ctx.addIssue({ code: 'custom', ...p });
   })
   .refine((v) => v.source !== 'search' || v.searchId, { message: 'source search needs searchId', path: ['searchId'] })
   .refine((v) => v.source !== 'drop' || v.dropId, { message: 'source drop needs dropId', path: ['dropId'] })
@@ -285,6 +366,8 @@ export const UpdateCampaignRequest = z
     product: CampaignProduct.nullable().optional(),
     /** Null goes back to nvoke's footer lines. Applies to emails sent from now on. */
     footer: CampaignFooter.nullable().optional(),
+    /** Applies to emails sent from now on. */
+    signed: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to update' });
 export type UpdateCampaignRequest = z.infer<typeof UpdateCampaignRequest>;
@@ -373,6 +456,23 @@ export const CampaignLeadDetail = z.object({
   messages: z.array(Message),
 });
 export type CampaignLeadDetail = z.infer<typeof CampaignLeadDetail>;
+
+/** One lead's emails as they go out: the written (or, for a template campaign, rendered) text with the signature and footer under it. */
+export const CampaignLeadPreview = z.object({
+  steps: z.array(
+    z.object({
+      step: z.number().int().min(1).max(MAX_STEPS),
+      subject: z.string(),
+      text: z.string(),
+      /** False: not written yet, shown as a template would render it. */
+      written: z.boolean(),
+      sentAt: datetime.nullable(),
+    }),
+  ),
+  /** The mailbox it goes out from, null when the lead has none. */
+  from: z.string().nullable(),
+});
+export type CampaignLeadPreview = z.infer<typeof CampaignLeadPreview>;
 
 export const UpdateWrittenStepRequest = z
   .object({

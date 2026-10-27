@@ -10,6 +10,7 @@ import {
   DEFAULT_SCHEDULE,
   MAX_CAMPAIGNS,
   REVIEW_MINUTES,
+  stepProblems,
   type Campaign,
   type CampaignLead,
   type CampaignLeadDetail,
@@ -28,10 +29,11 @@ import {
 import { decodeCursor, encodeCursor } from '../leads/repo.js';
 import { enrollCampaign, queueWrites } from './enroll.js';
 import { nextSendAt } from './schedule.js';
+import { rerenderTemplates } from './template.js';
 
 type Db = Sql | TransactionSql;
 
-export type CampaignErrorCode = 'too_many_campaigns' | 'not_found' | 'bad_mailbox' | 'no_leads' | 'bad_state';
+export type CampaignErrorCode = 'too_many_campaigns' | 'not_found' | 'bad_mailbox' | 'no_leads' | 'bad_state' | 'bad_steps';
 
 export class CampaignError extends Error {
   constructor(
@@ -61,6 +63,8 @@ export interface CampaignRow {
   schedule: CampaignSchedule;
   product: CampaignProduct | null;
   footer: string | null;
+  writer: Campaign['writer'];
+  signed: boolean;
   review_until: Date | null;
   leads: number;
   sent: number;
@@ -75,7 +79,7 @@ export interface CampaignRow {
 
 /** The campaigns columns, for a query on `campaigns c`. */
 export const CAMPAIGN_COLUMNS = `c.id, c.clerk_user_id, c.name, c.status, c.source, c.search_id, c.drop_id, c.autopilot,
-  c.people_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.review_until,
+  c.people_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.writer, c.signed, c.review_until,
   c.leads, c.sent, c.replied, c.bounced, c.opted_out, c.enrolled_at, c.created_at, c.started_at, c.finished_at`;
 
 interface CampaignView extends CampaignRow {
@@ -125,6 +129,8 @@ function toCampaign(r: CampaignView): Campaign {
     schedule: r.schedule,
     product: r.product,
     footer: r.footer,
+    writer: r.writer,
+    signed: r.signed,
     mailboxIds: r.mailbox_ids,
     reviewUntil: iso(r.review_until),
     leads: r.leads,
@@ -213,6 +219,8 @@ export async function createCampaign(sql: Sql, userId: string, req: CreateCampai
         schedule: tx.json(req.schedule ?? DEFAULT_SCHEDULE),
         product: req.product ? tx.json(req.product) : null,
         footer: req.footer ?? null,
+        writer: req.writer ?? 'claude',
+        signed: req.signed ?? true,
         created_at: now,
       })}
       returning ${tx.unsafe(CAMPAIGN_COLUMNS.replace(/\bc\./g, ''))}
@@ -239,7 +247,11 @@ export async function updateCampaign(sql: Sql, userId: string, id: string, req: 
     if (c.status === 'done' || c.status === 'canceled') throw new CampaignError('bad_state', 'This campaign has ended.');
     const patch: Record<string, unknown> = {};
     if (req.name !== undefined) patch.name = req.name;
-    if (req.steps !== undefined) patch.steps = tx.json(req.steps);
+    if (req.steps !== undefined) {
+      const problem = stepProblems(c.writer, req.steps)[0];
+      if (problem) throw new CampaignError('bad_steps', `Step ${Number(problem.path[1]) + 1}: ${problem.message}.`);
+      patch.steps = tx.json(req.steps);
+    }
     if (req.schedule !== undefined) patch.schedule = tx.json(req.schedule);
     if (req.peopleOnly !== undefined) patch.people_only = req.peopleOnly;
     if (req.allowCatchAll !== undefined) patch.allow_catch_all = req.allowCatchAll;
@@ -248,6 +260,7 @@ export async function updateCampaign(sql: Sql, userId: string, id: string, req: 
     if (req.holdHours !== undefined) patch.hold_hours = req.holdHours;
     if (req.product !== undefined) patch.product = req.product ? tx.json(req.product) : null;
     if (req.footer !== undefined) patch.footer = req.footer;
+    if (req.signed !== undefined) patch.signed = req.signed;
     if (Object.keys(patch).length) await tx`update campaigns set ${tx(patch)} where id = ${id}`;
     if (req.mailboxIds) {
       const ids = await checkMailboxes(tx, userId, req.mailboxIds);
@@ -264,6 +277,8 @@ export async function updateCampaign(sql: Sql, userId: string, id: string, req: 
         await tx`update campaign_leads set mailbox_id = ${ids[i % ids.length]!} where id = ${orphans[i]!.id}`;
       }
     }
+    // A template campaign's unsent emails follow its new text and senders.
+    if (req.steps || req.mailboxIds) await rerenderTemplates(tx, { id, steps: req.steps ?? c.steps, writer: c.writer });
     return true;
   });
   return found ? getCampaign(sql, userId, id) : null;

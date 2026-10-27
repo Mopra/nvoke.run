@@ -57,6 +57,7 @@ import {
   type MailboxDeps,
 } from '../../sending/mailboxes.js';
 import { listReplies, markReplyRead, sendingSummary } from '../../sending/queries.js';
+import { previewLead } from '../../sending/template.js';
 import { adminConsentUrl, authorizeUrl, pkceVerifier, signState, type MicrosoftOAuth } from '../../sending/oauth.js';
 import type { TransportFactory } from '../../sending/types.js';
 import type { AuthDns } from '../../tools/email-auth.js';
@@ -99,6 +100,7 @@ const CAMPAIGN_ERRORS: Record<CampaignErrorCode, number> = {
   no_leads: 422,
   too_many_campaigns: 409,
   bad_state: 409,
+  bad_steps: 400,
 };
 
 /** Campaign states past Start: their emails go out as they stand. */
@@ -278,6 +280,12 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     const params = CampaignLeadParams.safeParse(req.params);
     if (!params.success) return sendError(reply, 404, 'not_found');
     return (await getCampaignLead(opts.getSql(), req.userId!, params.data.id, params.data.leadId)) ?? sendError(reply, 404, 'not_found');
+  });
+
+  app.get('/campaigns/:id/leads/:leadId/preview', guarded, async (req, reply) => {
+    const params = CampaignLeadParams.safeParse(req.params);
+    if (!params.success) return sendError(reply, 404, 'not_found');
+    return (await previewLead(opts.getSql(), req.userId!, params.data.id, params.data.leadId)) ?? sendError(reply, 404, 'not_found');
   });
 
   app.patch('/campaigns/:id/leads/:leadId/steps/:step', guarded, async (req, reply) => {

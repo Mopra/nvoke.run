@@ -194,6 +194,31 @@ made them work:
   still say where the address was found and how to stop. The
   List-Unsubscribe header is the same either way.
 
+### Fixed text (writer `template`)
+
+A campaign made with `writer: 'template'` sends every lead the same approved
+text and never calls Claude (`src/sending/template.ts`, migration
+`1897_campaign_templates`). Each step carries `template: { subject, body,
+shared? }` in place of a brief. Only step 1 needs a subject, since follow ups
+go out in its thread. The text takes merge variables: `{first}`, `{company}`,
+`{domain}`, `{sender_first}`, `{sender_name}` (the mailbox's display name)
+and `{ref}` (the first eight characters of the lead id). `{first|där}` gives
+a fallback. An empty variable with no fallback is dropped with the space
+before it, so "Hej {first}," reads "Hej," for a lead with no name. An unknown
+variable is refused when the campaign is made, so a typo never goes out.
+A shared inbox (`isSharedInbox`: info@ and the like, nobody named) gets the
+step's `shared` variant when it has one.
+
+Leads are rendered by the write job at once (no batch wait) and go straight
+to `queued`, so every lead has step rows and can be edited by
+`PATCH .../leads/{leadId}/steps/{n}`. Changing the steps or the mailboxes
+renders the unsent, unedited steps of queued and active leads again. The
+writer is set when the campaign is made. `signed: false` (create or PATCH)
+leaves the mailbox signature out, for text that signs itself. The footer
+lines stay. `GET /v1/campaigns/{id}/leads/{leadId}/preview` returns one
+lead's emails exactly as the sender would send them now, signature and footer
+included, in either writer.
+
 ## Principles
 
 - **Real mailboxes only.** Mail leaves through the mailbox provider's own

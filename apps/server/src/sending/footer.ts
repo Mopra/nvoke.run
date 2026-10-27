@@ -28,6 +28,8 @@ export interface FooterOptions {
   language?: FooterLanguage;
   /** The campaign's own footer line, in place of the why and opt-out lines. `{domain}` is the recipient's domain. */
   text?: string | null;
+  /** False leaves the signature out (a template signs itself); the footer lines stay. */
+  signed?: boolean;
   /** Kept for a later plain text link; not printed in the body today. */
   unsubscribeUrl?: string;
 }
@@ -217,13 +219,14 @@ export function signatureFor(o: Pick<FooterOptions, 'signature' | 'displayName' 
 }
 
 export function footer(o: FooterOptions): string {
+  const sign = (lines: string) => (o.signed === false ? lines : `${signatureFor(o)}\n\n${lines}`);
   const own = o.text?.trim();
-  if (own) return `${signatureFor(o)}\n\n${own.replaceAll('{domain}', o.domain)}`;
+  if (own) return sign(own.replaceAll('{domain}', o.domain));
   const key = o.leadKey ?? o.domain;
   const lines = FOOTER_LINES[o.language ?? 'en'];
   const why = pick(lines.why, key, 'why').replaceAll('{domain}', o.domain);
   const stop = pick(lines.optOut, key, 'stop').text;
-  return `${signatureFor(o)}\n\n${why} ${stop}`;
+  return sign(`${why} ${stop}`);
 }
 
 /** The body Claude wrote with the footer under it, in the body's language unless one is given. */

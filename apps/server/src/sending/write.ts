@@ -54,6 +54,7 @@ import { WRITE_BATCH } from './enroll.js';
 import { isPostUrl, latestPost } from './fresh.js';
 import { conflictWith, MAX_OVERLAP, offerWords, sentences, type Conflict } from './overlap.js';
 import { nextSendAt } from './schedule.js';
+import { writeTemplates } from './template.js';
 
 /** Word bounds a kept email must meet. The prompt asks for 60 to 110 (step 1) and 25 to 60 (follow ups). */
 export interface WordBounds {
@@ -240,7 +241,7 @@ function briefBlock(steps: CampaignStep[], from: number): string {
   return steps
     .map((s, i) => ({ ...s, step: i + 1 }))
     .filter((s) => s.step >= from)
-    .map((s) => `<brief step="${s.step}" wait_days="${s.waitDays}">\n${inner(s.brief)}\n</brief>`)
+    .map((s) => `<brief step="${s.step}" wait_days="${s.waitDays}">\n${inner(s.brief ?? '')}\n</brief>`)
     .join('\n');
 }
 
@@ -745,6 +746,12 @@ export async function runWriteJob(deps: WriteDeps, payload: WritePayload): Promi
   const [campaign] = await sql<CampaignRow[]>`
     select ${sql.unsafe(CAMPAIGN_COLUMNS)} from campaigns c where c.id = ${payload.campaignId} and c.clerk_user_id in ${sql(users)}`;
   if (!campaign) return;
+  if (campaign.writer === 'template') {
+    const written = await writeTemplates(sql, campaign.id, payload.leadIds, deps.now?.() ?? new Date());
+    await settleCampaign(sql, campaign.id);
+    deps.log.info({ userId: campaign.clerk_user_id, campaignId: campaign.id, leads: written }, 'write: templates rendered');
+    return;
+  }
   const rows = await sql<LeadRow[]>`
     select l.id, l.address, l.first_name, l.last_name, l.title, l.company_name, l.domain, l.timezone, e.kind as email_kind,
       co.website, co.category, co.location, co.fit_reason, co.source, co.source_ref, co.created_at as found_at,
