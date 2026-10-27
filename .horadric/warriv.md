@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-27 Round after 'Campaign writer fails on every lead mid-run' landed green at fb1d7dc. Gave 'Campaigns with fixed text' Model: opus (schema, worker and API) and the 39-lead retry Model: sonnet (it blocks until the human deploys 82a5e81). Stray '--help' quest told to close earlier.
 - 2026-10-27 Round after 'Writer uses plural ni for shared inboxes' landed green at 26709c2. Gave 'Campaign writer fails on every lead mid-run' Model: opus (hard bug). Footer and writer-failure quests running, clips and Common Crawl wait on the owner, no aim.
 - 2026-10-27 Woken: 'Sending footer follows the email's language' stopped to wait on its own language footer agent (per-campaign override done). Told it to wait in the same turn, finish, run checks and report completed; gave it Model: sonnet.
 - 2026-10-27 Round as the human left: unchanged (only memory commits past green 8637547, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
@@ -132,6 +133,7 @@
 
 ## Open
 
+- Writer fix (82a5e81, fb1d7dc) green on main, not deployed: the retry of OptiPeople's 39 failed Sweden leads waits on the human's VPS deploy.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27; never tried against the real OptiPeople tenant. The Entra app values still need to go in the VPS .env (new vars in apps/server/.env.example), the human's.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
