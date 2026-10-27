@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-27 Round after 'Microsoft 365 mailboxes via OAuth' landed green at 8637547 (admin consent, SPF/DKIM/DMARC check). Clips and the Common Crawl trial still wait on the owner, no aim. Nothing to file.
 - 2026-10-27 Woken: 'Microsoft 365 mailboxes via OAuth' stopped to wait on its own checkEmailAuth agent (admin consent part done). Told it to wait in the same turn, finish, run checks and report completed.
 - 2026-10-27 Hourly round: unchanged (only memory commits past green 6a8a11c, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
 
@@ -127,7 +128,7 @@
 
 ## Open
 
-- Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c): checked green at 6a8a11c 2026-10-27. The Entra app values still need to go in the VPS .env (new vars in apps/server/.env.example), the human's.
+- Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27; never tried against the real OptiPeople tenant. The Entra app values still need to go in the VPS .env (new vars in apps/server/.env.example), the human's.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
 - Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866; seed and Common Crawl index green at 8f58c67 (2026-10-22); Postgres 18 move green at 013e55f.
