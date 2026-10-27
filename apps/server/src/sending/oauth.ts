@@ -72,6 +72,20 @@ export class OAuthError extends Error {
 export const SIGN_IN_AGAIN = 'microsoft sign-in ended';
 /** Microsoft refused nvoke's app itself (an expired client secret, say): every Microsoft mailbox pauses until it is fixed. */
 export const APP_REFUSED = 'microsoft refused the nvoke app';
+/** The organization lets only an admin approve apps: the admin consent link below fixes it once for everyone there. */
+export const ADMIN_CONSENT = 'microsoft needs an admin to approve the nvoke app';
+
+/**
+ * Microsoft's codes for "an admin must consent first": not consented
+ * (65001), admin approval required (90094), approval workflow (90095),
+ * user consent turned off (90008).
+ */
+const ADMIN_CONSENT_CODES = /AADSTS(65001|90094|90095|90008)\b/;
+
+/** True when Microsoft's error (a callback's error_description or the token endpoint's) asks for admin consent. */
+export function needsAdminConsent(error: string | null | undefined, description: string | null | undefined): boolean {
+  return error === 'consent_required' || ADMIN_CONSENT_CODES.test(description ?? '');
+}
 
 const stateMac = (secrets: Secrets, userId: string, nonce: string, expires: string) =>
   createHmac('sha256', secrets.derive('mailbox-oauth')).update(`${userId}.${nonce}.${expires}`).digest().subarray(0, 16);
@@ -115,6 +129,22 @@ export function authorizeUrl(cfg: MicrosoftOAuth, state: string, verifier: strin
   return url.toString();
 }
 
+/**
+ * The link an organization's admin opens once to approve nvoke's app for
+ * everyone there; Microsoft sends them back to the callback page with
+ * `admin_consent=True`. `organizations`, since a personal account has no admin.
+ */
+export function adminConsentUrl(cfg: MicrosoftOAuth): string {
+  const url = new URL('https://login.microsoftonline.com/organizations/v2.0/adminconsent');
+  url.search = new URLSearchParams({
+    client_id: cfg.clientId,
+    scope: MICROSOFT_SCOPES.filter((s) => s.startsWith('https://')).join(' '),
+    redirect_uri: cfg.redirectUri,
+    state: 'admin-consent',
+  }).toString();
+  return url.toString();
+}
+
 interface TokenResponse {
   access_token?: string;
   refresh_token?: string;
@@ -137,8 +167,10 @@ async function tokenRequest(
     signal: AbortSignal.timeout(30_000),
   });
   const body = (await res.json().catch(() => ({}))) as TokenResponse;
+  // Consent missing or withdrawn: an admin must approve the app first.
   // invalid_grant and interaction_required: the user must sign in again.
   // invalid_client and unauthorized_client: our app is refused. Anything else may pass.
+  if (needsAdminConsent(body.error, body.error_description)) throw new OAuthError(ADMIN_CONSENT);
   if (body.error === 'invalid_grant' || body.error === 'interaction_required') throw new OAuthError();
   if (body.error === 'invalid_client' || body.error === 'unauthorized_client') throw new OAuthError(APP_REFUSED);
   // A refresh may come back without a new refresh token: the old one still holds.

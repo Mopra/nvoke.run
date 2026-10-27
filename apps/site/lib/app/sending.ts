@@ -274,6 +274,8 @@ export function sendingError(error: unknown): string {
       return 'That mailbox is connected already.';
     case 'oauth_failed':
       return 'Microsoft did not finish the sign-in. Try again.';
+    case 'oauth_admin_consent':
+      return 'Your organization lets only an admin approve apps. Send your admin the approval link, then sign in again.';
     case 'oauth_unavailable':
       return 'Sign in with Microsoft is not set up on this server yet.';
     case 'password_not_used':

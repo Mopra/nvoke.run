@@ -4,12 +4,13 @@
 // before it reaches the table and only opened here, for the transport.
 // Every query is scoped by clerk_user_id.
 
-import { MAX_MAILBOXES, type ConnectMailboxRequest, type Mailbox, type UpdateMailboxRequest } from '@nvoke/shared';
+import { MAX_MAILBOXES, type ConnectMailboxRequest, type Mailbox, type ToolEmailAuthResponse, type UpdateMailboxRequest } from '@nvoke/shared';
 import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
 import { SecretsError, type Secrets } from '../crypto/secrets.js';
+import { checkEmailAuth, systemAuthDns, type AuthDns } from '../tools/email-auth.js';
 import { pauseOrphanedCampaigns } from './health.js';
-import { APP_REFUSED, checkState, exchangeCode, MICROSOFT_SERVERS, pkceVerifier, SIGN_IN_AGAIN, tokenSource, type MicrosoftOAuth } from './oauth.js';
+import { ADMIN_CONSENT, APP_REFUSED, checkState, exchangeCode, MICROSOFT_SERVERS, pkceVerifier, SIGN_IN_AGAIN, tokenSource, type MicrosoftOAuth } from './oauth.js';
 import { finishIfDone } from './outcomes.js';
 import { mailboxCapacity } from './schedule.js';
 import type { CheckResult, MailboxCredentials, TransportFactory } from './types.js';
@@ -21,11 +22,13 @@ export interface MailboxDeps {
   log: Logger;
   /** The Microsoft app, for signing in and refreshing tokens. Null or left out: Microsoft sign-in is off. */
   microsoft?: MicrosoftOAuth | null;
+  /** DNS for the SPF, DKIM and DMARC check of the address's domain. Left out: the system resolver. */
+  authDns?: AuthDns;
 }
 
 export class MailboxError extends Error {
   constructor(
-    readonly code: 'too_many_mailboxes' | 'exists' | 'not_found' | 'oauth_failed' | 'oauth_unavailable' | 'password_not_used',
+    readonly code: 'too_many_mailboxes' | 'exists' | 'not_found' | 'oauth_failed' | 'oauth_unavailable' | 'oauth_admin_consent' | 'password_not_used',
     message: string,
   ) {
     super(message);
@@ -59,6 +62,9 @@ export interface MailboxRow {
   last_poll_at: Date | null;
   poll_state: Record<string, { uidValidity: number; lastUid: number }>;
   created_at: Date;
+  /** SPF, DKIM and DMARC of the domain from the last check, or null before one. */
+  email_auth: ToolEmailAuthResponse | null;
+  email_auth_at: Date | null;
 }
 
 /** What credentialsFor needs: the key, and for a Microsoft mailbox where to save refreshed tokens. */
@@ -109,6 +115,7 @@ function toMailbox(r: RowWithSent, now: Date): Mailbox {
     lastSendAt: r.last_send_at?.toISOString() ?? null,
     lastPollAt: r.last_poll_at?.toISOString() ?? null,
     createdAt: r.created_at.toISOString(),
+    emailAuth: r.email_auth ?? null,
   };
 }
 
@@ -162,12 +169,45 @@ function startCheck(deps: MailboxDeps, id: string): void {
 /**
  * Logs in to SMTP and IMAP. Success makes a checking or errored mailbox
  * active (a paused one stays paused); a failure sets 'error' and a reason
- * the user can act on.
+ * the user can act on. Alongside, it reads SPF, DKIM and DMARC of the
+ * address's domain and saves them: shown on the mailbox, never blocking it.
  */
 export async function checkMailbox(deps: MailboxDeps, mailboxId: string): Promise<void> {
   const { sql } = deps;
   const [row] = await sql<MailboxRow[]>`select * from mailboxes where id = ${mailboxId}`;
   if (!row) return;
+  const auth = checkDomainAuth(deps, row);
+  try {
+    await checkLogin(deps, row);
+  } finally {
+    await saveDomainAuth(deps, mailboxId, await auth);
+  }
+}
+
+/** The domain's DNS check, or null when it failed: a DNS problem never fails the mailbox check. */
+async function checkDomainAuth(deps: MailboxDeps, row: MailboxRow): Promise<ToolEmailAuthResponse | null> {
+  const domain = row.address.slice(row.address.lastIndexOf('@') + 1).toLowerCase();
+  try {
+    return await checkEmailAuth(domain, deps.authDns ?? systemAuthDns());
+  } catch (err) {
+    deps.log.warn({ err, mailboxId: row.id }, 'mailbox email auth check failed');
+    return null;
+  }
+}
+
+/** Keeps the last result when this one failed. */
+async function saveDomainAuth(deps: MailboxDeps, mailboxId: string, auth: ToolEmailAuthResponse | null): Promise<void> {
+  if (!auth) return;
+  try {
+    await deps.sql`update mailboxes set email_auth = ${deps.sql.json(auth)}, email_auth_at = now() where id = ${mailboxId}`;
+  } catch (err) {
+    deps.log.warn({ err, mailboxId }, 'mailbox email auth save failed');
+  }
+}
+
+async function checkLogin(deps: MailboxDeps, row: MailboxRow): Promise<void> {
+  const { sql } = deps;
+  const mailboxId = row.id;
   let result: CheckResult;
   try {
     const transport = deps.transport(credentialsFor(deps, row));
@@ -209,6 +249,7 @@ export function checkReason(
   switch (r.kind) {
     case 'auth':
       if (row.provider === 'microsoft') {
+        if (r.message === ADMIN_CONSENT) return 'Microsoft needs an admin of this organization to approve nvoke (consent was never given or was withdrawn). Send your admin the approval link, then sign in with Microsoft again.';
         if (r.message === APP_REFUSED) return 'Microsoft refused nvoke’s app (its client secret may have expired, or the app is not set up on this server). Nothing to do on the mailbox.';
         if (r.message === SIGN_IN_AGAIN) return 'The Microsoft sign-in ended (revoked, expired or the password changed). Sign in with Microsoft again.';
         return r.step === 'smtp'
@@ -249,6 +290,9 @@ export async function connectMicrosoftMailbox(deps: MailboxDeps, userId: string,
     signedIn = await exchangeCode(deps.microsoft, code, pkceVerifier(deps.secrets, state), now);
   } catch (err) {
     deps.log.warn({ err }, 'microsoft code exchange failed');
+    if (err instanceof Error && err.message === ADMIN_CONSENT) {
+      throw new MailboxError('oauth_admin_consent', 'Your organization lets only an admin approve nvoke. Send your admin the approval link, then sign in again.');
+    }
     throw new MailboxError('oauth_failed', 'Microsoft did not accept the sign-in. Try again.');
   }
   const { tokens, identity } = signedIn;

@@ -7,7 +7,7 @@ import { MAILBOX_PRESETS, MAX_DAILY_CAP, MAX_MAILBOXES, type Mailbox } from '@nv
 import { Figure, useArrivals } from '@/components/app/motion';
 import { APP_FRAME, APP_INSET, LedKey } from '@/components/app/shell';
 import { EmptyState, ErrorState } from '@/components/app/states';
-import { FieldRow, MailboxLed, PlateInput, PlateTextarea, SendingKeys, SendingNotice } from '@/components/app/sending/parts';
+import { AuthGradeLed, EMAIL_AUTH_PARTS, EmailAuthLeds, FieldRow, MailboxLed, PlateInput, PlateTextarea, SendingKeys, SendingNotice } from '@/components/app/sending/parts';
 import { RevealHeading } from '@/components/site/home/reveal';
 import {
   AlertDialog,
@@ -77,6 +77,7 @@ function MailboxRow({ mailbox, index, onSettings, style }: { mailbox: Mailbox; i
           <div className="mt-1 truncate font-mono text-[12px] tracking-[0.04em] text-muted-foreground" title={detail}>
             {detail}
           </div>
+          {mailbox.emailAuth && <EmailAuthLeds auth={mailbox.emailAuth} className="mt-1.5" />}
           {mailbox.statusReason && mailbox.status !== 'active' && (
             <p className={cn('mt-2 max-w-xl text-sm', mailbox.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>{mailbox.statusReason}</p>
           )}
@@ -357,6 +358,29 @@ function SettingsDialog({ mailbox, onOpenChange }: { mailbox: Mailbox | null; on
   );
 }
 
+/** What the last check read from the domain's DNS, with what to fix. It never stops the mailbox. */
+function DomainAuth({ auth }: { auth: NonNullable<Mailbox['emailAuth']> }) {
+  return (
+    <section aria-label={`Email authentication of ${auth.domain}`} className="flex flex-col gap-2">
+      <div className="cap text-muted-foreground">{auth.domain}</div>
+      <ul className="flex flex-col">
+        {EMAIL_AUTH_PARTS.map(([key, label]) => {
+          const part = auth[key];
+          return (
+            <li key={key} className="grid grid-cols-[16px_56px_minmax(0,1fr)] items-baseline gap-x-2 border-t border-border py-2 last:border-b">
+              <AuthGradeLed grade={part.grade} className="translate-y-[-1px]" />
+              <span className={cn('cap', part.grade === 'fail' ? 'text-destructive' : 'text-muted-foreground')}>{label}</span>
+              <span className="text-sm text-muted-foreground">
+                {part.notes.length > 0 ? part.notes.join(' ') : 'Set up.'}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function SettingsForm({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => void }) {
   const [form, setForm] = useState<MailboxSettings>(() => mailboxSettings(mailbox));
   const update = useUpdateMailbox();
@@ -387,6 +411,7 @@ function SettingsForm({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => voi
           {mailbox.smtpHost}:{mailbox.smtpPort} · {mailbox.imapHost}:{mailbox.imapPort}
         </DialogDescription>
       </div>
+      {mailbox.emailAuth && <DomainAuth auth={mailbox.emailAuth} />}
       <div className={FORM_GRID}>
         <FieldRow label="Name" htmlFor="ms-name">
           <PlateInput id="ms-name" value={form.displayName} onChange={(e) => set('displayName')(e.target.value)} maxLength={80} />

@@ -263,6 +263,8 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     connectMailbox: (input: ConnectMailboxRequest): Promise<Mailbox> => call('POST', '/v1/mailboxes', input),
     /** Where to send the browser to sign in with Microsoft. */
     startMicrosoftSignIn: (): Promise<MailboxOAuthStartResponse> => call('POST', '/v1/mailboxes/oauth/microsoft/start'),
+    /** The link an organization's admin opens once to approve nvoke's app. */
+    microsoftAdminConsentUrl: (): Promise<MailboxOAuthStartResponse> => call('GET', '/v1/mailboxes/oauth/microsoft/admin-consent'),
     /** The callback's code and state: connects (or signs in again) the mailbox and answers it as `checking`. */
     finishMicrosoftSignIn: (input: MailboxOAuthCallbackRequest): Promise<Mailbox> => call('POST', '/v1/mailboxes/oauth/microsoft', input),
     updateMailbox: (id: string, update: UpdateMailboxRequest): Promise<Mailbox> => call('PATCH', `/v1/mailboxes/${enc(id)}`, update),

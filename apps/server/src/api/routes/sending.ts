@@ -55,8 +55,9 @@ import {
   type MailboxDeps,
 } from '../../sending/mailboxes.js';
 import { listReplies, markReplyRead, sendingSummary } from '../../sending/queries.js';
-import { authorizeUrl, pkceVerifier, signState, type MicrosoftOAuth } from '../../sending/oauth.js';
+import { adminConsentUrl, authorizeUrl, pkceVerifier, signState, type MicrosoftOAuth } from '../../sending/oauth.js';
 import type { TransportFactory } from '../../sending/types.js';
+import type { AuthDns } from '../../tools/email-auth.js';
 import { requireUser } from '../user.js';
 
 export interface SendingRoutesOptions {
@@ -72,6 +73,8 @@ export interface SendingRoutesOptions {
   microsoft?: MicrosoftOAuth | null;
   /** SENDING_USERS: the Clerk user ids allowed to send. Read from the environment when left out. */
   users?: readonly string[];
+  /** DNS for the mailbox check's SPF, DKIM and DMARC lookups. Left out: the system resolver. */
+  authDns?: AuthDns;
 }
 
 function sendError(reply: FastifyReply, status: number, error: string, details?: unknown) {
@@ -84,6 +87,7 @@ const MAILBOX_ERRORS: Record<MailboxError['code'], [number, string]> = {
   exists: [409, 'mailbox_exists'],
   not_found: [404, 'not_found'],
   oauth_failed: [400, 'oauth_failed'],
+  oauth_admin_consent: [403, 'oauth_admin_consent'],
   oauth_unavailable: [503, 'oauth_unavailable'],
   password_not_used: [400, 'password_not_used'],
 };
@@ -152,6 +156,7 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     transport: opts.transport,
     log: opts.log,
     microsoft: opts.microsoft ?? null,
+    authDns: opts.authDns,
   });
   const idOf = (req: FastifyRequest) => {
     const params = SendingIdParams.safeParse(req.params);
@@ -176,6 +181,12 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     if (!opts.microsoft) return sendError(reply, 503, 'oauth_unavailable');
     const state = signState(opts.secrets!, req.userId!);
     return { url: authorizeUrl(opts.microsoft, state, pkceVerifier(opts.secrets!, state)) };
+  });
+
+  // The link for an organization that lets only its admin approve apps.
+  app.get('/mailboxes/oauth/microsoft/admin-consent', guarded, async (_req, reply) => {
+    if (!opts.microsoft) return sendError(reply, 503, 'oauth_unavailable');
+    return { url: adminConsentUrl(opts.microsoft) };
   });
 
   app.post('/mailboxes/oauth/microsoft', byPerson, async (req, reply) => {

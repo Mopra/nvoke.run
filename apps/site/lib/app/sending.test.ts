@@ -98,6 +98,7 @@ const mailbox = (over: Partial<Mailbox> = {}): Mailbox => ({
   lastSendAt: null,
   lastPollAt: null,
   createdAt: '2026-10-19T09:00:00Z',
+  emailAuth: null,
   ...over,
 });
 

@@ -657,6 +657,18 @@ export function useMicrosoftSignIn() {
   });
 }
 
+/** Fetches the admin approval link and copies it, for the person to send their admin. */
+export function useMicrosoftAdminConsent() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async () => {
+      const { url } = await api.microsoftAdminConsentUrl();
+      await navigator.clipboard.writeText(url);
+      return url;
+    },
+  });
+}
+
 /** The callback page's half: hands the code to the API, which connects the mailbox. */
 export function useFinishMicrosoftSignIn() {
   const api = useApi();

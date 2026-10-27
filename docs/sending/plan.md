@@ -324,6 +324,11 @@ One folder, one file per job:
   pause, delete, `capacityToday(mailbox)` (cap, minus sent in the last 24
   hours, with the ramp for unwarmed mailboxes: 5 a day, plus 3 a day, up
   to the cap).
+  Every check (on connect and `POST /v1/mailboxes/:id/check`) runs
+  `checkEmailAuth` on the address's domain next to the SMTP and IMAP
+  login and saves it as `email_auth` (`Mailbox.emailAuth`). SPF, DKIM and
+  DMARC problems show on the mailbox but never block it, and a DNS failure
+  keeps the last result.
 - `write.ts`: the `write` job. For a batch of campaign leads, ask
   `ai.structured` (tier `bulk`, Haiku) for
   every step: subject and body, from the site profile

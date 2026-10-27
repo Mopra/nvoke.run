@@ -18,6 +18,7 @@ import { ensureAccount } from '../../leads/quota.js';
 import { createFakeTransport } from '../../sending/fake-transport.js';
 import { createTestDb, type TestDb } from '../../testing/db.js';
 import { silentLog } from '../../testing/fakes.js';
+import type { AuthDns } from '../../tools/email-auth.js';
 import type { AuthContext } from '../auth.js';
 import { sendingRoutes } from './sending.js';
 
@@ -26,6 +27,14 @@ let app: FastifyInstance;
 let off: FastifyInstance;
 const fake = createFakeTransport();
 const secrets = createSecrets(randomBytes(32).toString('base64'));
+/** No DNS records anywhere, so the mailbox check never reaches real DNS. */
+const nodata = () => Object.assign(new Error('nodata'), { code: 'ENODATA' });
+const authDns: AuthDns = {
+  resolveMx: async () => { throw nodata(); },
+  resolve4: async () => { throw nodata(); },
+  resolve6: async () => { throw nodata(); },
+  resolveTxt: async () => { throw nodata(); },
+};
 /** Alice and Bob may send; Carol is any other account. */
 const SENDING_USERS = ['alice', 'bob'];
 
@@ -41,10 +50,10 @@ const authenticate = async (req: FastifyRequest) => {
 beforeAll(async () => {
   db = await createTestDb();
   app = Fastify();
-  await app.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets, enabled: true, transport: fake.factory, log: silentLog, users: SENDING_USERS });
+  await app.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets, enabled: true, transport: fake.factory, log: silentLog, users: SENDING_USERS, authDns });
   await app.ready();
   off = Fastify();
-  await off.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets: null, enabled: true, transport: fake.factory, log: silentLog, users: SENDING_USERS });
+  await off.register(sendingRoutes, { prefix: '/v1', getSql: () => db.sql, authenticate, secrets: null, enabled: true, transport: fake.factory, log: silentLog, users: SENDING_USERS, authDns });
   await off.ready();
 });
 
@@ -180,6 +189,7 @@ describe('sending routes', () => {
     const checked = Mailbox.parse((await app.inject({ method: 'POST', url: `${url}/check`, headers: as('alice') })).json());
     expect(checked.status).toBe('error');
     expect(checked.statusReason).toBeTruthy();
+    expect(checked.emailAuth).toMatchObject({ spf: { grade: 'fail' }, dmarc: { grade: 'fail' } });
 
     expect((await app.inject({ method: 'PATCH', url, headers: as('bob'), payload: { dailyCap: 10 } })).statusCode).toBe(404);
     const patched = await app.inject({ method: 'PATCH', url, headers: as('alice'), payload: { dailyCap: 10, signature: 'Ada' } });

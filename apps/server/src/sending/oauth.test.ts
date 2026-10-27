@@ -3,6 +3,9 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 import { createSecrets } from '../crypto/secrets.js';
 import {
+  ADMIN_CONSENT,
+  adminConsentUrl,
+  needsAdminConsent,
   APP_REFUSED,
   authorizeUrl,
   checkState,
@@ -96,6 +99,21 @@ describe('sign in', () => {
     const other = await refreshTokens(cfg(tokenEndpoint([{ status: 503, body: {} }]).fetch), 'rt', NOW).catch((e: unknown) => e);
     expect(other).toBeInstanceOf(Error);
     expect(other).not.toBeInstanceOf(OAuthError);
+  });
+
+  it('tells a missing admin consent from an ended sign-in', async () => {
+    const consent = { error: 'invalid_grant', error_description: 'AADSTS65001: The user or administrator has not consented to use the application.' };
+    await expect(refreshTokens(cfg(tokenEndpoint([{ status: 400, body: consent }]).fetch), 'rt', NOW)).rejects.toMatchObject({ message: ADMIN_CONSENT });
+    expect(needsAdminConsent('access_denied', 'AADSTS90094: The grant requires admin permission.')).toBe(true);
+    expect(needsAdminConsent('access_denied', 'AADSTS65004: User declined to consent.')).toBe(false);
+    expect(needsAdminConsent('consent_required', null)).toBe(true);
+  });
+
+  it('builds the admin consent link for organizations with the mail scopes', () => {
+    const url = new URL(adminConsentUrl(cfg()));
+    expect(url.pathname).toBe('/organizations/v2.0/adminconsent');
+    expect(url.searchParams.get('scope')).toBe('https://outlook.office.com/SMTP.Send https://outlook.office.com/IMAP.AccessAsUser.All');
+    expect(url.searchParams.get('redirect_uri')).toBe(cfg().redirectUri);
   });
 });
 

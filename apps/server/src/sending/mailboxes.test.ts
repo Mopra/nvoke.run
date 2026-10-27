@@ -5,9 +5,10 @@ import { createSecrets } from '../crypto/secrets.js';
 import { ensureAccount } from '../leads/quota.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import { silentLog } from '../testing/fakes.js';
+import type { AuthDns } from '../tools/email-auth.js';
 import { createFakeTransport, type FakeTransport } from './fake-transport.js';
 import { seedCampaign, seedLead } from './test-seed.js';
-import { SIGN_IN_AGAIN, signState, type MicrosoftOAuth } from './oauth.js';
+import { ADMIN_CONSENT, SIGN_IN_AGAIN, signState, type MicrosoftOAuth } from './oauth.js';
 import {
   checkMailbox,
   checkReason,
@@ -27,6 +28,21 @@ let fake: FakeTransport;
 let deps: MailboxDeps;
 const secrets = createSecrets(randomBytes(32).toString('base64'));
 
+const nodata = () => Object.assign(new Error('nodata'), { code: 'ENODATA' });
+/** DNS with only these TXT records (and an MX for every domain), so no test reaches real DNS. */
+function authDns(txt: Record<string, string> = {}): AuthDns {
+  return {
+    resolveMx: async (d) => [{ exchange: `mx.${d}`, priority: 10 }],
+    resolve4: async () => { throw nodata(); },
+    resolve6: async () => { throw nodata(); },
+    resolveTxt: async (name) => {
+      const record = txt[name];
+      if (record === undefined) throw nodata();
+      return [[record]];
+    },
+  };
+}
+
 beforeAll(async () => {
   db = await createTestDb();
 });
@@ -38,7 +54,7 @@ beforeEach(async () => {
   await ensureAccount(db.sql, 'u1');
   await ensureAccount(db.sql, 'u2');
   fake = createFakeTransport();
-  deps = { sql: db.sql, secrets, transport: fake.factory, log: silentLog };
+  deps = { sql: db.sql, secrets, transport: fake.factory, log: silentLog, authDns: authDns() };
 });
 
 const req = (over: Partial<ConnectMailboxRequest> = {}): ConnectMailboxRequest => ({
@@ -112,6 +128,39 @@ describe('connect', () => {
   });
 });
 
+describe('domain email auth', () => {
+  it('saves SPF, DKIM and DMARC of the domain without blocking the mailbox', async () => {
+    const m = await connectMailbox(deps, 'u1', req());
+    expect(m.emailAuth).toBeNull();
+    const r = await settled(m.id);
+    // Nothing published: every part fails or warns, and the mailbox is active all the same.
+    expect(r.status).toBe('active');
+    expect(r.email_auth).toMatchObject({ domain: 'acme.io', spf: { grade: 'fail' }, dkim: { grade: 'warn' }, dmarc: { grade: 'fail' } });
+    expect(r.email_auth_at).toBeInstanceOf(Date);
+
+    const good = authDns({
+      'acme.io': 'v=spf1 include:_spf.google.com ~all',
+      '_dmarc.acme.io': 'v=DMARC1; p=reject; rua=mailto:d@acme.io',
+      'google._domainkey.acme.io': 'v=DKIM1; k=rsa; p=MIIB',
+    });
+    await checkMailbox({ ...deps, authDns: good }, m.id);
+    const [got] = await listMailboxes(db.sql, 'u1');
+    expect(got!.emailAuth).toMatchObject({ spf: { grade: 'pass' }, dkim: { grade: 'pass', selectors: ['google'] }, dmarc: { grade: 'pass', policy: 'reject' } });
+  });
+
+  it('keeps the last result and the login verdict when DNS breaks', async () => {
+    const m = await connectMailbox(deps, 'u1', req());
+    const before = (await settled(m.id)).email_auth;
+    // No resolve4 makes checkEmailAuth itself throw.
+    const broken = { ...authDns(), resolveMx: async () => { throw nodata(); }, resolve4: undefined } as unknown as AuthDns;
+    fake.checkResult = { ok: false, step: 'imap', kind: 'auth', message: 'no' };
+    await expect(checkMailbox({ ...deps, authDns: broken }, m.id)).resolves.toBeUndefined();
+    const r = await row(m.id);
+    expect(r.status).toBe('error');
+    expect(r.email_auth).toEqual(before);
+  });
+});
+
 describe('sign in with Microsoft', () => {
   const idToken = (claims: Record<string, unknown>) => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
   /** A token endpoint that signs in the given address every time. */
@@ -174,6 +223,7 @@ describe('sign in with Microsoft', () => {
     const ms = { smtp_host: 'smtp.office365.com', smtp_port: 587, imap_host: 'outlook.office365.com', imap_port: 993, provider: 'microsoft' as const };
     expect(checkReason(ms, { ok: false, step: 'smtp', kind: 'auth', message: '535 5.7.139' })).toMatch(/Authenticated SMTP/);
     expect(checkReason(ms, { ok: false, step: 'smtp', kind: 'auth', message: SIGN_IN_AGAIN })).toMatch(/Sign in with Microsoft again/);
+    expect(checkReason(ms, { ok: false, step: 'smtp', kind: 'auth', message: ADMIN_CONSENT })).toMatch(/admin of this organization to approve/);
   });
 });
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ToolEmailAuthResponse } from './tools.ts';
 
 /**
  * Sending (docs/sending/plan.md): mailboxes the user connects, campaigns
@@ -48,6 +49,8 @@ export const Mailbox = z.object({
   lastSendAt: datetime.nullable(),
   lastPollAt: datetime.nullable(),
   createdAt: datetime,
+  /** SPF, DKIM and DMARC of the address's domain from the last check. Shown, never blocking. Null before the first. */
+  emailAuth: ToolEmailAuthResponse.nullable(),
 });
 export type Mailbox = z.infer<typeof Mailbox>;
 

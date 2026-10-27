@@ -3,7 +3,7 @@
 import type { ComponentProps, ReactNode } from 'react';
 import Link from 'next/link';
 import { Mail, Send } from 'lucide-react';
-import type { CampaignStatus, MailboxStatus } from '@nvoke/shared';
+import type { CampaignStatus, Mailbox, MailboxStatus } from '@nvoke/shared';
 import { PLATE } from '@/components/app/search-fields';
 import { APP_INSET, KeyGroup } from '@/components/app/shell';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,43 @@ export function CampaignLed({ status, screen = false, className }: { status: Cam
         className,
       )}
     />
+  );
+}
+
+type EmailAuth = NonNullable<Mailbox['emailAuth']>;
+type AuthGrade = EmailAuth['spf']['grade'];
+
+/** SPF, DKIM and DMARC of the sending domain, in the order a receiver reads them. */
+export const EMAIL_AUTH_PARTS = [
+  ['spf', 'SPF'],
+  ['dkim', 'DKIM'],
+  ['dmarc', 'DMARC'],
+] as const;
+
+const GRADE_LED: Record<AuthGrade, string> = {
+  pass: 'bg-chart-1 shadow-[0_0_6px_var(--chart-1)]',
+  warn: 'bg-chart-2',
+  fail: 'bg-destructive',
+};
+
+export function AuthGradeLed({ grade, className }: { grade: AuthGrade; className?: string }) {
+  return <span aria-hidden className={cn('led', GRADE_LED[grade], className)} />;
+}
+
+/** The sending domain's SPF, DKIM and DMARC as three LEDs; the notes on hover. Shown only, never blocking. */
+export function EmailAuthLeds({ auth, className }: { auth: EmailAuth; className?: string }) {
+  return (
+    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', className)}>
+      {EMAIL_AUTH_PARTS.map(([key, label]) => {
+        const part = auth[key];
+        return (
+          <span key={key} className="flex items-center gap-1.5" title={[`${label} ${part.grade} on ${auth.domain}`, ...part.notes].join('\n')}>
+            <AuthGradeLed grade={part.grade} />
+            <span className={cn('cap', part.grade === 'fail' ? 'text-destructive' : 'text-muted-foreground')}>{label}</span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
