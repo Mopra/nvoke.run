@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-27 Woken: 'Sending footer follows the email's language' stopped to wait on its own language footer agent (per-campaign override done). Told it to wait in the same turn, finish, run checks and report completed; gave it Model: sonnet.
 - 2026-10-27 Round as the human left: unchanged (only memory commits past green 8637547, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
 - 2026-10-27 Hourly round: unchanged (only memory commits past green 8637547, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
 - 2026-10-27 Round after 'Microsoft 365 mailboxes via OAuth' landed green at 8637547 (admin consent, SPF/DKIM/DMARC check). Clips and the Common Crawl trial still wait on the owner, no aim. Nothing to file.
