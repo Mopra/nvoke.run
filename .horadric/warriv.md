@@ -10,6 +10,7 @@
 
 ## Lately
 
+- 2026-10-27 Hourly round: 'Campaigns with fixed text' landed (3b796b5) and the human committed f084fb7 (move an unsent lead to another mailbox) 15 minutes ago past green fb1d7dc, so held checks back while they may be mid stream. Stray '--help' still open, clips and Common Crawl wait on the owner, no aim.
 - 2026-10-27 Round after 'Campaign writer fails on every lead mid-run' landed green at fb1d7dc. Gave 'Campaigns with fixed text' Model: opus (schema, worker and API) and the 39-lead retry Model: sonnet (it blocks until the human deploys 82a5e81). Stray '--help' quest told to close earlier.
 - 2026-10-27 Round after 'Writer uses plural ni for shared inboxes' landed green at 26709c2. Gave 'Campaign writer fails on every lead mid-run' Model: opus (hard bug). Footer and writer-failure quests running, clips and Common Crawl wait on the owner, no aim.
 - 2026-10-27 Woken: 'Sending footer follows the email's language' stopped to wait on its own language footer agent (per-campaign override done). Told it to wait in the same turn, finish, run checks and report completed; gave it Model: sonnet.
