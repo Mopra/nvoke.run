@@ -1,13 +1,15 @@
 // Mailboxes the user connects (docs/sending/plan.md, "Step 1"): connect,
-// check, edit, delete, and the list with today's capacity. The password is
-// sealed with SECRETS_KEY before it reaches the table and only opened here,
-// for the transport. Every query is scoped by clerk_user_id.
+// check, edit, delete, and the list with today's capacity. The password, or
+// a Microsoft mailbox's OAuth tokens (oauth.ts), is sealed with SECRETS_KEY
+// before it reaches the table and only opened here, for the transport.
+// Every query is scoped by clerk_user_id.
 
 import { MAX_MAILBOXES, type ConnectMailboxRequest, type Mailbox, type UpdateMailboxRequest } from '@nvoke/shared';
 import type { Logger } from 'pino';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { SecretsError, type Secrets } from '../crypto/secrets.js';
 import { pauseOrphanedCampaigns } from './health.js';
+import { APP_REFUSED, checkState, exchangeCode, MICROSOFT_SERVERS, pkceVerifier, SIGN_IN_AGAIN, tokenSource, type MicrosoftOAuth } from './oauth.js';
 import { finishIfDone } from './outcomes.js';
 import { mailboxCapacity } from './schedule.js';
 import type { CheckResult, MailboxCredentials, TransportFactory } from './types.js';
@@ -17,11 +19,13 @@ export interface MailboxDeps {
   secrets: Secrets;
   transport: TransportFactory;
   log: Logger;
+  /** The Microsoft app, for signing in and refreshing tokens. Null or left out: Microsoft sign-in is off. */
+  microsoft?: MicrosoftOAuth | null;
 }
 
 export class MailboxError extends Error {
   constructor(
-    readonly code: 'too_many_mailboxes' | 'exists' | 'not_found',
+    readonly code: 'too_many_mailboxes' | 'exists' | 'not_found' | 'oauth_failed' | 'oauth_unavailable' | 'password_not_used',
     message: string,
   ) {
     super(message);
@@ -57,9 +61,16 @@ export interface MailboxRow {
   created_at: Date;
 }
 
-/** Opens the sealed password. Throws SecretsError when SECRETS_KEY changed. */
-export function credentialsFor(secrets: Secrets, row: MailboxRow): MailboxCredentials {
-  return {
+/** What credentialsFor needs: the key, and for a Microsoft mailbox where to save refreshed tokens. */
+export interface CredentialDeps {
+  sql: Sql | TransactionSql;
+  secrets: Secrets;
+  microsoft?: MicrosoftOAuth | null;
+}
+
+/** Opens the sealed password or tokens. Throws SecretsError when SECRETS_KEY changed. */
+export function credentialsFor(deps: CredentialDeps, row: MailboxRow): MailboxCredentials {
+  const base = {
     address: row.address,
     displayName: row.display_name,
     smtpHost: row.smtp_host,
@@ -68,8 +79,11 @@ export function credentialsFor(secrets: Secrets, row: MailboxRow): MailboxCreden
     imapHost: row.imap_host,
     imapPort: row.imap_port,
     username: row.username,
-    password: secrets.open(row.secret),
   };
+  if (row.provider === 'microsoft') {
+    return { ...base, password: '', accessToken: tokenSource(deps, row.id, row.secret) };
+  }
+  return { ...base, password: deps.secrets.open(row.secret) };
 }
 
 type RowWithSent = MailboxRow & { sent_today: number };
@@ -156,7 +170,7 @@ export async function checkMailbox(deps: MailboxDeps, mailboxId: string): Promis
   if (!row) return;
   let result: CheckResult;
   try {
-    const transport = deps.transport(credentialsFor(deps.secrets, row));
+    const transport = deps.transport(credentialsFor(deps, row));
     try {
       result = await transport.check();
     } finally {
@@ -165,7 +179,9 @@ export async function checkMailbox(deps: MailboxDeps, mailboxId: string): Promis
   } catch (err) {
     if (!(err instanceof SecretsError)) throw err;
     await sql`
-      update mailboxes set status = 'error', status_reason = 'The saved password no longer opens. Enter it again.'
+      update mailboxes set status = 'error', status_reason = ${row.provider === 'microsoft'
+        ? 'The saved sign-in no longer opens. Sign in with Microsoft again.'
+        : 'The saved password no longer opens. Enter it again.'}
       where id = ${mailboxId}`;
     return;
   }
@@ -181,7 +197,10 @@ export async function checkMailbox(deps: MailboxDeps, mailboxId: string): Promis
 }
 
 /** Plain words for a failed check, with the provider's own fix when we know it. */
-export function checkReason(row: Pick<MailboxRow, 'smtp_host' | 'smtp_port' | 'imap_host' | 'imap_port'>, r: Extract<CheckResult, { ok: false }>): string {
+export function checkReason(
+  row: Pick<MailboxRow, 'smtp_host' | 'smtp_port' | 'imap_host' | 'imap_port'> & Partial<Pick<MailboxRow, 'provider'>>,
+  r: Extract<CheckResult, { ok: false }>,
+): string {
   const host = r.step === 'smtp' ? row.smtp_host : row.imap_host;
   const port = r.step === 'smtp' ? row.smtp_port : row.imap_port;
   const side = r.step === 'smtp' ? 'SMTP' : 'IMAP';
@@ -189,6 +208,13 @@ export function checkReason(row: Pick<MailboxRow, 'smtp_host' | 'smtp_port' | 'i
   const microsoft = /(^|\.)(office365|outlook|office)\.com$/.test(host);
   switch (r.kind) {
     case 'auth':
+      if (row.provider === 'microsoft') {
+        if (r.message === APP_REFUSED) return 'Microsoft refused nvoke’s app (its client secret may have expired, or the app is not set up on this server). Nothing to do on the mailbox.';
+        if (r.message === SIGN_IN_AGAIN) return 'The Microsoft sign-in ended (revoked, expired or the password changed). Sign in with Microsoft again.';
+        return r.step === 'smtp'
+          ? 'Microsoft refused the sign-in for sending. An admin must turn on Authenticated SMTP for this mailbox (Microsoft 365 admin center, Users, Mail, Manage email apps), then check again.'
+          : 'Microsoft refused the sign-in for reading. An admin must turn on IMAP for this mailbox (Microsoft 365 admin center, Users, Mail, Manage email apps), then check again.';
+      }
       if (google) return 'Google refused the password. Use an app password (myaccount.google.com/apppasswords).';
       if (microsoft) return 'Microsoft refused the login. Your admin must allow SMTP AUTH for this mailbox, and an account with MFA needs an app password.';
       return `The ${side} server refused the username or password. Check them, or make an app password if the account has two-step login.`;
@@ -207,12 +233,62 @@ export function checkReason(row: Pick<MailboxRow, 'smtp_host' | 'smtp_port' | 'i
   }
 }
 
+/**
+ * The end of Sign in with Microsoft: checks the state, trades the code for
+ * tokens and connects the mailbox that signed in. Signing in again with a
+ * mailbox already connected replaces its sign-in (a password mailbox moves
+ * to the sign-in) and checks it again; its settings stay. A mailbox the
+ * user paused stays paused; one paused for a refused login resumes.
+ */
+export async function connectMicrosoftMailbox(deps: MailboxDeps, userId: string, code: string, state: string, now: Date = new Date()): Promise<Mailbox> {
+  const { sql } = deps;
+  if (!deps.microsoft) throw new MailboxError('oauth_unavailable', 'Sign in with Microsoft is not set up on this server.');
+  if (!checkState(deps.secrets, userId, state, now)) throw new MailboxError('oauth_failed', 'That sign-in expired or was not started here. Try again.');
+  let signedIn: Awaited<ReturnType<typeof exchangeCode>>;
+  try {
+    signedIn = await exchangeCode(deps.microsoft, code, pkceVerifier(deps.secrets, state), now);
+  } catch (err) {
+    deps.log.warn({ err }, 'microsoft code exchange failed');
+    throw new MailboxError('oauth_failed', 'Microsoft did not accept the sign-in. Try again.');
+  }
+  const { tokens, identity } = signedIn;
+  const secret = deps.secrets.seal(JSON.stringify(tokens));
+  const servers = MICROSOFT_SERVERS;
+  const [existing] = await sql<{ id: string; status: Mailbox['status']; status_reason: string | null }[]>`
+    select id, status, status_reason from mailboxes where clerk_user_id = ${userId} and address = ${identity.address}`;
+  let id: string;
+  if (existing) {
+    id = existing.id;
+    await sql`
+      update mailboxes set provider = 'microsoft', smtp_host = ${servers.smtpHost}, smtp_port = ${servers.smtpPort}, smtp_secure = false,
+        imap_host = ${servers.imapHost}, imap_port = ${servers.imapPort}, username = ${identity.username}, secret = ${secret},
+        status = ${existing.status === 'paused' && existing.status_reason === null ? 'paused' : 'checking'}, status_reason = null
+      where id = ${id}`;
+  } else {
+    const [count] = await sql<{ n: number }[]>`select count(*)::int as n from mailboxes where clerk_user_id = ${userId}`;
+    if ((count?.n ?? 0) >= MAX_MAILBOXES) throw new MailboxError('too_many_mailboxes', `At most ${MAX_MAILBOXES} mailboxes.`);
+    const [row] = await sql<{ id: string }[]>`
+      insert into mailboxes (clerk_user_id, address, display_name, provider, smtp_host, smtp_port, smtp_secure,
+        imap_host, imap_port, username, secret, status)
+      values (${userId}, ${identity.address}, ${identity.displayName}, 'microsoft', ${servers.smtpHost}, ${servers.smtpPort}, false,
+        ${servers.imapHost}, ${servers.imapPort}, ${identity.username}, ${secret}, 'checking')
+      returning id`;
+    id = row!.id;
+  }
+  const mailbox = (await getMailbox(sql, userId, id))!;
+  startCheck(deps, id);
+  return mailbox;
+}
+
 /** A new password or a switch back to active checks the mailbox again. */
 export async function updateMailbox(deps: MailboxDeps, userId: string, id: string, req: UpdateMailboxRequest): Promise<Mailbox | null> {
   const { sql } = deps;
-  const [cur] = await sql<Pick<MailboxRow, 'status' | 'warm'>[]>`
-    select status, warm from mailboxes where id = ${id} and clerk_user_id = ${userId}`;
+  const [cur] = await sql<Pick<MailboxRow, 'status' | 'warm' | 'provider'>[]>`
+    select status, warm, provider from mailboxes where id = ${id} and clerk_user_id = ${userId}`;
   if (!cur) return null;
+  if (req.password !== undefined && cur.provider === 'microsoft') {
+    throw new MailboxError('password_not_used', 'This mailbox signs in with Microsoft. Sign in again instead of a password.');
+  }
   const set: Record<string, unknown> = {};
   if (req.displayName !== undefined) set.display_name = req.displayName;
   if (req.dailyCap !== undefined) set.daily_cap = req.dailyCap;

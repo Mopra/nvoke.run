@@ -12,7 +12,10 @@ export interface MailboxCredentials {
   imapHost: string;
   imapPort: number;
   username: string;
+  /** Empty for a mailbox that signs in with OAuth. */
   password: string;
+  /** A Microsoft mailbox: a fresh access token for XOAUTH2, refreshed and saved when it runs out (oauth.ts). */
+  accessToken?: () => Promise<string>;
 }
 
 export interface OutgoingMail {

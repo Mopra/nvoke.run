@@ -51,6 +51,10 @@ export async function checkHealth(sql: Db, mailboxId: string, now: Date = new Da
 /** The provider refused the login while sending. */
 export async function authFailed(sql: Db, mailboxId: string, response: string): Promise<boolean> {
   const detail = response.trim().slice(0, 200);
+  const [box] = await sql<{ provider: string }[]>`select provider from mailboxes where id = ${mailboxId}`;
+  if (box?.provider === 'microsoft') {
+    return pauseMailbox(sql, mailboxId, `Paused: Microsoft refused the sign-in${detail ? ` (${detail})` : ''}. Sign in with Microsoft again to resume.`);
+  }
   return pauseMailbox(
     sql,
     mailboxId,

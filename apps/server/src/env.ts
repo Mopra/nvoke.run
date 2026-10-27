@@ -166,6 +166,10 @@ const EnvSchema = z.object({
   // only. Sending is not a customer feature; everyone else gets 404 on the
   // sending routes and the worker never touches their campaigns. Empty means nobody.
   SENDING_USERS: list,
+  // Sign in with Microsoft for mailboxes (docs/sending/plan.md, "Step 2"):
+  // the Entra app registration. Both unset: only password mailboxes.
+  MICROSOFT_MAIL_CLIENT_ID: optional,
+  MICROSOFT_MAIL_CLIENT_SECRET: optional,
 });
 
 export type Env = z.infer<typeof EnvSchema>;

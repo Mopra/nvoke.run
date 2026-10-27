@@ -27,6 +27,7 @@ import { isPolicyBlock } from './classify.js';
 import { isBlockedCountry } from './gate.js';
 import { authFailed, checkHealth, pauseMailbox } from './health.js';
 import { credentialsFor, type MailboxRow } from './mailboxes.js';
+import type { MicrosoftOAuth } from './oauth.js';
 import { endLead, finishIfDone, recordIncoming } from './outcomes.js';
 import { recheckSsl, type RecheckResult } from './recheck.js';
 import { inWindow, mailboxCapacity, MIN_GAP_MS, nextSendAt, pickDue, stepSendAt, type DueLead, type MailboxSlot } from './schedule.js';
@@ -48,6 +49,8 @@ export interface SendDeps {
   stopping?: () => boolean;
   /** The live certificate check for a `recheck: 'ssl'` product. recheckSsl when left out. */
   recheckSsl?: (domain: string, now: Date) => Promise<RecheckResult>;
+  /** The Microsoft app, to refresh a Microsoft mailbox's sign-in. */
+  microsoft?: MicrosoftOAuth | null;
 }
 
 export interface SendTickResult {
@@ -292,9 +295,15 @@ async function claimLead(deps: SendDeps, tx: TransactionSql, leadId: string, mai
 
   let creds: MailboxCredentials;
   try {
-    creds = credentialsFor(deps.secrets, mailbox);
+    creds = credentialsFor(deps, mailbox);
   } catch {
-    await pauseMailbox(tx, mailboxId, 'Paused: the saved password no longer opens. Enter the app password again to resume.');
+    await pauseMailbox(
+      tx,
+      mailboxId,
+      mailbox.provider === 'microsoft'
+        ? 'Paused: the saved sign-in no longer opens. Sign in with Microsoft again to resume.'
+        : 'Paused: the saved password no longer opens. Enter the app password again to resume.',
+    );
     return 'skipped';
   }
 

@@ -11,6 +11,7 @@ import { classifyMail, type Classified } from './classify.js';
 import { authFailed, checkHealth } from './health.js';
 import { checkFailure } from './mailbox-transport.js';
 import { credentialsFor, type MailboxRow } from './mailboxes.js';
+import type { MicrosoftOAuth } from './oauth.js';
 import { delayForAutoReply, endLead, recordIncoming } from './outcomes.js';
 import type { IncomingMail, TransportFactory } from './types.js';
 
@@ -23,6 +24,8 @@ export interface PollDeps {
   enabled: boolean;
   /** SENDING_USERS: only their mailboxes are read. Empty reads nothing. */
   users: readonly string[];
+  /** The Microsoft app, to refresh a Microsoft mailbox's sign-in. */
+  microsoft?: MicrosoftOAuth | null;
 }
 
 export interface PollTickResult {
@@ -76,7 +79,7 @@ export async function pollTick(deps: PollDeps, now: Date = new Date()): Promise<
 
 async function pollMailbox(deps: PollDeps, mailbox: MailboxRow, now: Date, result: PollTickResult): Promise<void> {
   const { sql } = deps;
-  const transport = deps.transport(credentialsFor(deps.secrets, mailbox));
+  const transport = deps.transport(credentialsFor(deps, mailbox));
   let bounced = false;
   try {
     const polled = await transport.poll(mailbox.poll_state ?? {});

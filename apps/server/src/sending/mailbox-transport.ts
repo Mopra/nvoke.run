@@ -2,7 +2,8 @@
 // Mail goes out through the mailbox provider's own submission server with
 // nodemailer; replies, bounces and auto replies come in over IMAP with
 // imapflow, read only, from every folder a reply can land in (pollFolders),
-// and mailparser turns each raw message into an IncomingMail.
+// and mailparser turns each raw message into an IncomingMail. A Microsoft
+// mailbox logs in to both with an OAuth access token (XOAUTH2, oauth.ts).
 //
 // The hosts and ports come from the user and the connection goes out from
 // our VPS, so every connection resolves the host with the webhook guard
@@ -106,7 +107,9 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
       port: creds.smtpPort,
       secure: creds.smtpSecure,
       requireTLS: !creds.smtpSecure,
-      auth: { user: creds.username, pass: creds.password },
+      auth: creds.accessToken
+        ? { type: 'OAuth2', user: creds.username, accessToken: await creds.accessToken() }
+        : { user: creds.username, pass: creds.password },
       connectionTimeout: TIMEOUT_MS,
       greetingTimeout: TIMEOUT_MS,
       socketTimeout: TIMEOUT_MS,
@@ -123,7 +126,7 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
       servername: pin.servername,
       port: creds.imapPort,
       secure: creds.imapPort !== 143,
-      auth: { user: creds.username, pass: creds.password },
+      auth: creds.accessToken ? { user: creds.username, accessToken: await creds.accessToken() } : { user: creds.username, pass: creds.password },
       logger: false,
       tls: pinnedTls(opts.tls, pin),
       connectionTimeout: TIMEOUT_MS,

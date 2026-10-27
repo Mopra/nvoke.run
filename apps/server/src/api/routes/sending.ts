@@ -17,6 +17,7 @@ import {
   CampaignLeadsQuery,
   CampaignStepParams,
   ConnectMailboxRequest,
+  MailboxOAuthCallbackRequest,
   CreateCampaignRequest,
   ReplyListQuery,
   SendingIdParams,
@@ -46,6 +47,7 @@ import {
   MailboxError,
   checkMailbox,
   connectMailbox,
+  connectMicrosoftMailbox,
   deleteMailbox,
   getMailbox,
   listMailboxes,
@@ -53,6 +55,7 @@ import {
   type MailboxDeps,
 } from '../../sending/mailboxes.js';
 import { listReplies, markReplyRead, sendingSummary } from '../../sending/queries.js';
+import { authorizeUrl, pkceVerifier, signState, type MicrosoftOAuth } from '../../sending/oauth.js';
 import type { TransportFactory } from '../../sending/types.js';
 import { requireUser } from '../user.js';
 
@@ -65,6 +68,8 @@ export interface SendingRoutesOptions {
   enabled: boolean;
   transport: TransportFactory;
   log: Logger;
+  /** The Microsoft app for Sign in with Microsoft. Null: password mailboxes only. */
+  microsoft?: MicrosoftOAuth | null;
   /** SENDING_USERS: the Clerk user ids allowed to send. Read from the environment when left out. */
   users?: readonly string[];
 }
@@ -78,6 +83,9 @@ const MAILBOX_ERRORS: Record<MailboxError['code'], [number, string]> = {
   too_many_mailboxes: [409, 'too_many_mailboxes'],
   exists: [409, 'mailbox_exists'],
   not_found: [404, 'not_found'],
+  oauth_failed: [400, 'oauth_failed'],
+  oauth_unavailable: [503, 'oauth_unavailable'],
+  password_not_used: [400, 'password_not_used'],
 };
 const CAMPAIGN_ERRORS: Record<CampaignErrorCode, number> = {
   not_found: 404,
@@ -138,7 +146,13 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
   const guarded = { preHandler: available };
   const byPerson = { preHandler: [available, person] };
 
-  const mailboxDeps = (): MailboxDeps => ({ sql: opts.getSql(), secrets: opts.secrets!, transport: opts.transport, log: opts.log });
+  const mailboxDeps = (): MailboxDeps => ({
+    sql: opts.getSql(),
+    secrets: opts.secrets!,
+    transport: opts.transport,
+    log: opts.log,
+    microsoft: opts.microsoft ?? null,
+  });
   const idOf = (req: FastifyRequest) => {
     const params = SendingIdParams.safeParse(req.params);
     return params.success ? params.data.id : null;
@@ -154,6 +168,20 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     const body = ConnectMailboxRequest.safeParse(req.body);
     if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
     return reply.code(201).send(await connectMailbox(mailboxDeps(), req.userId!, body.data));
+  });
+
+  // Sign in with Microsoft: start hands back Microsoft's sign-in page, the
+  // site's callback page posts the code here. A person only, like Start.
+  app.post('/mailboxes/oauth/microsoft/start', byPerson, async (req, reply) => {
+    if (!opts.microsoft) return sendError(reply, 503, 'oauth_unavailable');
+    const state = signState(opts.secrets!, req.userId!);
+    return { url: authorizeUrl(opts.microsoft, state, pkceVerifier(opts.secrets!, state)) };
+  });
+
+  app.post('/mailboxes/oauth/microsoft', byPerson, async (req, reply) => {
+    const body = MailboxOAuthCallbackRequest.safeParse(req.body);
+    if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.issues);
+    return reply.code(201).send(await connectMicrosoftMailbox(mailboxDeps(), req.userId!, body.data.code, body.data.state));
   });
 
   app.patch('/mailboxes/:id', guarded, async (req, reply) => {

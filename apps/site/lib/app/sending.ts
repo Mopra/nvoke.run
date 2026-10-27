@@ -272,6 +272,12 @@ export function sendingError(error: unknown): string {
     case 'mailbox_exists':
     case 'exists':
       return 'That mailbox is connected already.';
+    case 'oauth_failed':
+      return 'Microsoft did not finish the sign-in. Try again.';
+    case 'oauth_unavailable':
+      return 'Sign in with Microsoft is not set up on this server yet.';
+    case 'password_not_used':
+      return 'This mailbox signs in with Microsoft. Sign in again instead.';
     case 'too_many_campaigns':
       return 'You have 50 campaigns. Delete one first.';
     case 'bad_mailbox':
@@ -372,6 +378,8 @@ export function mailboxFormProblem(form: MailboxForm): string | null {
   if (!form.displayName.trim()) return 'Type the name recipients see.';
   if (!form.smtpHost.trim() || !form.imapHost.trim()) return 'Fill in the SMTP and IMAP servers.';
   if (!validPort(form.smtpPort) || !validPort(form.imapPort)) return 'A port is a number from 1 to 65535.';
+  // Microsoft takes no password over SMTP and IMAP any more.
+  if (form.preset === 'microsoft') return 'Microsoft mailboxes connect with Sign in with Microsoft, above.';
   if (!form.password) return 'Paste the app password.';
   return null;
 }

@@ -23,6 +23,7 @@ import { webSearchConfigured } from '../leads/sources/paid-search.js';
 import { createSecrets } from '../crypto/secrets.js';
 import { enrollTick } from '../sending/enroll.js';
 import { smtpImapTransport } from '../sending/mailbox-transport.js';
+import { microsoftOAuthFrom } from '../sending/oauth.js';
 import { pollTick } from '../sending/poller.js';
 import { sendTick } from '../sending/sender.js';
 import { VERSION } from '../version.js';
@@ -159,6 +160,7 @@ if (sendingOn) {
     sql,
     secrets: createSecrets(env.SECRETS_KEY!),
     transport: smtpImapTransport,
+    microsoft: microsoftOAuthFrom(env),
     log: log.child({ part: 'sending' }),
     publicApiUrl: env.PUBLIC_API_URL,
     enabled: true,

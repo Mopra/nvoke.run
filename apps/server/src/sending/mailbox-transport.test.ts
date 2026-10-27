@@ -52,6 +52,7 @@ vi.mock('imapflow', () => ({
   },
 }));
 
+const { OAuthError, SIGN_IN_AGAIN } = await import('./oauth.js');
 const { checkFailure, createSmtpImapTransport, MailHostError, parseIncoming, pinHost, planFolder, pollFolders, sendFailure } = await import('./mailbox-transport.js');
 
 // A real SMTP server: STARTTLS with smtp-server's own self-signed cert, a
@@ -67,9 +68,13 @@ let smtpPort = 0;
 
 beforeAll(async () => {
   server = new SMTPServer({
-    authMethods: ['PLAIN', 'LOGIN'],
+    authMethods: ['PLAIN', 'LOGIN', 'XOAUTH2'],
     logger: false,
     onAuth(auth, _session, cb) {
+      if (auth.method === 'XOAUTH2') {
+        if (auth.username === 'me@acme.io' && auth.accessToken === 'good-token') return cb(null, { user: auth.username });
+        return cb(null, { data: { status: '401', schemes: 'bearer' } });
+      }
       if (auth.username === 'me@acme.io' && auth.password === 'app-pass') cb(null, { user: auth.username });
       else cb(Object.assign(new Error('5.7.8 Username and Password not accepted'), { responseCode: 535 }));
     },
@@ -171,6 +176,22 @@ describe('send over SMTP', () => {
     expect(await t.send(mail('later@beta.io'))).toMatchObject({ ok: false, kind: 'temporary' });
     await t.close();
     expect(received).toHaveLength(0);
+  });
+
+  it('logs in with an access token over XOAUTH2, and an ended sign-in is auth', async () => {
+    const t = transport({ password: '', accessToken: async () => 'good-token' });
+    expect(await t.send(mail('ben@beta.io'))).toMatchObject({ ok: true });
+    await t.close();
+    expect(received).toHaveLength(1);
+
+    const refused = transport({ password: '', accessToken: async () => 'stale-token' });
+    expect(await refused.send(mail('ben@beta.io'))).toMatchObject({ ok: false, kind: 'auth' });
+    await refused.close();
+
+    const ended = transport({ password: '', accessToken: () => Promise.reject(new OAuthError()) });
+    expect(await ended.send(mail('ben@beta.io'))).toMatchObject({ ok: false, kind: 'auth' });
+    expect(await ended.check()).toEqual({ ok: false, step: 'smtp', kind: 'auth', message: SIGN_IN_AGAIN });
+    await ended.close();
   });
 
   it('calls a server that is not there temporary', async () => {

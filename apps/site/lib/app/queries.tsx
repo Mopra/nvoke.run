@@ -11,6 +11,7 @@ import type {
   ConnectMailboxRequest,
   CreateCampaignRequest,
   MailboxListResponse,
+  MailboxOAuthCallbackRequest,
   ReplyListResponse,
   SaveAiKeyRequest,
   SaveSearchKeyRequest,
@@ -639,6 +640,29 @@ export function useConnectMailbox() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: ConnectMailboxRequest) => api.connectMailbox(input),
+    onSuccess: (mailbox) => {
+      client.setQueryData<MailboxListResponse>(keys.mailboxes, (list) => storeMailbox(list, mailbox));
+      void client.invalidateQueries({ queryKey: keys.mailboxes });
+      void client.invalidateQueries({ queryKey: keys.sending });
+    },
+  });
+}
+
+/** Sign in with Microsoft: asks the API for Microsoft's page and goes there. */
+export function useMicrosoftSignIn() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: () => api.startMicrosoftSignIn(),
+    onSuccess: ({ url }) => window.location.assign(url),
+  });
+}
+
+/** The callback page's half: hands the code to the API, which connects the mailbox. */
+export function useFinishMicrosoftSignIn() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: MailboxOAuthCallbackRequest) => api.finishMicrosoftSignIn(input),
     onSuccess: (mailbox) => {
       client.setQueryData<MailboxListResponse>(keys.mailboxes, (list) => storeMailbox(list, mailbox));
       void client.invalidateQueries({ queryKey: keys.mailboxes });

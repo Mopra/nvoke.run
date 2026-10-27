@@ -36,6 +36,7 @@ import { searchKeyRoutes } from './routes/search-key.js';
 import { unsubscribeRoutes } from './routes/unsubscribe.js';
 import { createSecrets, type Secrets } from '../crypto/secrets.js';
 import { smtpImapTransport } from '../sending/mailbox-transport.js';
+import { microsoftOAuthFrom, type MicrosoftOAuth } from '../sending/oauth.js';
 import type { TransportFactory } from '../sending/types.js';
 
 /** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
@@ -68,6 +69,8 @@ export interface AppDeps {
   secrets?: Secrets | null;
   /** SMTP and IMAP. Tests pass the fake transport. */
   mailTransport?: TransportFactory;
+  /** Tests: the Microsoft app with a fake token endpoint, or null for off. */
+  microsoftOAuth?: MicrosoftOAuth | null;
 }
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
@@ -192,6 +195,7 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     users: env.SENDING_USERS,
     transport: overrides.mailTransport ?? smtpImapTransport,
     log: app.log as unknown as Logger,
+    microsoft: overrides.microsoftOAuth !== undefined ? overrides.microsoftOAuth : microsoftOAuthFrom(env),
   });
   // Public, no auth: the unsubscribe link in every sent email.
   await app.register(unsubscribeRoutes, { getSql, secrets });

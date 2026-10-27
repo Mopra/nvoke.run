@@ -7,10 +7,12 @@ import { createTestDb, type TestDb } from '../testing/db.js';
 import { silentLog } from '../testing/fakes.js';
 import { createFakeTransport, type FakeTransport } from './fake-transport.js';
 import { seedCampaign, seedLead } from './test-seed.js';
+import { SIGN_IN_AGAIN, signState, type MicrosoftOAuth } from './oauth.js';
 import {
   checkMailbox,
   checkReason,
   connectMailbox,
+  connectMicrosoftMailbox,
   credentialsFor,
   deleteMailbox,
   listMailboxes,
@@ -69,7 +71,7 @@ describe('connect', () => {
     const r = await row(m.id);
     expect(r.secret).not.toContain('abcd');
     expect(r.smtp_secure).toBe(true);
-    expect(credentialsFor(secrets, r)).toMatchObject({ password: 'abcd efgh ijkl mnop', smtpSecure: true, displayName: 'Mia Acme' });
+    expect(credentialsFor(deps, r)).toMatchObject({ password: 'abcd efgh ijkl mnop', smtpSecure: true, displayName: 'Mia Acme' });
     expect((await settled(m.id)).status).toBe('active');
     expect(fake.opened).toEqual(['mia@acme.io']);
   });
@@ -107,6 +109,71 @@ describe('connect', () => {
     const other = { ...deps, secrets: createSecrets(randomBytes(32).toString('base64')) };
     await checkMailbox(other, m.id);
     expect((await row(m.id)).status_reason).toMatch(/no longer opens/);
+  });
+});
+
+describe('sign in with Microsoft', () => {
+  const idToken = (claims: Record<string, unknown>) => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
+  /** A token endpoint that signs in the given address every time. */
+  const microsoft = (address = 'mia@acme.io', status = 200): MicrosoftOAuth => ({
+    clientId: 'client-1',
+    clientSecret: 'shh',
+    redirectUri: 'https://nvoke.run/app/mailboxes/callback',
+    fetch: (async () =>
+      new Response(
+        JSON.stringify(
+          status === 200
+            ? { access_token: 'at', refresh_token: 'refresh-token-plain', expires_in: 3600, id_token: idToken({ preferred_username: address, name: 'Mia Acme' }) }
+            : { error: 'invalid_grant' },
+        ),
+        { status },
+      )) as unknown as typeof fetch,
+  });
+
+  it('connects the mailbox that signed in, with its tokens sealed', async () => {
+    const d = { ...deps, microsoft: microsoft() };
+    const m = await connectMicrosoftMailbox(d, 'u1', 'code', signState(secrets, 'u1'));
+    expect(m).toMatchObject({ address: 'mia@acme.io', displayName: 'Mia Acme', provider: 'microsoft', smtpHost: 'smtp.office365.com', smtpPort: 587, status: 'checking' });
+    const r = await settled(m.id);
+    expect(r.status).toBe('active');
+    expect(r.secret).not.toContain('refresh-token-plain');
+    const creds = credentialsFor(d, r);
+    expect(creds.password).toBe('');
+    expect(await creds.accessToken!()).toBe('at');
+  });
+
+  it('resumes a mailbox paused for a refused login, and keeps one the user paused', async () => {
+    const d = { ...deps, microsoft: microsoft() };
+    const m = await connectMicrosoftMailbox(d, 'u1', 'code', signState(secrets, 'u1'));
+    await settled(m.id);
+    await db.sql`update mailboxes set status = 'paused', status_reason = 'Paused: Microsoft refused the sign-in.' where id = ${m.id}`;
+    await connectMicrosoftMailbox(d, 'u1', 'code', signState(secrets, 'u1'));
+    expect((await settled(m.id)).status).toBe('active');
+    await updateMailbox(d, 'u1', m.id, { status: 'paused' });
+    await connectMicrosoftMailbox(d, 'u1', 'code', signState(secrets, 'u1'));
+    expect((await row(m.id)).status).toBe('paused');
+  });
+
+  it('moves a password mailbox to the sign-in and keeps its settings', async () => {
+    const old = await connectMailbox(deps, 'u1', req());
+    await settled(old.id);
+    await updateMailbox(deps, 'u1', old.id, { dailyCap: 12 });
+    const m = await connectMicrosoftMailbox({ ...deps, microsoft: microsoft() }, 'u1', 'code', signState(secrets, 'u1'));
+    expect(m).toMatchObject({ id: old.id, provider: 'microsoft', dailyCap: 12 });
+    await expect(updateMailbox(deps, 'u1', m.id, { password: 'x' })).rejects.toMatchObject({ code: 'password_not_used' });
+  });
+
+  it('refuses a state from another user, a refused code, and a server without the app', async () => {
+    await expect(connectMicrosoftMailbox({ ...deps, microsoft: microsoft() }, 'u1', 'code', signState(secrets, 'u2'))).rejects.toMatchObject({ code: 'oauth_failed' });
+    await expect(connectMicrosoftMailbox({ ...deps, microsoft: microsoft('x', 400) }, 'u1', 'code', signState(secrets, 'u1'))).rejects.toMatchObject({ code: 'oauth_failed' });
+    await expect(connectMicrosoftMailbox(deps, 'u1', 'code', signState(secrets, 'u1'))).rejects.toMatchObject({ code: 'oauth_unavailable' });
+    expect(await listMailboxes(db.sql, 'u1')).toEqual([]);
+  });
+
+  it('says which switch the admin must turn on, or to sign in again', () => {
+    const ms = { smtp_host: 'smtp.office365.com', smtp_port: 587, imap_host: 'outlook.office365.com', imap_port: 993, provider: 'microsoft' as const };
+    expect(checkReason(ms, { ok: false, step: 'smtp', kind: 'auth', message: '535 5.7.139' })).toMatch(/Authenticated SMTP/);
+    expect(checkReason(ms, { ok: false, step: 'smtp', kind: 'auth', message: SIGN_IN_AGAIN })).toMatch(/Sign in with Microsoft again/);
   });
 });
 
@@ -175,7 +242,7 @@ describe('update and delete', () => {
     expect(await updateMailbox(deps, 'u1', m.id, { password: 'new pass' })).toMatchObject({ status: 'checking' });
     const r = await settled(m.id);
     expect(r.status).toBe('error');
-    expect(credentialsFor(secrets, r).password).toBe('new pass');
+    expect(credentialsFor(deps, r).password).toBe('new pass');
 
     expect(await updateMailbox(deps, 'u2', m.id, { displayName: 'x' })).toBeNull();
   });

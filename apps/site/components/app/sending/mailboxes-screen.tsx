@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties, type FormEvent } from 'react';
-import { Loader2, Mail, MoreHorizontal, Pause, Play, Plus, RotateCw, Settings2, Trash2 } from 'lucide-react';
+import { KeyRound, Loader2, Mail, MoreHorizontal, Pause, Play, Plus, RotateCw, Settings2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MAILBOX_PRESETS, MAX_DAILY_CAP, MAX_MAILBOXES, type Mailbox } from '@nvoke/shared';
 import { Figure, useArrivals } from '@/components/app/motion';
@@ -41,7 +41,7 @@ import {
   type MailboxForm,
   type MailboxSettings,
 } from '@/lib/app/sending';
-import { useCheckMailbox, useConnectMailbox, useDeleteMailbox, useMailboxes, useUpdateMailbox } from '@/lib/app/queries';
+import { useCheckMailbox, useConnectMailbox, useDeleteMailbox, useMailboxes, useMicrosoftSignIn, useUpdateMailbox } from '@/lib/app/queries';
 import { cn } from '@/lib/utils';
 
 /*
@@ -106,6 +106,7 @@ function MailboxMenu({ mailbox, onSettings }: { mailbox: Mailbox; onSettings: ()
   const update = useUpdateMailbox();
   const check = useCheckMailbox();
   const remove = useDeleteMailbox();
+  const signIn = useMicrosoftSignIn();
   const paused = mailbox.status === 'paused';
 
   function togglePaused(): void {
@@ -142,6 +143,15 @@ function MailboxMenu({ mailbox, onSettings }: { mailbox: Mailbox; onSettings: ()
             <RotateCw />
             Check again
           </DropdownMenuItem>
+          {mailbox.provider === 'microsoft' && (
+            <DropdownMenuItem
+              onSelect={() => signIn.mutate(undefined, { onError: (err) => toast.error('Couldn’t start the sign-in', { description: sendingError(err) }) })}
+              disabled={signIn.isPending}
+            >
+              <KeyRound />
+              Sign in again
+            </DropdownMenuItem>
+          )}
           {(mailbox.status === 'active' || paused) && (
             <DropdownMenuItem onSelect={togglePaused} disabled={update.isPending}>
               {paused ? <Play /> : <Pause />}
@@ -160,7 +170,7 @@ function MailboxMenu({ mailbox, onSettings }: { mailbox: Mailbox; onSettings: ()
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {mailbox.address}?</AlertDialogTitle>
             <AlertDialogDescription>
-              nvoke forgets the password and stops sending from it and reading its replies. Leads it was writing to stay in their campaigns.
+              nvoke forgets the {mailbox.provider === 'microsoft' ? 'sign-in' : 'password'} and stops sending from it and reading its replies. Leads it was writing to stay in their campaigns.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -186,14 +196,17 @@ const DIALOG = 'top-[6vh] max-h-[88vh] max-w-[min(560px,calc(100vw-32px))] overf
 const FORM_GRID = 'grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-[120px_minmax(0,1fr)]';
 
 /**
- * Connect a mailbox: the address first (a known domain fills the servers),
- * the name recipients see, the provider and its servers, the app password
- * last. The server checks it in the background; the row says how it went.
+ * Connect a mailbox: Sign in with Microsoft first (Microsoft 365 and
+ * Outlook.com take no password over SMTP and IMAP), then the password form:
+ * the address (a known domain fills the servers), the name recipients see,
+ * the provider and its servers, the app password last. The server checks it
+ * in the background; the row says how it went.
  */
 function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [form, setForm] = useState<MailboxForm>(emptyMailboxForm);
   const [touched, setTouched] = useState(false);
   const connect = useConnectMailbox();
+  const signIn = useMicrosoftSignIn();
   const preset = presetByKey(form.preset);
   const problem = touched ? mailboxFormProblem(form) : null;
   const set = <K extends keyof MailboxForm>(key: K) => (value: MailboxForm[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -230,8 +243,26 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
           <div>
             <DialogTitle>Connect a mailbox</DialogTitle>
             <DialogDescription className="mt-1 text-sm text-muted-foreground">
-              Campaigns send from it and read its replies over SMTP and IMAP. Use an app password, not your login password.
+              Campaigns send from it and read its replies over SMTP and IMAP.
             </DialogDescription>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-center"
+              disabled={signIn.isPending}
+              onClick={() => signIn.mutate(undefined, { onError: (err) => toast.error('Couldn’t start the sign-in', { description: sendingError(err) }) })}
+            >
+              {signIn.isPending ? <Loader2 className="motion-safe:animate-spin" /> : <KeyRound />}
+              Sign in with Microsoft
+            </Button>
+            <p className="text-xs text-muted-foreground">Microsoft 365 and Outlook.com. No password: nvoke keeps a sign-in it refreshes, and you can revoke it at any time.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="cap text-muted-foreground">Or with an app password</span>
+            <span className="h-px flex-1 bg-border" />
           </div>
           <div className={FORM_GRID}>
             <FieldRow label="Address" htmlFor="mb-address">
@@ -317,7 +348,7 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   );
 }
 
-/** A mailbox's settings: the name, the daily cap, the signature, the ramp, a new password. */
+/** A mailbox's settings: the name, the daily cap, the signature, the ramp, a new password or a new Microsoft sign-in. */
 function SettingsDialog({ mailbox, onOpenChange }: { mailbox: Mailbox | null; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={mailbox !== null} onOpenChange={onOpenChange}>
@@ -329,6 +360,7 @@ function SettingsDialog({ mailbox, onOpenChange }: { mailbox: Mailbox | null; on
 function SettingsForm({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => void }) {
   const [form, setForm] = useState<MailboxSettings>(() => mailboxSettings(mailbox));
   const update = useUpdateMailbox();
+  const signIn = useMicrosoftSignIn();
   const patch = buildUpdateMailbox(mailbox, form);
   const set = <K extends keyof MailboxSettings>(key: K) => (value: MailboxSettings[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -379,9 +411,25 @@ function SettingsForm({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => voi
             <Switch id="ms-warm" checked={form.warm} onCheckedChange={set('warm')} />
           </div>
         </FieldRow>
-        <FieldRow label="New password" hint="Reconnects and checks again" htmlFor="ms-password">
-          <PlateInput id="ms-password" type="password" autoComplete="new-password" value={form.password} onChange={(e) => set('password')(e.target.value)} />
-        </FieldRow>
+        {mailbox.provider === 'microsoft' ? (
+          <FieldRow label="Sign-in" hint="Signs in with Microsoft" htmlFor="ms-signin">
+            <Button
+              id="ms-signin"
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={signIn.isPending}
+              onClick={() => signIn.mutate(undefined, { onError: (err) => toast.error('Couldn’t start the sign-in', { description: sendingError(err) }) })}
+            >
+              {signIn.isPending ? <Loader2 className="motion-safe:animate-spin" /> : <KeyRound />}
+              Sign in again
+            </Button>
+          </FieldRow>
+        ) : (
+          <FieldRow label="New password" hint="Reconnects and checks again" htmlFor="ms-password">
+            <PlateInput id="ms-password" type="password" autoComplete="new-password" value={form.password} onChange={(e) => set('password')(e.target.value)} />
+          </FieldRow>
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>

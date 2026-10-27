@@ -90,6 +90,17 @@ export const UpdateMailboxRequest = z
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to update' });
 export type UpdateMailboxRequest = z.infer<typeof UpdateMailboxRequest>;
 
+/** Sign in with Microsoft: where to send the browser. The state in it is bound to the user. */
+export const MailboxOAuthStartResponse = z.object({ url: z.url() });
+export type MailboxOAuthStartResponse = z.infer<typeof MailboxOAuthStartResponse>;
+
+/** The callback page posts what Microsoft sent back. */
+export const MailboxOAuthCallbackRequest = z.object({
+  code: z.string().min(1).max(4096),
+  state: z.string().min(1).max(200),
+});
+export type MailboxOAuthCallbackRequest = z.infer<typeof MailboxOAuthCallbackRequest>;
+
 export const MailboxListResponse = z.object({ mailboxes: z.array(Mailbox) });
 export type MailboxListResponse = z.infer<typeof MailboxListResponse>;
 
@@ -108,7 +119,7 @@ export type MailboxPreset = z.infer<typeof MailboxPreset>;
 
 export const MAILBOX_PRESETS: MailboxPreset[] = [
   { key: 'google', label: 'Google Workspace or Gmail', smtpHost: 'smtp.gmail.com', smtpPort: 465, imapHost: 'imap.gmail.com', imapPort: 993, help: 'Turn on 2-Step Verification, then make an app password at myaccount.google.com/apppasswords.' },
-  { key: 'microsoft', label: 'Microsoft 365 or Outlook', smtpHost: 'smtp.office365.com', smtpPort: 587, imapHost: 'outlook.office365.com', imapPort: 993, help: 'Your admin must allow SMTP AUTH for this mailbox. Use an app password if the account has MFA.' },
+  { key: 'microsoft', label: 'Microsoft 365 or Outlook', smtpHost: 'smtp.office365.com', smtpPort: 587, imapHost: 'outlook.office365.com', imapPort: 993, help: 'Use Sign in with Microsoft above: Microsoft no longer takes passwords over SMTP and IMAP.' },
   { key: 'zoho', label: 'Zoho Mail (own domain)', smtpHost: 'smtppro.zoho.eu', smtpPort: 465, imapHost: 'imappro.zoho.eu', imapPort: 993, help: 'Turn on IMAP Access under Settings, Mail accounts, then make an app password at accounts.zoho.eu under Security. Outside the EU use smtppro.zoho.com and imappro.zoho.com.' },
   { key: 'zoho-personal', label: 'Zoho Mail (@zoho address)', smtpHost: 'smtp.zoho.eu', smtpPort: 465, imapHost: 'imap.zoho.eu', imapPort: 993, help: 'Turn on IMAP Access under Settings, Mail accounts, then make an app password at accounts.zoho.eu under Security. Outside the EU use smtp.zoho.com and imap.zoho.com.' },
   { key: 'fastmail', label: 'Fastmail', smtpHost: 'smtp.fastmail.com', smtpPort: 465, imapHost: 'imap.fastmail.com', imapPort: 993, help: 'Make an app password under Settings, Privacy and Security.' },

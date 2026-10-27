@@ -9,6 +9,8 @@ import type {
   CreateCampaignRequest,
   Mailbox,
   MailboxListResponse,
+  MailboxOAuthCallbackRequest,
+  MailboxOAuthStartResponse,
   ReplyListResponse,
   SaveAiKeyRequest,
   SaveSearchKeyRequest,
@@ -259,6 +261,10 @@ export function createWebApi({ baseUrl, getToken, fetch: fetchImpl = (...args) =
     listMailboxes: (): Promise<MailboxListResponse> => call('GET', '/v1/mailboxes'),
     /** Answers with the mailbox as `checking`; the check runs on the server. */
     connectMailbox: (input: ConnectMailboxRequest): Promise<Mailbox> => call('POST', '/v1/mailboxes', input),
+    /** Where to send the browser to sign in with Microsoft. */
+    startMicrosoftSignIn: (): Promise<MailboxOAuthStartResponse> => call('POST', '/v1/mailboxes/oauth/microsoft/start'),
+    /** The callback's code and state: connects (or signs in again) the mailbox and answers it as `checking`. */
+    finishMicrosoftSignIn: (input: MailboxOAuthCallbackRequest): Promise<Mailbox> => call('POST', '/v1/mailboxes/oauth/microsoft', input),
     updateMailbox: (id: string, update: UpdateMailboxRequest): Promise<Mailbox> => call('PATCH', `/v1/mailboxes/${enc(id)}`, update),
     checkMailbox: async (id: string): Promise<void> => {
       await call<unknown>('POST', `/v1/mailboxes/${enc(id)}/check`);

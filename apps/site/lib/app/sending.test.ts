@@ -203,6 +203,7 @@ describe('the mailbox form', () => {
     expect(mailboxFormProblem({ ...form, password: '' })).toMatch(/password/);
     expect(mailboxFormProblem({ ...form, address: 'nope' })).toMatch(/address/);
     expect(mailboxFormProblem({ ...form, smtpPort: 0 })).toMatch(/port/);
+    expect(mailboxFormProblem({ ...form, preset: 'microsoft' })).toMatch(/Sign in with Microsoft/);
     const req = buildConnectMailbox(form);
     expect(req).toMatchObject({ address: 'me@acme.com', displayName: 'Morten', smtpHost: 'smtp.gmail.com', smtpPort: 465, warm: true });
     expect(req).not.toHaveProperty('username');

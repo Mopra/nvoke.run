@@ -25,7 +25,9 @@ desktop; the web app shows its screens only to allowlisted accounts. The
 legal docs keep "nvoke never sends email for customers"; nvoke's own
 outreach is recorded as its own processing (`docs/legal/ropa.md`,
 Activity 3). Customers send through their own tool (CSV, webhooks, a later
-push to Instantly or Smartlead). Steps 2 to 4 below are shelved.
+push to Instantly or Smartlead). Steps 2 to 4 below are shelved, except
+Step 2's Microsoft sign-in, built 2026-10-27 for nvoke's own Microsoft 365
+and Outlook mailboxes.
 
 ## Own products: Day3 and exit1 (owner, 2026-10-22)
 
@@ -484,11 +486,26 @@ Passwords and app passwords are the weak spot: Microsoft is switching off
 password login for SMTP in Microsoft 365, and Google only allows app
 passwords with two step sign-in on.
 
-- **Microsoft:** an app registration (multi tenant), delegated scopes
-  `SMTP.Send`, `IMAP.AccessAsUser.All`, `offline_access`, `email`. Sending
-  and reading over SMTP and IMAP with XOAUTH2, so the transport stays the
-  same. Publisher verification on the app. Token refresh in
-  `sending/oauth.ts`, sealed in `mailboxes.secret`.
+- **Microsoft (built 2026-10-27):** an Entra app registration (any
+  organization and personal accounts, the `common` authority), delegated
+  scopes `SMTP.Send`, `IMAP.AccessAsUser.All`, `offline_access`, `openid`,
+  `profile`, `email`. Sending and reading over SMTP and IMAP with XOAUTH2,
+  so the transport stays the same (`MailboxCredentials.accessToken`).
+  `sending/oauth.ts` signs the state (bound to the user, 15 minutes),
+  trades the code, reads the address from the id token and refreshes the
+  access token 5 minutes before it runs out; the tokens are sealed as JSON
+  in `mailboxes.secret`, `provider = 'microsoft'`. Routes:
+  `POST /v1/mailboxes/oauth/microsoft/start` answers Microsoft's sign-in
+  URL, the site's `/app/mailboxes/callback` posts `{ code, state }` to
+  `POST /v1/mailboxes/oauth/microsoft` (both a Clerk session only).
+  Signing in again with a connected address replaces its sign-in, so a
+  password mailbox moves over and keeps its settings. A refused refresh
+  pauses the mailbox with "Sign in with Microsoft again". A Microsoft 365
+  tenant must still allow Authenticated SMTP and IMAP for the mailbox
+  (admin center, Users, Mail, Manage email apps); the check says so.
+  Env: `MICROSOFT_MAIL_CLIENT_ID`, `MICROSOFT_MAIL_CLIENT_SECRET`, the
+  redirect is `{SITE_URL}/app/mailboxes/callback`. Publisher verification
+  waits until sending is a customer feature.
 - **Google:** an OAuth client with the scope `https://mail.google.com/`
   (XOAUTH2 over SMTP and IMAP). It is a restricted scope: Google app
   verification plus a yearly security assessment (CASA). Start the
