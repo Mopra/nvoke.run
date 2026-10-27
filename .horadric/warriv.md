@@ -10,6 +10,8 @@
 
 ## Lately
 
+- 2026-10-27 Morning round: unchanged (only memory commits past green b7277ed; uncommitted lead edits work in the tree is the human's; clips and Common Crawl trial wait on the owner, no aim). Day was clean; it gave 4 lore notes (#75 to #78: plan slug trap, SENDING_USERS with OptiPeople, Serper over Brave, Vercel ignored build step).
+
 - 2026-10-26 Hourly round: unchanged (only memory commits past green b7277ed, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
 - 2026-10-26 Hourly round: unchanged (only memory commits past green b7277ed, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
 - 2026-10-26 Round as the human left: unchanged (only memory commits past green b7277ed, clips and the Common Crawl trial wait on the owner, no aim). Nothing to do.
@@ -112,7 +114,7 @@
 
 ## Open
 
-- Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed; never seen on screen.
+- Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
 - Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866; seed and Common Crawl index green at 8f58c67 (2026-10-22); Postgres 18 move green at 013e55f.
 - Common Crawl: 100k trial load stopped by the owner at 554 rows (403s from Common Crawl), resumable from /opt/nvoke/cc on the VPS; resume or undo is the owner's; the measure quest waits a week after it, and the full 20M load spend (VPS Postgres disk now, since 013e55f) goes to the owner.
