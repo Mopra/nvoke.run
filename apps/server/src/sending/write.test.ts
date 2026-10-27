@@ -13,11 +13,13 @@ import {
   FIRST_WORDS,
   firstPrompt,
   followUpPrompt,
+  isSharedInbox,
   onWriteGaveUp,
   pricesBlock,
   quoteOnPages,
   recentBlock,
   runWriteJob,
+  singularYou,
   trimPage,
   type ClaudeFirstEmails,
   type ClaudeFollowUps,
@@ -99,6 +101,32 @@ describe('checkBody and checkSubject', () => {
     for (const bad of ['See https://acme.com now.', 'Mail info@acme.com today.', 'Open acme.com/login please.', 'Try other.com instead.']) {
       expect(checkBody(`${BODY} ${bad}`, undefined, 'acme.com'), bad).toBeNull();
     }
+  });
+});
+
+describe('shared inboxes', () => {
+  it('knows a shared company inbox by its kind, or by a role address with no person', () => {
+    expect(isSharedInbox({ address: 'info@holmgrenssnickeri.se', email_kind: 'generic', first_name: null })).toBe(true);
+    expect(isSharedInbox({ address: 'anna@acme.se', email_kind: 'personal', first_name: 'Anna' })).toBe(false);
+    // An import carries no kind: a role address with no name is shared.
+    expect(isSharedInbox({ address: 'order@acme.se', email_kind: null, first_name: null })).toBe(true);
+    expect(isSharedInbox({ address: 'order@acme.se', email_kind: null, first_name: 'Anna' })).toBe(false);
+    expect(isSharedInbox({ address: 'anna@acme.se', email_kind: null, first_name: null })).toBe(false);
+  });
+
+  it('finds the singular you in Swedish, Danish and German, and leaves French alone', () => {
+    expect(singularYou('Hej, Du tillverkar snickerier hos dig i Umeå.')).toBe('Du');
+    expect(singularYou('Hej, ni tillverkar snickerier i Umeå. Hur hittar ni era kunder?')).toBeNull();
+    expect(singularYou('Hej, jeres værksted i Aarhus laver køkkener til dine kunder.')).toBe('dine');
+    expect(singularYou('Hallo, Sie bauen Küchen in Berlin. Wer schreibt Ihre Angebote?')).toBeNull();
+    expect(singularYou('Bonjour, vous fabriquez du mobilier sur mesure à Lyon.')).toBeNull();
+    expect(singularYou('Hi, your team builds kitchens in Leeds.')).toBeNull();
+  });
+
+  it('marks a shared inbox on its lead and asks for the plural', () => {
+    const lead = { key: 'l1', firstName: null, lastName: null, title: null, companyName: 'Holmgrens', domain: 'holmgrenssnickeri.se', category: null, location: null, opener: null, pages: [] };
+    expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [{ ...lead, shared: true }]).leads).toContain('inbox="shared"');
+    expect(firstPrompt(PROFILE, [{ waitDays: 0, brief: 'x' }], [lead]).leads).not.toContain('inbox=');
   });
 });
 

@@ -142,6 +142,13 @@ made them work:
   question only they can answer and a subject about them; follow ups are 25
   to 60 words (kept from 12 to 75), each from a new angle and never a
   rephrase of step 1.
+- **Shared inboxes.** A generic address (`emails.kind` 'generic', or for an
+  import a role address like info@ or order@ with no name) is a team, not
+  one person: the lead carries `inbox="shared"` and Claude writes to them
+  in the plural (Swedish ni and er, Danish I and jer, German Sie), never
+  mixing singular and plural. A step to a shared inbox that still says du,
+  dig, din or dich is not kept (`singularYou`; French is left alone, where
+  "du" means "of the").
 - **No template feel.** `overlap.ts` compares each new step 1 with the
   campaign's other step 1 emails of the last 7 days and the batch so far
   (word trigram containment above 0.2, a shared sentence of 7 words or more,
