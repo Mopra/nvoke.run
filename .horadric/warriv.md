@@ -11,6 +11,8 @@
 
 ## Lately
 
+- 2026-10-29 Round after the new launches pitch fix landed (5cd875a). Personal emails and hotspot split still run, three quests wait on the owner. Nothing to do; checks quest waits for both.
+
 - 2026-10-29 Round after the founders campaign quest landed (0ae0bd53 in review, 0 overlap with 0989f5a9, old one re-paused). Gave 'new launches' quest Model: sonnet. Personal emails, hotspot split and new launches still run; checks quest waits for them.
 - 2026-10-29 Round after founders campaign code landed (3dea710): its session still runs (campaign creation), personal emails and hotspot split still run, three quests wait on the owner. Nothing to do; checks quest waits until the split lands.
 
@@ -148,7 +150,7 @@
 
 - Name cleanup (d9141b8) waits on the owner: merge to main, deploy server, run 'cli names fix --prod' dry run, then --apply. Its full pnpm test was killed for low memory; the checks quest on main must run it.
 - B2B outbound campaign 0989f5a9 re-paused 2026-10-29; check it stays paused. Founders campaign 0ae0bd53 landed in status review (0 overlap, enroll skips companies the sender wrote to in 90 days); the owner reads its first emails and starts it.
-- Main at faefdba unchecked; after personal emails, hotspot split and new launches land, file one checks quest (full pnpm test, also covers d9141b8 once merged) if none ran the full checks on the final main.
+- Main at 5cd875a (new launches landed); after personal emails and hotspot split land, file one checks quest (full pnpm test, also covers d9141b8 once merged) if none ran the full checks on the final main.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27, deployed with the Entra values in the VPS .env (lore #88); no real mailbox sent or read yet.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
