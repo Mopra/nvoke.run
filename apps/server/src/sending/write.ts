@@ -652,7 +652,9 @@ export async function campaignContext(sql: Sql, c: Pick<CampaignRow, 'search_id'
     }
   } else if (c.drop_id) {
     const [d] = await sql<{ name: string; keyword: string | null }[]>`select name, keyword from drops where id = ${c.drop_id}`;
-    if (d) lines.push(`The leads come from a daily drop of new launches: ${[plain(d.name), plain(d.keyword)].filter(Boolean).join(', ')}`);
+    // How the leads were found, not part of the offer: a follow up that
+    // pitched the launch feed drifted off the campaign's pitch.
+    if (d) lines.push(`The leads come from a daily drop of new launches: ${[plain(d.name), plain(d.keyword)].filter(Boolean).join(', ')}. That is how they were found, not something to offer them.`);
   }
   return lines.length ? { lines } : null;
 }

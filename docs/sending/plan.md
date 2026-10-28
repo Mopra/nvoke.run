@@ -83,6 +83,14 @@ finding and verifying the people they sell to. The spec carries its own
 campaign in one go. The company rule under "Who gets enrolled" keeps it off
 every company the old campaign wrote to.
 
+"nvoke: new launches" (f3cce81f, on the drop "New B2B launches") had the
+same drift: its step 2 brief offered the launch feed as one of two facts,
+and every written step 2 pitched it. On 2026-10-29 its step 2 and 3 briefs
+were rewritten to the step 1 pitch (verified emails of named buyers, pay
+only for verified, 50 free a month), and the four unsent step 2 emails were
+rewritten by hand (marked edited). The writer's campaign context now says a
+drop is how the leads were found, not something to offer them.
+
 ## Owner decisions, 2026-10-20 (earlier the same day)
 
 - **First goal: nvoke sells nvoke.** Ongoing searches and drops find
