@@ -131,3 +131,59 @@ export function pickPlaceSite<T extends SiteCandidate>(name: string, results: T[
   }
   return best;
 }
+
+/** Page labels and section titles that name no company: "Website:", "Services Offered", "Home". */
+const PAGE_LABELS = new Set([
+  'about', 'about us', 'blog', 'contact', 'contact us', 'home', 'home page', 'homepage', 'index', 'login', 'log in',
+  'main page', 'news', 'our services', 'our work', 'page not found', 'portfolio', 'pricing', 'products', 'services',
+  'services offered', 'sign in', 'site', 'start', 'untitled', 'web site', 'website', 'welcome', 'work', '404',
+]);
+
+/** Words a sentence holds and a company name rarely does: a post title, a question, a tagline. */
+const SENTENCE_WORDS = new Set([
+  'i', 'my', 'me', 'we', 'our', 'you', 'your', 'how', 'why', 'what', 'when', 'who', 'is', 'are', 'was', 'runs', 'run',
+  'can', 'will', 'that', 'this', 'which', 'on', 'to', 'with', 'in', 'from', 'at', 'by',
+]);
+
+/** "acme-dental.dk" becomes "Acme Dental". */
+export function nameFromDomainLabel(domain: string): string {
+  return brandLabel(normalizeDomain(domain) ?? domain)
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/** Whether a piece of a title reads as a company name, not a label, a tagline or a post title. */
+function nameLike(text: string, matchesDomain: boolean): boolean {
+  if (text.length < 2 || text.length > 60) return false;
+  if (/[:?!]$/.test(text) || /^[\d\W]+$/.test(text)) return false;
+  const lower = text.toLowerCase().replace(/\s+/g, ' ');
+  if (PAGE_LABELS.has(lower)) return false;
+  const words = lower.split(' ');
+  const sentence = words.filter((w) => SENTENCE_WORDS.has(w)).length;
+  if (matchesDomain) return words.length <= 8 && sentence <= 1;
+  return words.length <= 5 && sentence === 0;
+}
+
+/**
+ * A company's name from what a search result or homepage calls it, tried in
+ * order (a site name, then the page title), else from its domain. Titles
+ * split on their separators; the piece that names the domain wins, else the
+ * first that reads as a name. Labels ("Website:"), taglines and post titles
+ * ("My design portfolio runs on a fake PS1 renderer") are never a name.
+ */
+export function companyNameFrom(texts: (string | null | undefined)[], domain: string): string {
+  const label = brandLabel(normalizeDomain(domain) ?? domain).replace(/[^a-z0-9]/g, '');
+  for (const text of texts) {
+    const parts = (text ?? '')
+      .replace(/<[^>]+>/g, '')
+      .split(/\s+[|\u2013\u2014\u00b7\u2022-]\s+|\s*\|\s*|:\s+/)
+      .map((p) => p.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    const matches = (p: string) => label.length >= 3 && p.toLowerCase().replace(/[^a-z0-9]/g, '').includes(label);
+    const named = parts.find((p) => matches(p) && nameLike(p, true)) ?? parts.find((p) => nameLike(p, false));
+    if (named) return named;
+  }
+  return nameFromDomainLabel(domain);
+}

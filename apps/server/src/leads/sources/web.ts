@@ -10,7 +10,7 @@
 // find job stops pulling pages once the search has enough companies.
 
 import type { WebSearchParams } from '@nvoke/shared';
-import { normalizeDomain } from '../domain.js';
+import { companyNameFrom, normalizeDomain } from '../domain.js';
 import { fetchJson, HttpError, type FetchLike } from '../http.js';
 import { RateLimiter, sleep } from '../limits.js';
 import type { CachedWebPage, WebSearchCache } from '../web-cache.js';
@@ -62,15 +62,9 @@ interface BraveResponse {
   query?: { more_results_available?: boolean };
 }
 
-/** "Acme Dental | Best dentist in town" becomes "Acme Dental". */
+/** "Acme Dental | Best dentist in town" becomes "Acme Dental"; a label or post title falls back to the domain. */
 export function nameFromTitle(title: string | undefined, domain: string): string {
-  const clean = (title ?? '')
-    .replace(/<[^>]+>/g, '')
-    .split(/\s+[|\u2013\u2014\u00b7:-]\s+/)[0]
-    ?.trim();
-  if (clean && clean.length >= 2 && clean.length <= 120) return clean;
-  const label = domain.split('.')[0] ?? domain;
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  return companyNameFrom([title], domain);
 }
 
 /** A result's text without Brave's highlight tags, collapsed and capped. */
@@ -90,7 +84,7 @@ export function resultToCompany(r: BraveResult): FoundCompany | null {
     return null;
   }
   return {
-    name: nameFromTitle(r.profile?.name || r.title, domain),
+    name: companyNameFrom([r.profile?.name, r.title], domain),
     website,
     source: 'brave',
     sourceRef: r.url,

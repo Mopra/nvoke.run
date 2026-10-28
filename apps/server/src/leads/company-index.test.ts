@@ -62,8 +62,9 @@ describe('company index words', () => {
 
   it('takes the name from the part of the title that names the site', () => {
     expect(nameFromTitle('Home | Acme Outbound', 'acmeoutbound.com')).toBe('Acme Outbound');
-    expect(nameFromTitle('Cold email that books meetings', 'acme.com')).toBe('Cold email that books meetings');
-    expect(nameFromTitle('', 'www.acme.com')).toBe('acme.com');
+    expect(nameFromTitle('Cold email that books meetings', 'acme.com')).toBe('Acme');
+    expect(nameFromTitle('', 'www.acme.com')).toBe('Acme');
+    expect(nameFromTitle('Services Offered:', 'virtual-sales.com')).toBe('Virtual Sales');
   });
 
   it('asks for any two words of one plan query, each pair once, in the simple and the English form', async () => {

@@ -17,7 +17,7 @@
 
 import { pino, type Logger } from 'pino';
 import type { Sql } from 'postgres';
-import { registrableDomain } from './domain.js';
+import { companyNameFrom, registrableDomain } from './domain.js';
 import type { FitHead } from './fit.js';
 import type { IcpPlan, PlanQuery } from './planner.js';
 import { domainHash } from './suppression.js';
@@ -109,15 +109,9 @@ function clean(text: string | null | undefined, max: number): string {
   return (text ?? '').replace(ADDRESS, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-/** The company's name from its homepage title: the part that names the domain ("Acme | Cold email" gives "Acme"), else the first. */
+/** The company's name from its homepage title: the part that names the domain ("Acme | Cold email" gives "Acme"), else the first that reads as a name, else the domain. */
 export function nameFromTitle(title: string, domain: string): string {
-  const label = (registrableDomain(domain).split('.')[0] ?? '').replace(/[^a-z0-9]/g, '');
-  const parts = title
-    .split(/\s+[|\u2013\u2014:\u00b7\u2022-]\s+|\s*\|\s*/)
-    .map((p) => p.trim())
-    .filter((p) => p.length >= 2 && p.length <= 60);
-  const named = parts.find((p) => label.length >= 3 && p.toLowerCase().replace(/[^a-z0-9]/g, '').includes(label));
-  return named ?? parts[0] ?? registrableDomain(domain);
+  return companyNameFrom([title], domain);
 }
 
 interface PlanForms {

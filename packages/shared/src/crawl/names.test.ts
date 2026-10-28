@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickPlaceSite, placeMatch } from './names.ts';
+import { companyNameFrom, pickPlaceSite, placeMatch } from './names.ts';
 
 describe('place websites', () => {
   const dentist = ['dentist', 'tandlæge', 'tandlaeger', 'Aarhus'];
@@ -49,5 +49,26 @@ describe('place websites', () => {
     expect(pickPlaceSite('Tandlæge Jensen', results, dentist)?.website).toBe('https://tandlaegejensen.dk/');
     expect(pickPlaceSite('Tandlæge Jensen', results.slice(0, 3), dentist)).toBeNull();
     expect(pickPlaceSite('Jensen', [{ website: 'https://jensen@gmail.com' }, { website: 'https://facebook.com/jensen' }])).toBeNull();
+  });
+});
+
+describe('company names', () => {
+  it('never takes a page label for the name', () => {
+    expect(companyNameFrom(['Services Offered:'], 'virtual-sales.com')).toBe('Virtual Sales');
+    expect(companyNameFrom(['Website:'], 'tslmarketing.com')).toBe('Tslmarketing');
+    expect(companyNameFrom(['Home | Acme Outbound'], 'acmeoutbound.com')).toBe('Acme Outbound');
+    expect(companyNameFrom(['Services Offered: Virtual Sales'], 'virtual-sales.com')).toBe('Virtual Sales');
+  });
+
+  it('never takes a post title or a tagline for the name', () => {
+    expect(companyNameFrom(['My design portfolio runs on a fake PS1 renderer'], 'kireev.us')).toBe('Kireev');
+    expect(companyNameFrom(['Cold email that books meetings'], 'acme.com')).toBe('Acme');
+  });
+
+  it('keeps a real name, preferring the piece that names the domain', () => {
+    expect(companyNameFrom(['Acme Dental | Best dentist in town'], 'acme.dk')).toBe('Acme Dental');
+    expect(companyNameFrom(['Product design - Form Lab ApS'], 'formlab.dk')).toBe('Form Lab ApS');
+    expect(companyNameFrom(['Website:', 'TSL Marketing | Inbound agency'], 'tslmarketing.com')).toBe('TSL Marketing');
+    expect(companyNameFrom([undefined, ''], 'www.acme-dental.co.uk')).toBe('Acme Dental');
   });
 });
