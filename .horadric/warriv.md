@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-28 Woken: 'Pause the nvoke B2B outbound campaign: owner decides' blocked by design (83 sent to lead-gen agencies, 0 positive). Left it with the owner and noted why.
 - 2026-10-28 Round after 'Checks on main after template campaigns and lead move' landed: no fix commits, so main green at f084fb7. Stray '--help' quest is now closed. Clips and the Common Crawl measure wait on the owner, no aim. Nothing to file; shipping is the human's.
 - 2026-10-28 Woken: the measure quest blocked asking the owner to resume the Common Crawl trial at --rate 8. Left it with the owner (they stopped the load, sessions have no VPS SSH) and noted why. Checks on main queued, nothing else to do.
 - 2026-10-28 First round after 04:00: filed 'Checks on main after template campaigns and lead move' (sonnet; f084fb7 ran only sending tests). Retry of the 39 leads landed, Common Crawl measure quest now blocked on the owner. The day gave 5 lore notes (#88 to #93: Microsoft app, mailboxes per account, lead move, CRUD gaps, Python CRLF trap). The chronicle showed nothing twice, so the day was clean, though the CRLF trap hit three sessions.
@@ -138,6 +139,7 @@
 
 ## Open
 
+- B2B outbound campaign 0989f5a9 (lead-gen agencies, 83 sent, 0 positive): owner asked whether to pause it or retarget (e.g. founders doing their own outbound). Pass their answer to the quest's session.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27, deployed with the Entra values in the VPS .env (lore #88); no real mailbox sent or read yet.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
