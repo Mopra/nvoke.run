@@ -3,7 +3,9 @@
 // applies the rules: valid only (catch_all when the campaign allows it),
 // named people only when asked, at most per_company per company (highest
 // seniority, then confidence), nobody this user contacted in the last 90
-// days, nothing suppressed (globally, for the account or for the campaign's
+// days (nor anyone at a company another campaign of the same sender wrote
+// to in that time, so a new campaign never doubles up an old one's
+// companies), nothing suppressed (globally, for the account or for the campaign's
 // product), no blocked country, and at most daily_new a UTC day. An address
 // that breaks a rule is kept as a 'skipped' row with its reason, so the
 // counts show and it is not looked at again; one held back by daily_new is
@@ -121,6 +123,11 @@ export async function enrollCampaign(
       exists (
         select 1 from campaign_leads o
         where o.clerk_user_id = ${userId} and o.address = e.address and o.campaign_id <> ${c.id}
+          and o.status not in ('skipped', 'failed') and o.created_at > ${since}
+      ) or exists (
+        select 1 from campaign_leads o join campaigns oc on oc.id = o.campaign_id
+        where o.clerk_user_id = ${userId} and o.domain = co.domain and o.campaign_id <> ${c.id}
+          and coalesce(oc.product->>'domain', '') = ${c.product?.domain ?? ''}
           and o.status not in ('skipped', 'failed') and o.created_at > ${since}
       ) as contacted
     from emails e

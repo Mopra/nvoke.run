@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { CreateCampaignRequest } from '@nvoke/shared';
+import type { CampaignProduct, CreateCampaignRequest } from '@nvoke/shared';
 import { ensureAccount } from '../leads/quota.js';
 import { addressHash, domainHash } from '../leads/suppression.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
@@ -83,11 +83,12 @@ async function leads(campaignId: string) {
     select address, status, skip_reason, mailbox_id, country, timezone from campaign_leads where campaign_id = ${campaignId} order by address`;
 }
 
-/** Another campaign of u1 that wrote to `address` at `at`. */
-async function contactedBefore(address: string, at: Date) {
+/** Another campaign of u1 (for `product`, else nvoke) that wrote to `address` at `at`. */
+async function contactedBefore(address: string, at: Date, product?: CampaignProduct) {
   const [c] = await db.sql<{ id: string }[]>`
-    insert into campaigns (clerk_user_id, name, status, steps, schedule)
-    values ('u1', 'Old', 'done', ${db.sql.json(STEPS)}, ${db.sql.json({ days: [1], startHour: 9, endHour: 17 })}) returning id`;
+    insert into campaigns (clerk_user_id, name, status, steps, schedule, product)
+    values ('u1', 'Old', 'done', ${db.sql.json(STEPS)}, ${db.sql.json({ days: [1], startHour: 9, endHour: 17 })},
+      ${product ? db.sql.json(product) : null}) returning id`;
   await db.sql`
     insert into campaign_leads (campaign_id, clerk_user_id, address, company_name, domain, status, created_at)
     values (${c!.id}, 'u1', ${address}, 'Old', ${address.split('@')[1]!}, 'done', ${at})`;
@@ -161,6 +162,29 @@ describe('enrollCampaign rules', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]!.payload.campaignId).toBe(campaign.id);
     expect(jobs[0]!.payload.leadIds).toHaveLength(2);
+  });
+
+  it('skips a company another campaign of the same sender wrote to, whoever it reached there', async () => {
+    const m = await mailbox(db.sql);
+    const s = await search();
+    const a = await company(s, 'alpha.com');
+    await email(s, a, 'anna@alpha.com');
+    await contactedBefore('bob@alpha.com', new Date(NOW.getTime() - 10 * DAY));
+    // Another sender (a product campaign) wrote to beta.com: nvoke still may.
+    const b = await company(s, 'beta.com');
+    await email(s, b, 'carl@beta.com');
+    const day3: CampaignProduct = {
+      name: 'Day3', domain: 'day3.app', summary: 'Email.', offer: 'Free move.', audience: 'Newsletters.',
+      prices: '$1 a month.', pitch: 'Cheaper.', proof: [], recheck: null,
+    };
+    await contactedBefore('dora@beta.com', new Date(NOW.getTime() - 10 * DAY), day3);
+    // Past the 90 days it is fair game again.
+    const c = await company(s, 'gamma.com');
+    await email(s, c, 'eve@gamma.com');
+    await contactedBefore('finn@gamma.com', new Date(NOW.getTime() - 100 * DAY));
+    const campaign = await createCampaign(db.sql, 'u1', req([m], { searchId: s }), NOW);
+    const status = Object.fromEntries((await leads(campaign.id)).map((r) => [r.address, r.skip_reason ?? r.status]));
+    expect(status).toEqual({ 'anna@alpha.com': 'contacted', 'carl@beta.com': 'writing', 'eve@gamma.com': 'writing' });
   });
 
   it('takes catch_all and unnamed addresses when the campaign says so, and several per company by confidence', async () => {

@@ -1,0 +1,38 @@
+{
+  "name": "nvoke: founders doing their own outbound",
+  "source": "search",
+  "search": {
+    "kind": "icp",
+    "limit": 400,
+    "params": {
+      "description": "Founder led B2B companies of 1 to 20 people where a founder still does the selling and sends their own cold outbound: SaaS and developer tool startups, small B2B software and service companies, and bootstrapped products selling to other businesses. They have no sales team yet, or just made a first sales hire. Not lead generation, appointment setting, cold email, outbound or growth agencies, not sales consultancies or fractional sales leaders, and not data or lead list vendors: those sell contacts or outbound as a service.",
+      "product": "nvoke: a lead finder that returns verified work emails of named people (founders, heads of sales) from each company's own website, priced per verified email, much cheaper than Apollo or Hunter.",
+      "countries": ["us", "gb", "nl", "se", "ie", "fr", "es", "be", "no", "fi", "ca", "au"]
+    }
+  },
+  "mailboxes": ["morten@pradsgaardlabs.com", "morten@trynvoke.com"],
+  "peopleOnly": true,
+  "allowCatchAll": false,
+  "perCompany": 1,
+  "dailyNew": 10,
+  "holdHours": 2,
+  "schedule": {
+    "days": [1, 2, 3, 4, 5],
+    "startHour": 9,
+    "endHour": 17
+  },
+  "steps": [
+    {
+      "waitDays": 0,
+      "brief": "A short note from one founder to another who still does their own outbound. Open with one specific, recent detail from their site in your own words: what they sell, who it is for, a launch or a customer they name. Then the one pitch of this campaign: a founder who sells has little time to build lead lists, and bought lists are stale and full of info@ inboxes nobody reads. nvoke finds the named decision maker at each company on that company's own website and checks the address with its mail server, and they pay only for verified emails. Mention that the first 50 a month are free with no card. Close with one question only they can answer: who they sell to, or how they build their list today. Short paragraphs of one to three sentences, the closing question on its own line."
+    },
+    {
+      "waitDays": 3,
+      "brief": "A short second note in the same thread, on the same pitch from one new angle: what a list from nvoke looks like for a buyer like theirs (a named person, their title, the address, and why it was kept), or the cost of their time against the price per verified email, with one worked number from the prices framed as an example. Stay on finding and verifying the people they sell to: never bring up launch feeds, drops or other features. Promise nothing that needs a person to do work, such as samples or exports. One question or none."
+    },
+    {
+      "waitDays": 5,
+      "brief": "One or two friendly sentences: you will not write again, and when they next sit down to build a list of people to email, the first 50 verified emails a month are free at nvoke. Same pitch as the first email, no new feature. No question."
+    }
+  ]
+}

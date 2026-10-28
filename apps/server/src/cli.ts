@@ -132,7 +132,8 @@
  *       sender of the account.
  *   sending campaign <spec.json> --user U [--search ID]
  *       a draft campaign from a CreateCampaignRequest; `mailboxes`
- *       (addresses) may stand in for `mailboxIds`.
+ *       (addresses) may stand in for `mailboxIds`, and `search` (a
+ *       CreateSearchRequest) queues the campaign's own search first.
  *   sending pool <name> --cap N --user U <mailbox addresses...>
  *       a mailbox pool with a shared daily cap, and those mailboxes in it.
  */
@@ -790,7 +791,10 @@ async function sending(args: Args): Promise<void> {
   if (action === 'campaign') {
     const file = rest[0];
     if (!file) usage();
-    const { mailboxes, ...spec } = JSON.parse(readFileSync(resolve(file), 'utf8')) as Record<string, unknown>;
+    const { mailboxes, search: searchSpec, ...spec } = JSON.parse(readFileSync(resolve(file), 'utf8')) as Record<string, unknown>;
+    const search = flag('search');
+    const searchReq = searchSpec && !search ? CreateSearchRequest.safeParse(searchSpec) : undefined;
+    if (searchReq && !searchReq.success) throw new Error(searchReq.error.issues.map((i) => `search.${i.path.join('.')}: ${i.message}`).join('\n'));
     const { sql, close } = await opsDatabase(args);
     try {
       // Mailboxes by address, as the operator knows them.
@@ -803,12 +807,19 @@ async function sending(args: Args): Promise<void> {
         if (missing.length > 0) throw new Error(`no mailbox of ${user} at ${missing.join(', ')}`);
         spec.mailboxIds = wanted.map((a) => rows.find((r) => r.address === a)!.id);
       }
-      const search = flag('search');
+      // A stand-in id for the spec's own search, so the campaign parses before the search is queued.
       if (search) spec.searchId = search;
+      else if (searchReq) spec.searchId = '00000000-0000-4000-8000-000000000000';
       const parsed = CreateCampaignRequest.safeParse(spec);
       if (!parsed.success) throw new Error(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n'));
+      if (searchReq?.success) {
+        await ensureAccount(sql, user);
+        const created = await createSearch(sql, user, searchReq.data, searchReq.data.limit ?? 100);
+        console.error(`search ${created.id} (${created.kind}, limit ${created.limit}) queued`);
+        parsed.data.searchId = created.id;
+      }
       const campaign = await createCampaign(sql, user, parsed.data);
-      console.log(JSON.stringify({ id: campaign.id, status: campaign.status, leads: campaign.leads }, null, 2));
+      console.log(JSON.stringify({ id: campaign.id, status: campaign.status, searchId: campaign.searchId, leads: campaign.leads }, null, 2));
     } finally {
       await close();
     }

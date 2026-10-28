@@ -68,6 +68,21 @@ in the mrr project) moves onto this engine. Still internal: the same
   host: it sends. Fixed: the lead stops with skip_reason `resolved`.
   Neither host answers: `unreachable`.
 
+## nvoke: founders doing their own outbound (owner, 2026-10-28)
+
+The first nvoke campaign, "nvoke: B2B outbound teams" (0989f5a9), reached
+lead generation and appointment setting agencies, who sell contact data
+themselves: 83 sent, no positive reply. It is paused. Its replacement is
+`docs/sending/campaigns/nvoke-founders.json`: a Sonar search for founder
+led B2B companies of 1 to 20 people where a founder still sells (agencies,
+sales consultancies and data vendors left out in plain words), and three
+steps on one pitch, verified emails of named buyers for a founder short on
+time. The old step 2 drifted to the launch feed; every step here stays on
+finding and verifying the people they sell to. The spec carries its own
+`search`, so `cli sending campaign` queues the search and creates the
+campaign in one go. The company rule under "Who gets enrolled" keeps it off
+every company the old campaign wrote to.
+
 ## Owner decisions, 2026-10-20 (earlier the same day)
 
 - **First goal: nvoke sells nvoke.** Ongoing searches and drops find
@@ -104,7 +119,9 @@ A campaign can follow a source instead of a fixed list:
   so), named people first (`people_only`, default true: `first_name` set),
   at most `per_company` per company (default 1: the highest seniority,
   then confidence), never an address already in another of the user's
-  campaigns in the last 90 days, never suppressed, never a blocked country.
+  campaigns in the last 90 days, nor anyone at a company another campaign
+  of the same sender (the product domain, or nvoke) wrote to in that time
+  (skip reason `contacted`), never suppressed, never a blocked country.
 - **Hold:** a written lead's first send is no earlier than `hold_hours`
   (default 2) after it was written, so the owner can read the day's emails
   in the campaign screen and stop any of them. The hold counts from the
