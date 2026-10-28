@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Round after 'Company names: stop page labels' landed (912f418): five quests running (Day3/exit1 retry, personal emails, name cleanup, founders campaign, hotspot split). Gave the three without one a model (sonnet, sonnet, opus). No checks quest yet: the split and the others run checks as they land; file one once they settle.
 - 2026-10-28 Woken: 'Pause the nvoke B2B outbound campaign: owner decides' blocked by design (83 sent to lead-gen agencies, 0 positive). Left it with the owner and noted why.
 - 2026-10-28 Round after 'Checks on main after template campaigns and lead move' landed: no fix commits, so main green at f084fb7. Stray '--help' quest is now closed. Clips and the Common Crawl measure wait on the owner, no aim. Nothing to file; shipping is the human's.
 - 2026-10-28 Woken: the measure quest blocked asking the owner to resume the Common Crawl trial at --rate 8. Left it with the owner (they stopped the load, sessions have no VPS SSH) and noted why. Checks on main queued, nothing else to do.
@@ -139,7 +140,8 @@
 
 ## Open
 
-- B2B outbound campaign 0989f5a9 (lead-gen agencies, 83 sent, 0 positive): owner asked whether to pause it or retarget (e.g. founders doing their own outbound). Pass their answer to the quest's session.
+- B2B outbound campaign 0989f5a9: owner chose 2026-10-28 to replace it with a founders campaign (quest running). Check the new one does not overlap the old leads once it lands.
+- Main at 912f418 unchecked; after the five running quests land, file one checks quest if none of them ran the full checks on the final main.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27, deployed with the Entra values in the VPS .env (lore #88); no real mailbox sent or read yet.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
