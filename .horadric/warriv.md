@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Woken: 'Company names: clean the bad names already on production' blocked for the owner's go (cli names fix, d9141b8, on its branch). Left it with the owner: production writes are theirs.
 - 2026-10-29 Woken: founders campaign session stopped waiting on its test and review. Told it to go on in the same turn through merge, deploy and creating the campaign, and to report overlap and suppression counts. It found old campaign 0989f5a9 still sending and paused it again.
 - 2026-10-29 Woken: 'Split merge hotspot files' stopped to wait on its five split agents. Told it to wait in the same turn, run checks, commit per area and report completed (land green splits if one stays red).
 - 2026-10-29 Round after 'Company names: stop page labels' landed (912f418): five quests running (Day3/exit1 retry, personal emails, name cleanup, founders campaign, hotspot split). Gave the three without one a model (sonnet, sonnet, opus). No checks quest yet: the split and the others run checks as they land; file one once they settle.
@@ -142,6 +143,7 @@
 
 ## Open
 
+- Name cleanup (d9141b8) waits on the owner: merge to main, deploy server, run 'cli names fix --prod' dry run, then --apply. Its full pnpm test was killed for low memory; the checks quest on main must run it.
 - B2B outbound campaign 0989f5a9: its first pause did not stick (still sending on 2026-10-29, re-paused by the founders session); check it stays paused. Owner chose 2026-10-28 to replace it with a founders campaign (quest running). Check the new one does not overlap the old leads once it lands.
 - Main at 912f418 unchecked; after the five running quests land, file one checks quest if none of them ran the full checks on the final main.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
