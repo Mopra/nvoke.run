@@ -155,11 +155,19 @@ made them work:
   (word trigram containment above 0.2, a shared sentence of 7 words or more,
   or a near duplicate subject). A sentence with three quarters of its words
   from the offer (sender, prices, pitch, campaign, briefs) is left out of
-  the comparison: every email states the same offer. The prompt lists the
+  the comparison: every email states the same offer. A word run made only
+  of offer words, months and numbers never counts as shared, unless it is
+  only glue ("and it has"), so "Mailchimp bills by subscriber count" or
+  "the certificate ends November 4" in several emails is not a template.
+  The prompt lists the
   subjects and closing questions the campaign already used (`<recent>`) for
   Claude to avoid. A lead that clashes, broke a rule or quoted wrongly is
   asked for once more with what to avoid named; still too similar, it fails
-  with skip_reason `too_similar`.
+  with skip_reason `too_similar`. Checked on Day3 and exit1 on 2026-10-28:
+  14 of their 18 `too_similar` leads came before the offer was left out
+  (2026-10-22). The retry of 2026-10-28 still failed 16 of 143 for the
+  pitch said in other words, which the word run rule above ended; on the
+  kept emails it finds 3 clashes in Day3 (near copies) and none in exit1.
 - **One ask for every step.** Step 1 and its follow ups come in one answer
   (`write_all` in `ai_usage`). The second try for a step 1 asks again for
   every step (`write_retry`); a lead whose step 1 passed but whose follow

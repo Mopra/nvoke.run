@@ -51,6 +51,22 @@ describe('overlap', () => {
     expect(conflictWith({ subject: 'Spring menu', body: A }, [{ subject: 'Oil Bowl week', body: A }], offer)).not.toBeNull();
   });
 
+  it('lets two emails state the offer and a date in their own words', () => {
+    // exit1's retry on 2026-10-28 failed leads as too_similar for this fact sentence.
+    const offer = offerWords('Hi. Tell them the SSL certificate for their site ends on a date and has not been renewed yet, so a visitor will see a browser warning. It is free.');
+    const a = 'Hi, the SSL certificate for ebcpa.com ends on November 4, 2026, and it has not been renewed yet. Who handles the tax season pages?';
+    const b = 'Hi, the SSL certificate for sunnyrest.com ends on November 4, 2026, and it has not been renewed yet. Does your host renew it?';
+    expect(sharedSentences(a, b)).not.toEqual([]);
+    expect(sharedSentences(a, b, offer)).toEqual([]);
+    expect(conflictWith({ subject: 'ebcpa.com certificate', body: a }, [{ subject: 'Sunnyrest renewal', body: b }], offer)).toBeNull();
+    // The email's own words still count.
+    const c = 'Hi, the SSL certificate for sunnyrest.com ends on November 4, 2026, and it has not been renewed yet. Who handles the tax season pages?';
+    expect(conflictWith({ subject: 'Sunnyrest date', body: c }, [{ subject: 'ebcpa.com certificate', body: a }], offer)).not.toBeNull();
+    // A copy made of offer words still reads like a template: the glue between them counts.
+    const copy = (d: string) => `Hi, the certificate for ${d} ends on a date. It has not been renewed yet, so a visitor to the site will see a browser warning. It is free, and if it is not for you, that is fine.`;
+    expect(conflictWith({ subject: 'One', body: copy('ebcpa.com') }, [{ subject: 'Two', body: copy('sunnyrest.com') }], offer)).not.toBeNull();
+  });
+
   it('reports a conflict with the highest score, the shared sentences and a repeated subject', () => {
     expect(conflictWith({ subject: 'Oil Bowl week', body: A }, [{ subject: 'Columbus at 59th', body: B }])).toBeNull();
     const c = conflictWith({ subject: 'columbus at 59th', body: A }, [{ subject: 'Columbus at 59th', body: B }, { subject: 'x', body: A }]);

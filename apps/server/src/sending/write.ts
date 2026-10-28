@@ -134,7 +134,7 @@ export type ClaudeFollowUps = z.infer<typeof ClaudeFollowUps>;
  */
 function rules(ownDomain: boolean): string {
   const plain = ownDomain
-    ? "- Plain text. No links, no email addresses, no attachments mentioned, and no web addresses except the company's own domain written bare (acme.com, www.acme.com) when the email is about their site."
+    ? "- Plain text. No links, no email addresses, no attachments mentioned, and no web addresses except the company's own domain written bare (acme.com, www.acme.com) when the email is about their site, never with a path. Name any other company by its name, never its domain (GoDaddy, not GoDaddy.com)."
     : '- Plain text. No links, no web addresses, no email addresses, no attachments mentioned.';
   return `${plain}
 ${RULES}`;
@@ -444,7 +444,10 @@ const LINK = /https?:\/\/|www\.|\S+@\S+\.\w|\b[\w-]+\.(com|net|org|io|co|ai|app|
 const FLATTERY = /\b(impressive|amazing|awesome|incredible|love what you|great work|big fan)\b/i;
 const SIGN_OFF = /^(best|cheers|thanks|thank you|regards|kind regards|best regards|warm regards|all the best|talk soon|sincerely)\b[\s,.!]*$/i;
 // "unsubscribe" alone: "unsubscribes stay unsubscribed" is Day3's offer, not a line about stopping.
-const STOP_LINE = /\bunsubscribe\b|\bopt[ -]?out\b|reply (with )?["']?stop\b|found your (email|address)/i;
+// Nor is a list being moved: "your unsubscribe list comes along", "opt-out status kept".
+// "My unsubscribe list" is the sender's own, and still a line about stopping.
+const LIST_NOUN = String.raw`(?![ -](lists?|status(es)?|data|records?|flags?|history|tags?)\b)`;
+const STOP_LINE = new RegExp(String.raw`\b(unsubscribe|opt[ -]?out)\b${LIST_NOUN}|\bmy (unsubscribe|opt[ -]?out)\b|reply (with )?["']?stop\b|found your (email|address)`, 'i');
 
 // Singular "you" in Swedish, Danish, Norwegian and German, wrong for a shared inbox.
 const SINGULAR_YOU = /(?<![\p{L}])(du|dig|deg|din|ditt|dina|dine|dich|dein|deine|deinen|deinem|deiner)(?![\p{L}])/iu;

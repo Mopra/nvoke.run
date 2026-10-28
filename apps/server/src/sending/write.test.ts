@@ -60,6 +60,13 @@ describe('checkBody and checkSubject', () => {
     expect(checkBody(`${BODY}\nReply stop to unsubscribe.`)).toBe(BODY);
     // Talk of unsubscribes is not a line about stopping.
     expect(checkBody(`${BODY} Your unsubscribes stay unsubscribed.`)).toBe(`${BODY} Your unsubscribes stay unsubscribed.`);
+    // Nor is a list that moves with them (Day3 follow ups cut for this on 2026-10-28).
+    for (const line of ['I run a one click import and your unsubscribe list comes along.', 'Every opt-out status is kept as it is.']) {
+      expect(checkBody(`${BODY}\n${line}`)).toBe(`${BODY}\n${line}`);
+    }
+    for (const line of ['If you would rather opt out, say so.', 'Say the word and you go on my opt-out list.', 'Update your unsubscribe settings any time.']) {
+      expect(checkBody(`${BODY}\n${line}`)).toBe(BODY);
+    }
   });
 
   it('turns dashes used as punctuation into commas', () => {
