@@ -1,4 +1,4 @@
--- Search kind domains (docs/SPEC.md, "Search kinds"): a list of domains or
+-- Search kind domains (docs/spec/search-kinds.md): a list of domains or
 -- company names the user already has. Its params hold the list itself.
 
 alter table searches drop constraint searches_kind_check;

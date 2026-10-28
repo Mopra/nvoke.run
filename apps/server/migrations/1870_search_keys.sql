@@ -1,4 +1,4 @@
--- Your own search key (docs/SPEC.md, "Your own search key"). An account may
+-- Your own search key (docs/spec/claude.md, "Your own search key"). An account may
 -- run its paid web searches on its own Serper or Brave key. The key is sealed
 -- with SECRETS_KEY (src/crypto/secrets.ts) and never leaves the server again.
 

@@ -1,4 +1,4 @@
--- Openers per company (docs/SPEC.md, "Openers"). The crawl keeps the visible
+-- Openers per company (docs/spec/openers.md). The crawl keeps the visible
 -- text of a few pages per domain, capped, next to the shared crawl cache, so
 -- Claude can draft a first line from what the site says. The opener itself is
 -- stored on the user's company row.

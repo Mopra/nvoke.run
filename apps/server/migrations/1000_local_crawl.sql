@@ -1,4 +1,4 @@
--- Local render crawl (docs/SPEC.md, "Local render crawl").
+-- Local render crawl (docs/spec/local-render-crawl.md).
 --
 -- The server crawl now tells two more outcomes apart: `refused` (the site
 -- refuses our servers: 401, 403, 429, 503 or a bot challenge) and `js_only`

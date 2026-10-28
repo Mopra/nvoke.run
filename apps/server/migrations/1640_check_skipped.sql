@@ -1,5 +1,5 @@
--- Checks spent on the addresses people buy nvoke for (docs/SPEC.md,
--- pipeline step 4, leads/check-policy.ts). An address left unchecked on
+-- Checks spent on the addresses people buy nvoke for (docs/spec/pipeline.md,
+-- step 4, leads/check-policy.ts). An address left unchecked on
 -- purpose keeps verification null (hidden and never charged) and says why
 -- here, so the search and the company's lead count it as settled:
 -- role_inbox (info@, checked only when the search asks for it), off_target

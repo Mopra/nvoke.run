@@ -1,5 +1,5 @@
--- Paid web search requests per provider and month (docs/SPEC.md, "Source
--- costs"). With two paid web searches (WEB_SEARCH_PROVIDER and
+-- Paid web search requests per provider and month (docs/spec/source-costs.md).
+-- With two paid web searches (WEB_SEARCH_PROVIDER and
 -- WEB_SEARCH_FALLBACK, src/leads/sources/paid-search.ts) each has its own
 -- price and monthly budget, so its requests are counted here, one row per
 -- provider and UTC month, an atomic add per paid page.

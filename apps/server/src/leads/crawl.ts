@@ -1,7 +1,7 @@
 // Crawls one company website for published email addresses and the people
 // it names (team, about and imprint pages).
 //
-// Limits (docs/SPEC.md): the homepage plus likely pages (contact, about,
+// Limits (docs/spec/pipeline.md, step 3): the homepage plus likely pages (contact, about,
 // team, impressum, privacy, legal) from its links or its sitemap, at most 8
 // pages and 2 MB per company, robots.txt honored on every hop, at most one
 // request per second per host (longer if robots.txt asks for a Crawl-delay).

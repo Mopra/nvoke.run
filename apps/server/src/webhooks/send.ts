@@ -1,4 +1,4 @@
-// Signing and sending one webhook request (docs/SPEC.md, "Webhooks"). The
+// Signing and sending one webhook request (docs/spec/webhooks.md). The
 // signature follows Standard Webhooks, so its libraries verify our requests:
 // HMAC SHA-256 over `{id}.{timestamp}.{body}`, keyed with the base64 part of
 // the whsec_ secret.

@@ -1,4 +1,4 @@
--- Fit after the crawl (docs/SPEC.md, "Describe your customer"). A plain
+-- Fit after the crawl (docs/spec/sonar.md). A plain
 -- words company passes a first look from its search result ('gate'), is
 -- crawled, and when the crawl found anything that could be checked it waits
 -- for the fit job ('pending'): no check or people job runs before it is

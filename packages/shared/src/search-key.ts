@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Bring your own search key (docs/SPEC.md, "Your own search key"): an account
+// Bring your own search key (docs/spec/claude.md, "Your own search key"): an account
 // can run its paid web searches on its own Serper or Brave key. The key is
 // sealed on the server and never sent back.
 

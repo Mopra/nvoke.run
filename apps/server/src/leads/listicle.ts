@@ -1,4 +1,4 @@
-// List pages and agency directories (docs/SPEC.md, "Describe your customer").
+// List pages and agency directories (docs/spec/sonar.md).
 // A search result titled "Top 25 lead generation agencies in London", or a
 // page on clutch.co, designrush or sortlist, names many companies at once.
 // The page is fetched once with the crawler's rules (robots.txt on every hop,

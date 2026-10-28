@@ -1,5 +1,5 @@
-// Turning pipeline changes into webhook deliveries (docs/SPEC.md,
-// "Webhooks"). Each function inserts one pending delivery per matching
+// Turning pipeline changes into webhook deliveries (docs/spec/webhooks.md).
+// Each function inserts one pending delivery per matching
 // webhook, inside the caller's transaction, and is safe to call twice: the
 // unique key on (webhook, event, search, company) drops repeats.
 

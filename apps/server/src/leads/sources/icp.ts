@@ -1,4 +1,4 @@
-// "Describe your customer" (docs/SPEC.md): the user says who they sell to in
+// "Describe your customer" (docs/spec/sonar.md): the user says who they sell to in
 // plain words and nvoke plans the searches (planner.ts), runs them tier by
 // tier until the search holds enough companies, and hands on the ones that
 // pass fit's first look (fit.ts). The second look comes after the crawl, for

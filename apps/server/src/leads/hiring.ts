@@ -1,4 +1,4 @@
-// Hiring signals for "Describe your customer" searches (docs/SPEC.md). A
+// Hiring signals for "Describe your customer" searches (docs/spec/sonar.md). A
 // company that advertises a sales development, business development or
 // account executive role is building an outbound team right now. Its job
 // posts sit on the public boards of a few applicant tracking systems (Lever,

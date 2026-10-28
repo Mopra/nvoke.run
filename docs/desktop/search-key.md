@@ -1,6 +1,6 @@
 # Your own search key
 
-**What.** A setting on Account, right under Your own Claude key: the account's paid web searches run on the user's own Serper or Brave Search key instead of nvoke's. The server side is in docs/SPEC.md, "Your own search key".
+**What.** A setting on Account, right under Your own Claude key: the account's paid web searches run on the user's own Serper or Brave Search key instead of nvoke's. The server side is in docs/spec/claude.md, "Your own search key".
 
 **Readout.** "Searching on nvoke's key." while the account has no key (`GET /v1/search-key` answers 404, read as none). With a key: "Serper key ending in WXYZ" (or Brave Search), plus a Remove key button.
 

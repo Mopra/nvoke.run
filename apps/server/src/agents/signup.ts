@@ -1,5 +1,5 @@
 // Agent sign-up: POST /v1/agents/signup creates an nvoke account without a
-// human and hands the agent an API key at once (docs/SPEC.md, "API and agents").
+// human and hands the agent an API key at once (docs/spec/api-and-agents.md).
 //
 // The Clerk user is created with its email `reserved`, not verified: the
 // address cannot be taken by anyone else, but nobody has proven they own it.

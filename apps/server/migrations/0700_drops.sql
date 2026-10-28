@@ -1,4 +1,4 @@
--- Fresh leads: the feed and drops (docs/SPEC.md, "Drops").
+-- Fresh leads: the feed and drops (docs/spec/drops.md).
 --
 -- The worker collects new launches from Show HN, Launch HN, Product Hunt and
 -- Y Combinator around the clock into feed_items. Only what the source

@@ -35,7 +35,7 @@ is throttled to 5 sessions a minute, and that caps volume, not margin.
 
 | Step | Per run | Per 1,000 verified (45 verified a run) |
 | --- | --- | --- |
-| Brave, 17 to 24 requests (`SPEC.md`) | about $0.10 | about $2.20 |
+| Brave, 17 to 24 requests (`spec/sonar.md`) | about $0.10 | about $2.20 |
 | `plan`, Sonnet | about $0.02 | about $0.45 |
 | `fit`, Haiku, about 15 calls | about $0.015 | about $0.35 |
 | `people`, Haiku, about 75 pages of 8,000 chars | about $0.06 | about $1.30 |

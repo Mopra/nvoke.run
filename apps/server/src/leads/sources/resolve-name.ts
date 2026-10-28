@@ -1,7 +1,7 @@
 // A company's website from its name, for free, before a paid web search.
 //
 // A `domains` search pays Brave one request per company name and a `local`
-// search one per place without a website (docs/SPEC.md, "Source costs").
+// search one per place without a website (docs/spec/source-costs.md).
 // This tries three free routes first and answers only when confident, else
 // null, and the caller asks Brave as before:
 //

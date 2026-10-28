@@ -1,4 +1,4 @@
--- Paid source costs (docs/SPEC.md, "Source costs").
+-- Paid source costs (docs/spec/source-costs.md).
 --
 -- web_search_cache keeps Brave Search result pages for a few days, so the
 -- same query and country is not paid for twice. It holds only what the find

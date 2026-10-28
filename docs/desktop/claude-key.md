@@ -1,6 +1,6 @@
 # Your own Claude key
 
-**What.** A setting on Account, under the plan: the account's Claude calls run on the user's own Anthropic key instead of nvoke's, with a model per tier. The server side is in docs/SPEC.md, "Your own Claude key".
+**What.** A setting on Account, under the plan: the account's Claude calls run on the user's own Anthropic key instead of nvoke's, with a model per tier. The server side is in docs/spec/claude.md, "Your own Claude key".
 
 **Readout.** "Running on nvoke's Claude." while the account has no key (`GET /v1/ai-key` answers 404, read as none). With a key: "Anthropic key ending in WXYZ" and the bulk and quality models by name, plus a Remove key button.
 

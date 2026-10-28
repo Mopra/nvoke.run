@@ -1,5 +1,5 @@
 // Companies from a list the user already has: domains, URLs, email
-// addresses or company names (docs/SPEC.md, "Search kinds").
+// addresses or company names (docs/spec/search-kinds.md).
 //
 // Domains cost nothing and go straight to the crawl. A name is first tried
 // on the free routes of resolve-name.ts (names past searches found, a guessed

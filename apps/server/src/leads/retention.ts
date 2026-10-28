@@ -1,4 +1,4 @@
-// Retention rules (docs/SPEC.md, "Privacy"). Every time limit on stored lead
+// Retention rules (docs/spec/privacy.md). Every time limit on stored lead
 // data lives here, and purge() applies the deleting ones.
 
 import type { Sql } from 'postgres';

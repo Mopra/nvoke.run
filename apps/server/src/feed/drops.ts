@@ -1,4 +1,4 @@
-// Drops (docs/SPEC.md, "Drops"): saved filters over the feed. Once a day an
+// Drops (docs/spec/drops.md): saved filters over the feed. Once a day an
 // enabled drop with new matching launches becomes a search of kind 'drop',
 // which the normal pipeline crawls, verifies and bills. A run that finds
 // nothing new creates no search.

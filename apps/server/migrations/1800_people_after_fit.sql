@@ -1,4 +1,4 @@
--- People's Claude read after fit (docs/SPEC.md, "Describe your customer").
+-- People's Claude read after fit (docs/spec/sonar.md).
 -- A plain words company whose people pages name people the rules could not
 -- read keeps those pages here while it waits for fit's second look; Claude
 -- reads them only when fit keeps the company, and the column is cleared

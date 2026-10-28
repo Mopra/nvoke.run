@@ -2,7 +2,8 @@
 
 Lead finder. Electron desktop app, a Next.js site with the web app, and a Node
 backend (API and worker) on a VPS. pnpm workspaces, TypeScript everywhere,
-Node 24. Behaviour is in `docs/SPEC.md`; read the doc for the area you touch.
+Node 24. Behaviour is in `docs/spec/`, one file per area, indexed by
+`docs/SPEC.md`; read the doc for the area you touch.
 
 ## Layout
 
@@ -68,7 +69,7 @@ embedded Postgres (no Docker); `TEST_DATABASE_URL` points at a real one.
   fails otherwise.
 - Pricing: one plan, priced by verified emails a month (`plans.ts`). Change a
   price in `plans.ts` and in the Clerk Billing dashboard together. Details in
-  `docs/SPEC.md`, "Plans".
+  `docs/spec/plans.md`.
 
 ## Hard rules
 

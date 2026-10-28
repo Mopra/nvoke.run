@@ -1,4 +1,4 @@
--- Start from your website (docs/SPEC.md, "Site profile"). One profile per
+-- Start from your website (docs/spec/site-profile.md). One profile per
 -- account: what the user's own site says they sell and to whom, and the
 -- searches Claude suggested from it. The profile is editable; openers read it.
 

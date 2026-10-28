@@ -1,4 +1,4 @@
--- Your own Claude key (docs/SPEC.md, "Your own Claude key"). An account may
+-- Your own Claude key (docs/spec/claude.md, "Your own Claude key"). An account may
 -- run its Claude calls on its own Anthropic API key. The key is sealed with
 -- SECRETS_KEY (src/crypto/secrets.ts) and never leaves the server again.
 

@@ -1,4 +1,4 @@
--- Claude calls (docs/SPEC.md, "Claude"). One row per call to the Anthropic
+-- Claude calls (docs/spec/claude.md). One row per call to the Anthropic
 -- API, with the tokens and what they cost, so spend can be logged per user
 -- and capped per account each calendar month (src/ai/usage.ts). Holds no
 -- prompt or response text.

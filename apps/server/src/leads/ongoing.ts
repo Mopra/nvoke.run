@@ -1,4 +1,4 @@
-// Never short, and ongoing (docs/SPEC.md, "Describe your customer"). A plain
+// Never short, and ongoing (docs/spec/sonar.md). A plain
 // words (`icp`) search that runs out of planned work with fewer verified
 // emails than it aims for does not end: the last job holds it
 // (holdForEscalation, called from maybeFinishSearch), or a tick spots it once

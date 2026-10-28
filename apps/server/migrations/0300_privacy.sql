@@ -1,4 +1,5 @@
--- Privacy and the shared domain cache (docs/SPEC.md, "Privacy" and "Domain cache").
+-- Privacy and the shared domain cache (docs/spec/privacy.md,
+-- and the domain cache in docs/spec/pipeline.md).
 --
 -- suppressions replaces crawl_optouts. It holds sha256 hashes only, so the
 -- list of people who opted out is not itself a list of addresses.

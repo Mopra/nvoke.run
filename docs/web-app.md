@@ -1,6 +1,6 @@
 # Web app (code)
 
-What the web app does is in docs/SPEC.md, "Web app". This is how it is built.
+What the web app does is in docs/spec/web-app.md. This is how it is built.
 
 - Auth: `proxy.ts` protects `/app` with Clerk (`auth.protect()`, signed out
   goes to `/sign-in`). The browser calls `/v1` on the API directly with the

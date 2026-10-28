@@ -1,5 +1,5 @@
-// The plan behind a "Describe your customer" search (docs/SPEC.md, "Describe
-// your customer"). One Sonnet call turns the user's plain words into web
+// The plan behind a "Describe your customer" search (docs/spec/sonar.md).
+// One Sonnet call turns the user's plain words into web
 // queries phrased the way those companies describe themselves on their own
 // sites, directory and list page queries, local trade and city pairs when the
 // customer is a local business, and the fit criteria the candidates are
@@ -507,8 +507,8 @@ export function freshCountries(previous: IcpPlan, plan: IcpPlan): string[] {
 }
 
 /**
- * Asks Sonnet for a fresh round after `previous` came up short (docs/SPEC.md,
- * "Describe your customer", never short). `plan` is null when nothing new is
+ * Asks Sonnet for a fresh round after `previous` came up short (docs/spec/sonar.md, never
+ * short). `plan` is null when nothing new is
  * left. Throws AiError when Claude is unavailable or answers badly.
  */
 export async function replan(

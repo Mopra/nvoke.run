@@ -1,4 +1,4 @@
-// Searches on the account's own key (docs/SPEC.md, "Your own search key").
+// Searches on the account's own key (docs/spec/claude.md, "Your own search key").
 //
 // The wrapper sits in front of the whole search client (paid, fallback and
 // free). A search whose account holds a Serper or Brave key runs every paid

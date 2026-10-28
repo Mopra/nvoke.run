@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * API keys, agent sign-up and claiming. See "API and agents" in docs/SPEC.md.
+ * API keys, agent sign-up and claiming. See docs/spec/api-and-agents.md.
  *
  * An API key (`nvk_sk_...`) authenticates the REST API and the MCP server as
  * its owner. Anyone signed in makes them; an agent gets its first one from

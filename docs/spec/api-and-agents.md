@@ -1,0 +1,23 @@
+# API and agents
+
+Everything the desktop app does is open to scripts and AI agents. One catalog, `packages/shared/src/catalog.ts`, lists every endpoint (`ENDPOINTS`, with its zod schemas), every error code (`ERROR_CODES`) and every MCP tool (`MCP_TOOLS`). The server builds `GET /v1/openapi.json` and the MCP tool list from it, the site renders `/docs`, `/llms.txt` and `/agents.md` from it, and a test fails when a documented route does not exist.
+
+**Credentials.** Every `/v1` route that needs a user accepts any of: the desktop device token (`nvk_dt_`), an API key (`nvk_sk_`), a Clerk session JWT (the site) or a Clerk OAuth access token (MCP clients). Code: `apps/server/src/api/auth.ts`.
+
+**API keys.** `nvk_sk_` plus 32 random bytes, stored as a sha256 hash with a short display prefix. Made from the desktop Account screen or `POST /v1/api-keys` (any credential, so an agent can rotate its own), shown once, at most 20 live per account, revoked with `DELETE`. Keys have full access to the account; there are no scopes. Code: `apps/server/src/auth/api-keys.ts`.
+
+**Agent sign-up.** `POST /v1/agents/signup` with `{ email, agentName? }` creates an account with no human in the loop (`apps/server/src/agents/signup.ts`):
+
+1. Refuse with 422 `email_not_accepted` a disposable domain, an opted-out address (`suppressions`) or a domain without MX or A records. Refuse with 429 `rate_limited` past 3 attempts per IP an hour, 10 per email domain a day (100 for webmail domains such as gmail.com) or 300 a day overall. Attempts count, not only successes, so the 409 cannot be used to enumerate accounts.
+2. 409 `account_exists` when Clerk already has the address.
+3. Create the Clerk user with the address `reserved` (unverified, but nobody else can take it), no password and legal checks skipped. Insert `accounts` with `created_by = 'agent'`, `claimed_at = null`, and an API key with `origin = 'agent_signup'`. If the database step fails, the Clerk user is deleted again.
+4. Mail the owner one email through Day3 (`CLAIM_EMAIL_FROM`) with a Clerk sign-in ticket in the fragment of `{SITE_URL}/claim#ticket=...`, valid 30 days. A failed email does not fail the sign-up; the response says `claimEmailSent: false`.
+5. Return 201 with the key, `apiBase`, `mcpUrl`, `docsUrl` and `nextSteps`.
+
+The account is on the free plan like any other. Unclaimed, its keys work for 7 days (`UNCLAIMED_ACTIVE_DAYS`), then answer 403 `claim_required`; the worker deletes it with its Clerk user after 30 days (`UNCLAIMED_DELETE_DAYS`, `apps/server/src/agents/purge.ts`).
+
+**Claiming.** The site's `/claim` page redeems the ticket with Clerk, reads the account with `GET /v1/agents/claim` (the one signed-in read that claims nothing), then calls `POST /v1/agents/claim` with `{ acceptTerms: true, keepAgentKeys }`, which sets `claimed_at` and keeps or revokes the agent's key. A person who signs in any other way (the site or the desktop app) proves they own the address too: the first such request claims the account and revokes the agent's sign-up key (`Accounts.humanSignedIn`). So an agent that signed up with someone else's address loses access as soon as the owner shows up, and the owner never inherits a key they did not choose to keep.
+
+**MCP.** `POST /mcp` on the API, Streamable HTTP, stateless, JSON responses; GET and DELETE answer 405 (`apps/server/src/api/routes/mcp.ts`, `@modelcontextprotocol/sdk`). Each tool runs the matching REST route in process (`app.inject`) with the caller's own `Authorization` header, so MCP and REST share auth, quotas and shapes. The desktop app serves the same tools locally (see "Local MCP" under [Desktop screens](desktop-screens.md)). Tools: `get_account`, `start_search` (every client kind, `domains` with `items`), `wait_for_search` (polls up to 50 seconds), `get_search`, `list_searches`, `get_leads`, `export_csv`, `draft_openers`, `set_search_ongoing`, `set_check_inboxes` (`PATCH /v1/searches/:id` with `checkInboxes`; `start_search` takes `checkInboxes` too), `cancel_search`, `delete_search`. The server sends `MCP_INSTRUCTIONS` at `initialize`, including the EU consent caveat.
+
+MCP auth is an API key in the bearer header, or OAuth with Clerk as the authorization server: a 401 carries `WWW-Authenticate: Bearer resource_metadata=...`, the protected resource metadata names the Clerk issuer (decoded from `CLERK_PUBLISHABLE_KEY`), and the client registers itself with Clerk (client ID metadata documents or dynamic client registration) and sends the person through Clerk's sign-in, where they can also sign up. OAuth tokens are verified with the Clerk Backend API and cached for a minute.

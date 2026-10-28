@@ -1,6 +1,6 @@
 // Telling a company's own website from the rest of a web search's results by
 // its name: the domains search looks up company names, the local search
-// looks up places that list no website (docs/SPEC.md, "Search kinds").
+// looks up places that list no website (docs/spec/search-kinds.md).
 
 import { isPlatformDomain, isWebmailDomain, normalizeDomain, registrableDomain } from './domain.ts';
 

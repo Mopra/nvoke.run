@@ -1,4 +1,4 @@
--- Webhooks (docs/SPEC.md, "Webhooks").
+-- Webhooks (docs/spec/webhooks.md).
 --
 -- A webhook is a user's URL that gets lead.ready and search.finished events.
 -- Each event becomes one row in webhook_deliveries per matching webhook,

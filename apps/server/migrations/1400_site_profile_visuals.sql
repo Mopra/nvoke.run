@@ -1,4 +1,4 @@
--- Pictures on the site profile (docs/SPEC.md, "Site profile"): the site's
+-- Pictures on the site profile (docs/spec/site-profile.md): the site's
 -- icon and share image, hotlinked, or a screenshot nvoke took when the site
 -- has no share image.
 

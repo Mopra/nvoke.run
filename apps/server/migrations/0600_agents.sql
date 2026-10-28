@@ -1,4 +1,4 @@
--- API keys and agent sign-up (docs/SPEC.md, "API and agents").
+-- API keys and agent sign-up (docs/spec/api-and-agents.md).
 --
 -- RLS on with no policies, like every other table: only the server reads them.
 

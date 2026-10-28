@@ -1,4 +1,4 @@
-// The account's own search key (docs/SPEC.md, "Your own search key"), sealed
+// The account's own search key (docs/spec/claude.md, "Your own search key"), sealed
 // with SECRETS_KEY in search_keys. Only the search client opens it; the
 // routes only ever show its last 4 characters.
 

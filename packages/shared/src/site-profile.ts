@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CreateSearchRequest } from './leads.ts';
 
 /**
- * Start from your website (docs/SPEC.md, "Site profile"). The user pastes
+ * Start from your website (docs/spec/site-profile.md). The user pastes
  * their own site; the server reads a few of its pages, asks Claude who the
  * site sells to and suggests searches in the real search kinds. The profile
  * is kept on the account and is editable, so later features (openers) can

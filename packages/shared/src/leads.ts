@@ -98,7 +98,7 @@ export type DomainsSearchParams = z.infer<typeof DomainsSearchParams>;
 
 /**
  * "Describe your customer": who the user sells to in plain words. nvoke plans
- * the queries (docs/SPEC.md, "Describe your customer"), mines agency
+ * the queries (docs/spec/sonar.md), mines agency
  * directories and list pages, and keeps the companies that fit.
  */
 export const IcpSearchParams = z.object({

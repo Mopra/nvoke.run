@@ -1,4 +1,4 @@
-// Fit scoring for "Describe your customer" searches (docs/SPEC.md). Haiku
+// Fit scoring for "Describe your customer" searches (docs/spec/sonar.md). Haiku
 // scores a candidate 0 to 100 against the user's description and the plan's
 // segments and fit criteria, twice at most. The first look (mode 'gate')
 // reads what the search found for free: the name, the address, the search

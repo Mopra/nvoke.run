@@ -1,4 +1,4 @@
--- Operator alerts and paused sources (docs/SPEC.md, "Source costs").
+-- Operator alerts and paused sources (docs/spec/source-costs.md).
 --
 -- alerts_sent remembers when each alert key last went out, so an alert is
 -- emailed at most once per its interval however many workers hit it.

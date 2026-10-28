@@ -711,7 +711,7 @@ says so changes in one commit:
 - Catalog and code: `MCP_INSTRUCTIONS` and `draft_openers` in
   `packages/shared/src/catalog.ts`, the comment in
   `apps/server/src/openers/openers.ts`, `packages/shared/src/leads.ts`.
-- Specs: `docs/SPEC.md` (privacy positioning, openers), `docs/desktop/openers.md`.
+- Specs: `docs/spec/privacy.md` (positioning), `docs/spec/openers.md`, `docs/desktop/openers.md`.
 - The launch video line "We find. You send." gets a new cut later.
 
 ## Open decisions for the owner

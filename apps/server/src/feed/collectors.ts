@@ -1,4 +1,4 @@
-// Feed collectors (docs/SPEC.md, "Drops"). Each one lists what launched on
+// Feed collectors (docs/spec/drops.md). Each one lists what launched on
 // its source since a given moment. They read only what the source publishes
 // about a product and never crawl the product's site: that happens later,
 // when a drop delivers the company to a user.

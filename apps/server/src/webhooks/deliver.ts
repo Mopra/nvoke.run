@@ -1,4 +1,4 @@
-// The worker's webhook sender (docs/SPEC.md, "Webhooks"). Claims due
+// The worker's webhook sender (docs/spec/webhooks.md). Claims due
 // deliveries with SKIP LOCKED, builds each payload from the current data,
 // sends it signed and schedules a retry on failure.
 

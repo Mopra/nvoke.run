@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Bring your own key (docs/SPEC.md, "Your own Claude key"): an account can
+// Bring your own key (docs/spec/claude.md, "Your own Claude key"): an account can
 // run its Claude calls on its own Anthropic API key and pick the model for
 // each tier. The key is sealed on the server and never sent back.
 

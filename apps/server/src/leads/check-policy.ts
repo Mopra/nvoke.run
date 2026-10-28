@@ -1,5 +1,5 @@
 // Which found addresses get an SMTP check, so the time and the user's
-// allowance go to named people (docs/SPEC.md, pipeline step 4). Pure: the
+// allowance go to named people (docs/spec/pipeline.md, step 4). Pure: the
 // worker (worker/pipeline.ts) and the never short projection (ongoing.ts)
 // feed it rows.
 //

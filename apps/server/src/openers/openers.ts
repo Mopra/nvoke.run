@@ -1,4 +1,4 @@
-// Openers per company (docs/SPEC.md, "Openers"): one drafted first line per
+// Openers per company (docs/spec/openers.md): one drafted first line per
 // company, written by Claude from the pages the crawl read on its own site
 // (domain_pages), for companies with at least one valid email. Every line
 // must rest on words the page states: Claude quotes them, and the line is

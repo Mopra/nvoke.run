@@ -15,7 +15,7 @@ export interface AuthFeature {
 }
 
 /**
- * Sign-in through the system browser (docs/SPEC.md, desktop sign-in). Called
+ * Sign-in through the system browser (docs/desktop/sign-in.md). Called
  * before the app is ready, so nvoke:// links that arrive early are kept.
  */
 export function registerAuth(ctx: MainContext): AuthFeature {

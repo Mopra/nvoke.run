@@ -1,4 +1,4 @@
-// The account's own Anthropic key (docs/SPEC.md, "Your own Claude key"),
+// The account's own Anthropic key (docs/spec/claude.md, "Your own Claude key"),
 // sealed with SECRETS_KEY in ai_keys. Only createAi opens it; the routes only
 // ever show its last 4 characters.
 

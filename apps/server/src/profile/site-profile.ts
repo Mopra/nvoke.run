@@ -1,4 +1,4 @@
-// Start from your website (docs/SPEC.md, "Site profile"): read the user's
+// Start from your website (docs/spec/site-profile.md): read the user's
 // site, ask Claude what it sells and to whom, and turn its suggestions into
 // searches the user starts in one click. One profile per account, editable.
 

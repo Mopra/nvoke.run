@@ -1,4 +1,4 @@
-// Retention for agent sign-up (docs/SPEC.md, "API and agents"). The worker
+// Retention for agent sign-up (docs/spec/api-and-agents.md). The worker
 // runs it next to purge() in leads/retention.ts.
 
 import type { Sql } from 'postgres';

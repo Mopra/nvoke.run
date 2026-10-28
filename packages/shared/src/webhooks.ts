@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Company, Search, SearchKind } from './leads.ts';
 
 /**
- * Webhooks (docs/SPEC.md, "Webhooks"): leads pushed to the user's own URL as
+ * Webhooks (docs/spec/webhooks.md): leads pushed to the user's own URL as
  * soon as they are ready. Requests are signed the Standard Webhooks way
  * (standardwebhooks.com), so its libraries verify them.
  */

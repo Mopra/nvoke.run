@@ -1,4 +1,4 @@
--- One plan for everyone, priced by verified emails (docs/SPEC.md, "Plans").
+-- One plan for everyone, priced by verified emails (docs/spec/plans.md).
 --
 -- Plan keys are the Clerk Billing plan slugs from packages/shared/src/plans.ts.
 -- The meter counts addresses whose check came back valid, once per user and

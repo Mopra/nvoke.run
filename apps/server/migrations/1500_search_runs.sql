@@ -1,4 +1,4 @@
--- A search grows over several runs (docs/SPEC.md, "Pipeline per search"):
+-- A search grows over several runs (docs/spec/pipeline.md):
 -- a finished search runs again with new params of its kind and adds the
 -- companies it does not hold yet. `params` and `limit` stay the latest
 -- run's, which the find job reads; `runs` keeps every run in order as
