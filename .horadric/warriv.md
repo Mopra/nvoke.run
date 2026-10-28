@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Woken: 'Split merge hotspot files' stopped to wait on its five split agents. Told it to wait in the same turn, run checks, commit per area and report completed (land green splits if one stays red).
 - 2026-10-29 Round after 'Company names: stop page labels' landed (912f418): five quests running (Day3/exit1 retry, personal emails, name cleanup, founders campaign, hotspot split). Gave the three without one a model (sonnet, sonnet, opus). No checks quest yet: the split and the others run checks as they land; file one once they settle.
 - 2026-10-28 Woken: 'Pause the nvoke B2B outbound campaign: owner decides' blocked by design (83 sent to lead-gen agencies, 0 positive). Left it with the owner and noted why.
 - 2026-10-28 Round after 'Checks on main after template campaigns and lead move' landed: no fix commits, so main green at f084fb7. Stray '--help' quest is now closed. Clips and the Common Crawl measure wait on the owner, no aim. Nothing to file; shipping is the human's.
