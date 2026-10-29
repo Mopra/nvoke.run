@@ -1,0 +1,165 @@
+// The Webhooks group of the catalog: its endpoints, the MCP tools that call them and its error codes.
+
+import { z } from 'zod';
+import { CreateWebhookRequest, CreateWebhookResponse, UpdateWebhookRequest, Webhook, WebhookDeliveryListResponse, WebhookIdParams, WebhookListResponse, WebhookTestResponse } from '../webhooks.ts';
+import type { Endpoint, McpTool } from './types.ts';
+
+const webhookId = z.uuid().describe('The webhook id from list_webhooks.');
+
+export const webhookEndpoints: Endpoint[] = [
+  {
+    id: 'listWebhooks',
+    method: 'GET',
+    path: '/v1/webhooks',
+    group: 'Webhooks',
+    summary: 'List webhooks',
+    description: 'Your webhooks with the outcome of their last deliveries. A webhook we turned off after a day of failures has `enabled: false` and `disabledReason` `failing`.',
+    auth: 'key',
+    status: 200,
+    response: WebhookListResponse,
+    errors: [],
+  },
+  {
+    id: 'getWebhook',
+    method: 'GET',
+    path: '/v1/webhooks/:id',
+    group: 'Webhooks',
+    summary: 'Get a webhook',
+    description: 'One webhook with the outcome of its last deliveries. The signing secret is not shown again.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 200,
+    response: Webhook,
+    errors: ['not_found'],
+  },
+  {
+    id: 'createWebhook',
+    method: 'POST',
+    path: '/v1/webhooks',
+    group: 'Webhooks',
+    summary: 'Create a webhook',
+    description:
+      'We POST `lead.ready` for every company with a valid address once its checks settle, and `search.finished` when a search ends. `scope` `drops` or a `dropId` limits it to searches drops made. Requests are signed the Standard Webhooks way (`webhook-id`, `webhook-timestamp`, `webhook-signature`); the response holds the signing secret, and it is never shown again. HTTPS on a public address only. At most 10 webhooks.',
+    auth: 'key',
+    body: CreateWebhookRequest,
+    status: 201,
+    response: CreateWebhookResponse,
+    errors: ['invalid_request', 'too_many_webhooks', 'webhook_url_not_allowed'],
+    example: { url: 'https://example.com/hooks/nvoke', events: ['lead.ready'], scope: 'drops' },
+  },
+  {
+    id: 'updateWebhook',
+    method: 'PATCH',
+    path: '/v1/webhooks/:id',
+    group: 'Webhooks',
+    summary: 'Change a webhook',
+    description: 'Change the URL, events or scope, or pause and resume it with `enabled`. `dropId: null` widens it to the whole scope again.',
+    auth: 'key',
+    params: WebhookIdParams,
+    body: UpdateWebhookRequest,
+    status: 200,
+    response: Webhook,
+    errors: ['not_found', 'invalid_request', 'webhook_url_not_allowed'],
+    example: { enabled: true },
+  },
+  {
+    id: 'deleteWebhook',
+    method: 'DELETE',
+    path: '/v1/webhooks/:id',
+    group: 'Webhooks',
+    summary: 'Delete a webhook',
+    description: 'Stops it at once and drops its pending deliveries.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 204,
+    response: null,
+    errors: ['not_found'],
+  },
+  {
+    id: 'testWebhook',
+    method: 'POST',
+    path: '/v1/webhooks/:id/test',
+    group: 'Webhooks',
+    summary: 'Send a test event',
+    description: 'Sends a signed `ping` event right now and tells you how your server answered.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 200,
+    response: WebhookTestResponse,
+    errors: ['not_found', 'webhook_url_not_allowed'],
+  },
+  {
+    id: 'listWebhookDeliveries',
+    method: 'GET',
+    path: '/v1/webhooks/:id/deliveries',
+    group: 'Webhooks',
+    summary: 'Recent deliveries',
+    description: 'The last 50 deliveries with their status, attempts and the last answer from your server. Kept 30 days.',
+    auth: 'key',
+    params: WebhookIdParams,
+    status: 200,
+    response: WebhookDeliveryListResponse,
+    errors: ['not_found'],
+  },
+];
+
+export const webhookTools: McpTool[] = [
+  {
+    name: 'list_webhooks',
+    title: 'List webhooks',
+    description: 'Your webhooks: the URL, events, scope and how the last deliveries went.',
+    input: z.object({}),
+    readOnly: true,
+    destructive: false,
+  },
+  {
+    name: 'create_webhook',
+    title: 'Create a webhook',
+    description:
+      'Pushes leads to a URL as they are ready instead of polling: `lead.ready` per company with a valid address, `search.finished` when a search ends. Scope `drops` or a dropId limits it to daily drops. Returns the signing secret once; give it to whoever verifies the requests.',
+    input: z.object({
+      url: z.string().describe('HTTPS URL on a public address.'),
+      events: z.array(z.enum(['lead.ready', 'search.finished'])).optional().describe('Both when left out.'),
+      scope: z.enum(['all', 'drops']).optional().describe('`all` (default): every search. `drops`: only searches drops made.'),
+      dropId: z.uuid().optional().describe('Only searches this drop made.'),
+    }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'update_webhook',
+    title: 'Change a webhook',
+    description: 'Changes the URL, events or scope of a webhook, or pauses and resumes it with enabled. dropId null widens it to the whole scope again.',
+    input: z.object({
+      webhookId,
+      url: z.string().optional().describe('HTTPS URL on a public address.'),
+      events: z.array(z.enum(['lead.ready', 'search.finished'])).min(1).optional(),
+      scope: z.enum(['all', 'drops']).optional(),
+      dropId: z.uuid().nullable().optional(),
+      enabled: z.boolean().optional(),
+    }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'test_webhook',
+    title: 'Test a webhook',
+    description: 'Sends a signed `ping` to the webhook now and returns how the server answered.',
+    input: z.object({ webhookId }),
+    readOnly: false,
+    destructive: false,
+  },
+  {
+    name: 'delete_webhook',
+    title: 'Delete a webhook',
+    description: 'Stops the webhook at once and drops its pending deliveries.',
+    input: z.object({ webhookId }),
+    readOnly: false,
+    destructive: true,
+  },
+];
+
+export const webhookErrors: Record<string, string> = {
+  too_many_webhooks: 'The account holds 10 webhooks. Delete one first.',
+  webhook_url_not_allowed: 'Webhook URLs must be HTTPS on a public address that resolves.',
+};
