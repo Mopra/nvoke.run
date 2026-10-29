@@ -130,6 +130,9 @@ A campaign can follow a source instead of a fixed list:
   campaigns in the last 90 days, nor anyone at a company another campaign
   of the same sender (the product domain, or nvoke) wrote to in that time
   (skip reason `contacted`), never suppressed, never a blocked country.
+- **Named only:** `named_only` (default false) sends only to leads Claude
+  can greet by first name. When write.ts finds no name for the site's
+  owner, the lead is skipped with skip_reason `no_name`, never written.
 - **Hold:** a written lead's first send is no earlier than `hold_hours`
   (default 2) after it was written, so the owner can read the day's emails
   in the campaign screen and stop any of them. The hold counts from the
@@ -214,14 +217,21 @@ made them work:
   `leadIds`) puts them back in `writing` with write jobs queued, in the same
   campaign (a done one sends again).
 - **Footer** (`footer.ts`). The signature is the mailbox's, else the
-  display name's first name and the sender's site domain. The "why you" line
-  and the opt-out line are each one of 10 hand-written variants, picked by
-  the lead so a thread stays the same. The lines follow the language of the
+  display name's first name and the sender's site domain. Under it, a blank
+  line, then two lines: a warm opt-out in the first person ("If I'm off base,
+  tell me and I'll stop writing."), then the source, as short as it goes ("I
+  found your address on acme.com."). The source stays because Art 14(3)(b)
+  wants the Art 14 information, the source included (14(2)(f)), at the first
+  communication; it goes last so the email reads as a person writing. The
+  owner's only sign-up so far came from a hand-written email with just that
+  opt-out line. Each line is one of a few hand-written variants (8 opt-outs
+  and 4 sources in English), picked by the lead so a thread stays the same.
+  The lines follow the language of the
   email they sit under (`detectLanguage` reads the body: English, Swedish,
   Danish, Norwegian, German or Finnish, English when unsure), so a Swedish
-  email gets a Swedish footer. Every opt-out variant asks for a reply
-  `classify.ts` reads as an opt-out in that language ("no", "stop", "nej
-  tack", "nein danke"). A campaign may set its own `footer` (create or
+  email gets a Swedish footer. Every opt-out variant names the reply a
+  person would send ("no", "stop", "not relevant", "nej tack", "nein
+  danke"), which `classify.ts` reads as an opt-out in that language. A campaign may set its own `footer` (create or
   `PATCH /v1/campaigns/{id}`, at most 500 characters, holding `{domain}` for
   the recipient's domain): it replaces both lines under the signature and must
   still say where the address was found and how to stop. The
@@ -390,7 +400,8 @@ Zod schemas, re-exported from `index.ts`, used by server, web and desktop:
   Zoho, Fastmail, iCloud, Namecheap Private Email, generic) so the form fills
   host and port from the domain's MX.
 - `Campaign`, `CreateCampaignRequest` (`name`, `searchId` or `emailIds`,
-  `steps`, `schedule`, `mailboxIds`), `UpdateCampaignRequest`.
+  `steps`, `schedule`, `mailboxIds`, `peopleOnly`, `namedOnly`),
+  `UpdateCampaignRequest`.
 - `CampaignLead`, `WrittenStep`, `UpdateWrittenStepRequest`.
 - `Message`, `ReplyListResponse`.
 - `SendingSummary` (sent this period, allowance, mailboxes active, daily
@@ -682,9 +693,13 @@ says so changes in one commit:
 - `docs/legal/lawyer-brief.md`: new questions for the lawyer about the
   processor role in sending, the Danish co-liability, and the UK and US
   footing.
-- **The "why you" line** in every first email, written into the prompt:
-  where the address came from (the company's site, a named page) and how
-  to stop. This is the Art 14 notice delivered by the sender, which
+- **The "why you" line** under every email, in the footer (`footer.ts`),
+  never written by Claude: a warm opt-out line first, then a short line
+  saying where the address came from ("I found your address on
+  acme.com."). Art 14(3)(b) wants the source (14(2)(f)) at the first
+  communication and Art 21(4) the right to object, so neither line may be
+  dropped; the rest of the Art 14 list is in the privacy notice. This is the
+  Art 14 notice delivered by the sender, which
   `article-14.md` named as the Cognism model.
 - Customer terms (`apps/site/app/terms/page.tsx`): the customer is the
   sender, must follow the law of the recipient's country, may not send to

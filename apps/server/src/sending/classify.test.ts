@@ -187,6 +187,15 @@ describe('classifyMail: people', () => {
     }
   });
 
+  it('reads a bare not relevant as an opt out, in every footer language', () => {
+    for (const text of ['Not relevant', 'Not relevant, thanks.', 'This is not relevant to us.', 'Not for us, thanks', 'Ikke relevant, tak.', 'Ikke aktuelt', 'Ikke relevant, takk.', 'Inte relevant, tack.', 'Inte aktuellt', 'Nicht relevant, danke.', 'Ei ajankohtainen, kiitos.']) {
+      expect(human(text), text).toEqual({ kind: 'human', optOut: true });
+    }
+    for (const text of ['Not relevant right now, but try me in spring.', 'Not relevant for this quarter, maybe later?', 'Ikke relevant lige nu, men skriv igen til august.', 'Is the price relevant?']) {
+      expect(human(text), text).toEqual({ kind: 'human', optOut: false });
+    }
+  });
+
   it('does not read a no that is part of a sentence', () => {
     for (const text of ['No problem, send it over.', 'No, tell me more about pricing.', 'Not now, but try me in March.', 'Nobody here handles that, try Ben.', 'Remove the guesswork how?', 'Nej, berätta mer om priset.', 'Ei se mitään, kerro lisää.', 'Nei, takk for mailen! Høres spennende ut.', 'Nej tak for info, send gerne mere.']) {
       expect(human(text), text).toEqual({ kind: 'human', optOut: false });

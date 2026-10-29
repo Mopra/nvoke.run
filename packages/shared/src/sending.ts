@@ -268,6 +268,8 @@ export const Campaign = z.object({
   dropId: z.uuid().nullable(),
   autopilot: z.boolean(),
   peopleOnly: z.boolean(),
+  /** Only leads Claude can greet by first name; the rest are skipped (`no_name`) when written. */
+  namedOnly: z.boolean(),
   allowCatchAll: z.boolean(),
   perCompany: z.number().int(),
   dailyNew: z.number().int(),
@@ -290,7 +292,7 @@ export const Campaign = z.object({
   optedOut: z.number().int().nonnegative(),
   /** Leads Claude is still writing for. */
   writing: z.number().int().nonnegative(),
-  /** Leads skipped at enroll, by reason (`country`, `suppressed`, `not_valid`, `contacted`, ...). */
+  /** Skipped leads, by reason (`country`, `suppressed`, `not_valid`, `contacted` at enroll, `no_name` when written, ...). */
   skipped: z.record(z.string(), z.number().int().nonnegative()),
   /** Failed leads, by reason (`write_failed`, `too_similar`, `unconfirmed`, `blocked`, ...). */
   failed: z.record(z.string(), z.number().int().nonnegative()),
@@ -331,6 +333,7 @@ export const CreateCampaignRequest = z
     schedule: CampaignSchedule.optional(),
     mailboxIds: z.array(z.uuid()).min(1).max(MAX_MAILBOXES),
     peopleOnly: z.boolean().optional(),
+    namedOnly: z.boolean().optional(),
     allowCatchAll: z.boolean().optional(),
     perCompany: z.number().int().min(1).max(5).optional(),
     dailyNew: z.number().int().min(1).max(500).optional(),
@@ -358,6 +361,7 @@ export const UpdateCampaignRequest = z
     schedule: CampaignSchedule.optional(),
     mailboxIds: z.array(z.uuid()).min(1).max(MAX_MAILBOXES).optional(),
     peopleOnly: z.boolean().optional(),
+    namedOnly: z.boolean().optional(),
     allowCatchAll: z.boolean().optional(),
     perCompany: z.number().int().min(1).max(5).optional(),
     dailyNew: z.number().int().min(1).max(500).optional(),

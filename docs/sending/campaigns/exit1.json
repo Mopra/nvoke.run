@@ -5,6 +5,7 @@
     "morten@exit1.dev"
   ],
   "peopleOnly": false,
+  "namedOnly": false,
   "allowCatchAll": true,
   "perCompany": 1,
   "dailyNew": 30,
@@ -27,18 +28,18 @@
     "offer": "A free plan with 50 monitors, 5 minute checks and SSL certificate monitoring that emails a week before a certificate expires, no card. Paid plans add faster checks and more monitors, each with a 7 day free trial.",
     "audience": "Small businesses and the people who look after their websites: owners, office managers, web agencies and freelancers.",
     "prices": "Free: 50 monitors, 5 minute checks, SSL certificate alerts, no card.\nIndie, $4 a month: 100 monitors, 1 minute checks.\nNano, $9 a month: 250 monitors, 30 second checks, domain expiry monitoring.\nPro, $24 a month: 1,000 monitors, 15 second checks.\nEvery paid plan starts with a 7 day free trial. For one small business site the free plan is enough, and saying so is the honest offer.",
-    "pitch": "Each lead's own website has an SSL certificate problem that was checked live: expired, about to run out without a renewal, or issued for another host. The signal names the host, the date and the issuer, and the certificate is checked again just before every email goes out, so the fact is current. The email is a friendly heads-up from someone who noticed: the problem in plain words with its host and date, what a visitor would meet (a browser security warning before the page), and that a renewal may already be queued, in which case they can ignore it. Then exit1's free plan as the way to hear about it before next time. Never alarm, never say the site was hacked or unsafe beyond the certificate, never offer to fix it for them. The sender is Morten, who builds exit1: write as him, in the first person.",
+    "pitch": "Each lead's own website has an SSL certificate problem that was checked live: expired, about to run out without a renewal, or issued for another host. The signal names the host, the date and the issuer (write the issuer without a web suffix: GoDaddy, not GoDaddy.com), and the certificate is checked again just before every email goes out, so the fact is current. The email is a short heads-up from someone who noticed, and it opens on the problem itself, never on a compliment about the business: the problem in plain words with its host and date, what a visitor would meet (a browser security warning before the page), and that a renewal may already be queued, in which case they can ignore it. Then exit1's free plan as the way to hear about it before next time. Never alarm, never say the site was hacked or unsafe beyond the certificate, never offer to fix it for them. The sender is Morten, who builds exit1: write as him, in the first person.",
     "proof": [],
     "recheck": "ssl"
   },
   "steps": [
     {
       "waitDays": 0,
-      "brief": "A heads-up about the certificate problem in the signal. Open with one specific detail about the business from its pages (what they do, a service, a place, how long they have been around), then the certificate: the host, the exact date it expired or ends, and that it has not been renewed. Say what a visitor opening one of their pages would see. Say a renewal may already be on its way, so they can ignore this if so. Then exit1's free plan in one sentence. Close with one question only they can answer, such as who looks after their website. Short paragraphs of one to three sentences, with a blank line between them, the closing question on its own line."
+      "brief": "A short heads-up about the certificate problem in the signal, greeted by first name when one is honest. The first sentence after the greeting is the problem itself: the host and the exact date the certificate expired or ends, and that it has not been renewed. Never open with a compliment or a summary of the business (what they do, how long they have been around, where they serve). Then what a visitor opening one of their pages would see, and that a renewal may already be on its way, so they can ignore this if so. Then exit1's free plan in one sentence. Close with one plain yes or no question on its own line about telling them, such as whether they want you to tell them when it is fixed. No questions about who runs their site. 40 to 80 words. Vary the shape from email to email."
     },
     {
       "waitDays": 5,
-      "brief": "A short second note: the certificate still has the problem (it was checked again just before this note), and one practical next step: most hosts renew it free from the hosting control panel, or whoever built the site can switch on automatic renewal. Mention exit1's free plan again only if it fits naturally. One question or none."
+      "brief": "A short second note, by first name when one is honest: the certificate still has the problem (it was checked again just before this note), and one practical next step: most hosts renew it free from the hosting control panel, or whoever built the site can switch on automatic renewal. Mention exit1's free plan again only if it fits naturally. One plain yes or no question or none. 25 to 50 words."
     }
   ]
 }

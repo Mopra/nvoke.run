@@ -55,6 +55,7 @@ export interface CampaignRow {
   drop_id: string | null;
   autopilot: boolean;
   people_only: boolean;
+  named_only: boolean;
   allow_catch_all: boolean;
   per_company: number;
   daily_new: number;
@@ -79,7 +80,7 @@ export interface CampaignRow {
 
 /** The campaigns columns, for a query on `campaigns c`. */
 export const CAMPAIGN_COLUMNS = `c.id, c.clerk_user_id, c.name, c.status, c.source, c.search_id, c.drop_id, c.autopilot,
-  c.people_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.writer, c.signed, c.review_until,
+  c.people_only, c.named_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.writer, c.signed, c.review_until,
   c.leads, c.sent, c.replied, c.bounced, c.opted_out, c.enrolled_at, c.created_at, c.started_at, c.finished_at`;
 
 interface CampaignView extends CampaignRow {
@@ -121,6 +122,7 @@ function toCampaign(r: CampaignView): Campaign {
     dropId: r.drop_id,
     autopilot: r.autopilot,
     peopleOnly: r.people_only,
+    namedOnly: r.named_only,
     allowCatchAll: r.allow_catch_all,
     perCompany: r.per_company,
     dailyNew: r.daily_new,
@@ -211,6 +213,7 @@ export async function createCampaign(sql: Sql, userId: string, req: CreateCampai
         drop_id: dropId,
         autopilot: source !== 'list',
         people_only: req.peopleOnly ?? true,
+        named_only: req.namedOnly ?? false,
         allow_catch_all: req.allowCatchAll ?? false,
         per_company: req.perCompany ?? 1,
         daily_new: req.dailyNew ?? 30,
@@ -254,6 +257,7 @@ export async function updateCampaign(sql: Sql, userId: string, id: string, req: 
     }
     if (req.schedule !== undefined) patch.schedule = tx.json(req.schedule);
     if (req.peopleOnly !== undefined) patch.people_only = req.peopleOnly;
+    if (req.namedOnly !== undefined) patch.named_only = req.namedOnly;
     if (req.allowCatchAll !== undefined) patch.allow_catch_all = req.allowCatchAll;
     if (req.perCompany !== undefined) patch.per_company = req.perCompany;
     if (req.dailyNew !== undefined) patch.daily_new = req.dailyNew;

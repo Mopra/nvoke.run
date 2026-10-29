@@ -19,8 +19,8 @@ const reply = (text: string): IncomingMail => ({
 });
 
 describe('footer', () => {
-  it('has at least 8 plain variants of each line, with no dashes as punctuation', () => {
-    expect(WHY_LINES.length).toBeGreaterThanOrEqual(8);
+  it('has 8 plain opt-out lines and a few short source lines, with no dashes as punctuation', () => {
+    expect(WHY_LINES.length).toBeGreaterThanOrEqual(3);
     expect(OPT_OUT_LINES.length).toBeGreaterThanOrEqual(8);
     expect(new Set(WHY_LINES).size).toBe(WHY_LINES.length);
     expect(new Set(OPT_OUT_LINES.map((l) => l.text)).size).toBe(OPT_OUT_LINES.length);
@@ -28,6 +28,9 @@ describe('footer', () => {
       expect(line, line).not.toMatch(/[\u2013\u2014]| -{1,2} |https?:|unsubscribe/i);
     }
     for (const line of WHY_LINES) expect(line).toContain('{domain}');
+    // Short: one line, nothing about lists or databases.
+    for (const line of WHY_LINES) expect(line.length, line).toBeLessThanOrEqual(45);
+    for (const line of WHY_LINES) expect(line, line).not.toMatch(/\b(list|database)/i);
   });
 
   it('asks only for replies that classify.ts reads as an opt-out', () => {
@@ -56,7 +59,11 @@ describe('footer', () => {
   it('puts the footer under the body', () => {
     const o = { signature: 'Mo\nnvoke', displayName: 'Mo', domain: 'acme.com', leadKey: 'x', unsubscribeUrl: 'https://x/u/t' };
     expect(withFooter('Hi.\n\n', o)).toBe(`Hi.\n\n${footer(o)}`);
-    expect(footer(o)).toMatch(/^Mo\nnvoke\n\n.+acme\.com.+\S$/s);
+    // The signature, a blank line, the opt-out line, then the source line last.
+    expect(footer(o)).toMatch(/^Mo\nnvoke\n\n[^\n]+\n[^\n]+acme\.com[^\n]*$/);
+    const [stop, why] = footer(o).split('\n\n')[1]!.split('\n');
+    expect(OPT_OUT_LINES.some((l) => l.text === stop), stop).toBe(true);
+    expect(WHY_LINES.some((w) => w.replaceAll('{domain}', 'acme.com') === why), why).toBe(true);
   });
 
   it("replaces both lines with the campaign's own text, keeping the signature", () => {
@@ -101,11 +108,11 @@ const EMAILS: Record<FooterLanguage, string[]> = {
 const BANNED = new RegExp('[\\u2013\\u2014]| -{1,2} |https?:|unsubscribe', 'i');
 
 describe('footer languages', () => {
-  it('has at least 6 plain variants of each line in every language', () => {
+  it('has at least 5 opt-out lines and 2 source lines in every language, all plain', () => {
     for (const lang of FOOTER_LANGUAGES) {
       const { why, optOut } = FOOTER_LINES[lang];
-      expect(why.length, lang).toBeGreaterThanOrEqual(6);
-      expect(optOut.length, lang).toBeGreaterThanOrEqual(6);
+      expect(why.length, lang).toBeGreaterThanOrEqual(2);
+      expect(optOut.length, lang).toBeGreaterThanOrEqual(5);
       expect(new Set(why).size, lang).toBe(why.length);
       expect(new Set(optOut.map((l) => l.text)).size, lang).toBe(optOut.length);
       for (const line of [...why, ...optOut.map((l) => l.text)]) expect(line, line).not.toMatch(BANNED);
@@ -154,8 +161,10 @@ describe('footer languages', () => {
       const text = withFooter(EMAILS[lang][0]!, o);
       const tail = text.slice(text.lastIndexOf('\n\n') + 2);
       const { why, optOut } = FOOTER_LINES[lang];
-      expect(why.some((w) => tail.startsWith(w.replaceAll('{domain}', 'acme.se'))), `${lang}: ${tail}`).toBe(true);
-      expect(optOut.some((l) => tail.endsWith(l.text)), `${lang}: ${tail}`).toBe(true);
+      const [stop, source, ...rest] = tail.split('\n');
+      expect(rest, `${lang}: ${tail}`).toEqual([]);
+      expect(optOut.some((l) => l.text === stop), `${lang}: ${tail}`).toBe(true);
+      expect(why.some((w) => w.replaceAll('{domain}', 'acme.se') === source), `${lang}: ${tail}`).toBe(true);
     }
     expect(withFooter(EMAILS.sv[0]!, { ...o, language: 'de' })).toBe(`${EMAILS.sv[0]}\n\n${footer({ ...o, language: 'de' })}`);
   });

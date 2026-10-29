@@ -501,6 +501,7 @@ export interface CampaignForm {
   schedule: CampaignSchedule;
   mailboxIds: string[];
   peopleOnly: boolean;
+  namedOnly: boolean;
   allowCatchAll: boolean;
   perCompany: number;
   dailyNew: number;
@@ -520,6 +521,7 @@ export function newCampaignForm(mailboxes: Mailbox[] | undefined, pick: SourcePi
     schedule: { ...DEFAULT_SCHEDULE, days: [...DEFAULT_SCHEDULE.days] },
     mailboxIds: (mailboxes ?? []).filter((m) => m.status === 'active' || m.status === 'checking').map((m) => m.id),
     peopleOnly: true,
+    namedOnly: false,
     allowCatchAll: false,
     perCompany: DEFAULT_PER_COMPANY,
     dailyNew: DEFAULT_DAILY_NEW,
@@ -537,6 +539,7 @@ export function campaignForm(c: Campaign): CampaignForm {
     schedule: { ...c.schedule, days: [...c.schedule.days] },
     mailboxIds: [...c.mailboxIds],
     peopleOnly: c.peopleOnly,
+    namedOnly: c.namedOnly,
     allowCatchAll: c.allowCatchAll,
     perCompany: c.perCompany,
     dailyNew: c.dailyNew,
@@ -601,6 +604,7 @@ function settings(form: CampaignForm) {
     },
     mailboxIds: form.mailboxIds,
     peopleOnly: form.peopleOnly,
+    namedOnly: form.namedOnly,
     allowCatchAll: form.allowCatchAll,
     perCompany: whole(form.perCompany, 1, 5, DEFAULT_PER_COMPANY),
     dailyNew: whole(form.dailyNew, 1, 500, DEFAULT_DAILY_NEW),
@@ -630,6 +634,7 @@ export function buildUpdateCampaign(c: Campaign, form: CampaignForm): UpdateCamp
   if (JSON.stringify(next.schedule) !== JSON.stringify(sched)) patch.schedule = next.schedule;
   if ([...next.mailboxIds].sort().join() !== [...c.mailboxIds].sort().join()) patch.mailboxIds = next.mailboxIds;
   if (next.peopleOnly !== c.peopleOnly) patch.peopleOnly = next.peopleOnly;
+  if (next.namedOnly !== c.namedOnly) patch.namedOnly = next.namedOnly;
   if (next.allowCatchAll !== c.allowCatchAll) patch.allowCatchAll = next.allowCatchAll;
   if (next.perCompany !== c.perCompany) patch.perCompany = next.perCompany;
   if (next.dailyNew !== c.dailyNew) patch.dailyNew = next.dailyNew;

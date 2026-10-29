@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { REVIEW_MINUTES, type CampaignSchedule } from '@nvoke/shared';
+import { CreateCampaignRequest, REVIEW_MINUTES, type CampaignSchedule } from '@nvoke/shared';
 import { ensureAccount } from '../leads/quota.js';
 import { createTestDb, type TestDb } from '../testing/db.js';
 import {
@@ -139,6 +139,16 @@ describe('pause and resume', () => {
 });
 
 describe('campaign reads and edits', () => {
+  it('keeps named only from a spec, off when the spec leaves it out', async () => {
+    const m = await mailbox();
+    const s = await search(['a.com']);
+    const spec = { name: 'Named', source: 'list', searchId: s, mailboxIds: [m], steps: [{ waitDays: 0, brief: 'Hello.' }] };
+    const named = await createCampaign(db.sql, 'u1', CreateCampaignRequest.parse({ ...spec, namedOnly: true }), NOW);
+    expect(named).toMatchObject({ namedOnly: true, peopleOnly: true });
+    const plain = await createCampaign(db.sql, 'u1', CreateCampaignRequest.parse({ ...spec, name: 'Plain', searchId: await search(['b.com']) }), NOW);
+    expect(plain.namedOnly).toBe(false);
+  });
+
   it('lists, updates and deletes', async () => {
     const { campaign } = await written(['a.com']);
     const other = await mailbox('two@sender.io');
@@ -148,6 +158,8 @@ describe('campaign reads and edits', () => {
     const [lead] = await db.sql<{ mailbox_id: string }[]>`select mailbox_id from campaign_leads where campaign_id = ${campaign.id}`;
     expect(lead!.mailbox_id).toBe(other);
     expect(updated!.footer).toBeNull();
+    expect(updated!.namedOnly).toBe(false);
+    expect(await updateCampaign(db.sql, 'u1', campaign.id, { namedOnly: true })).toMatchObject({ namedOnly: true, peopleOnly: true });
     const own = 'Your address is on {domain}. Reply no and I will stop.';
     expect(await updateCampaign(db.sql, 'u1', campaign.id, { footer: own })).toMatchObject({ footer: own });
     expect(await updateCampaign(db.sql, 'u1', campaign.id, { footer: null })).toMatchObject({ footer: null });

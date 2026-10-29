@@ -83,6 +83,16 @@ const STOP_LINE = /^(please\s+)?(stop|stopp|stoppen|lopeta|basta|arr(ê|e)tez)\b
  */
 const NO_LINE = /^(no|nope|nah|nej|nein|nei|ei)\b[\s.!]*$|^(no|nope)[\s,.!]+(thanks?|thank you)\b|^(nej|nein|nei|ei)[\s,.!]+(tack|tak|takk|danke|kiitos)\b(?![\s,]+(for|för|für)\b)/i;
 
+/**
+ * A first line that says the email is not relevant and nothing more: "Not
+ * relevant, thanks", "Not for us", "Ikke relevant, tak", "Inte aktuellt",
+ * "Nicht relevant", "Ei ajankohtainen, kiitos". The footer says "if I'm off
+ * base, tell me", and this is how people tell. "Not relevant right now, but
+ * maybe in spring" is not a no, so the line must end there.
+ */
+const NOT_RELEVANT_LINE =
+  /^((this|that|it) is |(that|it)'s |det er |det är |das ist )?(not|ikke|inte|nicht|ei) (relevant|relevantti|ajankohtainen|aktuelt|aktuellt|aktuell|for (me|us))(\s+(to|for|til|för|für) (me|us|mig|os|meg|oss|uns|mich))?[\s,.!]*((thanks?|thank you|tak|takk|tack|danke|kiitos)[\s.!]*)?$/i;
+
 /** "Remove" alone, or "please remove": the footer asks for "remove me". */
 const REMOVE_LINE = /^(please\s+)?remove(\s+(me|us|this address|my address))?(\s+please)?[\s.!]*$/i;
 
@@ -186,7 +196,7 @@ function isOptOut(mail: IncomingMail): boolean {
   const subject = mail.subject.trim();
   if (/^(unsubscribe|stop|remove me|opt[- ]?out)\b/i.test(subject)) return true;
   const first = own.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
-  if (STOP_LINE.test(first) || NO_LINE.test(first) || REMOVE_LINE.test(first)) return true;
+  if (STOP_LINE.test(first) || NO_LINE.test(first) || REMOVE_LINE.test(first) || NOT_RELEVANT_LINE.test(first)) return true;
   return OPT_OUT.test(own.replace(/\s+/g, ' '));
 }
 

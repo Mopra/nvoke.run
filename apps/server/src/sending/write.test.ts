@@ -13,6 +13,7 @@ import {
   checkSubject,
   FIRST_WORDS,
   firstPrompt,
+  foundName,
   LEAD_TOKENS,
   STEP_TOKENS,
   leadsPerAsk,
@@ -264,6 +265,31 @@ describe('quoteOnPages', () => {
     expect(quoteOnPages('Leeds', lead)).toBe(false);
     expect(quoteOnPages(null, lead)).toBe(false);
   });
+  it("takes the words of the signal's fit line, which an exit1 email opens on", () => {
+    const signal = { fitReason: 'The SSL certificate on acme.io ends November 6, 2026 and has not been renewed yet.', source: 'import', sourceRef: null, foundAt: null };
+    expect(quoteOnPages('acme.io ends November 6, 2026', { ...lead, signal })).toBe(true);
+    expect(quoteOnPages('acme.io ends November 7, 2026', { ...lead, signal })).toBe(false);
+  });
+});
+
+describe('foundName', () => {
+  const lead = {
+    opener: null,
+    latest: { url: 'https://craft.blog/2026/10/marley', title: 'Introducing: Marley', description: '', text: 'Posted by Carina. Marley joined us from Dogs Trust.' },
+    pages: [],
+    people: [{ firstName: 'Joanne', lastName: 'Smith', title: 'Editor' }],
+  };
+  it('takes a name on the pages or among the people the site names, and refuses one it made up', () => {
+    expect(foundName('Carina', lead)).toBe('Carina');
+    expect(foundName('Joanne', lead)).toBe('Joanne');
+    expect(foundName('Sarah', lead)).toBe(false);
+    expect(foundName('Carina Jones', lead)).toBe(false);
+    expect(foundName('carina', lead)).toBe(false);
+    expect(foundName('Marley', { ...lead, companyName: 'Marley Crafts' })).toBe(false);
+    expect(foundName('Editor', { ...lead, people: [{ firstName: 'Editor', lastName: 'Desk', title: null }] })).toBe(false);
+    expect(foundName(null, lead)).toBeNull();
+    expect(foundName('  ', lead)).toBeNull();
+  });
 });
 
 describe('runWriteJob', () => {
@@ -363,7 +389,7 @@ describe('runWriteJob', () => {
     // Every step in one ask, then a second try for the email that broke the rules.
     expect(calls.map((r) => [r.task, r.tier])).toEqual([['write_all', 'bulk'], ['write_retry', 'bulk']]);
     expect(calls[0]!.system).toContain('follow_ups');
-    expect(calls[0]!.prompt).toMatch(/<lead key="l\d" company="acme.io" domain="acme.io" first_name="anna">/);
+    expect(calls[0]!.prompt).toMatch(/<lead key="l\d" company="acme.io" domain="acme.io" first_name="anna"[^>]*mailbox="anna">/);
     // The head goes as the cached prefix, the same for both asks.
     expect(calls[0]!.cachedPrefix).toContain('Offer: Lead lists with verified emails');
     expect(calls[0]!.prompt).not.toContain('<sender>');
@@ -504,6 +530,59 @@ describe('runWriteJob', () => {
     expect((await leadRows(c.id)).map((r) => r.status)).toEqual(['queued', 'failed']);
     const steps = await db.sql<{ step: number }[]>`select step from campaign_steps_written order by step`;
     expect(steps.map((s) => s.step)).toEqual([1, 2, 3]);
+  });
+
+  it('greets a lead with no name by the person its site names, keeps that name, and refuses a made up one', async () => {
+    const c = await campaign();
+    await db.sql`update campaign_leads set first_name = null where campaign_id = ${c.id}`;
+    await db.sql`insert into domain_people (domain, first_name, last_name, title, seniority) values ('acme.io', 'Anna', 'Berg', 'Founder', 'founder')`;
+    first = (n) =>
+      n === 0
+        ? {
+            emails: [
+              { lead: 'acme.io', first_name: 'Anna', subject: 'booking tools', body: LONG, quote: 'Booking tools for clinics' },
+              { lead: 'beta.io', first_name: 'Ben', subject: 'One flat fee per chair', body: OTHER, quote: 'Booking tools for clinics' },
+            ],
+          }
+        : { emails: [{ lead: 'beta.io', first_name: null, subject: 'One flat fee per chair', body: OTHER.replace('Hi Ben,', 'Hi,'), quote: 'Booking tools for clinics' }] };
+    follow = {
+      leads: [
+        ...(follow as ClaudeFollowUps).leads,
+        { lead: 'beta.io', steps: [{ step: 2, body: 'Hi, a second note: every address is checked with the mail server first.' }, { step: 3, body: 'Hi, I will leave it here for now and not write to you again after this note.' }] },
+      ],
+    };
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
+
+    // The people of a lead with no name go in the prompt; Ben is on no page of beta.io, so the second try says so.
+    expect(calls[0]!.prompt).toContain('<person first_name="Anna" last_name="Berg" title="Founder"/>');
+    expect(calls[1]!.prompt).toContain('a name not on the company');
+    const rows = await db.sql<{ address: string; status: string; first_name: string | null }[]>`
+      select address, status, first_name from campaign_leads where campaign_id = ${c.id} order by address`;
+    expect(rows.map((r) => [r.address, r.status, r.first_name])).toEqual([
+      ['anna@acme.io', 'queued', 'Anna'],
+      ['ben@beta.io', 'queued', null],
+    ]);
+  });
+
+  it('skips a lead it cannot greet by name when the campaign is named only', async () => {
+    const c = await campaign();
+    await db.sql`update campaigns set named_only = true where id = ${c.id}`;
+    await db.sql`update campaign_leads set first_name = null where address = 'ben@beta.io'`;
+    first = {
+      emails: [
+        { lead: 'acme.io', subject: 'booking tools', body: LONG, quote: 'Booking tools for clinics' },
+        { lead: 'beta.io', first_name: null, subject: null, body: null, quote: null },
+      ],
+    };
+    await runWriteJob({ sql: db.sql, ai, log: silentLog, users: ['u1'] }, c.payload);
+
+    expect(calls[0]!.system).toContain('only to people it can greet by name');
+    const rows = await leadRows(c.id);
+    expect(rows.map((r) => [r.address, r.status, r.skip_reason])).toEqual([
+      ['anna@acme.io', 'queued', null],
+      ['ben@beta.io', 'skipped', 'no_name'],
+    ]);
+    expect(await campaignStatus(c.id)).toBe('review');
   });
 
   it('writes nothing for a user outside SENDING_USERS', async () => {

@@ -56,6 +56,7 @@ const campaign = (over: Partial<Campaign> = {}): Campaign => ({
   dropId: null,
   autopilot: true,
   peopleOnly: true,
+  namedOnly: false,
   allowCatchAll: false,
   perCompany: 1,
   dailyNew: 30,
@@ -255,6 +256,7 @@ describe('the campaign form', () => {
     expect(form.steps.map((s) => s.waitDays)).toEqual([0, 3, 5]);
     expect(form.mailboxIds).toEqual([mailbox().id]);
     expect(form.peopleOnly).toBe(true);
+    expect(form.namedOnly).toBe(false);
   });
 
   it('adds steps up to the most and never removes the first', () => {
@@ -298,6 +300,7 @@ describe('the campaign form', () => {
       holdHours: 4,
       schedule: { days: [1, 3], startHour: 9, endHour: 17 },
     });
+    expect(buildUpdateCampaign(c, { ...form, namedOnly: true })).toEqual({ namedOnly: true });
   });
 
   it('stores a changed campaign in place or first', () => {

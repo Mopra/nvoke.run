@@ -5,6 +5,7 @@
     "morten@day3.app"
   ],
   "peopleOnly": false,
+  "namedOnly": true,
   "allowCatchAll": true,
   "perCompany": 1,
   "dailyNew": 30,
@@ -34,11 +35,11 @@
   "steps": [
     {
       "waitDays": 0,
-      "brief": "A short personal note to whoever runs this newsletter. Open with one specific, recent detail from their newsletter or site in your own words: an issue, a story, a number, a person they wrote about. Then the reason to write, from the signal: for beehiiv, the renewal price rise after 1 November; for Kit, Mailchimp or MailerLite, that they pay by list size. Then Day3 in one or two sentences with one worked price for a list like theirs, and the free move of their list. Close with one question about their own situation: when their plan renews, roughly how many readers they have, or how often they send. Short paragraphs of one to three sentences, with a blank line between them, the closing question on its own line."
+      "brief": "A short personal note to the person who runs this newsletter, greeted by first name. Open on one recent thing they wrote or did (an issue, a story, a piece of news, a milestone) and react to it the way a reader would, in a sentence or two: congratulations, thanks, or what stayed with you. Never sum up what an issue covers. Then the reason to write in one sentence, from the signal: for beehiiv, the renewal price rise after 1 November; for Kit, Mailchimp or MailerLite, that they pay by list size. Then Day3 in one sentence with one example price for a list like theirs, framed as an example unless they publish their numbers. Close with one plain yes or no question about that price, on its own line, such as whether a price like that would be of any use to them. No questions about their list, their send day or their plans. 45 to 90 words. Vary the shape: not every email opens the same way or has the same paragraphs."
     },
     {
       "waitDays": 4,
-      "brief": "A short second note in the same thread from one new angle: what the move involves (their export or a one click import, unsubscribes kept, their domain set up, their template rebuilt, all done for them at no cost), or what Day3 does not do (ad network, referrals, paid subscriptions) so they can judge the fit themselves. One question or none."
+      "brief": "A short second note in the same thread, by first name, from one new angle: the move is done for them at no cost (their export or a one click import, unsubscribes kept, their domain set up, their template rebuilt), or what Day3 does not do (ad network, referrals, paid subscriptions) so they can judge the fit. One plain yes or no question about the offer, or none. 25 to 50 words."
     }
   ]
 }

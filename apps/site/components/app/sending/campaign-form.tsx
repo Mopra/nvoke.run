@@ -254,6 +254,11 @@ export function CampaignFields({
             <Switch id="cf-people" checked={form.peopleOnly} onCheckedChange={set('peopleOnly')} />
           </div>
         </FieldRow>
+        <FieldRow label="Only people I can greet by name" hint="Skip a lead when no first name turns up" htmlFor="cf-named">
+          <div className="flex h-8 items-center">
+            <Switch id="cf-named" checked={form.namedOnly} onCheckedChange={set('namedOnly')} />
+          </div>
+        </FieldRow>
         <FieldRow label="Catch-all addresses" hint="The server accepts every address, so these may bounce" htmlFor="cf-catchall">
           <div className="flex h-8 items-center">
             <Switch id="cf-catchall" checked={form.allowCatchAll} onCheckedChange={set('allowCatchAll')} />
