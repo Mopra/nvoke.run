@@ -91,8 +91,7 @@ async function sending(args: Args): Promise<void> {
     const { mailboxes, search: searchSpec, ...spec } = JSON.parse(readFileSync(resolve(file), 'utf8')) as Record<string, unknown>;
     const search = flag('search');
     const searchReq = searchSpec && !search ? CreateSearchRequest.safeParse(searchSpec) : undefined;
-    if (searchReq && !searchReq.success) throw new Error(searchReq.error.issues.map((i) => `search.${i.path.join('.')}: ${i.message}`).join('
-'));
+    if (searchReq && !searchReq.success) throw new Error(searchReq.error.issues.map((i) => `search.${i.path.join('.')}: ${i.message}`).join('\n'));
     const { sql, close } = await opsDatabase(args);
     try {
       // Mailboxes by address, as the operator knows them.
