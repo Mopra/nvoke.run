@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Hourly round: both merge fix-ups (personal emails, hotspot split) still run, main at 5cd875a plus memory commits. Three quests wait on the owner, Day3 rewrite waits on the personal emails merge and deploy. Nothing to do.
 - 2026-10-29 Woken: personal emails merge fix-up stopped while its checks queued behind another heavy run (cherry-pick done, migration renamed to 1899). Told it to wait in the same turn, delete the branch and report completed.
 - 2026-10-29 Woken: hotspot split finished but conflicted in cli.ts with 3dea710 (sending campaign own search). Fix-up already running; told it to port that change into cli/sending.ts.
 - 2026-10-29 Woken: personal first emails finished but conflicted in write.ts (likely with 5cd875a and 3dea710). Fix-up quest already running; noted to keep both prompt rules.
