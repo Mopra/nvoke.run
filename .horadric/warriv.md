@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Woken: personal emails merge fix-up stopped while its checks queued behind another heavy run (cherry-pick done, migration renamed to 1899). Told it to wait in the same turn, delete the branch and report completed.
 - 2026-10-29 Woken: hotspot split finished but conflicted in cli.ts with 3dea710 (sending campaign own search). Fix-up already running; told it to port that change into cli/sending.ts.
 - 2026-10-29 Woken: personal first emails finished but conflicted in write.ts (likely with 5cd875a and 3dea710). Fix-up quest already running; noted to keep both prompt rules.
 - 2026-10-29 Round after the new launches pitch fix landed (5cd875a). Personal emails and hotspot split still run, three quests wait on the owner. Nothing to do; checks quest waits for both.
