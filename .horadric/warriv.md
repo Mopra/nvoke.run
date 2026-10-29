@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Round after personal emails landed (db525a8, migration 1899) as the human left. Noted the Day3 rewrite now waits only on the human's server deploy (its wake check resumes it). Hotspot split fix-up still runs; checks quest waits for it.
 - 2026-10-29 Hourly round: both merge fix-ups (personal emails, hotspot split) still run, main at 5cd875a plus memory commits. Three quests wait on the owner, Day3 rewrite waits on the personal emails merge and deploy. Nothing to do.
 - 2026-10-29 Woken: personal emails merge fix-up stopped while its checks queued behind another heavy run (cherry-pick done, migration renamed to 1899). Told it to wait in the same turn, delete the branch and report completed.
 - 2026-10-29 Woken: hotspot split finished but conflicted in cli.ts with 3dea710 (sending campaign own search). Fix-up already running; told it to port that change into cli/sending.ts.
@@ -154,7 +155,7 @@
 
 - Name cleanup (d9141b8) waits on the owner: merge to main, deploy server, run 'cli names fix --prod' dry run, then --apply. Its full pnpm test was killed for low memory; the checks quest on main must run it.
 - B2B outbound campaign 0989f5a9 re-paused 2026-10-29; check it stays paused. Founders campaign 0ae0bd53 landed in status review (0 overlap, enroll skips companies the sender wrote to in 90 days); the owner reads its first emails and starts it.
-- Main at 5cd875a (new launches landed); after personal emails and hotspot split land, file one checks quest (full pnpm test, also covers d9141b8 once merged) if none ran the full checks on the final main.
+- Main at db525a8 (personal emails landed); after the hotspot split lands, file one checks quest (full pnpm test, also covers d9141b8 once merged) if none ran the full checks on the final main.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27, deployed with the Entra values in the VPS .env (lore #88); no real mailbox sent or read yet.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
