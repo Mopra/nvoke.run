@@ -167,6 +167,23 @@ function nameLike(text: string, matchesDomain: boolean): boolean {
 }
 
 /**
+ * Whether a stored company name is surely no name: a label ("Website:",
+ * "Services"), text ending in a colon, question or exclamation mark, or a
+ * sentence of five words or more with two sentence words ("My design
+ * portfolio runs on a fake PS1 renderer"). Narrower than companyNameFrom,
+ * which also drops real names it cannot vouch for ("Brew by Numbers"), so a
+ * cleanup of stored names leaves those alone.
+ */
+export function isBadCompanyName(name: string): boolean {
+  const text = name.replace(/\s+/g, ' ').trim();
+  if (/[:?!]$/.test(text)) return true;
+  const lower = text.toLowerCase();
+  if (PAGE_LABELS.has(lower)) return true;
+  const words = lower.split(' ');
+  return words.length >= 5 && words.filter((w) => SENTENCE_WORDS.has(w)).length >= 2;
+}
+
+/**
  * A company's name from what a search result or homepage calls it, tried in
  * order (a site name, then the page title), else from its domain. Titles
  * split on their separators; the piece that names the domain wins, else the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { companyNameFrom, pickPlaceSite, placeMatch } from './names.ts';
+import { companyNameFrom, isBadCompanyName, pickPlaceSite, placeMatch } from './names.ts';
 
 describe('place websites', () => {
   const dentist = ['dentist', 'tandlæge', 'tandlaeger', 'Aarhus'];
@@ -70,5 +70,16 @@ describe('company names', () => {
     expect(companyNameFrom(['Product design - Form Lab ApS'], 'formlab.dk')).toBe('Form Lab ApS');
     expect(companyNameFrom(['Website:', 'TSL Marketing | Inbound agency'], 'tslmarketing.com')).toBe('TSL Marketing');
     expect(companyNameFrom([undefined, ''], 'www.acme-dental.co.uk')).toBe('Acme Dental');
+  });
+});
+
+describe('isBadCompanyName', () => {
+  it('flags labels, trailing colons and sentences, never a real name', () => {
+    for (const bad of ['Services Offered:', 'Website:', 'Home', 'My design portfolio runs on a fake PS1 renderer', 'Why?']) {
+      expect(isBadCompanyName(bad)).toBe(true);
+    }
+    for (const good of ['Brew by Numbers', 'You Need A Budget', 'On Running', 'Smith - Jones Law', 'Studio: Nord', 'Acme Dental']) {
+      expect(isBadCompanyName(good)).toBe(false);
+    }
   });
 });

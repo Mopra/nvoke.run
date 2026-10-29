@@ -8,6 +8,7 @@ import { ccCommand } from './cc.js';
 import { dbCommand } from './db.js';
 import { evalCliCommand } from './eval.js';
 import { feedCommand } from './feed.js';
+import { namesCommand } from './names.js';
 import { privacyCommand } from './privacy.js';
 import { searchCommand } from './search.js';
 import { seedCommand } from './seed.js';
@@ -21,6 +22,7 @@ export const commands: readonly Command[] = [
   dbCommand,
   privacyCommand,
   statsCommand,
+  namesCommand,
   seedCommand,
   ccCommand,
   sourcesCommand,
@@ -39,7 +41,7 @@ setUsage(
     'usage:',
     ...commands.flatMap((c) => c.usage),
     'options: --csv PATH, --no-smtp, --database-url URL, --verbose',
-    'privacy, stats, seed, cc, sources, alert, feed and sending act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
+    'privacy, stats, names, seed, cc, sources, alert, feed and sending act on DATABASE_URL only with --prod (production on the VPS), or on --database-url.',
     'Without either they use CLI_DATABASE_URL or the embedded Postgres.',
   ].join('\n'),
 );
