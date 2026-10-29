@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Woken: personal first emails finished but conflicted in write.ts (likely with 5cd875a and 3dea710). Fix-up quest already running; noted to keep both prompt rules.
 - 2026-10-29 Round after the new launches pitch fix landed (5cd875a). Personal emails and hotspot split still run, three quests wait on the owner. Nothing to do; checks quest waits for both.
 
 - 2026-10-29 Round after the founders campaign quest landed (0ae0bd53 in review, 0 overlap with 0989f5a9, old one re-paused). Gave 'new launches' quest Model: sonnet. Personal emails, hotspot split and new launches still run; checks quest waits for them.
