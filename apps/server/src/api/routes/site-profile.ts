@@ -1,4 +1,4 @@
-// Start from your website (docs/SPEC.md, "Site profile"): build, read, edit
+// Start from your website (docs/spec/site-profile.md): build, read, edit
 // and delete the account's site profile. Building fetches a URL the user typed, so
 // every hop must resolve to public addresses only (the webhook URL guard).
 // The homepage screenshot is served without auth from /site-shots/<token>.jpg.
@@ -16,6 +16,7 @@ import { siteShooter, type ShootSite } from '../../profile/site-shot.js';
 import { buildSiteProfile, deleteSiteProfile, getSiteProfile, getSiteShot, updateSiteProfile, type BuildDeps } from '../../profile/site-profile.js';
 import { requireUser } from '../user.js';
 import { resolvePublic, type Resolve, type UrlPolicy } from '../../webhooks/address.js';
+import type { RouteContext } from './context.js';
 
 const BUILD_TIMEOUT_MS = 60_000;
 
@@ -123,4 +124,32 @@ export async function siteShotRoutes(app: FastifyInstance, opts: { getSql: () =>
       .header('x-content-type-options', 'nosniff')
       .send(image);
   });
+}
+
+/** Test overrides for the site profile. */
+export interface SiteProfileOverrides {
+  /** Reads the user's website for the site profile. Tests swap in a fake. */
+  readSite?: SiteProfileRoutesOptions['read'];
+}
+
+export async function registerSiteProfile(
+  app: FastifyInstance,
+  { env, getSql, getAi, urlPolicy, resolve, overrides }: RouteContext<SiteProfileOverrides>,
+): Promise<void> {
+  await app.register(siteProfileRoutes, {
+    prefix: '/v1/site-profile',
+    getSql,
+    authenticate: app.requireAuth,
+    getAi,
+    urlPolicy,
+    apiUrl: env.PUBLIC_API_URL,
+    shots: env.SITE_SHOTS,
+    read: overrides.readSite,
+    resolve,
+  });
+}
+
+/** Public, no auth: the screenshot on a site profile, in an <img>. */
+export async function registerSiteShot(app: FastifyInstance, { getSql }: RouteContext): Promise<void> {
+  await app.register(siteShotRoutes, { getSql });
 }

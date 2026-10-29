@@ -1,4 +1,4 @@
-// Your own Claude key (docs/SPEC.md, "Your own Claude key"): read, save and
+// Your own Claude key (docs/spec/claude.md, "Your own Claude key"): read, save and
 // delete the account's Anthropic API key and the model for each tier. Saving
 // checks the key and both models with Anthropic first (the Models API, free).
 // The key is sealed with SECRETS_KEY and only its last 4 characters come back.
@@ -10,6 +10,7 @@ import { anthropicSdk, checkKey, type AnthropicSdk } from '../../ai/anthropic.js
 import { deleteAiKey, getAiKey, saveAiKey } from '../../ai/keys.js';
 import { SecretsError, type Secrets } from '../../crypto/secrets.js';
 import { requireUser } from '../user.js';
+import type { RouteContext } from './context.js';
 
 export interface AiKeyRoutesOptions {
   getSql: () => Sql;
@@ -77,4 +78,17 @@ export async function aiKeyRoutes(app: FastifyInstance, opts: AiKeyRoutesOptions
     if (!(await deleteAiKey(opts.getSql(), req.userId!))) return reply.code(404).send({ error: 'not_found' });
     return reply.code(204).send();
   });
+}
+
+/** Test overrides for the own AI key. */
+export interface AiKeyOverrides {
+  /** Replaces the Anthropic SDK the own key check uses. */
+  anthropicSdk?: AiKeyRoutesOptions['sdk'];
+}
+
+export async function registerAiKey(
+  app: FastifyInstance,
+  { getSql, secrets, overrides }: RouteContext<AiKeyOverrides>,
+): Promise<void> {
+  await app.register(aiKeyRoutes, { prefix: '/v1/ai-key', getSql, authenticate: app.requireAuth, secrets, sdk: overrides.anthropicSdk });
 }

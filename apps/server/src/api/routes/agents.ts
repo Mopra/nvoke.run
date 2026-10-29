@@ -1,4 +1,4 @@
-// Agent sign-up and claiming (docs/SPEC.md, "API and agents").
+// Agent sign-up and claiming (docs/spec/api-and-agents.md).
 //
 //   POST /v1/agents/signup  (public)          -> account + API key, claim email to the owner
 //   GET  /v1/agents/claim   (Clerk session)   -> the account as the claim page shows it, claims nothing
@@ -6,9 +6,11 @@
 
 import type { FastifyInstance } from 'fastify';
 import { AgentSignupRequest, ClaimRequest, type ClaimResponse, type ClaimStatusResponse } from '@nvoke/shared';
-import { agentSignup, type SignupDeps } from '../../agents/signup.js';
+import { agentSignup, type AgentDirectory, type ClaimMailer, type SignupDeps } from '../../agents/signup.js';
 import { claimAccount } from '../../leads/accounts.js';
 import { accountSummary } from '../../leads/quota.js';
+import { clerkAgentDirectory, day3ClaimMailer } from '../../agents/providers.js';
+import type { RouteContext } from './context.js';
 
 export async function agentRoutes(app: FastifyInstance, opts: Omit<SignupDeps, 'log'>): Promise<void> {
   app.setErrorHandler((err, req, reply) => {
@@ -42,5 +44,42 @@ export async function agentRoutes(app: FastifyInstance, opts: Omit<SignupDeps, '
     const summary = await accountSummary(sql, userId);
     const res: ClaimResponse = { account: summary.account, revokedKeys: revoked ?? 0 };
     return res;
+  });
+}
+
+/** Test overrides for agent sign-up. */
+export interface AgentsOverrides {
+  /** Creates Clerk users for agent sign-up. Null switches sign-up off. */
+  agentDirectory: AgentDirectory | null;
+  claimMailer: ClaimMailer | null;
+  /** True when the domain takes mail. Tests stub DNS out. */
+  receivesMail?: (domain: string) => Promise<boolean>;
+}
+
+export async function registerAgents(
+  app: FastifyInstance,
+  { env, getSql, overrides }: RouteContext<AgentsOverrides>,
+): Promise<void> {
+  const directory =
+    overrides.agentDirectory !== undefined
+      ? overrides.agentDirectory
+      : env.CLERK_SECRET_KEY
+        ? clerkAgentDirectory(env.CLERK_SECRET_KEY)
+        : null;
+  const mailer =
+    overrides.claimMailer !== undefined
+      ? overrides.claimMailer
+      : env.DAY3_API_KEY
+        ? day3ClaimMailer({ apiKey: env.DAY3_API_KEY, from: env.CLAIM_EMAIL_FROM, log: app.log })
+        : null;
+  await app.register(agentRoutes, {
+    prefix: '/v1/agents',
+    getSql,
+    directory,
+    mailer,
+    enabled: env.AGENT_SIGNUP_ENABLED,
+    siteUrl: env.SITE_URL,
+    apiUrl: env.PUBLIC_API_URL,
+    receivesMail: overrides.receivesMail,
   });
 }

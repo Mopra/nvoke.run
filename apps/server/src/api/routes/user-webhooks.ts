@@ -1,8 +1,8 @@
-// The /v1/webhooks routes (docs/SPEC.md, "Webhooks"): the user's own
+// The /v1/webhooks routes (docs/spec/webhooks.md): the user's own
 // endpoints. Not to be confused with webhooks.ts, which takes Clerk's.
 
 import { randomUUID } from 'node:crypto';
-import type { FastifyPluginAsync, FastifyReply, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, preHandlerAsyncHookHandler } from 'fastify';
 import type { Sql } from 'postgres';
 import {
   CreateWebhookRequest,
@@ -26,8 +26,9 @@ import {
   ownsDrop,
   updateWebhook,
 } from '../../webhooks/repo.js';
-import type { WebhookSender } from '../../webhooks/send.js';
+import { httpSender, type WebhookSender } from '../../webhooks/send.js';
 import { requireUser } from '../user.js';
+import type { RouteContext } from './context.js';
 
 export interface UserWebhookRoutesOptions {
   getSql: () => Sql;
@@ -137,3 +138,23 @@ export const userWebhookRoutes: FastifyPluginAsync<UserWebhookRoutesOptions> = a
     return deliveries ? { deliveries } : sendError(reply, 404, 'not_found');
   });
 };
+
+/** Test overrides for user webhooks. */
+export interface UserWebhooksOverrides {
+  /** Sends webhook test pings. Tests swap in a fake. */
+  webhookSender?: WebhookSender;
+}
+
+export async function registerUserWebhooks(
+  app: FastifyInstance,
+  { getSql, urlPolicy, resolve, overrides }: RouteContext<UserWebhooksOverrides>,
+): Promise<void> {
+  await app.register(userWebhookRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    urlPolicy,
+    send: overrides.webhookSender ?? httpSender({ ...urlPolicy, resolve }),
+    resolve,
+  });
+}

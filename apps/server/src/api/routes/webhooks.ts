@@ -5,6 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import { verifyWebhook } from '@clerk/backend/webhooks';
 import type { Accounts } from '../../leads/accounts.js';
+import type { RouteContext } from './context.js';
 
 /** The paying user behind a billing event, when it is a user (not an organization). */
 export function billingUserId(type: string, data: unknown): string | null {
@@ -48,4 +49,8 @@ export async function webhookRoutes(
     }
     return reply.code(204).send();
   });
+}
+
+export async function registerWebhooks(app: FastifyInstance, { env, accounts }: RouteContext): Promise<void> {
+  await app.register(webhookRoutes, { prefix: '/webhooks', signingSecret: env.CLERK_WEBHOOK_SIGNING_SECRET ?? null, accounts });
 }

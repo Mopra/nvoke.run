@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { MeResponse } from '@nvoke/shared';
 import type { UserDirectory, UserProfile } from '../../auth/users.js';
 import type { Accounts } from '../../leads/accounts.js';
+import type { RouteContext } from './context.js';
 
 /** `?sync=1` re-reads the plan from Clerk Billing, for right after a checkout. */
 function wantsSync(query: unknown): boolean {
@@ -39,4 +40,8 @@ export async function meRoutes(
       billingUrl: new URL('/desktop/billing', opts.siteUrl).toString(),
     };
   });
+}
+
+export async function registerMe(app: FastifyInstance, { env, users, accounts }: RouteContext): Promise<void> {
+  await app.register(meRoutes, { prefix: '/v1', users, accounts, siteUrl: env.SITE_URL });
 }

@@ -1,9 +1,9 @@
-// The /v1 lead routes (docs/SPEC.md, "API"). Registered as one plugin that
+// The /v1 lead routes (docs/spec/api.md). Registered as one plugin that
 // expects request.userId to be set by an upstream auth preHandler. app.ts
 // passes `app.requireAuth` (device token or Clerk JWT) as `authenticate`,
 // which also creates the account on the first authenticated request.
 
-import type { FastifyPluginAsync, FastifyReply, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, preHandlerAsyncHookHandler } from 'fastify';
 import type { Sql } from 'postgres';
 import type { z } from 'zod';
 import {
@@ -52,6 +52,7 @@ import {
 import type { Ai } from '../../ai/client.js';
 import { queueOpeners } from '../../openers/openers.js';
 import { requireUser } from '../user.js';
+import type { RouteContext } from './context.js';
 
 export interface LeadsRoutesOptions {
   /** Lazily returns the pool, so the API boots without a database. */
@@ -238,7 +239,7 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
       .send(toCsv(rows));
   });
 
-  // Openers per company (docs/SPEC.md, "Openers"): queued here, drafted by the worker.
+  // Openers per company (docs/spec/openers.md): queued here, drafted by the worker.
   app.post('/searches/:id/openers', async (req, reply): Promise<DraftOpenersResponse | void> => {
     const params = parse(SearchIdParams, req.params);
     if (!params.ok) return sendError(reply, 404, 'not_found');
@@ -269,3 +270,14 @@ export const leadsRoutes: FastifyPluginAsync<LeadsRoutesOptions> = async (app, o
     return { stored: result.stored };
   });
 };
+
+export async function registerLeads(app: FastifyInstance, { env, getSql, getAi }: RouteContext): Promise<void> {
+  // requireAuth sets request.userId; the plugin's requireUser guard reads it.
+  await app.register(leadsRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    billingUrl: new URL('/desktop/billing', env.SITE_URL).toString(),
+    getAi,
+  });
+}

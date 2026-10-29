@@ -1,7 +1,7 @@
-// The /v1/drops routes (docs/SPEC.md, "Drops"). Same auth as the lead
+// The /v1/drops routes (docs/spec/drops.md). Same auth as the lead
 // routes: `authenticate` sets request.userId and requireUser guards.
 
-import type { FastifyPluginAsync, FastifyReply, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, preHandlerAsyncHookHandler } from 'fastify';
 import type { Sql } from 'postgres';
 import {
   CreateDropRequest,
@@ -25,6 +25,8 @@ import {
 import { maxDropDailyLimit } from '../../leads/plans.js';
 import { ensureAccount } from '../../leads/quota.js';
 import { requireUser } from '../user.js';
+import { createCollectors, sourceAvailability } from '../../feed/collectors.js';
+import type { RouteContext } from './context.js';
 
 export interface DropsRoutesOptions {
   getSql: () => Sql;
@@ -105,3 +107,12 @@ export const dropsRoutes: FastifyPluginAsync<DropsRoutesOptions> = async (app, o
     return reply.code(204).send();
   });
 };
+
+export async function registerDrops(app: FastifyInstance, { env, getSql }: RouteContext): Promise<void> {
+  await app.register(dropsRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    sourcesAvailable: sourceAvailability(createCollectors({ productHuntToken: env.PRODUCT_HUNT_TOKEN })),
+  });
+}

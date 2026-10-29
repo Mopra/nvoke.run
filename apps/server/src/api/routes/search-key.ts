@@ -1,4 +1,4 @@
-// Your own search key (docs/SPEC.md, "Your own search key"): read, save and
+// Your own search key (docs/spec/claude.md, "Your own search key"): read, save and
 // delete the account's Serper or Brave key. Saving tries the key with one
 // search, billed to it, before it is kept. The key is sealed with SECRETS_KEY
 // and only its last 4 characters come back.
@@ -12,6 +12,7 @@ import { deleteSearchKey, getSearchKey, saveSearchKey, type OwnSearchKey } from 
 import { checkSearchKey, type SearchKeyCheck } from '../../leads/sources/own-search.js';
 import { fixedWindowLimiter } from '../../privacy/rate-limit.js';
 import { requireUser } from '../user.js';
+import type { RouteContext } from './context.js';
 
 export interface SearchKeyRoutesOptions {
   getSql: () => Sql;
@@ -64,4 +65,8 @@ export async function searchKeyRoutes(app: FastifyInstance, opts: SearchKeyRoute
     if (!(await deleteSearchKey(opts.getSql(), req.userId!))) return reply.code(404).send({ error: 'not_found' });
     return reply.code(204).send();
   });
+}
+
+export async function registerSearchKey(app: FastifyInstance, { getSql, secrets }: RouteContext): Promise<void> {
+  await app.register(searchKeyRoutes, { prefix: '/v1/search-key', getSql, authenticate: app.requireAuth, secrets });
 }

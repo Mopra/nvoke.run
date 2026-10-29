@@ -4,10 +4,11 @@
 // their own. POST does it: the button, or the mail provider's one-click
 // request (`List-Unsubscribe=One-Click` as form data).
 
-import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from 'fastify';
 import type { Sql } from 'postgres';
 import type { Secrets } from '../../crypto/secrets.js';
 import { readUnsubscribe, unsubscribeByMessage } from '../../sending/unsubscribe.js';
+import type { RouteContext } from './context.js';
 
 export interface UnsubscribeRoutesOptions {
   getSql: () => Sql;
@@ -78,3 +79,8 @@ export const unsubscribeRoutes: FastifyPluginAsync<UnsubscribeRoutesOptions> = a
     return page(reply, 200, 'Unsubscribed', '<h1>You are unsubscribed</h1><p>You will not hear from this sender again.</p>');
   });
 };
+
+/** Public, no auth: the unsubscribe link in every sent email. */
+export async function registerUnsubscribe(app: FastifyInstance, { getSql, secrets }: RouteContext): Promise<void> {
+  await app.register(unsubscribeRoutes, { getSql, secrets });
+}

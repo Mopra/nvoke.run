@@ -9,7 +9,7 @@
 // account outside SENDING_USERS gets 404 on every route here, as if none
 // existed, before any other check.
 
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 import {
@@ -60,10 +60,12 @@ import {
 } from '../../sending/mailboxes.js';
 import { listReplies, markReplyRead, sendingSummary } from '../../sending/queries.js';
 import { previewLead } from '../../sending/template.js';
-import { adminConsentUrl, authorizeUrl, pkceVerifier, signState, type MicrosoftOAuth } from '../../sending/oauth.js';
+import { adminConsentUrl, authorizeUrl, microsoftOAuthFrom, pkceVerifier, signState, type MicrosoftOAuth } from '../../sending/oauth.js';
 import type { TransportFactory } from '../../sending/types.js';
 import type { AuthDns } from '../../tools/email-auth.js';
 import { requireUser } from '../user.js';
+import { smtpImapTransport } from '../../sending/mailbox-transport.js';
+import type { RouteContext } from './context.js';
 
 export interface SendingRoutesOptions {
   getSql: () => Sql;
@@ -338,3 +340,28 @@ export const sendingRoutes: FastifyPluginAsync<SendingRoutesOptions> = async (ap
     return reply.code(204).send();
   });
 };
+
+/** Test overrides for sending. */
+export interface SendingOverrides {
+  /** SMTP and IMAP. Tests pass the fake transport. */
+  mailTransport?: TransportFactory;
+  /** Tests: the Microsoft app with a fake token endpoint, or null for off. */
+  microsoftOAuth?: MicrosoftOAuth | null;
+}
+
+export async function registerSending(
+  app: FastifyInstance,
+  { env, getSql, log, secrets, overrides }: RouteContext<SendingOverrides>,
+): Promise<void> {
+  await app.register(sendingRoutes, {
+    prefix: '/v1',
+    getSql,
+    authenticate: app.requireAuth,
+    secrets,
+    enabled: env.SENDING_ENABLED,
+    users: env.SENDING_USERS,
+    transport: overrides.mailTransport ?? smtpImapTransport,
+    log,
+    microsoft: overrides.microsoftOAuth !== undefined ? overrides.microsoftOAuth : microsoftOAuthFrom(env),
+  });
+}

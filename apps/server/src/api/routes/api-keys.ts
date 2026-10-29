@@ -1,10 +1,11 @@
-// API key management (docs/SPEC.md, "API and agents"). Any credential may
+// API key management (docs/spec/api-and-agents.md). Any credential may
 // manage keys, an API key included, so an agent can rotate its own.
 
 import type { FastifyInstance } from 'fastify';
 import type { Sql } from 'postgres';
 import { ApiKeyIdParams, CreateApiKeyRequest, UpdateApiKeyRequest, type ApiKey, type ApiKeyListResponse } from '@nvoke/shared';
 import { createApiKey, getApiKey, listApiKeys, renameApiKey, revokeApiKey } from '../../auth/api-keys.js';
+import type { RouteContext } from './context.js';
 
 export async function apiKeyRoutes(app: FastifyInstance, opts: { getSql: () => Sql }): Promise<void> {
   app.setErrorHandler((err, req, reply) => {
@@ -48,4 +49,8 @@ export async function apiKeyRoutes(app: FastifyInstance, opts: { getSql: () => S
     if (!(await revokeApiKey(opts.getSql(), req.userId!, params.data.id))) return reply.code(404).send({ error: 'not_found' });
     return reply.code(204).send();
   });
+}
+
+export async function registerApiKeys(app: FastifyInstance, { getSql }: RouteContext): Promise<void> {
+  await app.register(apiKeyRoutes, { prefix: '/v1/api-keys', getSql });
 }

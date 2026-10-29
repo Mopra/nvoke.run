@@ -10,3 +10,7 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     uptimeSeconds: Math.round(process.uptime()),
   }));
 }
+
+export async function registerHealth(app: FastifyInstance): Promise<void> {
+  await app.register(healthRoutes);
+}

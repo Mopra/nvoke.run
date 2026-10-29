@@ -1,4 +1,4 @@
-// Public privacy routes (docs/SPEC.md, "Privacy"). No sign-in: the site's
+// Public privacy routes (docs/spec/privacy.md). No sign-in: the site's
 // opt-out page calls them from the browser, so their origin needs CORS
 // (CORS_ORIGINS, which defaults to https://nvoke.run).
 //
@@ -7,12 +7,13 @@
 // { ok: true }, whether or not nvoke held anything, so the route cannot be
 // used to test which addresses are in the data.
 
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { Sql } from 'postgres';
 import { OptOutRequest, type OptOutResponse } from '@nvoke/shared';
 import { erase } from '../../privacy/erase.js';
 import { fixedWindowLimiter } from '../../privacy/rate-limit.js';
 import { isSharedMailDomain, parseAddress, parseDomain } from '../../privacy/target.js';
+import type { RouteContext } from './context.js';
 
 export interface PrivacyRoutesOptions {
   /** Lazily returns the pool, so the API boots without a database. */
@@ -58,3 +59,8 @@ export const privacyRoutes: FastifyPluginAsync<PrivacyRoutesOptions> = async (ap
     return { ok: true };
   });
 };
+
+/** Public, no auth: the site's opt-out page calls it from the browser. */
+export async function registerPrivacy(app: FastifyInstance, { getSql }: RouteContext): Promise<void> {
+  await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });
+}

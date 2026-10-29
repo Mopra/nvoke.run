@@ -7,6 +7,7 @@ import {
 } from '@nvoke/shared';
 import { exchangeAuthCode, issueAuthCode } from '../../auth/desktop.js';
 import type { DesktopAuthStore } from '../../auth/store.js';
+import type { RouteContext } from './context.js';
 
 /**
  * Desktop sign-in through the system browser.
@@ -50,4 +51,8 @@ export async function desktopRoutes(app: FastifyInstance, opts: { store: Desktop
     await store.revokeDeviceSession(req.auth!.deviceSessionId!);
     return reply.code(204).send();
   });
+}
+
+export async function registerDesktop(app: FastifyInstance, { store }: RouteContext): Promise<void> {
+  await app.register(desktopRoutes, { prefix: '/v1/desktop', store });
 }

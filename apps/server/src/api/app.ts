@@ -7,40 +7,16 @@ import { getSql as defaultGetSql } from '../db/client.js';
 import { postgresStore, type DesktopAuthStore } from '../auth/store.js';
 import { clerkUserDirectory, type UserDirectory } from '../auth/users.js';
 import { clerkOAuthVerifier, clerkVerifier, registerAuth, type ClerkVerifier, type OAuthVerifier } from './auth.js';
-import { clerkAgentDirectory, day3ClaimMailer } from '../agents/providers.js';
-import type { AgentDirectory, ClaimMailer } from '../agents/signup.js';
-import { agentRoutes } from './routes/agents.js';
-import { apiKeyRoutes } from './routes/api-keys.js';
-import { clerkIssuerFromPublishableKey, mcpRoutes } from './routes/mcp.js';
-import { metaRoutes } from './routes/meta.js';
-import { healthRoutes } from './routes/health.js';
-import { meRoutes } from './routes/me.js';
-import { desktopRoutes } from './routes/desktop.js';
-import { leadsRoutes } from './routes/leads.js';
-import { dropsRoutes } from './routes/drops.js';
-import { createCollectors, sourceAvailability } from '../feed/collectors.js';
 import { postgresAccounts, type Accounts } from '../leads/accounts.js';
 import { clerkPlanSource } from '../billing/clerk.js';
-import { webhookRoutes } from './routes/webhooks.js';
-import { privacyRoutes } from './routes/privacy.js';
-import { userWebhookRoutes } from './routes/user-webhooks.js';
-import { toolsRoutes, type ToolsRoutesOptions } from './routes/tools.js';
-import { createToolsDeps } from '../tools/deps.js';
 import type { Resolve } from '../webhooks/address.js';
-import { httpSender, type WebhookSender } from '../webhooks/send.js';
 import { createAiFromEnv, type Ai } from '../ai/client.js';
-import { siteProfileRoutes, siteShotRoutes, type SiteProfileRoutesOptions } from './routes/site-profile.js';
-import { sendingRoutes } from './routes/sending.js';
-import { aiKeyRoutes, type AiKeyRoutesOptions } from './routes/ai-key.js';
-import { searchKeyRoutes } from './routes/search-key.js';
-import { unsubscribeRoutes } from './routes/unsubscribe.js';
 import { createSecrets, type Secrets } from '../crypto/secrets.js';
-import { smtpImapTransport } from '../sending/mailbox-transport.js';
-import { microsoftOAuthFrom, type MicrosoftOAuth } from '../sending/oauth.js';
-import type { TransportFactory } from '../sending/types.js';
+import type { RouteContext } from './routes/context.js';
+import { routes, type RouteOverrides } from './routes/index.js';
 
-/** Collaborators the routes need. Tests swap in fakes; production uses the defaults. */
-export interface AppDeps {
+/** Collaborators shared by auth and several route groups. */
+interface SharedDeps {
   /** Lazily returns the pool, so the API boots without a database. */
   getSql: () => Sql;
   store: DesktopAuthStore;
@@ -48,52 +24,32 @@ export interface AppDeps {
   users: UserDirectory | null;
   accounts: Accounts;
   verifyOAuth: OAuthVerifier | null;
-  /** Creates Clerk users for agent sign-up. Null switches sign-up off. */
-  agentDirectory: AgentDirectory | null;
-  claimMailer: ClaimMailer | null;
-  /** True when the domain takes mail. Tests stub DNS out. */
-  receivesMail?: (domain: string) => Promise<boolean>;
-  /** Sends webhook test pings. Tests swap in a fake. */
-  webhookSender?: WebhookSender;
   /** DNS for checking webhook URLs and the site profile's website. Tests stub it out. */
   webhookResolve?: Resolve;
-  /** The free tools' verifier, crawler, DNS and Turnstile. Tests swap in fakes. */
-  tools?: Partial<Omit<ToolsRoutesOptions, 'getSql'>>;
   /** Claude. Tests pass one built on a fake client. */
   ai?: Ai;
-  /** Reads the user's website for the site profile. Tests swap in a fake. */
-  readSite?: SiteProfileRoutesOptions['read'];
-  /** Replaces the Anthropic SDK the own key check uses. */
-  anthropicSdk?: AiKeyRoutesOptions['sdk'];
   /** Seals mailbox passwords and signs unsubscribe links. Null switches sending off. */
   secrets?: Secrets | null;
-  /** SMTP and IMAP. Tests pass the fake transport. */
-  mailTransport?: TransportFactory;
-  /** Tests: the Microsoft app with a fake token endpoint, or null for off. */
-  microsoftOAuth?: MicrosoftOAuth | null;
 }
+
+/**
+ * Collaborators the routes need. Tests swap in fakes; production uses the
+ * defaults. Each route group declares its own overrides in its routes file.
+ */
+export type AppDeps = SharedDeps & RouteOverrides;
 
 /** Builds the Fastify app without listening, so tests can use app.inject(). */
 export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
   const getSql = overrides.getSql ?? defaultGetSql;
-  const deps: Omit<AppDeps, 'accounts' | 'claimMailer' | 'receivesMail' | 'webhookSender' | 'webhookResolve' | 'tools' | 'ai' | 'readSite' | 'secrets' | 'mailTransport'> = {
-    getSql,
-    store: overrides.store ?? postgresStore(getSql),
-    verifyClerk: overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env),
-    users:
-      overrides.users !== undefined
-        ? overrides.users
-        : env.CLERK_SECRET_KEY
-          ? clerkUserDirectory(env.CLERK_SECRET_KEY)
-          : null,
-    verifyOAuth: overrides.verifyOAuth !== undefined ? overrides.verifyOAuth : clerkOAuthVerifier(env),
-    agentDirectory:
-      overrides.agentDirectory !== undefined
-        ? overrides.agentDirectory
-        : env.CLERK_SECRET_KEY
-          ? clerkAgentDirectory(env.CLERK_SECRET_KEY)
-          : null,
-  };
+  const store = overrides.store ?? postgresStore(getSql);
+  const verifyClerk = overrides.verifyClerk !== undefined ? overrides.verifyClerk : clerkVerifier(env);
+  const users =
+    overrides.users !== undefined
+      ? overrides.users
+      : env.CLERK_SECRET_KEY
+        ? clerkUserDirectory(env.CLERK_SECRET_KEY)
+        : null;
+  const verifyOAuth = overrides.verifyOAuth !== undefined ? overrides.verifyOAuth : clerkOAuthVerifier(env);
 
   const app = Fastify({
     logger: env.NODE_ENV === 'test' ? false : { level: env.LOG_LEVEL },
@@ -116,95 +72,25 @@ export async function buildApp(env: Env, overrides: Partial<AppDeps> = {}): Prom
     credentials: false,
   });
 
-  const claimMailer =
-    overrides.claimMailer !== undefined
-      ? overrides.claimMailer
-      : env.DAY3_API_KEY
-        ? day3ClaimMailer({ apiKey: env.DAY3_API_KEY, from: env.CLAIM_EMAIL_FROM, log: app.log })
-        : null;
+  registerAuth(app, { getSql, store, verifyClerk, verifyOAuth, accounts });
 
-  registerAuth(app, { ...deps, accounts });
-
-  await app.register(healthRoutes);
-  await app.register(meRoutes, { prefix: '/v1', users: deps.users, accounts, siteUrl: env.SITE_URL });
-  await app.register(metaRoutes, { prefix: '/v1', apiUrl: env.PUBLIC_API_URL });
-  await app.register(apiKeyRoutes, { prefix: '/v1/api-keys', getSql });
-  await app.register(agentRoutes, {
-    prefix: '/v1/agents',
-    getSql,
-    directory: deps.agentDirectory,
-    mailer: claimMailer,
-    enabled: env.AGENT_SIGNUP_ENABLED,
-    siteUrl: env.SITE_URL,
-    apiUrl: env.PUBLIC_API_URL,
-    receivesMail: overrides.receivesMail,
-  });
-  await app.register(mcpRoutes, {
-    apiUrl: env.PUBLIC_API_URL,
-    siteUrl: env.SITE_URL,
-    clerkIssuer: clerkIssuerFromPublishableKey(env.CLERK_PUBLISHABLE_KEY),
-  });
-  await app.register(webhookRoutes, { prefix: '/webhooks', signingSecret: env.CLERK_WEBHOOK_SIGNING_SECRET ?? null, accounts });
-  await app.register(desktopRoutes, { prefix: '/v1/desktop', store: deps.store });
-  // requireAuth sets request.userId; the plugin's requireUser guard reads it.
-  let ai = overrides.ai;
   // Fastify's logger is pino underneath; its type only leaves out a few members.
-  const getAi = () => (ai ??= createAiFromEnv(getSql(), app.log as unknown as Logger));
-  await app.register(leadsRoutes, {
-    prefix: '/v1',
+  const log = app.log as unknown as Logger;
+  let ai = overrides.ai;
+  const ctx: RouteContext<RouteOverrides> = {
+    env,
     getSql,
-    authenticate: app.requireAuth,
-    billingUrl: new URL('/desktop/billing', env.SITE_URL).toString(),
-    getAi,
-  });
-  await app.register(dropsRoutes, {
-    prefix: '/v1',
-    getSql,
-    authenticate: app.requireAuth,
-    sourcesAvailable: sourceAvailability(createCollectors({ productHuntToken: env.PRODUCT_HUNT_TOKEN })),
-  });
-  const urlPolicy = { allowPrivate: env.WEBHOOK_ALLOW_PRIVATE };
-  await app.register(userWebhookRoutes, {
-    prefix: '/v1',
-    getSql,
-    authenticate: app.requireAuth,
-    urlPolicy,
-    send: overrides.webhookSender ?? httpSender({ ...urlPolicy, resolve: overrides.webhookResolve }),
+    log,
+    store,
+    users,
+    accounts,
+    getAi: () => (ai ??= createAiFromEnv(getSql(), log)),
+    urlPolicy: { allowPrivate: env.WEBHOOK_ALLOW_PRIVATE },
     resolve: overrides.webhookResolve,
-  });
-  await app.register(siteProfileRoutes, {
-    prefix: '/v1/site-profile',
-    getSql,
-    authenticate: app.requireAuth,
-    getAi,
-    urlPolicy,
-    apiUrl: env.PUBLIC_API_URL,
-    shots: env.SITE_SHOTS,
-    read: overrides.readSite,
-    resolve: overrides.webhookResolve,
-  });
-  const secrets = overrides.secrets !== undefined ? overrides.secrets : env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null;
-  await app.register(aiKeyRoutes, { prefix: '/v1/ai-key', getSql, authenticate: app.requireAuth, secrets, sdk: overrides.anthropicSdk });
-  await app.register(searchKeyRoutes, { prefix: '/v1/search-key', getSql, authenticate: app.requireAuth, secrets });
-  await app.register(sendingRoutes, {
-    prefix: '/v1',
-    getSql,
-    authenticate: app.requireAuth,
-    secrets,
-    enabled: env.SENDING_ENABLED,
-    users: env.SENDING_USERS,
-    transport: overrides.mailTransport ?? smtpImapTransport,
-    log: app.log as unknown as Logger,
-    microsoft: overrides.microsoftOAuth !== undefined ? overrides.microsoftOAuth : microsoftOAuthFrom(env),
-  });
-  // Public, no auth: the unsubscribe link in every sent email.
-  await app.register(unsubscribeRoutes, { getSql, secrets });
-  // Public, no auth: the screenshot on a site profile, in an <img>.
-  await app.register(siteShotRoutes, { getSql });
-  // Public, no auth: the site's opt-out page calls it from the browser.
-  await app.register(privacyRoutes, { prefix: '/v1/privacy', getSql });
-  // Public, no auth: the free tools on nvoke.run/tools.
-  await app.register(toolsRoutes, { prefix: '/v1/tools', ...createToolsDeps(getSql, env), ...overrides.tools });
+    secrets: overrides.secrets !== undefined ? overrides.secrets : env.SECRETS_KEY ? createSecrets(env.SECRETS_KEY) : null,
+    overrides,
+  };
+  for (const register of routes) await register(app, ctx);
 
   return app;
 }

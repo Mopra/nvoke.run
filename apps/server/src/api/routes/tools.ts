@@ -1,4 +1,4 @@
-// Public free tools (docs/SPEC.md, "Free tools"), shown on nvoke.run/tools.
+// Public free tools (docs/spec/free-tools.md), shown on nvoke.run/tools.
 // No sign-in, so every route is limited per client IP, and the two that
 // touch other people's servers have a daily cap and optional Turnstile.
 //
@@ -12,7 +12,7 @@
 // every hop, opt-outs honored), answers from the shared crawl cache when it
 // can, and shows anonymous users only generic role addresses.
 
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { Sql } from 'postgres';
 import {
   ToolEmailAuthRequest,
@@ -31,6 +31,8 @@ import { normalizeEmail } from '../../leads/extract.js';
 import { isAddressSuppressed, isDomainSuppressed, suppressedAddresses } from '../../leads/suppression.js';
 import type { CrawlResult } from '../../leads/crawl.js';
 import type { VerifyResult } from '../../leads/verify/index.js';
+import { createToolsDeps } from '../../tools/deps.js';
+import type { RouteContext } from './context.js';
 
 const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
@@ -180,3 +182,17 @@ export const toolsRoutes: FastifyPluginAsync<ToolsRoutesOptions> = async (app, o
     return checkEmailAuth(domain, opts.authDns);
   });
 };
+
+/** Test overrides for the free tools. */
+export interface ToolsOverrides {
+  /** The free tools' verifier, crawler, DNS and Turnstile. Tests swap in fakes. */
+  tools?: Partial<Omit<ToolsRoutesOptions, 'getSql'>>;
+}
+
+/** Public, no auth: the free tools on nvoke.run/tools. */
+export async function registerTools(
+  app: FastifyInstance,
+  { env, getSql, overrides }: RouteContext<ToolsOverrides>,
+): Promise<void> {
+  await app.register(toolsRoutes, { prefix: '/v1/tools', ...createToolsDeps(getSql, env), ...overrides.tools });
+}

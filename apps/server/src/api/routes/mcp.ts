@@ -1,4 +1,4 @@
-// The MCP server (docs/SPEC.md, "API and agents"): POST /mcp, Streamable
+// The MCP server (docs/spec/api-and-agents.md): POST /mcp, Streamable
 // HTTP, stateless, JSON responses. Tools are listed in
 // packages/shared/src/catalog.ts and each one runs the matching REST route
 // in process with the caller's own credential, so MCP and the API cannot
@@ -15,6 +15,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { MCP_INSTRUCTIONS, MCP_TOOLS, mcpToolRequest, runMcpTool, type McpToolArgs, type McpToolCall } from '@nvoke/shared';
 import { VERSION } from '../../version.js';
+import type { RouteContext } from './context.js';
 
 export interface McpRoutesOptions {
   apiUrl: string;
@@ -124,4 +125,12 @@ export async function mcpRoutes(app: FastifyInstance, opts: McpRoutesOptions): P
     reply.code(405).header('allow', 'POST').send({ error: 'method_not_allowed' });
   app.get('/mcp', notAllowed);
   app.delete('/mcp', notAllowed);
+}
+
+export async function registerMcp(app: FastifyInstance, { env }: RouteContext): Promise<void> {
+  await app.register(mcpRoutes, {
+    apiUrl: env.PUBLIC_API_URL,
+    siteUrl: env.SITE_URL,
+    clerkIssuer: clerkIssuerFromPublishableKey(env.CLERK_PUBLISHABLE_KEY),
+  });
 }
