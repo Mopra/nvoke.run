@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Hourly round: all four open quests wait on the owner (clip verdict, CC trial resume, names fix prod run, server deploy for Day3). Main 4ff33d7 is 175ef1c plus memory, already green. Nothing to do.
 - 2026-10-29 Round after names fix merge landed (175ef1c, checks green). Noted the names cleanup quest now waits only on the owner's deploy and prod run. Other three still wait on the owner.
 - 2026-10-29 Round after hotspot split landed (main 657cc81, checks green). Names fix d9141b8 still unmerged and conflicts with the split CLI: filed 'Merge cli names fix (d9141b8) onto main's split CLI' (sonnet, full checks). Others still wait on the owner.
 - 2026-10-29 Round after personal emails landed (db525a8, migration 1899) as the human left. Noted the Day3 rewrite now waits only on the human's server deploy (its wake check resumes it). Hotspot split fix-up still runs; checks quest waits for it.
