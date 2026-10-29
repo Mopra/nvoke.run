@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Round after names fix merge landed (175ef1c, checks green). Noted the names cleanup quest now waits only on the owner's deploy and prod run. Other three still wait on the owner.
 - 2026-10-29 Round after hotspot split landed (main 657cc81, checks green). Names fix d9141b8 still unmerged and conflicts with the split CLI: filed 'Merge cli names fix (d9141b8) onto main's split CLI' (sonnet, full checks). Others still wait on the owner.
 - 2026-10-29 Round after personal emails landed (db525a8, migration 1899) as the human left. Noted the Day3 rewrite now waits only on the human's server deploy (its wake check resumes it). Hotspot split fix-up still runs; checks quest waits for it.
 - 2026-10-29 Hourly round: both merge fix-ups (personal emails, hotspot split) still run, main at 5cd875a plus memory commits. Three quests wait on the owner, Day3 rewrite waits on the personal emails merge and deploy. Nothing to do.
@@ -154,7 +155,7 @@
 
 ## Open
 
-- Name cleanup (d9141b8): merge quest filed 2026-10-29 with full checks; after it lands the owner deploys and runs 'cli names fix --prod' dry run, then --apply.
+- Name cleanup: on main at 175ef1c (2026-10-29); the owner deploys and runs 'cli names fix --prod' dry run, then --apply.
 - B2B outbound campaign 0989f5a9 re-paused 2026-10-29; check it stays paused. Founders campaign 0ae0bd53 landed in status review (0 overlap, enroll skips companies the sender wrote to in 90 days); the owner reads its first emails and starts it.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27, deployed with the Entra values in the VPS .env (lore #88); no real mailbox sent or read yet.
