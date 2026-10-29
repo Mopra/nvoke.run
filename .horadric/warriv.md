@@ -11,6 +11,7 @@
 
 ## Lately
 
+- 2026-10-29 Round as the human left: the human marked the names cleanup, Common Crawl measure and Day3 retry quests done. Only the clip 1 verdict is open, the owner's. Main 1b56059 is 175ef1c plus memory, green. No aim open, nothing to file.
 - 2026-10-29 Hourly round: no change. All four open quests still wait on the owner; main cded6d1 is 175ef1c plus memory, green. Nothing to do.
 - 2026-10-29 Round as the human left: no change. All four open quests still wait on the owner; main d63f969 is 175ef1c plus memory, green. Nothing to do.
 - 2026-10-29 Round as the human left: no change. All four open quests still wait on the owner; main 1db83f6 is 175ef1c plus memory, green. Nothing to do.
@@ -160,14 +161,14 @@
 
 ## Open
 
-- Name cleanup: on main at 175ef1c (2026-10-29); the owner deploys and runs 'cli names fix --prod' dry run, then --apply.
+- Name cleanup quest marked done by the human 2026-10-29 (175ef1c); not confirmed whether the prod --apply ran.
 - B2B outbound campaign 0989f5a9 re-paused 2026-10-29; check it stays paused. Founders campaign 0ae0bd53 landed in status review (0 overlap, enroll skips companies the sender wrote to in 90 days); the owner reads its first emails and starts it.
 - Server deployed at f084fb7 by the human (writer fix, templates, lead move live); checked green at f084fb7 on 2026-10-28.
 - Full API CRUD (90add6a) and Microsoft mailbox OAuth (6a8a11c, admin consent 8637547): green at 8637547 2026-10-27, deployed with the Entra values in the VPS .env (lore #88); no real mailbox sent or read yet.
 - Own Claude key and own search key (1d00d96 to b7277ed, 2026-10-26): checked green at b7277ed and deployed; never seen on screen, no live Anthropic or Serper call yet. OptiPeople (mpg@optipeople.dk) is on emails_60000 and in SENDING_USERS; the owner's own Clerk plan emails_100000 is invalid (asked them whether to change it to emails_60000, the human's).
 - Square promo clips: clip 1 at ~/Downloads/nvoke-clip-1-emails.mp4, engine unmerged on branch square-promo-video-clips-in-the-tools (aa2d1f2); waits on the owner's verdict before clips 2 to 4.
 - Day3 and exit1 campaigns landed (fd7a709 to 2f2c5ad, 2026-10-22), internal only; Sonar and the black key checked green at a5d760c; pipeline, recheck and Majestic seed green at 753f866; seed and Common Crawl index green at 8f58c67 (2026-10-22); Postgres 18 move green at 013e55f.
-- Common Crawl: 100k trial load stopped by the owner at 554 rows (403s from Common Crawl), resumable from /opt/nvoke/cc on the VPS; resume or undo is the owner's. The trial quest is now marked done and the measure quest blocked asking the owner to resume at --rate 8 (2026-10-28); and the full 20M load spend (VPS Postgres disk now, since 013e55f) goes to the owner.
+- Common Crawl: 100k trial load stopped by the owner at 554 rows (403s from Common Crawl), resumable from /opt/nvoke/cc on the VPS; resume or undo is the owner's. Both trial and measure quests marked done by the human (2026-10-29), outcome unrecorded; and the full 20M load spend (VPS Postgres disk now, since 013e55f) goes to the owner.
 - Production OpenRouter out of credits since 2026-10-21: Describe your customer and the people step fail until the owner tops up.
 
 - Sending (internal only since b7cecd4), cost, pricing and people job work by the human, 8ce3cc9 to 19b9849. File no sending quests without an Aim. Checked green at 19b9849 on 2026-10-21.
