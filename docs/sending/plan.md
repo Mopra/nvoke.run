@@ -103,9 +103,30 @@ Spec: `docs/sending/campaigns/nvoke-free-list.json` (da5fb264), on the
 drop "New B2B launches", named only, two steps, no prices. It replaces
 "nvoke: new launches", now paused.
 
-A yes is fulfilled by hand: run a search for the market the email named
-(it is in the sent email) and reply with the list as CSV. That costs
-about 40 verified emails, or 80 for a Sonar search, of the owner's quota.
+A yes fulfils itself: the campaign has `fulfil: "buyer_list"`
+(`campaigns.fulfil`, migration `1900_campaign_fulfil`, `sending/fulfil.ts`).
+A human reply on its lead that is not an opt-out writes one `fulfilments`
+row per lead and queues a `fulfil` job in the poller's transaction. The
+job asks Claude (Sonnet, task `fulfil_read`) whether a reply accepts the
+offer, strictly: a yes, or a yes with a tweak ("focus on Germany"). An
+opt-out, a no, an auto reply or a question without a yes is `declined`,
+and a later reply is read again. A yes works out the market from the sent
+email, the reply and the lead's pages, and starts a plain words search
+(kind `icp`, limit 130 companies, which aims for about 40 verified) as the
+owner, on the owner's quota (about 80 verified emails' worth, ICP emails
+count two). The job looks at it every 3 minutes, without holding a worker,
+until it ends, holds 40 people, or 6 hours pass (then the search is
+stopped). It replies in the thread from the lead's mailbox (In-Reply-To
+the reply, References the thread, `Re:` subject, the signature only)
+with the most senior valid named person per company, at most 40, as
+`buyers.csv` (name, title, company, domain, email, source page). Claude
+writes the 40 to 80 words (task `fulfil_reply`, checked like the
+writer's emails, a plain fallback); with nobody found there is no file,
+it says so and asks one question. Suppressions and the mailbox and pool
+daily caps hold; the schedule window does not. The send is claimed before
+SMTP like a step (state `sending`, the messages row as `out`/`other`, shown
+in the lead's thread), so it never goes twice. States: `pending`,
+`declined`, `searching`, `sending`, `sent`, `failed` with `error`.
 
 ## Owner decisions, 2026-10-20 (earlier the same day)
 

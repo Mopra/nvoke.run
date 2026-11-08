@@ -9,6 +9,7 @@
   "perCompany": 1,
   "dailyNew": 15,
   "holdHours": 2,
+  "fulfil": "buyer_list",
   "schedule": {
     "days": [1, 2, 3, 4, 5],
     "startHour": 9,

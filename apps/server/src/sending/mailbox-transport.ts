@@ -147,6 +147,8 @@ export function createSmtpImapTransport(creds: MailboxCredentials, opts: Transpo
           inReplyTo: mail.inReplyTo,
           references: mail.references,
           headers: mail.headers,
+          // The text first, then each file: nodemailer makes it multipart/mixed.
+          attachments: mail.attachments?.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
         });
         // A server can take the message and still refuse the one recipient.
         if (info.rejected.length > 0) return { ok: false, kind: 'permanent', response: info.response };

@@ -19,6 +19,7 @@ import {
 } from './pipeline.js';
 import { onOpenerGaveUp, runOpener } from '../openers/openers.js';
 import { onPeopleGaveUp, runPeople, settleCompanyLead } from './people-job.js';
+import { onFulfilGaveUp, runFulfilJob, type FulfilDeps } from '../sending/fulfil.js';
 import { onWriteGaveUp, runWriteJob, writePayload } from '../sending/write.js';
 import { listPageDeps } from '../leads/listicle.js';
 import { claim, complete, fail, release, requeueStale, type Job, type JobType } from './queue.js';
@@ -31,6 +32,8 @@ export interface RunnerOptions {
   timeoutsMs?: Partial<Record<JobType, number>>;
   /** Jobs running longer than this without finishing are assumed lost and requeued. Above the longest timeout. */
   staleAfterMs?: number;
+  /** What a fulfil job needs to send (sending/fulfil.ts). Left out, fulfil jobs fail: sending is off. */
+  fulfil?: Omit<FulfilDeps, 'sql' | 'ai' | 'log' | 'signal'>;
 }
 
 const DEFAULT_TIMEOUTS: Record<JobType, number> = {
@@ -47,6 +50,8 @@ const DEFAULT_TIMEOUTS: Record<JobType, number> = {
   write: 15 * 60_000,
   // Haiku calls for the crawled companies of one search, 30 to a call.
   fit: 5 * 60_000,
+  // Two or three Claude calls and one SMTP send; a search it waits for is looked at later, not waited on.
+  fulfil: 5 * 60_000,
 };
 
 /**
@@ -60,6 +65,7 @@ export async function onGaveUp(deps: PipelineDeps, job: Job, error: unknown): Pr
   else if (job.type === 'people') await onPeopleGaveUp(deps, job);
   else if (job.type === 'write') await onWriteGaveUp(deps, writePayload(job), error);
   else if (job.type === 'fit') await onFitGaveUp(deps, job);
+  else if (job.type === 'fulfil') await onFulfilGaveUp(deps, job, error);
   else await onVerifyGaveUp(deps, job);
 }
 
@@ -117,6 +123,7 @@ export class Runner {
       people: Math.max(1, Math.floor(n / 4)),
       write: Math.max(1, Math.floor(n / 4)),
       fit: Math.max(1, Math.floor(n / 4)),
+      fulfil: 1,
     };
   }
 
@@ -176,11 +183,11 @@ export class Runner {
   }
 
   private async fill(): Promise<number> {
-    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0, write: 0, fit: 0 };
+    const counts: Record<JobType, number> = { find: 0, crawl: 0, verify: 0, opener: 0, people: 0, write: 0, fit: 0, fulfil: 0 };
     for (const r of this.running.values()) counts[r.job.type]++;
     let claimed = 0;
     // Verify gets its share before crawl takes whatever is left.
-    for (const type of ['find', 'fit', 'verify', 'people', 'opener', 'write', 'crawl'] as const) {
+    for (const type of ['find', 'fit', 'verify', 'people', 'opener', 'write', 'fulfil', 'crawl'] as const) {
       const free = this.opts.concurrency - this.running.size;
       const room = Math.min(free, this.caps[type] - counts[type]);
       if (room <= 0 || this.stopping) continue;
@@ -217,6 +224,12 @@ export class Runner {
     await runWriteJob({ sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log, crawl, signal }, writePayload(job));
   }
 
+  private async fulfil(job: Job, signal: AbortSignal): Promise<void> {
+    if (!this.deps.ai) throw new PermanentError('Claude is not configured for the worker');
+    if (!this.opts.fulfil) throw new PermanentError('sending is off for the worker');
+    await runFulfilJob({ ...this.opts.fulfil, sql: this.deps.sql, ai: this.deps.ai, log: this.deps.log, signal }, job);
+  }
+
   private async execute(job: Job, signal: AbortSignal): Promise<void> {
     const log = this.deps.log.child({ jobId: job.id, type: job.type, attempt: job.attempts });
     try {
@@ -226,6 +239,7 @@ export class Runner {
       else if (job.type === 'people') await runPeople(this.deps, job, signal);
       else if (job.type === 'write') await this.write(job, signal);
       else if (job.type === 'fit') await runFit(this.deps, job, signal);
+      else if (job.type === 'fulfil') await this.fulfil(job, signal);
       else await runVerify(this.deps, job, signal);
       await complete(this.deps.sql, job.id);
       // Now this people job is off the queue, a company that was waiting on it can settle.

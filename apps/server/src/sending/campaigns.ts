@@ -66,6 +66,7 @@ export interface CampaignRow {
   footer: string | null;
   writer: Campaign['writer'];
   signed: boolean;
+  fulfil: Campaign['fulfil'];
   review_until: Date | null;
   leads: number;
   sent: number;
@@ -80,7 +81,7 @@ export interface CampaignRow {
 
 /** The campaigns columns, for a query on `campaigns c`. */
 export const CAMPAIGN_COLUMNS = `c.id, c.clerk_user_id, c.name, c.status, c.source, c.search_id, c.drop_id, c.autopilot,
-  c.people_only, c.named_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.writer, c.signed, c.review_until,
+  c.people_only, c.named_only, c.allow_catch_all, c.per_company, c.daily_new, c.hold_hours, c.steps, c.schedule, c.product, c.footer, c.writer, c.signed, c.fulfil, c.review_until,
   c.leads, c.sent, c.replied, c.bounced, c.opted_out, c.enrolled_at, c.created_at, c.started_at, c.finished_at`;
 
 interface CampaignView extends CampaignRow {
@@ -133,6 +134,7 @@ function toCampaign(r: CampaignView): Campaign {
     footer: r.footer,
     writer: r.writer,
     signed: r.signed,
+    fulfil: r.fulfil,
     mailboxIds: r.mailbox_ids,
     reviewUntil: iso(r.review_until),
     leads: r.leads,
@@ -224,6 +226,7 @@ export async function createCampaign(sql: Sql, userId: string, req: CreateCampai
         footer: req.footer ?? null,
         writer: req.writer ?? 'claude',
         signed: req.signed ?? true,
+        fulfil: req.fulfil ?? null,
         created_at: now,
       })}
       returning ${tx.unsafe(CAMPAIGN_COLUMNS.replace(/\bc\./g, ''))}
@@ -265,6 +268,7 @@ export async function updateCampaign(sql: Sql, userId: string, id: string, req: 
     if (req.product !== undefined) patch.product = req.product ? tx.json(req.product) : null;
     if (req.footer !== undefined) patch.footer = req.footer;
     if (req.signed !== undefined) patch.signed = req.signed;
+    if (req.fulfil !== undefined) patch.fulfil = req.fulfil;
     if (Object.keys(patch).length) await tx`update campaigns set ${tx(patch)} where id = ${id}`;
     if (req.mailboxIds) {
       const ids = await checkMailboxes(tx, userId, req.mailboxIds);

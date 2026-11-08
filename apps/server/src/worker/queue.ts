@@ -8,7 +8,7 @@
 
 import type { Sql, TransactionSql } from 'postgres';
 
-export type JobType = 'find' | 'crawl' | 'verify' | 'opener' | 'people' | 'write' | 'fit';
+export type JobType = 'find' | 'crawl' | 'verify' | 'opener' | 'people' | 'write' | 'fit' | 'fulfil';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled';
 
 export interface FindPayload {
@@ -58,7 +58,11 @@ export interface FitPayload {
   /** Crawled companies of the search waiting for their fit (companies.fit_state 'pending'), scored together. */
   companyIds: string[];
 }
-export type JobPayload = FindPayload | CrawlPayload | VerifyPayload | OpenerPayload | PeoplePayload | WritePayload | FitPayload;
+export interface FulfilPayload {
+  /** The fulfilments row: a yes to a campaign's offer, carried through by sending/fulfil.ts. */
+  fulfilmentId: string;
+}
+export type JobPayload = FindPayload | CrawlPayload | VerifyPayload | OpenerPayload | PeoplePayload | WritePayload | FitPayload | FulfilPayload;
 
 export interface Job {
   /** bigint, kept as a string. */

@@ -8,6 +8,7 @@ import type { Logger } from 'pino';
 import type { Sql, TransactionSql } from 'postgres';
 import type { Secrets } from '../crypto/secrets.js';
 import { classifyMail, type Classified } from './classify.js';
+import { queueFulfil } from './fulfil.js';
 import { authFailed, checkHealth } from './health.js';
 import { checkFailure } from './mailbox-transport.js';
 import { credentialsFor, type MailboxRow } from './mailboxes.js';
@@ -138,12 +139,14 @@ export async function handleMail(tx: Db, mailbox: MailboxRow, mail: IncomingMail
     await delayForAutoReply(tx, lead.id, now);
     return 'autoReplies';
   }
-  await record('reply');
+  const replyId = await record('reply');
   if (kind.optOut) {
     await endLead(tx, lead.id, 'opted_out', now);
     return 'optOuts';
   }
   await endLead(tx, lead.id, 'replied', now);
+  // A campaign that fulfils its offer by itself reads the reply for a yes (fulfil.ts).
+  await queueFulfil(tx, { leadId: lead.id, campaignId: lead.campaign_id, userId: mailbox.clerk_user_id, replyId });
   return 'replies';
 }
 

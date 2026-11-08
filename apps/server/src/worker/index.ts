@@ -49,7 +49,20 @@ if (!env.DATABASE_URL) {
 const sql = getSql();
 let stopping = false;
 const deps = createPipelineDeps(sql, env, log);
-const runner = new Runner(deps, { concurrency: env.WORKER_CONCURRENCY });
+// Sending is internal only (see below): fulfil jobs send only for SENDING_USERS, and only with sending on.
+const sendingOn = Boolean(env.SECRETS_KEY) && env.SENDING_ENABLED && env.SENDING_USERS.length > 0;
+const runner = new Runner(deps, {
+  concurrency: env.WORKER_CONCURRENCY,
+  fulfil: sendingOn
+    ? {
+        secrets: createSecrets(env.SECRETS_KEY!),
+        transport: smtpImapTransport,
+        microsoft: microsoftOAuthFrom(env),
+        publicApiUrl: env.PUBLIC_API_URL,
+        users: env.SENDING_USERS,
+      }
+    : undefined,
+});
 runner.start();
 
 // Never short and ongoing: every 15 seconds, start fresh rounds for plain
@@ -150,7 +163,6 @@ recheckTimer.unref();
 // the work. All off without SECRETS_KEY (no mailbox password can be opened),
 // with SENDING_ENABLED=false or with nobody in SENDING_USERS. Sending is
 // internal only: each tick touches the allowed users' rows and no others.
-const sendingOn = Boolean(env.SECRETS_KEY) && env.SENDING_ENABLED && env.SENDING_USERS.length > 0;
 const sendingTimers: NodeJS.Timeout[] = [];
 // The sending ticks running now: shutdown waits for them, so a send between
 // its claim and its confirm finishes before the database closes.

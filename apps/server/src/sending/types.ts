@@ -29,6 +29,17 @@ export interface OutgoingMail {
   references?: string[];
   /** Extra headers: List-Unsubscribe and List-Unsubscribe-Post. */
   headers: Record<string, string>;
+  /** Files sent with the text, as multipart/mixed. Only a fulfilment reply has any (fulfil.ts). */
+  attachments?: MailAttachment[];
+}
+
+/** One file under the text, for example the CSV of a buyer list. */
+export interface MailAttachment {
+  filename: string;
+  /** The file's text, sent as is. */
+  content: string;
+  /** For example `text/csv; charset=utf-8`. */
+  contentType: string;
 }
 
 export type SendResult =

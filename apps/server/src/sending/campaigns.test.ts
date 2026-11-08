@@ -144,7 +144,7 @@ describe('campaign reads and edits', () => {
     const s = await search(['a.com']);
     const spec = { name: 'Named', source: 'list', searchId: s, mailboxIds: [m], steps: [{ waitDays: 0, brief: 'Hello.' }] };
     const named = await createCampaign(db.sql, 'u1', CreateCampaignRequest.parse({ ...spec, namedOnly: true }), NOW);
-    expect(named).toMatchObject({ namedOnly: true, peopleOnly: true });
+    expect(named).toMatchObject({ namedOnly: true, peopleOnly: true, fulfil: null });
     const plain = await createCampaign(db.sql, 'u1', CreateCampaignRequest.parse({ ...spec, name: 'Plain', searchId: await search(['b.com']) }), NOW);
     expect(plain.namedOnly).toBe(false);
   });
@@ -160,6 +160,9 @@ describe('campaign reads and edits', () => {
     expect(updated!.footer).toBeNull();
     expect(updated!.namedOnly).toBe(false);
     expect(await updateCampaign(db.sql, 'u1', campaign.id, { namedOnly: true })).toMatchObject({ namedOnly: true, peopleOnly: true });
+    expect(updated!.fulfil).toBeNull();
+    expect(await updateCampaign(db.sql, 'u1', campaign.id, { fulfil: 'buyer_list' })).toMatchObject({ fulfil: 'buyer_list' });
+    expect(await updateCampaign(db.sql, 'u1', campaign.id, { fulfil: null })).toMatchObject({ fulfil: null });
     const own = 'Your address is on {domain}. Reply no and I will stop.';
     expect(await updateCampaign(db.sql, 'u1', campaign.id, { footer: own })).toMatchObject({ footer: own });
     expect(await updateCampaign(db.sql, 'u1', campaign.id, { footer: null })).toMatchObject({ footer: null });

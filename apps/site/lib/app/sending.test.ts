@@ -67,6 +67,7 @@ const campaign = (over: Partial<Campaign> = {}): Campaign => ({
   footer: null,
   writer: 'claude',
   signed: true,
+  fulfil: null,
   mailboxIds: ['33333333-3333-4333-8333-333333333333'],
   reviewUntil: null,
   leads: 10,

@@ -166,6 +166,27 @@ describe('send over SMTP', () => {
     expect(parsed).toMatchObject({ messageId: '<0b7a@acme.io>', inReplyTo: '<first@acme.io>', references: ['<first@acme.io>'], from: 'me@acme.io' });
   });
 
+  it('sends a file as multipart/mixed, the text first, threading kept', async () => {
+    const t = transport();
+    const csv = [String.fromCharCode(0xfeff) + 'name,email', 'Anna Berg,anna@clinic.se', ''].join('\r\n');
+    const r = await t.send({ ...mail('ben@beta.io'), attachments: [{ filename: 'buyers.csv', content: csv, contentType: 'text/csv; charset=utf-8' }] });
+    await t.close();
+    expect(r.ok).toBe(true);
+    const raw = received[0]!.raw;
+    expect(raw).toMatch(/^Content-Type: multipart\/mixed/im);
+    expect(raw).toMatch(/^In-Reply-To: <first@acme\.io>/im);
+    expect(raw.indexOf('text/plain')).toBeLessThan(raw.indexOf('text/csv'));
+    expect(raw).toMatch(/filename=buyers\.csv/i);
+    expect(raw).not.toMatch(/text\/html/i);
+
+    const { simpleParser } = await import('mailparser');
+    const parsed = await simpleParser(raw);
+    expect(parsed.text?.trim()).toBe('Hi Ben,\n\nA short note.');
+    expect(parsed.attachments).toHaveLength(1);
+    expect(parsed.attachments[0]!.filename).toBe('buyers.csv');
+    expect(parsed.attachments[0]!.content.toString('utf8')).toContain('Anna Berg,anna@clinic.se');
+  });
+
   it('calls a refused login auth, a 5xx recipient permanent and a 4xx temporary', async () => {
     const bad = transport({ password: 'wrong' });
     expect(await bad.send(mail('ben@beta.io'))).toMatchObject({ ok: false, kind: 'auth' });

@@ -259,6 +259,15 @@ export const CampaignFooter = z
   .max(500)
   .refine((t) => t.includes('{domain}'), { message: 'say where the address was found with {domain}' });
 
+/**
+ * What nvoke does by itself when a lead accepts the campaign's offer.
+ * `buyer_list`: a reply that says yes to the free list gets a search for
+ * the market the first email named and a reply in the thread with the list
+ * as a CSV (sending/fulfil.ts). Null: a reply only ends the sequence.
+ */
+export const CampaignFulfil = z.enum(['buyer_list']);
+export type CampaignFulfil = z.infer<typeof CampaignFulfil>;
+
 export const Campaign = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -283,6 +292,8 @@ export const Campaign = z.object({
   writer: CampaignWriter,
   /** False: no signature under the text (a template signs itself); the footer lines stay. */
   signed: z.boolean(),
+  /** What a yes to the offer starts by itself. Null: nothing. */
+  fulfil: CampaignFulfil.nullable(),
   mailboxIds: z.array(z.uuid()),
   reviewUntil: datetime.nullable(),
   leads: z.number().int().nonnegative(),
@@ -344,6 +355,8 @@ export const CreateCampaignRequest = z
     writer: CampaignWriter.optional(),
     /** False leaves the signature out; the footer lines stay. */
     signed: z.boolean().optional(),
+    /** What a yes to the offer starts by itself. */
+    fulfil: CampaignFulfil.nullable().optional(),
   })
   .superRefine((v, ctx) => {
     for (const p of stepProblems(v.writer ?? 'claude', v.steps)) ctx.addIssue({ code: 'custom', ...p });
@@ -372,6 +385,8 @@ export const UpdateCampaignRequest = z
     footer: CampaignFooter.nullable().optional(),
     /** Applies to emails sent from now on. */
     signed: z.boolean().optional(),
+    /** Applies to replies read from now on. Null switches it off. */
+    fulfil: CampaignFulfil.nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to update' });
 export type UpdateCampaignRequest = z.infer<typeof UpdateCampaignRequest>;
