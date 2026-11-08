@@ -1,0 +1,27 @@
+{
+  "name": "nvoke: a free list of your buyers",
+  "source": "drop",
+  "dropId": "6764ad94-202d-448e-a196-ea86c8d669a5",
+  "mailboxes": ["morten@pradsgaardlabs.com", "morten@trynvoke.com"],
+  "peopleOnly": true,
+  "namedOnly": true,
+  "allowCatchAll": false,
+  "perCompany": 1,
+  "dailyNew": 15,
+  "holdHours": 2,
+  "schedule": {
+    "days": [1, 2, 3, 4, 5],
+    "startHour": 9,
+    "endHour": 17
+  },
+  "steps": [
+    {
+      "waitDays": 0,
+      "brief": "A short personal note from one founder to another who just launched, greeted by first name. Open on their launch or one thing they wrote, with an honest reaction in a sentence (congratulations on the launch is fine). Then the offer in one or two sentences. From their pages, name in plain words who their buyers are: the kind of company and the role that buys, such as owners of independent dental clinics, or heads of operations at small logistics firms. Offer to run nvoke on that market and send them a free list of about 40 of those people by name, each with a work email checked against the company's mail server. Say plainly that the list is free and needs no sign up. It is an offer: never claim the list exists already and never give a number found. No prices, no plans, no feature list, nothing about stale lists or info@ inboxes. Close with one plain yes or no question on its own line, such as whether they would like me to run it. 40 to 80 words."
+    },
+    {
+      "waitDays": 4,
+      "brief": "A short second note in the same thread, by first name: the offer of the free list still stands, from one new angle. Either what one row of the list holds (a named person, their title, a checked work email and the page on that company's own site it came from), or that a one word reply is all it takes. No prices. One plain yes or no question. 20 to 45 words."
+    }
+  ]
+}

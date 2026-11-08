@@ -91,6 +91,22 @@ only for verified, 50 free a month), and the four unsent step 2 emails were
 rewritten by hand (marked edited). The writer's campaign context now says a
 drop is how the leads were found, not something to offer them.
 
+## nvoke: a free list of your buyers (owner, 2026-11-08)
+
+By 2026-11-08 the nvoke campaigns had sent 104 emails (83 B2B outbound
+teams, 21 new launches) for one reply, "Remove". Their pitch (stale lists,
+info@ inboxes, pay per verified email) is the one every lead data tool
+sends. The new campaign shows the product instead: it names who the
+founder's buyers are, from their own pages, and offers a free list of
+about 40 of them by name with checked addresses, for a one word yes.
+Spec: `docs/sending/campaigns/nvoke-free-list.json` (da5fb264), on the
+drop "New B2B launches", named only, two steps, no prices. It replaces
+"nvoke: new launches", now paused.
+
+A yes is fulfilled by hand: run a search for the market the email named
+(it is in the sent email) and reply with the list as CSV. That costs
+about 40 verified emails, or 80 for a Sonar search, of the owner's quota.
+
 ## Owner decisions, 2026-10-20 (earlier the same day)
 
 - **First goal: nvoke sells nvoke.** Ongoing searches and drops find
