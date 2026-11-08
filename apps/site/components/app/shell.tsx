@@ -167,15 +167,15 @@ function LiveSearch({ path }: { path: string }) {
   return (
     <Link
       href={`/app/searches/${current.id}`}
-      className="hidden h-7 min-w-0 items-center gap-2.5 rounded-[3px] px-1.5 outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60 lg:flex"
+      title={searchTitle(current)}
+      className="hidden h-7 min-w-0 items-center gap-2.5 overflow-hidden rounded-[3px] px-1.5 outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60 lg:flex"
     >
-      <span className="led led-on motion-safe:animate-blink" />
-      <span className="cap max-w-48 truncate" title={searchTitle(current)}>
-        {searchTitle(current)}
-      </span>
-      <LedMeter lit={litSegments(Math.max(done, 4))} className="w-16 shrink-0" />
+      <span className="led led-on shrink-0 motion-safe:animate-blink" />
+      <span className="cap min-w-0 max-w-48 truncate">{searchTitle(current)}</span>
+      <LedMeter lit={litSegments(Math.max(done, 4))} className="w-16 shrink-0 max-xl:hidden" />
       <span className="cap shrink-0 tabular-nums text-muted-foreground">
-        {formatNumber(current.emailsFound)} emails{live.length > 1 && ` · ${live.length - 1} more`}
+        {formatNumber(current.emailsFound)} emails
+        {live.length > 1 && <span className="max-xl:hidden">{` · ${live.length - 1} more`}</span>}
       </span>
     </Link>
   );
